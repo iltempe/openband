@@ -5,6 +5,7 @@ import * as Tone from 'tone';
 import type { CustomInstrument, TrackKind } from '../types';
 import { cutoffToHz } from '../music';
 import { AudioTrackInput, SampleInstrument } from './sampler';
+import { WamInstrument } from './wam';
 
 export interface InstrumentPreset {
   id: string;
@@ -56,7 +57,7 @@ export function findInstrument(id: string): InstrumentInfo | undefined {
   const preset = presetById(id);
   if (preset) return preset;
   const c = customs.get(id);
-  if (c) return { id: c.id, name: c.name, kind: c.kind, category: 'Imported', description: c.source === 'soundfont' ? 'SoundFont' : 'Sampler', cutoff: 1, custom: c };
+  if (c) return { id: c.id, name: c.name, kind: c.kind, category: c.source === 'wam' ? 'Plugins' : 'Imported', description: c.source === 'soundfont' ? 'SoundFont' : c.source === 'wam' ? 'WAM plugin' : 'Sampler', cutoff: 1, custom: c };
   if (id === AUDIO_INPUT) return { id, name: 'Audio', kind: 'audio', category: 'Audio', description: 'Audio track', cutoff: 1 };
   return undefined;
 }
@@ -336,8 +337,10 @@ class DrumKit implements Instrument {
   }
 }
 
-export function createInstrument(presetId: string, custom = customs.get(presetId)): Instrument {
+/** key (trackId:instrument) registers a live plugin instance for its GUI and MCP. */
+export function createInstrument(presetId: string, custom = customs.get(presetId), key?: string): Instrument {
   if (presetId === AUDIO_INPUT) return new AudioTrackInput();
+  if (custom?.source === 'wam' && custom.wam) return new WamInstrument(custom.wam.url, custom.wam.state, key);
   if (custom) return new SampleInstrument(custom);
   const preset = presetById(presetId);
   if (preset?.kind === 'drums') return new DrumKit(presetId);

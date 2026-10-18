@@ -2092,13 +2092,13 @@ kbd {
   height: 100%;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 0 24px;
+  gap: 12px;
+  padding: 0 18px;
   overflow-x: auto;
   background: radial-gradient(ellipse at 10% 50%, color-mix(in srgb, var(--track) 10%, transparent), transparent 60%);
 }
 .fx-track {
-  width: 170px;
+  width: 130px;
   flex: none;
 }
 .fx-track-name {
@@ -2111,7 +2111,7 @@ kbd {
 }
 .fx-unit {
   flex: none;
-  padding: 12px 16px 14px;
+  padding: 10px 12px 12px;
   border-radius: 16px;
   background: linear-gradient(180deg, var(--panel-2), var(--panel));
   box-shadow: inset 0 0 0 1px var(--line-2), 0 10px 30px rgba(0, 0, 0, 0.3);
@@ -2155,7 +2155,7 @@ kbd {
 }
 .fx-knobs {
   display: flex;
-  gap: 12px;
+  gap: 6px;
 }
 .gr-meter {
   margin-left: auto;
@@ -2261,4 +2261,154 @@ kbd {
 .ms.auto.on {
   background: var(--track);
   color: #111;
+}
+
+/* ---------- plugins (WAM) ---------- */
+.lib-import-grid .plug-btn {
+  grid-column: span 2;
+  justify-content: center;
+  color: #22d3ee;
+}
+.plugin-browser {
+  width: min(680px, 100%);
+}
+.plug-filters {
+  display: flex;
+  gap: 6px;
+  padding: 0 16px 10px;
+}
+.chip.on {
+  background: var(--accent);
+  color: #fff;
+}
+.plug-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 9px;
+}
+.plug-item:hover {
+  background: var(--panel-3);
+}
+.plug-thumb {
+  width: 84px;
+  height: 42px;
+  flex: none;
+  border-radius: 6px;
+  background: var(--panel-3) center / cover no-repeat;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.plug-text {
+  flex: 1;
+  min-width: 0;
+}
+.plug-name {
+  font-weight: 600;
+}
+.plug-kind {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--panel-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.plug-desc {
+  color: var(--dim);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.plug-url {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px 0;
+  border-top: 1px solid var(--line);
+}
+.plug-url input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 9px;
+  border-radius: 7px;
+  border: 1px solid var(--line-2);
+  background: var(--panel-3);
+  outline: none;
+}
+.plugin-window {
+  position: fixed;
+  z-index: 150;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--panel-2);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), inset 0 0 0 1px color-mix(in srgb, var(--track) 50%, var(--line-2));
+}
+.plugin-window-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  cursor: move;
+  color: var(--track);
+  background: var(--panel-3);
+  user-select: none;
+}
+.plugin-window-title {
+  font-weight: 700;
+  color: var(--text);
+}
+.plugin-window-sub {
+  flex: 1;
+  color: var(--dim);
+  font-size: 11.5px;
+}
+.plugin-window-body {
+  overflow: auto;
+  min-width: 260px;
+  min-height: 80px;
+  background: #fff;
+  color: #111;
+}
+.plugin-window-body > .ai-log-empty,
+.plugin-window-body > .wave-missing {
+  padding: 16px;
+  background: var(--panel-2);
+}
+.plug-slots {
+  min-width: 210px;
+}
+.plug-slot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.plug-slot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.plug-slot-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plug-empty {
+  max-width: 200px;
+  color: var(--dim);
+  font-size: 11.5px;
+}
+.fx-unit-head .mini {
+  margin-left: auto;
 }

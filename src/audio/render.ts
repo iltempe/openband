@@ -16,7 +16,14 @@ export async function renderProject(p: Project): Promise<Blob> {
   const anySolo = p.tracks.some((t) => t.solo);
   await ensureSamples(projectSampleIds(p));
 
-  const buffer = await Tone.Offline(({ transport }) => {
+  // Like Tone.Offline, but on a native OfflineAudioContext (WAM plugins need one) and waiting for
+  // plugins to load before rendering.
+  const ctx = new Tone.OfflineContext(new OfflineAudioContext(2, Math.ceil(seconds * 44100), 44100));
+  const loading: Promise<unknown>[] = [];
+  const live = Tone.getContext();
+  Tone.setContext(ctx);
+  try {
+    const transport = ctx.transport;
     transport.bpm.value = p.bpm;
     const PPQ = transport.PPQ;
     const master = new Tone.Gain(dbToGain(faderToDb(p.masterVolume))).toDestination();
@@ -28,8 +35,10 @@ export async function renderProject(p: Project): Promise<Blob> {
       const inst = createInstrument(track.instrument, p.instruments?.find((c) => c.id === track.instrument));
       inst.setCutoff(track.cutoff);
       const ch = new Tone.Channel({ volume: faderToDb(track.volume), pan: track.pan }).connect(master);
+      if ('ready' in inst) loading.push((inst as { ready: Promise<void> }).ready);
       const fx = new FxChain();
       fx.update(track.fx);
+      loading.push(fx.ready);
       inst.output.connect(fx.input);
       fx.output.connect(ch);
       const revSend = new Tone.Gain(dbToGain(sendToDb(track.reverb))).connect(reverb);
@@ -70,7 +79,26 @@ export async function renderProject(p: Project): Promise<Blob> {
       }
     }
     transport.start(0);
-  }, seconds, 2, 44100);
+  } finally {
+    Tone.setContext(live);
+  }
+  await Promise.all(loading);
+  // Some WAM instruments keep MIDI events in a main-thread queue that is drained as audio time
+  // advances, which never happens while an offline context renders in one go. Pause every 20 ms
+  // of audio and yield to the main thread so those queues keep up.
+  if (p.instruments?.some((c) => c.source === 'wam' && p.tracks.some((t) => t.instrument === c.id))) {
+    const raw = ctx.rawContext as unknown as OfflineAudioContext;
+    const step = 0.02;
+    const pause = (at: number) =>
+      raw.suspend(at).then(() =>
+        setTimeout(() => {
+          if (at + step < seconds) void pause(+(at + step).toFixed(6));
+          void raw.resume();
+        }, 0),
+      );
+    void pause(step);
+  }
+  const buffer = await ctx.render();
 
   return encodeWav(buffer.get() as AudioBuffer);
 }

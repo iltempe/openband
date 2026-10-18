@@ -129,7 +129,8 @@ Prefer few, musically complete calls (e.g. a whole 4-bar melody in one add_regio
 Imported sounds: import_sample loads an audio file (local path or URL) and returns a sample_id. Use it to build instruments with create_sampler_instrument (melodic sampler or drum kit), or put it on the timeline with add_audio_region (audio tracks). import_soundfont lists the presets of a .sf2 file, then imports one as an instrument. Imported instruments get ids like "usr_..." that work in add_track / update_track.
 
 Mixing: set_track_effects adds an amp sim, 3-band EQ and compressor to a track; set_automation draws curves for volume, pan, tone, reverb or echo over time (e.g. fades, filter sweeps, auto-pan).
-Files: export_wav and export_midi download in the browser, or write to disk with save_to; import_midi turns a .mid file into tracks.`;
+Files: export_wav and export_midi download in the browser, or write to disk with save_to; import_midi turns a .mid file into tracks.
+Plugins: Web Audio Modules (WAM 2.0) instruments and effects. When the user describes a sound or effect in words, call add_plugin with that description (or search_plugins first to compare options); then get_plugin_params / set_plugin_params to dial it in.`;
 
 const server = new McpServer({ name: 'openband', version: '0.1.0' }, { instructions: INSTRUCTIONS });
 
@@ -410,6 +411,58 @@ exportTool('export_wav', 'Render the whole song offline (instruments, imported s
 exportTool('export_midi', 'Export the song as a Standard MIDI File (format 1): one track per instrument/drum track with General MIDI programs, drums on channel 10. Audio tracks are not included.');
 fileTool('import_midi', 'Import a MIDI file (.mid): each part becomes a track with the closest OpenBand instrument (channel 10 → drums). Adds to the current song unless replace is true; the song tempo is used when the project is empty or replaced.', {
   replace: z.boolean().optional(),
+});
+
+// ---- WAM plugins (Web Audio Modules 2.0, the web's open plugin standard)
+
+tool('list_plugins', 'List the Web Audio Module plugins available from the community collection: id, name, vendor, kind (instrument/effect), description.', {
+  kind: z.enum(['instrument', 'effect']).optional(),
+}, { ...readOnly, timeout: 30000 });
+
+tool('search_plugins', 'Find WAM plugins from a plain-language description in English or Italian (e.g. "warm tube overdrive for guitar", "riverbero ampio e scuro", "monophonic analog synth"). Returns ranked matches with a score.', {
+  description: z.string(),
+  kind: z.enum(['instrument', 'effect']).optional(),
+}, { ...readOnly, timeout: 30000 });
+
+tool(
+  'add_plugin',
+  'Add a WAM plugin by simply describing it (or by id/URL via plugin). The best match is added: instruments get a new track (or replace the instrument of track_id), effects are appended to track_id (or the selected track) after Amp → EQ → Compressor. Returns what was added plus alternatives.',
+  {
+    description: z.string().optional().describe('What you want, in words, e.g. "a shimmering ambient reverb"'),
+    plugin: z.string().optional().describe('Exact plugin id, name or index.js URL instead of a description'),
+    track_id: z.string().optional(),
+    kind: z.enum(['instrument', 'effect']).optional(),
+  },
+  { timeout: 60000 },
+);
+
+tool('add_plugin_instrument', 'Load a WAM instrument plugin (id, name or index.js URL). Creates a track, or replaces the instrument of track_id. Returns instrument_id and track_id.', {
+  plugin: z.string(),
+  track_id: z.string().optional(),
+}, { timeout: 60000 });
+
+tool('add_plugin_effect', 'Append a WAM effect plugin (id, name or index.js URL) to a track\'s effect chain. Returns slot_id.', {
+  track_id: z.string(),
+  plugin: z.string(),
+}, { timeout: 60000 });
+
+tool('remove_plugin_effect', 'Remove a WAM effect from a track.', { track_id: z.string(), slot_id: z.string() });
+tool('set_plugin_bypass', 'Turn a WAM effect on or off without removing it.', { track_id: z.string(), slot_id: z.string(), on: z.boolean() });
+
+tool('get_plugin_params', 'List the parameters of a loaded plugin (id, label, value, range, units, choices). Omit slot_id for the track\'s plugin instrument.', {
+  track_id: z.string(),
+  slot_id: z.string().optional(),
+}, { ...readOnly, timeout: 30000 });
+
+tool('set_plugin_params', 'Set parameters of a loaded plugin: values maps parameter id (or label) to a value in the parameter\'s own range. Omit slot_id for the plugin instrument.', {
+  track_id: z.string(),
+  slot_id: z.string().optional(),
+  values: z.record(z.string(), z.number()),
+}, { timeout: 30000 });
+
+tool('show_plugin', 'Open the plugin\'s own window in the studio so the user can see and tweak it. Omit slot_id for the plugin instrument.', {
+  track_id: z.string(),
+  slot_id: z.string().optional(),
 });
 
 // ---- imported sounds

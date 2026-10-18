@@ -154,7 +154,8 @@ class AudioEngine {
     let node = this.nodes.get(track.id);
     // Imported instruments are rebuilt when their definition (zones, envelope) changes.
     const custom = customById(track.instrument);
-    const signature = custom ? `${track.instrument}:${JSON.stringify(custom)}` : track.instrument;
+    // Plugin state changes all the time while it's being played with: only its URL forces a reload.
+    const signature = custom ? `${track.instrument}:${custom.source === 'wam' ? custom.wam?.url : JSON.stringify(custom)}` : track.instrument;
     if (!node) {
       const channel = new Tone.Channel().connect(this.master);
       const meter = new Tone.Meter({ smoothing: 0.8 });
@@ -163,9 +164,9 @@ class AudioEngine {
       const delaySend = new Tone.Gain(0).connect(this.delay);
       channel.connect(reverbSend);
       channel.connect(delaySend);
-      const fx = new FxChain();
+      const fx = new FxChain(track.id);
       fx.output.connect(channel);
-      const instrument = createInstrument(track.instrument);
+      const instrument = createInstrument(track.instrument, undefined, `${track.id}:instrument`);
       instrument.output.connect(fx.input);
       node = { presetId: signature, instrument, fx, fxSignature: '', channel, meter, reverbSend, delaySend };
       this.nodes.set(track.id, node);
@@ -173,7 +174,7 @@ class AudioEngine {
       node.instrument.releaseAll();
       const old = node.instrument;
       setTimeout(() => old.dispose(), 1500);
-      node.instrument = createInstrument(track.instrument);
+      node.instrument = createInstrument(track.instrument, undefined, `${track.id}:instrument`);
       node.instrument.output.connect(node.fx.input);
       node.presetId = signature;
     }

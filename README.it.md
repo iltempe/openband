@@ -21,19 +21,22 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 - **Smart Controls**: volume, pan, brillantezza (filtro), riverbero ed eco per traccia.
 - **Effetti per traccia**: simulatore di amplificatore (gain, tono del cabinet, livello), EQ a 3 bande con medi regolabili e compressore con misuratore di riduzione.
 - **Automazioni** di volume, pan, brillantezza, riverbero ed eco: disegni le curve in una corsia sotto ogni traccia.
+- **Plugin (Web Audio Modules 2.0)**, lo standard aperto dei plugin per il web: sfoglia la raccolta della community con synth, drum machine, amplificatori, pedali e riverberi, oppure carica qualsiasi WAM da un URL. I plugin strumento suonano il tuo MIDI, i plugin effetto vanno nella catena di ogni traccia, le loro finestre si aprono dentro lo studio e le impostazioni si salvano con il progetto e finiscono nell'export WAV.
 - **Mixer** con misuratori di livello, fader, mute e solo, mandate e master.
 - **Tastiera musicale** (tasti A–' come un pianoforte, Z/X per l'ottava, C/V per la velocity) e **Web MIDI** per i controller esterni.
 - **Registrazione** dal vivo in nuove regioni, con metronomo.
 - **Import ed export MIDI** (Standard MIDI File, programmi General MIDI, batteria sul canale 10).
 - **Annulla/ripristina**, salvataggio automatico, **esportazione WAV** con rendering offline; i progetti con suoni importati si salvano in un unico file `.openband` che contiene i campioni.
-- **Controllo AI via MCP**: 42 strumenti per comporre, arrangiare, importare suoni, mixare, automatizzare ed esportare.
+- **Controllo AI via MCP**: 52 strumenti per comporre, arrangiare, importare suoni, aggiungere plugin, mixare, automatizzare ed esportare: l'AI può aggiungere un plugin solo a partire da una descrizione come *“un overdrive valvolare caldo”*.
 - Interfaccia in **inglese e italiano**: l'inglese è predefinito, si cambia dalla schermata iniziale o dal menu ⋯.
 
 | Piano roll | Mixer |
 |---|---|
 | ![Piano roll](docs/editor.png) | ![Mixer con effetti su due tracce](docs/mixer.png) |
 | **Effetti** | **Traccia audio** |
-| ![Amp, EQ e compressore sul basso](docs/effects.png) | ![Clip audio con forma d'onda](docs/audio.png) |
+| ![Amp, EQ, compressore e un riverbero WAM sul basso](docs/effects.png) | ![Clip audio con forma d'onda](docs/audio.png) |
+| **Finestra di un plugin WAM** | **Browser dei plugin** |
+| ![Plugin WAM Synth-101](docs/plugins.png) | ![Ricerca dei plugin a parole](docs/plugin-browser.png) |
 
 > Nella demo online l'AI non può collegarsi: per motivi di sicurezza il server MCP accetta solo pagine servite da localhost. Per farla suonare alla tua AI, avvia OpenBand in locale come spiegato qui sotto.
 
@@ -59,6 +62,7 @@ Al primo avvio si apre un brano demo. Il clic su “Entra nello studio” (“En
 - **Effetti**: seleziona una traccia e premi **F** (o clicca *FX* su un canale del mixer). Ogni unità ha il suo pulsante di accensione.
 - **Automazioni**: clicca **A** su una traccia per aprirne la corsia, scegli il parametro, clicca per aggiungere punti, trascinali per spostarli, doppio clic per eliminarli.
 - **MIDI**: *Importa MIDI…* / *Esporta MIDI* nel menu ⋯, oppure trascina un file `.mid` nello studio.
+- **Plugin**: clicca *Plugin* nella libreria e descrivi cosa ti serve (*“riverbero ampio e scuro”*, *“monophonic synth”*) o filtra per strumenti/effetti; gli strumenti hanno una loro traccia, gli effetti si aggiungono alla traccia selezionata (anche da *+ Plugin* nel pannello Effetti). *Modifica* apre la finestra del plugin. I plugin arrivano dalla [raccolta WAM della community](https://github.com/boourns/wam-community) e serve una connessione internet la prima volta che si caricano.
 
 ## Collegare un'AI (MCP)
 
@@ -94,6 +98,8 @@ Poi apri lo studio (`npm run dev`, oppure lascia che l'AI chiami `open_studio` d
 
 > Crea un beat lo-fi a 82 BPM in Re minore con batteria, basso e Rhodes, poi fai partire il loop.
 
+> Aggiungi un overdrive valvolare caldo al basso e un riverbero ampio al pad, poi apri l'overdrive così lo regolo.
+
 > Importa ~/Samples/voce.wav come traccia audio alla battuta 5, metti un compressore sul basso, fai entrare il pad in dissolvenza in due battute e salva il brano come ~/Desktop/brano.wav e brano.mid.
 
 Variabili d'ambiente: `OPENBAND_PORT` (predefinita 7777; se la cambi, apri l'app con `?mcp=<porta>`) e `OPENBAND_DEV_URL` (predefinita `http://localhost:5173`).
@@ -108,6 +114,7 @@ Il bridge accetta connessioni solo da `127.0.0.1` e da pagine servite su localho
 | Tracce | `add_track` (strumento, batteria o audio), `update_track` (strumento, volume, pan, mute, solo, riverbero, eco, tono), `delete_track` |
 | Suoni | `import_sample`, `list_samples`, `create_sampler_instrument`, `import_soundfont`, `add_audio_region` — i file si leggono da un percorso locale o da un URL http(s) |
 | Mix | `set_track_effects` (amp, EQ, compressore), `set_automation`, `clear_automation` |
+| Plugin | `add_plugin` (da una descrizione a parole), `search_plugins`, `list_plugins`, `add_plugin_instrument`, `add_plugin_effect`, `remove_plugin_effect`, `set_plugin_bypass`, `get_plugin_params`, `set_plugin_params`, `show_plugin` |
 | File | `export_wav`, `export_midi` (con `save_to` per salvarli in un percorso), `import_midi` |
 | Regioni | `add_region`, `update_region`, `delete_region`, `duplicate_region`, `open_editor` |
 | Note | `get_region_notes`, `add_notes`, `remove_notes`, `transpose_region`, `quantize_region` |
@@ -144,7 +151,10 @@ src/
   audio/samples.ts        audio importato (IndexedDB), forme d'onda, riconoscimento della nota
   audio/sampler.ts        strumenti a campioni (campionatore, kit, preset SoundFont)
   audio/soundfont.ts      lettore SoundFont 2
-  audio/fx.ts             effetti per traccia (amp, EQ, compressore)
+  audio/fx.ts             effetti per traccia (amp, EQ, compressore, slot plugin)
+  audio/wam.ts            host Web Audio Modules (catalogo, caricamento, strumenti, effetti)
+  audio/context.ts        AudioContext nativo per Tone.js (richiesto dai WAM)
+  plugins.ts              ricerca dei plugin a parole, parametri, stato salvato
   automation.ts           curve di automazione
   midi.ts                 lettura/scrittura file MIDI, mappatura General MIDI
   importers.ts            import dei suoni, file .openband
@@ -155,7 +165,6 @@ server/mcp-server.mjs     server MCP (stdio) + bridge WebSocket + file statici
 ## Roadmap
 
 - Registrazione audio da microfono o scheda audio per chitarra
-- Supporto ai plugin Web Audio Modules (WAM 2.0), l'equivalente web dei VST
 - App desktop con Tauri o Electron che ospiti plugin VST/AU nativi
 - “Drummer” generativo e libreria di loop con licenza libera (CC0)
 - Automazione dei parametri degli effetti; time-stretch delle clip audio

@@ -8,6 +8,8 @@ import { normalizeFx } from './audio/fx';
 import { AUTO_PARAMS, autoParam, sortPoints } from './automation';
 import type { AutoParam } from './types';
 import { presetForProgram, readMidi, writeMidi, type MidiSong } from './midi';
+import { addPluginEffect, addPluginInstrument, captureWamStates, getPluginParams, removePluginEffect, searchPlugins, setPluginParams, updateSlot } from './plugins';
+import { wamCatalog } from './audio/wam';
 import { addAudioRegion, guessDrumPads, instrumentFromSoundFont, openSoundFont, rootFor, spreadZones } from './importers';
 import { emptyProject, getRegion, getTrack, makeTrack, projectEnd, useStore } from './store';
 import { engine } from './audio/engine';
@@ -651,11 +653,69 @@ export const commands: Record<string, (args: P) => unknown> = {
   },
 
   export_wav: async ({ return_data }) => {
+    await captureWamStates();
     const p = st().project;
     const blob = await renderProject(p);
     if (return_data) return { bytes: blob.size, filename: `${safeName(p.name)}.wav`, data_base64: toBase64(new Uint8Array(await blob.arrayBuffer())) };
     download(blob, `${safeName(p.name)}.wav`);
     return { exported: true, bytes: blob.size, note: 'The WAV was downloaded by the browser.' };
+  },
+
+  // ---------- WAM plugins ----------
+
+  list_plugins: async ({ kind }) => ({
+    plugins: (await wamCatalog())
+      .filter((p) => !kind || p.kind === kind)
+      .map((p) => ({ id: p.identifier, name: p.name, vendor: p.vendor, kind: p.kind, description: p.description.slice(0, 160) })),
+  }),
+
+  search_plugins: async ({ description, kind }) => ({
+    matches: (await searchPlugins(String(description), kind)).map((p) => ({ id: p.identifier, name: p.name, kind: p.kind, score: p.score, description: p.description.slice(0, 160) })),
+  }),
+
+  add_plugin: async ({ description, plugin, track_id, kind }) => {
+    let ref = plugin as string | undefined;
+    let alternatives: { id: string; name: string; kind: string }[] = [];
+    if (!ref) {
+      const found = await searchPlugins(String(description ?? ''), kind);
+      if (!found.length) throw new Error(`No plugin matches "${description}". Call list_plugins to see them all.`);
+      ref = found[0].identifier;
+      alternatives = found.slice(1, 4).map((p) => ({ id: p.identifier, name: p.name, kind: p.kind }));
+    }
+    const target = track_id ? requireTrack(st().project, track_id) : getTrack(st().project, st().selectedTrackId);
+    const entry = (await wamCatalog()).find((p) => p.identifier === ref || p.url === ref);
+    const isInstrument = entry ? entry.kind === 'instrument' : kind === 'instrument';
+    const added = isInstrument
+      ? await addPluginInstrument(ref, target?.kind === 'instrument' && track_id ? target.id : undefined)
+      : await (async () => {
+          if (!target) throw new Error('Effects need a track: pass track_id');
+          return addPluginEffect(target.id, ref!);
+        })();
+    return { added_as: isInstrument ? 'instrument' : 'effect', ...added, ...(alternatives.length ? { alternatives } : {}) };
+  },
+
+  add_plugin_instrument: ({ plugin, track_id }) => addPluginInstrument(String(plugin), track_id ? requireTrack(st().project, track_id).id : undefined),
+
+  add_plugin_effect: ({ track_id, plugin }) => addPluginEffect(requireTrack(st().project, track_id).id, String(plugin)),
+
+  remove_plugin_effect: ({ track_id, slot_id }) => {
+    removePluginEffect(requireTrack(st().project, track_id).id, String(slot_id));
+    return { removed: slot_id };
+  },
+
+  set_plugin_bypass: ({ track_id, slot_id, on }) => {
+    updateSlot(requireTrack(st().project, track_id).id, String(slot_id), (s) => void (s.on = !!on));
+    return { slot_id, on: !!on };
+  },
+
+  get_plugin_params: async ({ track_id, slot_id }) => ({ params: await getPluginParams(requireTrack(st().project, track_id).id, slot_id) }),
+
+  set_plugin_params: async ({ track_id, slot_id, values }) => ({ updated: await setPluginParams(requireTrack(st().project, track_id).id, slot_id, values ?? {}) }),
+
+  show_plugin: ({ track_id, slot_id }) => {
+    const t = requireTrack(st().project, track_id);
+    st().set({ pluginWindow: { trackId: t.id, slotId: slot_id ?? null } });
+    return { shown: true };
   },
 
   export_midi: ({ return_data }) => {

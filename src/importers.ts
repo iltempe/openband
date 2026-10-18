@@ -7,6 +7,7 @@ import { getTrack, makeTrack, projectSampleIds, useStore } from './store';
 import { detectPitch, encodeMonoWav, ensureSamples, getStoredSample, importSample, pitchFromName, type SampleInfo } from './audio/samples';
 import { SoundFont } from './audio/soundfont';
 import { download } from './audio/render';
+import { captureWamStates } from './plugins';
 
 const st = () => useStore.getState();
 
@@ -175,7 +176,10 @@ export async function importAudioFiles(files: InputFile[], opts: { trackId?: str
 export const hasSamples = (p: Project) => projectSampleIds(p).length > 0;
 
 /** Save as plain JSON, or as a .openband zip when the project uses imported sounds. */
-export async function saveProject(p: Project) {
+export async function saveProject() {
+  // Plugin states live inside the plugins until captured.
+  await captureWamStates();
+  const p = useStore.getState().project;
   const safe = p.name.replace(/[^\w\- ]+/g, '').trim() || 'openband';
   if (!hasSamples(p)) {
     download(new Blob([JSON.stringify(p, null, 2)], { type: 'application/json' }), `${safe}.openband.json`);

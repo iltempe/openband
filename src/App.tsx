@@ -15,6 +15,7 @@ import { MusicalTyping } from './components/MusicalTyping';
 import { Effects } from './components/Effects';
 import * as I from './components/Icons';
 import { SoundFontDialog, handleDroppedFiles } from './components/ImportUI';
+import { PluginBrowser, PluginWindow } from './components/Plugins';
 import { LANGS, setLang, useLang, useT } from './i18n';
 
 function useShortcuts() {
@@ -248,6 +249,8 @@ export function App() {
       </div>
       {s.keyboardOpen && <MusicalTyping />}
       <SoundFontDialog />
+      <PluginBrowser />
+      <PluginWindow />
       {s.toast && <div className="toast">{s.toast}</div>}
       {s.isRecording && <div className="rec-glow" />}
       {!s.audioReady && <Splash />}

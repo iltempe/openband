@@ -8,6 +8,7 @@ import { useFrame } from '../hooks';
 import { useT } from '../i18n';
 import { Knob } from './Knob';
 import * as I from './Icons';
+import { PluginSlots } from './Plugins';
 
 export function Effects() {
   const project = useStore((s) => s.project);
@@ -60,7 +61,7 @@ function TrackEffects({ track }: { track: Track }) {
       tr.fx = normalizeFx(tr.fx);
       fn(tr.fx);
     }, { history });
-  const k = { size: 46, onStart: checkpoint };
+  const k = { size: 40, onStart: checkpoint };
   const db = (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`;
 
   return (
@@ -68,7 +69,7 @@ function TrackEffects({ track }: { track: Track }) {
       <div className="fx-track">
         <div className="smart-kicker">{t('fx.title')}</div>
         <div className="fx-track-name">{track.name}</div>
-        <div className="smart-desc">{t('fx.chain')}</div>
+        <div className="smart-desc">{t('fx.chainPlugins')}</div>
       </div>
       <Unit title={t('fx.amp')} on={fx.amp.on} onToggle={() => update((f) => void (f.amp.on = !f.amp.on), true)}>
         <Knob {...k} label={t('fx.drive')} value={fx.amp.drive} defaultValue={0.45} color="#fb923c" onChange={(v) => update((f) => void (f.amp.drive = v))} format={(v) => `${Math.round(v * 100)}%`} />
@@ -99,6 +100,7 @@ function TrackEffects({ track }: { track: Track }) {
         <Knob {...k} label={t('fx.release')} value={fx.comp.release} min={0.02} max={1} defaultValue={0.18} onChange={(v) => update((f) => void (f.comp.release = v))} format={(v) => `${Math.round(v * 1000)} ms`} />
         <Knob {...k} label={t('fx.makeup')} value={fx.comp.makeup} min={0} max={24} defaultValue={4} color="#22d3ee" onChange={(v) => update((f) => void (f.comp.makeup = v))} format={(v) => `+${v.toFixed(1)} dB`} />
       </Unit>
+      <PluginSlots track={track} />
     </div>
   );
 }

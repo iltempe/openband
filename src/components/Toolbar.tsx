@@ -138,7 +138,7 @@ function ProjectMenu() {
             <button onClick={() => (close(), commands.new_project({}))}>{t('menu.new')}</button>
             <button onClick={() => (close(), loadDemo())}>{t('menu.demo')}</button>
             <hr />
-            <button onClick={() => (close(), void saveProject(s.project))}>{t('menu.save')}</button>
+            <button onClick={() => (close(), void saveProject())}>{t('menu.save')}</button>
             <button onClick={() => (close(), fileRef.current?.click())}>{t('menu.open')}</button>
             <hr />
             <button onClick={() => (close(), void importAudioFlow())}>{t('menu.importAudio')}</button>

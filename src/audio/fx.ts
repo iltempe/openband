@@ -2,6 +2,7 @@
 // of the signal path entirely, so a track without effects sounds exactly as before.
 import * as Tone from 'tone';
 import type { TrackFx } from '../types';
+import { WamEffect } from './wam';
 
 export const defaultFx = (): TrackFx => ({
   amp: { on: false, drive: 0.45, tone: 0.55, level: 0.7 },
@@ -12,7 +13,7 @@ export const defaultFx = (): TrackFx => ({
 /** Fill in any missing section, e.g. for projects saved before a parameter existed. */
 export function normalizeFx(fx?: Partial<TrackFx>): TrackFx {
   const d = defaultFx();
-  return { amp: { ...d.amp, ...fx?.amp }, eq: { ...d.eq, ...fx?.eq }, comp: { ...d.comp, ...fx?.comp } };
+  return { amp: { ...d.amp, ...fx?.amp }, eq: { ...d.eq, ...fx?.eq }, comp: { ...d.comp, ...fx?.comp }, plugins: fx?.plugins ?? [] };
 }
 
 const dbToGain = (db: number) => Math.pow(10, db / 20);
@@ -53,24 +54,48 @@ export class FxChain {
   private comp = new Tone.Compressor({ threshold: -18, ratio: 4, attack: 0.01, release: 0.18, knee: 6 });
   private makeup = new Tone.Gain(1);
   private routing = '';
+  private plugins = new Map<string, WamEffect>();
 
-  constructor() {
+  /** keyPrefix (the track id) registers live plugin instances for their GUI and MCP. */
+  constructor(private keyPrefix?: string) {
     this.comp.connect(this.makeup);
+  }
+
+  /** Resolves when every plugin in the chain has loaded (or failed). */
+  get ready() {
+    return Promise.all([...this.plugins.values()].map((p) => p.ready)).then(() => undefined);
   }
 
   update(raw?: TrackFx) {
     const fx = normalizeFx(raw);
-    const routing = `${fx.amp.on}${fx.eq.on}${fx.comp.on}`;
+    const slots = fx.plugins ?? [];
+    // Plugin instances: create new slots (with their saved state), drop removed ones.
+    for (const [id, p] of this.plugins) {
+      if (!slots.some((s) => s.id === id && s.url === p.url)) {
+        p.dispose();
+        this.plugins.delete(id);
+      }
+    }
+    for (const s of slots) {
+      if (!this.plugins.has(s.id)) this.plugins.set(s.id, new WamEffect(s.url, s.state, this.keyPrefix && `${this.keyPrefix}:${s.id}`));
+      this.plugins.get(s.id)!.setBypass(!s.on);
+    }
+    const routing = `${fx.amp.on}${fx.eq.on}${fx.comp.on}|${slots.map((s) => s.id).join(',')}`;
     if (routing !== this.routing) {
       this.routing = routing;
       this.input.disconnect();
       this.amp.output.disconnect();
       this.eq.disconnect();
       this.makeup.disconnect();
+      this.plugins.forEach((p) => p.output.disconnect());
       const stages: { in: Tone.InputNode; out: Tone.ToneAudioNode }[] = [];
       if (fx.amp.on) stages.push({ in: this.amp.input, out: this.amp.output });
       if (fx.eq.on) stages.push({ in: this.eq, out: this.eq });
       if (fx.comp.on) stages.push({ in: this.comp, out: this.makeup });
+      for (const s of slots) {
+        const p = this.plugins.get(s.id)!;
+        stages.push({ in: p.input, out: p.output });
+      }
       let from: Tone.ToneAudioNode = this.input;
       for (const st of stages) {
         from.connect(st.in);
@@ -99,6 +124,7 @@ export class FxChain {
   }
 
   dispose() {
+    this.plugins.forEach((p) => p.dispose());
     this.amp.dispose();
     [this.input, this.output, this.eq, this.comp, this.makeup].forEach((n) => n.dispose());
   }

@@ -57,8 +57,10 @@ export interface CustomInstrument {
   id: string;
   name: string;
   kind: 'instrument' | 'drums';
-  source: 'sampler' | 'soundfont';
+  source: 'sampler' | 'soundfont' | 'wam';
   zones: SampleZone[];
+  /** Web Audio Module plugin instrument: where to load it from and its saved state. */
+  wam?: { url: string; state?: unknown };
   /** Envelope in seconds. */
   attack: number;
   release: number;
@@ -101,6 +103,17 @@ export interface TrackFx {
   amp: { on: boolean; /** 0..1 */ drive: number; /** cabinet brightness 0..1 */ tone: number; /** output 0..1 */ level: number };
   eq: { on: boolean; /** dB −15..15 */ low: number; mid: number; high: number; /** Hz */ midFreq: number };
   comp: { on: boolean; /** dB −60..0 */ threshold: number; /** 1..20 */ ratio: number; /** seconds */ attack: number; release: number; /** dB 0..24 */ makeup: number };
+  /** Web Audio Module effect plugins, after the built-in units, in order. */
+  plugins?: PluginSlot[];
+}
+
+export interface PluginSlot {
+  id: string;
+  url: string;
+  name: string;
+  on: boolean;
+  /** Plugin state from getState(), restored when the plugin loads. */
+  state?: unknown;
 }
 
 export interface LoopRange {

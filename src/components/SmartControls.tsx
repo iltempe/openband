@@ -5,6 +5,7 @@ import { PRESETS, customInstruments, findInstrument } from '../audio/instruments
 import { Knob } from './Knob';
 import * as I from './Icons';
 import { InstrumentEditor } from './ImportUI';
+import { openPluginBrowser } from './Plugins';
 import { categoryLabel, presetDescription, useT } from '../i18n';
 
 export function useTrackUpdater(trackId: string) {
@@ -41,7 +42,7 @@ function TrackControls({ track }: { track: Track }) {
       <div className="smart-card">
         <div className="smart-art">{track.kind === 'drums' ? <I.DrumIcon width={44} height={44} /> : audio ? <I.Wave width={44} height={44} /> : <I.KeysIcon width={44} height={44} />}</div>
         <div className="smart-info">
-          <div className="smart-kicker">{audio ? t('audio.track') : preset && (preset.custom ? t('imp.imported') : categoryLabel(preset.category))}</div>
+          <div className="smart-kicker">{audio ? t('audio.track') : preset && categoryLabel(preset.category)}</div>
           {audio ? (
             <div className="smart-preset static">{track.name}</div>
           ) : (
@@ -72,7 +73,24 @@ function TrackControls({ track }: { track: Track }) {
         <Knob label={t('sc.reverb')} value={track.reverb} defaultValue={0.2} color="#a78bfa" onStart={checkpoint} onChange={(v) => update((t) => void (t.reverb = v))} size={64} />
         <Knob label={t('sc.echo')} value={track.delay} defaultValue={0} color="#22d3ee" onStart={checkpoint} onChange={(v) => update((t) => void (t.delay = v))} size={64} />
       </div>
-      {preset?.custom && <InstrumentEditor inst={preset.custom} track={track} />}
+      {preset?.custom?.source === 'wam' ? (
+        <div className="inst-editor">
+          <div className="inst-head">
+            <span className="smart-kicker">WAM</span>
+          </div>
+          <div className="inst-note">{t('plug.instrumentNote')}</div>
+          <div className="row">
+            <button className="btn primary" onClick={() => useStore.getState().set({ pluginWindow: { trackId: track.id, slotId: null } })}>
+              <I.Fx width={14} height={14} /> {t('plug.open')}
+            </button>
+            <button className="btn" onClick={() => openPluginBrowser('instrument', track.id)}>
+              {t('plug.change')}
+            </button>
+          </div>
+        </div>
+      ) : (
+        preset?.custom && <InstrumentEditor inst={preset.custom} track={track} />
+      )}
     </div>
   );
 }

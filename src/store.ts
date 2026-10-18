@@ -60,6 +60,8 @@ interface State {
   keyboardOpen: boolean;
   bottom: BottomPanel;
   zoom: number;
+  /** Plugin GUI window: the track and effect slot (null = the track's plugin instrument). */
+  pluginWindow: { trackId: string; slotId: string | null } | null;
   /** Open automation lanes: track id → parameter shown. */
   automationLanes: Record<string, AutoParam>;
 
@@ -115,6 +117,7 @@ export const useStore = create<State>((set, get) => ({
   bottom: 'smart',
   zoom: 34,
   automationLanes: {},
+  pluginWindow: null,
 
   octave: 4,
   velocity: 0.8,

@@ -4,6 +4,7 @@ import { commands } from '../commands';
 import { engine } from '../audio/engine';
 import * as I from './Icons';
 import { importAudioFlow, importSamplerFlow, importSoundFontFlow } from './ImportUI';
+import { openPluginBrowser } from './Plugins';
 import { categoryLabel, presetDescription, useT } from '../i18n';
 
 const CATEGORY_HUE: Record<string, string> = {
@@ -13,6 +14,7 @@ const CATEGORY_HUE: Record<string, string> = {
   'Pads & Strings': '#a78bfa',
   Drums: '#fbbf24',
   Imported: '#e879f9',
+  Plugins: '#22d3ee',
 };
 
 export function Library() {
@@ -55,6 +57,9 @@ export function Library() {
           <button className="mini" onClick={() => importAudioFlow()} title={t('imp.audioHint')}>
             <I.Wave width={13} height={13} /> {t('imp.audio')}
           </button>
+          <button className="mini plug-btn" onClick={() => openPluginBrowser('any')} title={t('plug.libHint')}>
+            <I.Fx width={13} height={13} /> {t('plug.button')}
+          </button>
         </div>
       </div>
       <div className="lib-scroll">
@@ -71,7 +76,7 @@ export function Library() {
                   <span className="lib-swatch" />
                   <span className="lib-text">
                     <span className="lib-name">{p.name}</span>
-                    <span className="lib-desc">{p.category === 'Imported' ? `${p.description} · ${p.kind === 'drums' ? t('cat.Drums') : t('imp.instrument')}` : presetDescription(p)}</span>
+                    <span className="lib-desc">{p.category === 'Plugins' ? p.description : p.category === 'Imported' ? `${p.description} · ${p.kind === 'drums' ? t('cat.Drums') : t('imp.instrument')}` : presetDescription(p)}</span>
                   </span>
                 </button>
               );

@@ -23,19 +23,22 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 - **Smart Controls**: per-track volume, pan, brightness (filter), reverb and echo.
 - **Per-track effects**: amp simulator (drive, cabinet tone, level), 3-band EQ with sweepable mids and a compressor with gain-reduction meter.
 - **Automation** of volume, pan, brightness, reverb and echo: draw curves in a lane under each track.
+- **Plugins (Web Audio Modules 2.0)** — the open plugin standard of the web: browse the community collection of synths, drum machines, amps, pedals and reverbs, or load any WAM from a URL. Plugin instruments play your MIDI, plugin effects go in each track's chain, their own windows open inside the studio and their settings are saved with the project and rendered in the WAV export.
 - **Mixer** with level meters, faders, mute and solo, sends and master.
 - **Musical typing** (keys A–' like a piano, Z/X for octave, C/V for velocity) and **Web MIDI** for external controllers.
 - **Live recording** into new regions, with metronome.
 - **MIDI import and export** (Standard MIDI Files, General MIDI programs, drums on channel 10).
 - **Undo/redo**, autosave, **WAV export** with offline rendering; projects with imported sounds are saved as a single `.openband` file that bundles the samples.
-- **AI control via MCP**: 42 tools to compose, arrange, import sounds, mix, automate and export.
+- **AI control via MCP**: 52 tools to compose, arrange, import sounds, add plugins, mix, automate and export — the AI can add a plugin just from a description such as *“a warm tube overdrive”*.
 - **English and Italian** interface (switch from the start screen or the ⋯ menu).
 
 | Piano roll | Mixer |
 |---|---|
 | ![Piano roll](docs/editor.png) | ![Mixer with effects on two tracks](docs/mixer.png) |
 | **Effects** | **Audio track** |
-| ![Amp, EQ and compressor on the bass](docs/effects.png) | ![Audio clip with waveform](docs/audio.png) |
+| ![Amp, EQ, compressor and a WAM reverb on the bass](docs/effects.png) | ![Audio clip with waveform](docs/audio.png) |
+| **WAM plugin window** | **Plugin browser** |
+| ![Synth-101 WAM plugin](docs/plugins.png) | ![Searching plugins in plain language](docs/plugin-browser.png) |
 
 > The online demo can't talk to your AI: for security, the MCP server only accepts pages served from localhost. To let your AI play, run OpenBand locally as shown below.
 
@@ -63,6 +66,7 @@ A demo song opens on first launch. The “Enter the studio” click is needed be
 - **Effects**: select a track and press **F** (or click *FX* on a mixer strip). Each unit has its own power button.
 - **Automation**: click **A** on a track to open its lane, choose the parameter, click to add points, drag to move them, double-click to delete.
 - **MIDI**: *Import MIDI…* / *Export MIDI* in the ⋯ menu, or drop a `.mid` file on the studio.
+- **Plugins**: click *Plugins* in the library and describe what you need (*“wide dark reverb”*, *“synth monofonico”*) or filter by instruments/effects; instruments get their own track, effects are added to the selected track (also from *+ Plugin* in the Effects panel). *Edit* opens the plugin's window. Plugins come from the [WAM community collection](https://github.com/boourns/wam-community) and need an internet connection the first time they load.
 
 ## Connect an AI (MCP)
 
@@ -98,6 +102,8 @@ Then open the studio (`npm run dev`, or let the AI call `open_studio` after an `
 
 > Make a lo-fi beat at 82 BPM in D minor with drums, bass and Rhodes, then start the loop.
 
+> Add a warm tube overdrive to the bass and a wide reverb to the pad, then open the overdrive so I can tweak it.
+
 > Import ~/Samples/vocal.wav as an audio track at bar 5, put a compressor on the bass, fade the pad in over two bars and save the song as ~/Desktop/song.wav and song.mid.
 
 Environment variables: `OPENBAND_PORT` (default 7777; if you change it, open the app with `?mcp=<port>`) and `OPENBAND_DEV_URL` (default `http://localhost:5173`).
@@ -112,6 +118,7 @@ The bridge only accepts connections from `127.0.0.1` and from pages served on lo
 | Tracks | `add_track` (instrument, drums or audio), `update_track` (instrument, volume, pan, mute, solo, reverb, echo, tone), `delete_track` |
 | Sounds | `import_sample`, `list_samples`, `create_sampler_instrument`, `import_soundfont`, `add_audio_region` — files are read from a local path or an http(s) URL |
 | Mix | `set_track_effects` (amp, EQ, compressor), `set_automation`, `clear_automation` |
+| Plugins | `add_plugin` (from a plain-language description), `search_plugins`, `list_plugins`, `add_plugin_instrument`, `add_plugin_effect`, `remove_plugin_effect`, `set_plugin_bypass`, `get_plugin_params`, `set_plugin_params`, `show_plugin` |
 | Files | `export_wav`, `export_midi` (optionally `save_to` a path), `import_midi` |
 | Regions | `add_region`, `update_region`, `delete_region`, `duplicate_region`, `open_editor` |
 | Notes | `get_region_notes`, `add_notes`, `remove_notes`, `transpose_region`, `quantize_region` |
@@ -148,7 +155,10 @@ src/
   audio/samples.ts        imported audio (IndexedDB), waveforms, pitch detection
   audio/sampler.ts        sample-based instruments (sampler, kits, SoundFont presets)
   audio/soundfont.ts      SoundFont 2 reader
-  audio/fx.ts             per-track effects (amp sim, EQ, compressor)
+  audio/fx.ts             per-track effects (amp sim, EQ, compressor, plugin slots)
+  audio/wam.ts            Web Audio Modules host (catalog, loading, instruments, effects)
+  audio/context.ts        native AudioContext for Tone.js (required by WAM)
+  plugins.ts              plugin search by description, parameters, saved state
   automation.ts           automation curves
   midi.ts                 MIDI file reader/writer, General MIDI mapping
   importers.ts            importing sounds, .openband bundles
@@ -159,7 +169,6 @@ server/mcp-server.mjs     MCP server (stdio) + WebSocket bridge + static files
 ## Roadmap
 
 - Recording audio from the microphone or a guitar interface
-- Web Audio Modules (WAM 2.0) plugin support — the web's equivalent of VST
 - Desktop app with Tauri or Electron, hosting native VST/AU plugins
 - Generative “Drummer” and a freely licensed (CC0) loop library
 - Automation of effect parameters; time-stretching audio clips
