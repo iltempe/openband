@@ -203,6 +203,11 @@ const en = {
   'auto.hint': 'Click to add points · drag to move · double-click to delete · ⌥ for free positioning',
   'auto.bar': 'Bar',
 
+  // MIDI
+  'midi.imported': '{n} MIDI track(s) imported',
+  'menu.importMidi': 'Import MIDI…',
+  'menu.exportMidi': 'Export MIDI',
+
   // Default names
   'name.untitled': 'My song',
   'name.newSong': 'New song',
@@ -436,6 +441,10 @@ const it: Record<MessageKey, string> = {
   'auto.toggle': 'Automazione',
   'auto.hint': 'Clic per aggiungere punti · trascina per spostarli · doppio clic per eliminarli · ⌥ per posizionarli liberamente',
   'auto.bar': 'Battuta',
+
+  'midi.imported': '{n} tracce MIDI importate',
+  'menu.importMidi': 'Importa MIDI…',
+  'menu.exportMidi': 'Esporta MIDI',
 
   'name.untitled': 'Il mio brano',
   'name.newSong': 'Nuovo brano',

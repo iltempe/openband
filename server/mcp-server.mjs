@@ -383,7 +383,31 @@ tool('export_project_json', 'Export the complete project as JSON (for saving or 
 tool('import_project_json', 'Replace the current project with an OpenBand project JSON (as produced by export_project_json).', {
   project: z.union([z.string(), z.record(z.string(), z.any())]),
 });
-tool('export_wav', 'Render the whole song offline (instruments, imported sounds and audio tracks) and download it as a WAV file in the browser.', {}, { timeout: 180000 });
+/** Exports either download in the browser, or (with save_to) are written to disk by this server. */
+function exportTool(name, description) {
+  server.registerTool(
+    name,
+    { description, inputSchema: { save_to: z.string().optional().describe('Optional file path to save to (absolute or ~/...). Without it the browser downloads the file.') } },
+    async ({ save_to }) => {
+      try {
+        if (!save_to) return text(await call(name, {}, 180000));
+        const res = await call(name, { return_data: true }, 180000);
+        let file = path.resolve(save_to.replace(/^~(?=$|[\/])/, os.homedir()));
+        if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, res.filename);
+        await fs.promises.writeFile(file, Buffer.from(res.data_base64, 'base64'));
+        return text({ saved: file, bytes: res.bytes });
+      } catch (e) {
+        return { ...text(`Error: ${e.message}`), isError: true };
+      }
+    },
+  );
+}
+
+exportTool('export_wav', 'Render the whole song offline (instruments, imported sounds, audio tracks, effects and automation) as a 16-bit stereo WAV.');
+exportTool('export_midi', 'Export the song as a Standard MIDI File (format 1): one track per instrument/drum track with General MIDI programs, drums on channel 10. Audio tracks are not included.');
+fileTool('import_midi', 'Import a MIDI file (.mid): each part becomes a track with the closest OpenBand instrument (channel 10 → drums). Adds to the current song unless replace is true; the song tempo is used when the project is empty or replaced.', {
+  replace: z.boolean().optional(),
+});
 
 // ---- imported sounds
 

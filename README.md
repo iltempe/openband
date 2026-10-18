@@ -14,16 +14,21 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 
 ## Features
 
-- **Arrangement**: instrument and drum tracks; MIDI regions you can drag, resize, duplicate (⌥-drag or ⌘D) and move between tracks of the same kind; ruler with cycle (loop) and zoom (⌘ + wheel).
+- **Arrangement**: instrument, drum and audio tracks; MIDI regions you can drag, resize, duplicate (⌥-drag or ⌘D) and move between tracks of the same kind; ruler with cycle (loop) and zoom (⌘ + wheel).
 - **Piano roll**: add, move, stretch and delete notes; grid from 1/4 to 1/32 plus triplets; transpose, quantize and velocity.
 - **Drum step sequencer**: 11 pieces (kick, snare, clap, rim, closed and open hi-hat, 3 toms, crash, ride), paint by dragging, accents.
 - **15 synthesized instruments**: piano, FM electric piano, organ, bells, lead, pluck, 8-bit, 3 basses, pad, strings and 3 drum kits (Studio, Trap 808, Lo-Fi).
+- **Import your own sounds**: turn audio files into a playable **sampler** (note names in file names set the keys, otherwise the pitch is detected), build **drum kits** from samples (kick, snare, hat… recognised by name), load instruments from **SoundFont (.sf2)** libraries, or drop audio files on the timeline.
+- **Audio tracks** with waveforms: clips with gain and start trim, included in the WAV export.
 - **Smart Controls**: per-track volume, pan, brightness (filter), reverb and echo.
+- **Per-track effects**: amp simulator (drive, cabinet tone, level), 3-band EQ with sweepable mids and a compressor with gain-reduction meter.
+- **Automation** of volume, pan, brightness, reverb and echo: draw curves in a lane under each track.
 - **Mixer** with level meters, faders, mute and solo, sends and master.
 - **Musical typing** (keys A–' like a piano, Z/X for octave, C/V for velocity) and **Web MIDI** for external controllers.
 - **Live recording** into new regions, with metronome.
-- **Undo/redo**, autosave, save and open `.json` projects, **WAV export** with offline rendering.
-- **AI control via MCP**: 32 tools to compose, arrange, mix and play.
+- **MIDI import and export** (Standard MIDI Files, General MIDI programs, drums on channel 10).
+- **Undo/redo**, autosave, **WAV export** with offline rendering; projects with imported sounds are saved as a single `.openband` file that bundles the samples.
+- **AI control via MCP**: 42 tools to compose, arrange, import sounds, mix, automate and export.
 - **English and Italian** interface (switch from the start screen or the ⋯ menu).
 
 | Piano roll | Mixer |
@@ -91,8 +96,11 @@ The bridge only accepts connections from `127.0.0.1` and from pages served on lo
 
 | Area | Tools |
 |---|---|
-| Project | `get_project`, `get_status`, `list_instruments`, `new_project`, `rename_project`, `set_tempo`, `set_key`, `set_master_volume`, `export_project_json`, `import_project_json`, `export_wav`, `undo`, `redo` |
-| Tracks | `add_track`, `update_track` (instrument, volume, pan, mute, solo, reverb, echo, tone), `delete_track` |
+| Project | `get_project`, `get_status`, `list_instruments`, `new_project`, `rename_project`, `set_tempo`, `set_key`, `set_master_volume`, `export_project_json`, `import_project_json`, `undo`, `redo` |
+| Tracks | `add_track` (instrument, drums or audio), `update_track` (instrument, volume, pan, mute, solo, reverb, echo, tone), `delete_track` |
+| Sounds | `import_sample`, `list_samples`, `create_sampler_instrument`, `import_soundfont`, `add_audio_region` — files are read from a local path or an http(s) URL |
+| Mix | `set_track_effects` (amp, EQ, compressor), `set_automation`, `clear_automation` |
+| Files | `export_wav`, `export_midi` (optionally `save_to` a path), `import_midi` |
 | Regions | `add_region`, `update_region`, `delete_region`, `duplicate_region`, `open_editor` |
 | Notes | `get_region_notes`, `add_notes`, `remove_notes`, `transpose_region`, `quantize_region` |
 | Composition | `add_drum_pattern` (step strings like `"x...x...x...x..."`), `add_chord_progression` (`["Am7","Fmaj7","C","G"]`, block, arpeggio or stabs style) |
@@ -107,7 +115,7 @@ Conventions: 4/4 time; bars start at 1; inside a region, positions and durations
 | Space / Enter | Play/Stop · Back to start |
 | R · C · M | Record · Cycle · Metronome |
 | K | Musical typing (Esc to close) |
-| Y · B · E · X | Library · Smart Controls · Editor · Mixer |
+| Y · B · E · X · F | Library · Smart Controls · Editor · Mixer · Effects |
 | ↑ ↓ | Previous or next track |
 | ⌘Z / ⇧⌘Z | Undo / Redo |
 | ⌘D · ⌫ | Duplicate region · Delete notes or region |
@@ -125,17 +133,24 @@ src/
   audio/instruments.ts    synthesized presets (Tone.js)
   audio/engine.ts         live audio graph, transport, metronome, meters
   audio/render.ts         offline WAV rendering
+  audio/samples.ts        imported audio (IndexedDB), waveforms, pitch detection
+  audio/sampler.ts        sample-based instruments (sampler, kits, SoundFont presets)
+  audio/soundfont.ts      SoundFont 2 reader
+  audio/fx.ts             per-track effects (amp sim, EQ, compressor)
+  automation.ts           automation curves
+  midi.ts                 MIDI file reader/writer, General MIDI mapping
+  importers.ts            importing sounds, .openband bundles
   components/             Toolbar, Arrangement, Editor, SmartControls, Mixer, Library, AIPanel…
 server/mcp-server.mjs     MCP server (stdio) + WebSocket bridge + static files
 ```
 
 ## Roadmap
 
-- Audio tracks (microphone and guitar) with waveforms
-- Per-track effects (compressor, EQ, amp sim) and automation
+- Recording audio from the microphone or a guitar interface
+- Web Audio Modules (WAM 2.0) plugin support — the web's equivalent of VST
+- Desktop app with Tauri or Electron, hosting native VST/AU plugins
 - Generative “Drummer” and a freely licensed (CC0) loop library
-- MIDI import and export
-- Desktop app with Tauri or Electron
+- Automation of effect parameters; time-stretching audio clips
 
 Contributions are welcome — open an issue or a pull request. If you like the project, a ⭐ helps others find it.
 

@@ -12,16 +12,21 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 
 ## Funzionalità
 
-- **Arrangiamento**: tracce strumento e batteria; regioni MIDI da trascinare, ridimensionare, duplicare (⌥-trascina o ⌘D) e spostare tra tracce dello stesso tipo; righello con ciclo (loop) e zoom (⌘ + rotella).
+- **Arrangiamento**: tracce strumento, batteria e audio; regioni MIDI da trascinare, ridimensionare, duplicare (⌥-trascina o ⌘D) e spostare tra tracce dello stesso tipo; righello con ciclo (loop) e zoom (⌘ + rotella).
 - **Piano roll**: aggiungi, sposta, allunga e cancella note; griglia da 1/4 a 1/32 e terzine; trasposizione, quantizzazione e velocity.
 - **Step sequencer** per la batteria: 11 pezzi (cassa, rullante, clap, rim, hi-hat chiuso e aperto, 3 tom, crash, ride), disegno a trascinamento, accenti.
 - **15 strumenti sintetizzati**: piano, piano elettrico FM, organo, campane, lead, pluck, 8-bit, 3 bassi, pad, archi e 3 kit di batteria (Studio, Trap 808, Lo-Fi).
+- **Importa i tuoi suoni**: trasforma file audio in un **campionatore** suonabile (i nomi delle note nei file indicano i tasti, altrimenti la nota viene riconosciuta), crea **kit batteria** da campioni (cassa, rullante, hi-hat… riconosciuti dal nome), carica strumenti da librerie **SoundFont (.sf2)** o trascina file audio sulla timeline.
+- **Tracce audio** con forma d'onda: clip con guadagno e punto d'inizio, incluse nell'esportazione WAV.
 - **Smart Controls**: volume, pan, brillantezza (filtro), riverbero ed eco per traccia.
+- **Effetti per traccia**: simulatore di amplificatore (gain, tono del cabinet, livello), EQ a 3 bande con medi regolabili e compressore con misuratore di riduzione.
+- **Automazioni** di volume, pan, brillantezza, riverbero ed eco: disegni le curve in una corsia sotto ogni traccia.
 - **Mixer** con misuratori di livello, fader, mute e solo, mandate e master.
 - **Tastiera musicale** (tasti A–' come un pianoforte, Z/X per l'ottava, C/V per la velocity) e **Web MIDI** per i controller esterni.
 - **Registrazione** dal vivo in nuove regioni, con metronomo.
-- **Annulla/ripristina**, salvataggio automatico, salvataggio e apertura dei progetti `.json`, **esportazione WAV** con rendering offline.
-- **Controllo AI via MCP**: 32 strumenti per comporre, arrangiare, mixare e riprodurre.
+- **Import ed export MIDI** (Standard MIDI File, programmi General MIDI, batteria sul canale 10).
+- **Annulla/ripristina**, salvataggio automatico, **esportazione WAV** con rendering offline; i progetti con suoni importati si salvano in un unico file `.openband` che contiene i campioni.
+- **Controllo AI via MCP**: 42 strumenti per comporre, arrangiare, importare suoni, mixare, automatizzare ed esportare.
 - Interfaccia in **inglese e italiano**: l'inglese è predefinito, si cambia dalla schermata iniziale o dal menu ⋯.
 
 | Piano roll | Mixer |
@@ -87,8 +92,11 @@ Il bridge accetta connessioni solo da `127.0.0.1` e da pagine servite su localho
 
 | Area | Strumenti |
 |---|---|
-| Progetto | `get_project`, `get_status`, `list_instruments`, `new_project`, `rename_project`, `set_tempo`, `set_key`, `set_master_volume`, `export_project_json`, `import_project_json`, `export_wav`, `undo`, `redo` |
-| Tracce | `add_track`, `update_track` (strumento, volume, pan, mute, solo, riverbero, eco, tono), `delete_track` |
+| Progetto | `get_project`, `get_status`, `list_instruments`, `new_project`, `rename_project`, `set_tempo`, `set_key`, `set_master_volume`, `export_project_json`, `import_project_json`, `undo`, `redo` |
+| Tracce | `add_track` (strumento, batteria o audio), `update_track` (strumento, volume, pan, mute, solo, riverbero, eco, tono), `delete_track` |
+| Suoni | `import_sample`, `list_samples`, `create_sampler_instrument`, `import_soundfont`, `add_audio_region` — i file si leggono da un percorso locale o da un URL http(s) |
+| Mix | `set_track_effects` (amp, EQ, compressore), `set_automation`, `clear_automation` |
+| File | `export_wav`, `export_midi` (con `save_to` per salvarli in un percorso), `import_midi` |
 | Regioni | `add_region`, `update_region`, `delete_region`, `duplicate_region`, `open_editor` |
 | Note | `get_region_notes`, `add_notes`, `remove_notes`, `transpose_region`, `quantize_region` |
 | Composizione | `add_drum_pattern` (stringhe di step tipo `"x...x...x...x..."`), `add_chord_progression` (`["Am7","Fmaj7","C","G"]`, stile block, arpeggio o stabs) |
@@ -103,7 +111,7 @@ Convenzioni: tempo in 4/4; le battute partono da 1; dentro una regione posizioni
 | Spazio / Invio | Play/Stop · Torna all'inizio |
 | R · C · M | Registra · Ciclo · Metronomo |
 | K | Tastiera musicale (Esc per chiuderla) |
-| Y · B · E · X | Libreria · Smart Controls · Editor · Mixer |
+| Y · B · E · X · F | Libreria · Smart Controls · Editor · Mixer · Effetti |
 | ↑ ↓ | Traccia precedente o successiva |
 | ⌘Z / ⇧⌘Z | Annulla / Ripristina |
 | ⌘D · ⌫ | Duplica regione · Elimina note o regione |
@@ -121,17 +129,24 @@ src/
   audio/instruments.ts    preset sintetizzati (Tone.js)
   audio/engine.ts         grafo audio live, trasporto, metronomo, misuratori
   audio/render.ts         rendering offline in WAV
+  audio/samples.ts        audio importato (IndexedDB), forme d'onda, riconoscimento della nota
+  audio/sampler.ts        strumenti a campioni (campionatore, kit, preset SoundFont)
+  audio/soundfont.ts      lettore SoundFont 2
+  audio/fx.ts             effetti per traccia (amp, EQ, compressore)
+  automation.ts           curve di automazione
+  midi.ts                 lettura/scrittura file MIDI, mappatura General MIDI
+  importers.ts            import dei suoni, file .openband
   components/             Toolbar, Arrangement, Editor, SmartControls, Mixer, Library, AIPanel…
 server/mcp-server.mjs     server MCP (stdio) + bridge WebSocket + file statici
 ```
 
 ## Roadmap
 
-- Tracce audio (microfono e chitarra) con forma d'onda
-- Effetti per traccia (compressore, EQ, amp sim) e automazioni
+- Registrazione audio da microfono o scheda audio per chitarra
+- Supporto ai plugin Web Audio Modules (WAM 2.0), l'equivalente web dei VST
+- App desktop con Tauri o Electron che ospiti plugin VST/AU nativi
 - “Drummer” generativo e libreria di loop con licenza libera (CC0)
-- Import ed export MIDI
-- App desktop con Tauri o Electron
+- Automazione dei parametri degli effetti; time-stretch delle clip audio
 
 ## Licenza
 

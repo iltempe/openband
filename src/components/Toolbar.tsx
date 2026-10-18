@@ -7,7 +7,7 @@ import { startRecording, stopRecording } from '../input';
 import { commands } from '../commands';
 import { loadDemo } from '../demo';
 import * as I from './Icons';
-import { importAudioFlow, importSoundFontFlow, openProjectFile } from './ImportUI';
+import { importAudioFlow, importSoundFontFlow, openProjectFile, pickFiles } from './ImportUI';
 import { saveProject } from '../importers';
 import { LANGS, setLang, useLang, useT } from '../i18n';
 
@@ -143,8 +143,23 @@ function ProjectMenu() {
             <hr />
             <button onClick={() => (close(), void importAudioFlow())}>{t('menu.importAudio')}</button>
             <button onClick={() => (close(), void importSoundFontFlow())}>{t('menu.importSf')}</button>
+            <button
+              onClick={async () => {
+                close();
+                const [f] = await pickFiles('.mid,.midi,audio/midi');
+                if (!f) return;
+                try {
+                  await commands.import_midi_file({ file: f });
+                } catch (e) {
+                  s.notify((e as Error).message);
+                }
+              }}
+            >
+              {t('menu.importMidi')}
+            </button>
             <hr />
             <button onClick={exportWav}>{t('menu.exportWav')}</button>
+            <button onClick={() => (close(), commands.export_midi({}))}>{t('menu.exportMidi')}</button>
             <hr />
             <div className="menu-label">{t('menu.language')}</div>
             <div className="lang-switch">

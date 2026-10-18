@@ -7,6 +7,7 @@ import { getBuffer, importSample, useSamples } from './audio/samples';
 import { normalizeFx } from './audio/fx';
 import { AUTO_PARAMS, autoParam, sortPoints } from './automation';
 import type { AutoParam } from './types';
+import { presetForProgram, readMidi, writeMidi, type MidiSong } from './midi';
 import { addAudioRegion, guessDrumPads, instrumentFromSoundFont, openSoundFont, rootFor, spreadZones } from './importers';
 import { emptyProject, getRegion, getTrack, makeTrack, projectEnd, useStore } from './store';
 import { engine } from './audio/engine';
@@ -20,6 +21,37 @@ function fromBase64(b64: string): ArrayBuffer {
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out.buffer;
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+const safeName = (name: string) => name.replace(/[^\w\- ]+/g, '').trim() || 'openband';
+
+/** Add the parts of a MIDI song as new tracks (or replace the project). */
+function importMidiSong(song: MidiSong, fileName: string, replace: boolean) {
+  const p = st().project;
+  const empty = !p.regions.length;
+  if (replace) commands.new_project({ name: song.name || fileName.replace(/\.midi?$/i, ''), bpm: song.bpm ?? p.bpm });
+  else if (empty && song.bpm) st().commit((d) => void (d.bpm = clamp(song.bpm!, 40, 240)));
+  const created: { track_id: string; name: string; instrument: string; notes: number }[] = [];
+  for (const part of song.parts) {
+    const drums = part.channel === 9;
+    const instrument = drums ? 'kit-studio' : presetForProgram(part.program);
+    // Format-0 files often carry only the song title as name: then name the track after its sound.
+    const name = part.name && part.name !== song.name ? part.name : undefined;
+    const track = makeTrack(st().project, drums ? 'drums' : 'instrument', instrument, name);
+    st().commit((d) => void d.tracks.push(track));
+    const first = Math.floor(part.notes[0].start / BEATS_PER_BAR) * BEATS_PER_BAR;
+    const last = Math.max(...part.notes.map((n) => n.start + n.duration));
+    const notes: Note[] = part.notes.map((n) => ({ id: uid('n'), pitch: n.pitch, start: n.start - first, duration: Math.max(0.0625, n.duration), velocity: clamp(n.velocity, 0.05, 1) }));
+    createRegion(track.id, first, Math.max(BEATS_PER_BAR, Math.ceil((last - first) / BEATS_PER_BAR) * BEATS_PER_BAR), track.name, notes);
+    created.push({ track_id: track.id, name: track.name, instrument, notes: notes.length });
+  }
+  return { bpm: st().project.bpm, tracks: created };
 }
 
 function requireSample(id: string) {
@@ -618,11 +650,30 @@ export const commands: Record<string, (args: P) => unknown> = {
     return summarize(p);
   },
 
-  export_wav: async () => {
+  export_wav: async ({ return_data }) => {
     const p = st().project;
     const blob = await renderProject(p);
-    download(blob, `${p.name.replace(/[^\w\- ]+/g, '').trim() || 'openband'}.wav`);
+    if (return_data) return { bytes: blob.size, filename: `${safeName(p.name)}.wav`, data_base64: toBase64(new Uint8Array(await blob.arrayBuffer())) };
+    download(blob, `${safeName(p.name)}.wav`);
     return { exported: true, bytes: blob.size, note: 'The WAV was downloaded by the browser.' };
+  },
+
+  export_midi: ({ return_data }) => {
+    const p = st().project;
+    const bytes = writeMidi(p);
+    if (return_data) return { bytes: bytes.length, filename: `${safeName(p.name)}.mid`, data_base64: toBase64(bytes) };
+    download(new Blob([bytes], { type: 'audio/midi' }), `${safeName(p.name)}.mid`);
+    return { exported: true, bytes: bytes.length, note: 'The MIDI file was downloaded by the browser.' };
+  },
+
+  import_midi: ({ data_base64, filename, replace }) => importMidiSong(readMidi(fromBase64(data_base64)), String(filename ?? 'song.mid'), !!replace),
+
+  /** UI only: a File dropped or picked by the user. */
+  import_midi_file: async ({ file }) => {
+    const f = file as File;
+    const result = importMidiSong(readMidi(await f.arrayBuffer()), f.name, false);
+    st().notify(tr('midi.imported', { n: result.tracks.length }));
+    return result;
   },
 };
 
