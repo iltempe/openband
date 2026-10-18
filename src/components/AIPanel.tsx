@@ -1,5 +1,5 @@
 import { useStore } from '../store';
-import { BRIDGE_URL } from '../bridge';
+import { BRIDGE_ENABLED, BRIDGE_URL } from '../bridge';
 import * as I from './Icons';
 
 const CONFIG = `{
@@ -33,7 +33,7 @@ export function AIPanel() {
           </div>
           <div className={`ai-status ${status}`}>
             <span className="dot" />
-            {status === 'connected' ? 'Server MCP collegato' : status === 'connecting' ? 'Connessione in corso…' : 'Server MCP non raggiungibile'}
+            {status === 'connected' ? 'Server MCP collegato' : status === 'connecting' ? 'Connessione in corso…' : BRIDGE_ENABLED ? 'Server MCP non raggiungibile' : 'Demo online · AI disponibile in locale'}
           </div>
         </div>
         <button className="icon-btn" onClick={() => set({ aiOpen: false })}>
@@ -41,7 +41,16 @@ export function AIPanel() {
         </button>
       </div>
 
-      {status !== 'connected' && (
+      {!BRIDGE_ENABLED && (
+        <div className="ai-setup">
+          <p>
+            Questa è la demo online: per farla suonare alla tua AI, clona il progetto da{' '}
+            <a href="https://github.com/iltempe/openband" target="_blank" rel="noreferrer">GitHub</a> e avvialo in locale.
+          </p>
+        </div>
+      )}
+
+      {BRIDGE_ENABLED && status !== 'connected' && (
         <div className="ai-setup">
           <p>
             Aggiungi OpenBand al tuo client MCP (Claude Desktop, Cursor, ecc.). Il client avvia il server, che si collega a questa finestra su <code>{BRIDGE_URL}</code>.

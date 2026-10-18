@@ -3,14 +3,23 @@
 import { useStore } from './store';
 import { runCommand } from './commands';
 
-const port = new URLSearchParams(location.search).get('mcp') ?? '7777';
+const params = new URLSearchParams(location.search);
+const port = params.get('mcp') ?? '7777';
 export const BRIDGE_URL = `ws://127.0.0.1:${port}/bridge`;
+
+// The MCP server only accepts pages served from localhost, so the hosted demo (GitHub Pages)
+// skips the bridge instead of retrying forever.
+export const BRIDGE_ENABLED = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) || params.has('mcp');
 
 let socket: WebSocket | null = null;
 let retry = 1000;
 
 export function connectBridge() {
   const set = useStore.getState().set;
+  if (!BRIDGE_ENABLED) {
+    set({ bridgeStatus: 'disconnected' });
+    return;
+  }
   set({ bridgeStatus: 'connecting' });
   try {
     socket = new WebSocket(BRIDGE_URL);
