@@ -36,7 +36,8 @@ function loopLen() {
 export async function startRecording() {
   const s = st();
   let track = getTrack(s.project, s.selectedTrackId);
-  if (!track) {
+  // MIDI can't be recorded onto an audio track: record into a new instrument track instead.
+  if (!track || track.kind === 'audio') {
     track = makeTrack(s.project, 'instrument');
     const t = track;
     s.commit((d) => void d.tracks.push(t));

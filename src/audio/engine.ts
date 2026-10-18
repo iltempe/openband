@@ -2,7 +2,8 @@
 import * as Tone from 'tone';
 import type { Project, Track } from '../types';
 import { faderToDb, sendToDb } from '../music';
-import { createInstrument, makeImpulse, type Instrument } from './instruments';
+import { createInstrument, customById, makeImpulse, type Instrument } from './instruments';
+import { getBuffer, onSamplesChanged } from './samples';
 
 interface TrackNode {
   presetId: string;
@@ -26,7 +27,10 @@ const transport = () => Tone.getTransport();
 class AudioEngine {
   private nodes = new Map<string, TrackNode>();
   private parts: Tone.Part<NoteEvent>[] = [];
+  private players: Tone.Player[] = [];
   private partsSignature = '';
+  private samplesVersion = 0;
+  private lastProject: Project | null = null;
   private master!: Tone.Gain;
   private masterMeter!: Tone.Meter;
   private reverb!: Tone.Convolver;
@@ -54,6 +58,11 @@ class AudioEngine {
       const beat = Math.round(transport().getTicksAtTime(time) / PPQ) % 4;
       this.click.triggerAttackRelease(beat === 0 ? 'G6' : 'C6', 0.03, time, beat === 0 ? 1 : 0.6);
     }, '4n').start(0);
+    // Audio clips and sampler zones need their buffers: rebuild once a sample finishes loading.
+    onSamplesChanged(() => {
+      this.samplesVersion++;
+      if (this.lastProject) this.syncParts(this.lastProject);
+    });
   }
 
   /** Must be called from a user gesture before audio can be heard. */
@@ -113,6 +122,7 @@ class AudioEngine {
 
   sync(p: Project) {
     this.setup();
+    this.lastProject = p;
     const t = transport();
     if (Math.abs(t.bpm.value - p.bpm) > 0.001) t.bpm.value = p.bpm;
     t.loop = p.loop.enabled && p.loop.end > p.loop.start;
@@ -136,6 +146,9 @@ class AudioEngine {
 
   private syncTrack(track: Track) {
     let node = this.nodes.get(track.id);
+    // Imported instruments are rebuilt when their definition (zones, envelope) changes.
+    const custom = customById(track.instrument);
+    const signature = custom ? `${track.instrument}:${JSON.stringify(custom)}` : track.instrument;
     if (!node) {
       const channel = new Tone.Channel().connect(this.master);
       const meter = new Tone.Meter({ smoothing: 0.8 });
@@ -146,15 +159,15 @@ class AudioEngine {
       channel.connect(delaySend);
       const instrument = createInstrument(track.instrument);
       instrument.output.connect(channel);
-      node = { presetId: track.instrument, instrument, channel, meter, reverbSend, delaySend };
+      node = { presetId: signature, instrument, channel, meter, reverbSend, delaySend };
       this.nodes.set(track.id, node);
-    } else if (node.presetId !== track.instrument) {
+    } else if (node.presetId !== signature) {
       node.instrument.releaseAll();
       const old = node.instrument;
       setTimeout(() => old.dispose(), 1500);
       node.instrument = createInstrument(track.instrument);
       node.instrument.output.connect(node.channel);
-      node.presetId = track.instrument;
+      node.presetId = signature;
     }
     const ch = node.channel;
     const db = faderToDb(track.volume);
@@ -168,13 +181,19 @@ class AudioEngine {
   }
 
   private syncParts(p: Project) {
-    const signature = JSON.stringify(p.regions);
+    const signature = JSON.stringify([p.regions, p.bpm, p.tracks.map((t) => t.id), this.samplesVersion]);
     if (signature === this.partsSignature) return;
     this.partsSignature = signature;
     this.parts.forEach((part) => part.dispose());
     this.parts = [];
+    this.players.forEach((pl) => pl.dispose());
+    this.players = [];
     const PPQ = transport().PPQ;
     for (const region of p.regions) {
+      if (region.audio) {
+        this.addAudioClip(region, p.bpm);
+        continue;
+      }
       const events: NoteEvent[] = region.notes
         .filter((n) => n.start < region.length && n.start >= 0)
         .map((n) => ({
@@ -192,6 +211,21 @@ class AudioEngine {
       part.start(0);
       this.parts.push(part);
     }
+  }
+
+  /** Audio clips are transport-synced players, so they also start correctly mid-region. */
+  private addAudioClip(region: Project['regions'][number], bpm: number) {
+    const clip = region.audio!;
+    const buffer = getBuffer(clip.sampleId);
+    const node = this.nodes.get(region.trackId);
+    if (!buffer || !node) return;
+    const duration = Math.min((region.length * 60) / bpm, buffer.duration - clip.offset);
+    if (duration <= 0) return;
+    const player = new Tone.Player({ url: new Tone.ToneAudioBuffer(buffer), fadeIn: 0.004, fadeOut: 0.01 });
+    player.volume.value = clip.gain > 0 ? 20 * Math.log10(clip.gain) : -Infinity;
+    player.connect(node.instrument.output);
+    player.sync().start(`${Math.round(region.start * transport().PPQ)}i`, clip.offset, duration);
+    this.players.push(player);
   }
 
   private disposeNode(n: TrackNode) {

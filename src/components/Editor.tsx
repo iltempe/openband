@@ -6,6 +6,7 @@ import { BEATS_PER_BAR, DRUM_PIECES, clamp, isBlackKey, noteName, uid } from '..
 import { useFrame, usePosition } from '../hooks';
 import { commands } from '../commands';
 import * as I from './Icons';
+import { AudioClipEditor } from './Audio';
 import { drumLabel, useT } from '../i18n';
 
 export function Editor() {
@@ -23,6 +24,7 @@ export function Editor() {
       </div>
     );
   }
+  if (region.audio) return <AudioClipEditor region={region} track={track} />;
   return (
     <div className="editor" style={{ '--track': track.color } as CSSProperties}>
       <EditorBar region={region} track={track} />

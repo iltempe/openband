@@ -6,8 +6,9 @@ import { usePosition } from '../hooks';
 import { startRecording, stopRecording } from '../input';
 import { commands } from '../commands';
 import { loadDemo } from '../demo';
-import { download } from '../audio/render';
 import * as I from './Icons';
+import { importAudioFlow, importSoundFontFlow, openProjectFile } from './ImportUI';
+import { saveProject } from '../importers';
 import { LANGS, setLang, useLang, useT } from '../i18n';
 
 export async function togglePlay() {
@@ -137,16 +138,11 @@ function ProjectMenu() {
             <button onClick={() => (close(), commands.new_project({}))}>{t('menu.new')}</button>
             <button onClick={() => (close(), loadDemo())}>{t('menu.demo')}</button>
             <hr />
-            <button
-              onClick={() => {
-                close();
-                const p = s.project;
-                download(new Blob([JSON.stringify(p, null, 2)], { type: 'application/json' }), `${p.name}.openband.json`);
-              }}
-            >
-              {t('menu.save')}
-            </button>
+            <button onClick={() => (close(), void saveProject(s.project))}>{t('menu.save')}</button>
             <button onClick={() => (close(), fileRef.current?.click())}>{t('menu.open')}</button>
+            <hr />
+            <button onClick={() => (close(), void importAudioFlow())}>{t('menu.importAudio')}</button>
+            <button onClick={() => (close(), void importSoundFontFlow())}>{t('menu.importSf')}</button>
             <hr />
             <button onClick={exportWav}>{t('menu.exportWav')}</button>
             <hr />
@@ -164,17 +160,12 @@ function ProjectMenu() {
       <input
         ref={fileRef}
         type="file"
-        accept=".json,application/json"
+        accept=".json,.openband,application/json,application/zip"
         hidden
         onChange={async (e) => {
           const f = e.target.files?.[0];
           if (!f) return;
-          try {
-            commands.import_project_json({ project: await f.text() });
-            s.notify(t('menu.opened', { name: f.name }));
-          } catch (err) {
-            s.notify((err as Error).message);
-          }
+          await openProjectFile(f);
           e.target.value = '';
         }}
       />

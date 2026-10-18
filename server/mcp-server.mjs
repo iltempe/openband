@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import os from 'node:os';
 
 const PORT = Number(process.env.OPENBAND_PORT || 7777);
 const HOST = '127.0.0.1';
@@ -123,7 +124,9 @@ Conventions:
 - velocity 0..1. Track volume 0..1 (0.8 = unity), pan -1..1, reverb/delay/tone 0..1.
 
 Typical workflow: get_project → set_tempo/set_key → add_track (list_instruments for ids) → add_drum_pattern / add_chord_progression / add_region with notes → duplicate_region to extend → update_track to mix → transport play.
-Prefer few, musically complete calls (e.g. a whole 4-bar melody in one add_region). Always reuse ids returned by previous calls.`;
+Prefer few, musically complete calls (e.g. a whole 4-bar melody in one add_region). Always reuse ids returned by previous calls.
+
+Imported sounds: import_sample loads an audio file (local path or URL) and returns a sample_id. Use it to build instruments with create_sampler_instrument (melodic sampler or drum kit), or put it on the timeline with add_audio_region (audio tracks). import_soundfont lists the presets of a .sf2 file, then imports one as an instrument. Imported instruments get ids like "usr_..." that work in add_track / update_track.`;
 
 const server = new McpServer({ name: 'openband', version: '0.1.0' }, { instructions: INSTRUCTIONS });
 
@@ -152,6 +155,43 @@ const NoteSchema = z.object({
 });
 const readOnly = { annotations: { readOnlyHint: true } };
 
+const MAX_IMPORT_BYTES = 200 * 1024 * 1024;
+
+/** Read a local file path (absolute, ~ or relative to the working dir) or download a URL. */
+async function readSource(source) {
+  if (/^https?:\/\//i.test(source)) {
+    const res = await fetch(source);
+    if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`);
+    const len = Number(res.headers.get('content-length') || 0);
+    if (len > MAX_IMPORT_BYTES) throw new Error('File too large (max 200 MB)');
+    const data = Buffer.from(await res.arrayBuffer());
+    if (data.length > MAX_IMPORT_BYTES) throw new Error('File too large (max 200 MB)');
+    const name = decodeURIComponent(new URL(source).pathname.split('/').pop() || 'download');
+    return { data, filename: name };
+  }
+  const file = path.resolve(source.replace(/^~(?=$|[\/])/, os.homedir()));
+  const stat = await fs.promises.stat(file).catch(() => null);
+  if (!stat || !stat.isFile()) throw new Error(`File not found: ${file}`);
+  if (stat.size > MAX_IMPORT_BYTES) throw new Error('File too large (max 200 MB)');
+  return { data: await fs.promises.readFile(file), filename: path.basename(file) };
+}
+
+/** A tool whose `source` argument is a file path or URL, shipped to the studio as base64. */
+function fileTool(name, description, shape, opts = {}) {
+  server.registerTool(
+    name,
+    { title: opts.title, description, inputSchema: { source: z.string().describe('Absolute file path (or ~/...) or http(s) URL'), ...shape } },
+    async ({ source, ...args }) => {
+      try {
+        const { data, filename } = await readSource(source);
+        return text(await call(name, { ...args, filename, data_base64: data.toString('base64') }, opts.timeout ?? 180000));
+      } catch (e) {
+        return { ...text(`Error: ${e.message}`), isError: true };
+      }
+    },
+  );
+}
+
 server.registerTool(
   'open_studio',
   {
@@ -172,7 +212,7 @@ server.registerTool(
     const ok = await waitForStudio(15000);
     return text(
       ok
-        ? { connected: true, url, note: 'Ask the user to click "Entra nello studio" once so the browser allows audio.' }
+        ? { connected: true, url, note: 'Ask the user to click "Enter the studio" once so the browser allows audio.' }
         : { connected: false, url, note: `Opened ${url} but the studio has not connected yet. If you are in dev mode make sure "npm run dev" is running.` },
     );
   },
@@ -197,8 +237,8 @@ tool('set_tempo', 'Set the tempo in BPM.', { bpm: z.number().min(40).max(240) })
 tool('set_key', 'Set the song key shown in the display (e.g. "Am", "Eb").', { key: z.string() });
 tool('set_master_volume', 'Set the master output volume 0..1 (0.8 = unity).', { volume: z.number().min(0).max(1) });
 
-tool('add_track', 'Add a track. Give an instrument preset id (see list_instruments) or just a kind. Returns track_id.', {
-  kind: z.enum(['instrument', 'drums']).optional(),
+tool('add_track', 'Add a track. Give an instrument id (preset or imported, see list_instruments) or just a kind ("audio" for audio clips). Returns track_id.', {
+  kind: z.enum(['instrument', 'drums', 'audio']).optional(),
   instrument: z.string().optional(),
   name: z.string().optional(),
 });
@@ -226,12 +266,14 @@ tool('add_region', 'Create a region (MIDI clip) on a track, optionally with note
   notes: z.array(NoteSchema).optional(),
 });
 
-tool('update_region', 'Move, resize, rename a region or move it to another track of the same kind.', {
+tool('update_region', 'Move, resize, rename a region or move it to another track of the same kind. For audio regions also gain (0..2, 1 = unchanged) and offset_seconds (where playback starts inside the sample).', {
   region_id: z.string(),
   start_bar: z.number().min(1).optional(),
   length_bars: z.number().positive().optional(),
   name: z.string().optional(),
   track_id: z.string().optional(),
+  gain: z.number().min(0).max(2).optional(),
+  offset_seconds: z.number().min(0).optional(),
 });
 
 tool('delete_region', 'Delete a region.', { region_id: z.string() });
@@ -312,7 +354,40 @@ tool('export_project_json', 'Export the complete project as JSON (for saving or 
 tool('import_project_json', 'Replace the current project with an OpenBand project JSON (as produced by export_project_json).', {
   project: z.union([z.string(), z.record(z.string(), z.any())]),
 });
-tool('export_wav', 'Render the whole song offline and download it as a WAV file in the browser.', {}, { timeout: 180000 });
+tool('export_wav', 'Render the whole song offline (instruments, imported sounds and audio tracks) and download it as a WAV file in the browser.', {}, { timeout: 180000 });
+
+// ---- imported sounds
+
+fileTool('import_sample', 'Load an audio file (WAV, MP3, OGG, FLAC, AIFF…) into the studio. Returns sample_id, duration and the detected root note (from the file name or the pitch).', {});
+
+tool('list_samples', 'List the samples loaded in the studio (ids, names, durations).', {}, readOnly);
+
+tool(
+  'create_sampler_instrument',
+  'Build a playable instrument from imported samples. Melodic (kind "instrument"): samples [{sample_id, root?, lo?, hi?}] — without lo/hi each sample covers the keys nearest its root. Drum kit (kind "drums"): pads {kick: sample_id, snare: ..., hihat, openhat, clap, rim, lowtom, midtom, hightom, crash, ride}, or samples to auto-assign by name. Returns instrument_id for add_track/update_track.',
+  {
+    name: z.string().optional(),
+    kind: z.enum(['instrument', 'drums']).optional(),
+    samples: z.array(z.object({ sample_id: z.string(), root: z.union([z.number().int(), z.string()]).optional(), lo: z.number().int().optional(), hi: z.number().int().optional() })).optional(),
+    pads: z.record(z.string(), z.string()).optional(),
+    attack: z.number().min(0).max(5).optional().describe('seconds'),
+    release: z.number().min(0).max(10).optional().describe('seconds'),
+  },
+);
+
+fileTool('import_soundfont', 'Import from a SoundFont 2 (.sf2) file. Without preset it lists the presets (index, name, bank:program). With preset (index, name or "bank:program") it imports that preset as an instrument and returns instrument_id.', {
+  preset: z.union([z.string(), z.number()]).optional(),
+});
+
+tool('add_audio_region', 'Place an imported sample on the timeline as an audio clip. Without track_id a new audio track is created. Length defaults to the sample length (audio is not time-stretched).', {
+  sample_id: z.string(),
+  track_id: z.string().optional(),
+  start_bar: z.number().min(1).optional(),
+  name: z.string().optional(),
+  offset_seconds: z.number().min(0).optional(),
+  length_bars: z.number().positive().optional(),
+  gain: z.number().min(0).max(2).optional(),
+});
 
 await server.connect(new StdioServerTransport());
 log('MCP server ready');

@@ -2,8 +2,9 @@
 // Factories only use Tone constructors, so they work both in the live context and inside
 // Tone.Offline() for bouncing to WAV.
 import * as Tone from 'tone';
-import type { TrackKind } from '../types';
+import type { CustomInstrument, TrackKind } from '../types';
 import { cutoffToHz } from '../music';
+import { AudioTrackInput, SampleInstrument } from './sampler';
 
 export interface InstrumentPreset {
   id: string;
@@ -34,7 +35,31 @@ export const PRESETS: InstrumentPreset[] = [
 ];
 
 export const presetById = (id: string) => PRESETS.find((p) => p.id === id);
-export const defaultPreset = (kind: TrackKind) => (kind === 'drums' ? 'kit-studio' : 'felt-piano');
+export const AUDIO_INPUT = 'audio-input';
+export const defaultPreset = (kind: TrackKind) => (kind === 'drums' ? 'kit-studio' : kind === 'audio' ? AUDIO_INPUT : 'felt-piano');
+
+// Imported instruments live in the project; the store keeps this registry in sync.
+const customs = new Map<string, CustomInstrument>();
+export function setCustomInstruments(list: CustomInstrument[] = []) {
+  customs.clear();
+  list.forEach((c) => customs.set(c.id, c));
+}
+export const customById = (id: string) => customs.get(id);
+export const customInstruments = () => [...customs.values()];
+
+export interface InstrumentInfo extends InstrumentPreset {
+  custom?: CustomInstrument;
+}
+
+/** Any instrument id: built-in preset, imported instrument, or the audio-track input. */
+export function findInstrument(id: string): InstrumentInfo | undefined {
+  const preset = presetById(id);
+  if (preset) return preset;
+  const c = customs.get(id);
+  if (c) return { id: c.id, name: c.name, kind: c.kind, category: 'Imported', description: c.source === 'soundfont' ? 'SoundFont' : 'Sampler', cutoff: 1, custom: c };
+  if (id === AUDIO_INPUT) return { id, name: 'Audio', kind: 'audio', category: 'Audio', description: 'Audio track', cutoff: 1 };
+  return undefined;
+}
 
 export interface Instrument {
   output: Tone.ToneAudioNode;
@@ -310,7 +335,9 @@ class DrumKit implements Instrument {
   }
 }
 
-export function createInstrument(presetId: string): Instrument {
+export function createInstrument(presetId: string, custom = customs.get(presetId)): Instrument {
+  if (presetId === AUDIO_INPUT) return new AudioTrackInput();
+  if (custom) return new SampleInstrument(custom);
   const preset = presetById(presetId);
   if (preset?.kind === 'drums') return new DrumKit(presetId);
   return new MelodicInstrument(presetId);

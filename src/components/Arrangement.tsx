@@ -3,10 +3,12 @@ import type { Region, Track } from '../types';
 import { useStore, projectEnd } from '../store';
 import { engine } from '../audio/engine';
 import { BEATS_PER_BAR, DRUM_PIECES, clamp, uid } from '../music';
-import { presetById } from '../audio/instruments';
+import { findInstrument } from '../audio/instruments';
 import { usePosition } from '../hooks';
 import { commands } from '../commands';
 import * as I from './Icons';
+import { Waveform } from './Audio';
+import { handleDroppedFiles, importAudioFlow } from './ImportUI';
 import { useT } from '../i18n';
 
 export const HEADER_W = 252;
@@ -50,6 +52,9 @@ export function Arrangement() {
               </button>
               <button className="chip" onClick={() => commands.add_track({ kind: 'drums' })}>
                 <I.Plus width={14} height={14} /> {t('arr.addDrums')}
+              </button>
+              <button className="chip" onClick={() => commands.add_track({ kind: 'audio' })}>
+                <I.Plus width={14} height={14} /> {t('arr.addAudio')}
               </button>
             </div>
             <Ruler totalBeats={totalBeats} />
@@ -201,10 +206,11 @@ const TrackRow = memo(function TrackRow({ track, index, regions }: { track: Trac
   const commit = useStore((s) => s.commit);
   const t = useT();
 
+  const beatAt = (el: Element, clientX: number) => Math.floor((clientX - el.getBoundingClientRect().left) / zoom / BEATS_PER_BAR) * BEATS_PER_BAR;
   const onLaneDoubleClick = (e: React.MouseEvent) => {
     if (e.target !== e.currentTarget) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const beat = Math.floor((e.clientX - rect.left) / zoom / BEATS_PER_BAR) * BEATS_PER_BAR;
+    const beat = beatAt(e.currentTarget, e.clientX);
+    if (track.kind === 'audio') return void importAudioFlow({ trackId: track.id, startBeat: beat });
     const region: Region = { id: uid('rgn'), trackId: track.id, name: track.name, start: beat, length: BEATS_PER_BAR * (track.kind === 'drums' ? 1 : 2), notes: [] };
     commit((d) => void d.regions.push(region));
     useStore.getState().selectRegion(region);
@@ -220,7 +226,14 @@ const TrackRow = memo(function TrackRow({ track, index, regions }: { track: Trac
           if (e.target === e.currentTarget) set({ selectedTrackId: track.id, selectedRegionId: null });
         }}
         onDoubleClick={onLaneDoubleClick}
-        title={t('arr.laneHint')}
+        onDragOver={(e) => e.dataTransfer.types.includes('Files') && (e.preventDefault(), e.stopPropagation())}
+        onDrop={(e) => {
+          if (!e.dataTransfer.files.length) return;
+          e.preventDefault();
+          e.stopPropagation();
+          void handleDroppedFiles([...e.dataTransfer.files], { trackId: track.id, startBeat: beatAt(e.currentTarget, e.clientX) });
+        }}
+        title={track.kind === 'audio' ? t('arr.audioLaneHint') : t('arr.laneHint')}
       >
         {regions.map((r) => (
           <RegionView key={r.id} region={r} track={track} trackIndex={index} />
@@ -241,7 +254,7 @@ function TrackHeader({ track, selected }: { track: Track; selected: boolean }) {
   return (
     <div className={`track-header ${selected ? 'selected' : ''}`} onPointerDown={() => set({ selectedTrackId: track.id })}>
       <div className="th-color" />
-      <div className="th-icon">{track.kind === 'drums' ? <I.DrumIcon /> : <I.KeysIcon />}</div>
+      <div className="th-icon">{track.kind === 'drums' ? <I.DrumIcon /> : track.kind === 'audio' ? <I.Wave /> : <I.KeysIcon />}</div>
       <div className="th-main">
         {renaming ? (
           <input
@@ -259,7 +272,7 @@ function TrackHeader({ track, selected }: { track: Track; selected: boolean }) {
             {track.name}
           </div>
         )}
-        <div className="th-sub">{presetById(track.instrument)?.name}</div>
+        <div className="th-sub">{track.kind === 'audio' ? t('audio.track') : findInstrument(track.instrument)?.name}</div>
         <input
           className="th-vol"
           type="range"
@@ -350,10 +363,16 @@ function RegionView({ region, track, trackIndex }: { region: Region; track: Trac
       }}
     >
       <div className="region-head">{region.name}</div>
-      <RegionPreview region={region} drums={track.kind === 'drums'} />
+      {region.audio ? <AudioPreview region={region} /> : <RegionPreview region={region} drums={track.kind === 'drums'} />}
       <div className="region-resize" onPointerDown={(e) => startDrag(e, 'resize')} />
     </div>
   );
+}
+
+function AudioPreview({ region }: { region: Region }) {
+  const bpm = useStore((s) => s.project.bpm);
+  const clip = region.audio!;
+  return <Waveform sampleId={clip.sampleId} offset={clip.offset} seconds={(region.length * 60) / bpm} gain={clip.gain} className="region-body" />;
 }
 
 const RegionPreview = memo(function RegionPreview({ region, drums }: { region: Region; drums: boolean }) {

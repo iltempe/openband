@@ -13,6 +13,7 @@ import { Library } from './components/Library';
 import { AIPanel } from './components/AIPanel';
 import { MusicalTyping } from './components/MusicalTyping';
 import * as I from './components/Icons';
+import { SoundFontDialog, handleDroppedFiles } from './components/ImportUI';
 import { LANGS, setLang, useLang, useT } from './i18n';
 
 function useShortcuts() {
@@ -178,8 +179,28 @@ function Splash() {
   );
 }
 
+function useFileDrop() {
+  useEffect(() => {
+    const over = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes('Files')) e.preventDefault();
+    };
+    const drop = (e: DragEvent) => {
+      if (!e.dataTransfer?.files.length) return;
+      e.preventDefault();
+      void handleDroppedFiles([...e.dataTransfer.files]);
+    };
+    window.addEventListener('dragover', over);
+    window.addEventListener('drop', drop);
+    return () => {
+      window.removeEventListener('dragover', over);
+      window.removeEventListener('drop', drop);
+    };
+  }, []);
+}
+
 export function App() {
   useShortcuts();
+  useFileDrop();
   const s = useStore();
 
   return (
@@ -217,6 +238,7 @@ export function App() {
         {s.aiOpen && <AIPanel />}
       </div>
       {s.keyboardOpen && <MusicalTyping />}
+      <SoundFontDialog />
       {s.toast && <div className="toast">{s.toast}</div>}
       {s.isRecording && <div className="rec-glow" />}
       {!s.audioReady && <Splash />}

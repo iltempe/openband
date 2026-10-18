@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import type { BottomPanel, BridgeLogEntry, BridgeStatus, Project, Region, Track, TrackKind } from './types';
-import { DRUM_COLOR, TRACK_COLORS, uid } from './music';
-import { defaultPreset, presetById } from './audio/instruments';
+import { AUDIO_COLOR, DRUM_COLOR, TRACK_COLORS, uid } from './music';
+import { defaultPreset, findInstrument, setCustomInstruments } from './audio/instruments';
+import { ensureSamples } from './audio/samples';
 import { t } from './i18n';
 
 const STORAGE_KEY = 'openband.project.v1';
@@ -22,19 +23,20 @@ export function emptyProject(name = t('name.untitled'), bpm = 110): Project {
 }
 
 export function makeTrack(project: Project, kind: TrackKind, instrument?: string, name?: string): Track {
-  const preset = presetById(instrument ?? '') ?? presetById(defaultPreset(kind))!;
+  const found = findInstrument(instrument ?? '');
+  const preset = found && found.kind === kind ? found : findInstrument(defaultPreset(kind))!;
   const melodicCount = project.tracks.filter((t) => t.kind === 'instrument').length;
   return {
     id: uid('trk'),
     name: name ?? preset.name,
     kind,
     instrument: preset.id,
-    color: kind === 'drums' ? DRUM_COLOR : TRACK_COLORS[melodicCount % TRACK_COLORS.length],
+    color: kind === 'drums' ? DRUM_COLOR : kind === 'audio' ? AUDIO_COLOR : TRACK_COLORS[melodicCount % TRACK_COLORS.length],
     volume: 0.8,
     pan: 0,
     mute: false,
     solo: false,
-    reverb: kind === 'drums' ? 0.08 : 0.22,
+    reverb: kind === 'drums' ? 0.08 : kind === 'audio' ? 0.05 : 0.22,
     delay: 0,
     cutoff: preset.cutoff,
   };
@@ -167,6 +169,21 @@ export const useStore = create<State>((set, get) => ({
   logBridge: (e) =>
     set({ bridgeLog: [{ ...e, id: uid('log'), time: Date.now() }, ...get().bridgeLog].slice(0, 200) }),
 }));
+
+/** Every sample a project depends on (imported instruments and audio clips). */
+export const projectSampleIds = (p: Project) => [
+  ...(p.instruments ?? []).flatMap((i) => i.zones.map((z) => z.sampleId)),
+  ...p.regions.flatMap((r) => (r.audio ? [r.audio.sampleId] : [])),
+];
+
+// Keep the imported-instrument registry and the sample cache in step with the project.
+setCustomInstruments(useStore.getState().project.instruments);
+void ensureSamples(projectSampleIds(useStore.getState().project));
+useStore.subscribe((s, prev) => {
+  if (s.project === prev.project) return;
+  if (s.project.instruments !== prev.project.instruments) setCustomInstruments(s.project.instruments);
+  void ensureSamples(projectSampleIds(s.project));
+});
 
 // Debounced autosave.
 let saveTimer: ReturnType<typeof setTimeout> | undefined;

@@ -2,13 +2,30 @@
 // Bars are 1-based (bar 1 starts at beat 0); positions inside regions are in beats.
 import type { Note, Project, Region, Track, TrackKind } from './types';
 import { BEATS_PER_BAR, KEYS, clamp, drumByPitch, noteName, parseChord, parsePitch, uid } from './music';
-import { PRESETS, presetById } from './audio/instruments';
+import { PRESETS, customInstruments, findInstrument } from './audio/instruments';
+import { getBuffer, importSample, useSamples } from './audio/samples';
+import { addAudioRegion, guessDrumPads, instrumentFromSoundFont, openSoundFont, rootFor, spreadZones } from './importers';
 import { emptyProject, getRegion, getTrack, makeTrack, projectEnd, useStore } from './store';
 import { engine } from './audio/engine';
 import { download, renderProject } from './audio/render';
 import { t as tr } from './i18n';
 
 type P = Record<string, any>;
+
+function fromBase64(b64: string): ArrayBuffer {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+}
+
+function requireSample(id: string) {
+  const info = useSamples.getState().info[id];
+  if (!info || !getBuffer(id)) throw new Error(`Sample "${id}" not found. Call import_sample or list_samples.`);
+  return info;
+}
+
+const SAMPLE_DRUMS: Record<string, number> = { kick: 36, rim: 37, snare: 38, clap: 39, hihat: 42, lowtom: 45, openhat: 46, midtom: 48, crash: 49, hightom: 50, ride: 51 };
 
 const st = () => useStore.getState();
 const barToBeat = (bar: number) => (Math.max(1, bar) - 1) * BEATS_PER_BAR;
@@ -81,7 +98,9 @@ function summarize(p: Project, includeNotes = false) {
           name: r.name,
           start_bar: beatToBar(r.start),
           length_bars: r.length / BEATS_PER_BAR,
-          note_count: r.notes.length,
+          ...(r.audio
+            ? { audio: { sample_id: r.audio.sampleId, offset_seconds: r.audio.offset, gain: r.audio.gain } }
+            : { note_count: r.notes.length }),
           ...(includeNotes ? { notes: r.notes.map((n) => describeNote(n, t.kind === 'drums')) } : {}),
         })),
     })),
@@ -120,6 +139,8 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   list_instruments: () => ({
     instruments: PRESETS.map((p) => ({ id: p.id, name: p.name, kind: p.kind, category: p.category, description: p.description })),
+    imported_instruments: customInstruments().map((c) => ({ id: c.id, name: c.name, kind: c.kind, source: c.source, zones: c.zones.length })),
+    audio_tracks: 'add_track with kind "audio", then add_audio_region with a sample_id from import_sample',
     drum_pieces: 'kick(36) snare(38) clap(39) rim(37) hihat(42) openhat(46) lowtom(45) midtom(48) hightom(50) crash(49) ride(51)',
     keys: KEYS,
   }),
@@ -155,9 +176,9 @@ export const commands: Record<string, (args: P) => unknown> = {
   },
 
   add_track: ({ kind, instrument, name }) => {
-    const preset = instrument ? presetById(instrument) : undefined;
+    const preset = instrument ? findInstrument(instrument) : undefined;
     if (instrument && !preset) throw new Error(`Unknown instrument "${instrument}". Call list_instruments.`);
-    const k: TrackKind = preset?.kind ?? (kind === 'drums' ? 'drums' : 'instrument');
+    const k: TrackKind = preset?.kind ?? (kind === 'drums' || kind === 'audio' ? kind : 'instrument');
     const track = makeTrack(st().project, k, preset?.id, name);
     st().commit((d) => void d.tracks.push(track));
     st().set({ selectedTrackId: track.id });
@@ -167,7 +188,7 @@ export const commands: Record<string, (args: P) => unknown> = {
   update_track: ({ track_id, name, instrument, volume, pan, mute, solo, reverb, delay, tone }) => {
     const t = requireTrack(st().project, track_id);
     if (instrument !== undefined) {
-      const preset = presetById(instrument);
+      const preset = findInstrument(instrument);
       if (!preset) throw new Error(`Unknown instrument "${instrument}"`);
       if (preset.kind !== t.kind) throw new Error(`Instrument "${instrument}" is for ${preset.kind} tracks, track is ${t.kind}`);
     }
@@ -176,7 +197,7 @@ export const commands: Record<string, (args: P) => unknown> = {
       if (name !== undefined) tr.name = String(name);
       if (instrument !== undefined) {
         tr.instrument = instrument;
-        tr.cutoff = presetById(instrument)!.cutoff;
+        tr.cutoff = findInstrument(instrument)!.cutoff;
       }
       if (volume !== undefined) tr.volume = clamp(Number(volume), 0, 1);
       if (pan !== undefined) tr.pan = clamp(Number(pan), -1, 1);
@@ -201,12 +222,13 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   add_region: ({ track_id, start_bar, length_bars, name, notes }) => {
     const t = requireTrack(st().project, track_id);
+    if (t.kind === 'audio') throw new Error('Audio tracks hold audio clips: use add_audio_region');
     const parsed = toNotes(notes, t.kind === 'drums');
     const region = createRegion(t.id, barToBeat(start_bar ?? 1), regionLengthFor(parsed, length_bars), name ?? t.name, parsed);
     return { region_id: region.id, start_bar: beatToBar(region.start), length_bars: region.length / BEATS_PER_BAR, note_count: parsed.length };
   },
 
-  update_region: ({ region_id, start_bar, length_bars, name, track_id }) => {
+  update_region: ({ region_id, start_bar, length_bars, name, track_id, gain, offset_seconds }) => {
     const r = requireRegion(st().project, region_id);
     let target: Track | undefined;
     if (track_id) {
@@ -220,6 +242,8 @@ export const commands: Record<string, (args: P) => unknown> = {
       if (length_bars !== undefined) x.length = Math.max(0.25, Number(length_bars)) * BEATS_PER_BAR;
       if (name !== undefined) x.name = String(name);
       if (target) x.trackId = target.id;
+      if (x.audio && gain !== undefined) x.audio.gain = clamp(Number(gain), 0, 2);
+      if (x.audio && offset_seconds !== undefined) x.audio.offset = Math.max(0, Number(offset_seconds));
     });
     return { region_id: r.id };
   },
@@ -422,6 +446,84 @@ export const commands: Record<string, (args: P) => unknown> = {
   },
 
   export_project_json: () => st().project,
+
+  // ---------- imported sounds ----------
+
+  list_samples: () => ({
+    samples: Object.values(useSamples.getState().info).map((s) => ({ id: s.id, name: s.name, duration_seconds: +s.duration.toFixed(3), channels: s.channels })),
+  }),
+
+  import_sample: async ({ data_base64, filename }) => {
+    const info = await importSample(fromBase64(data_base64), String(filename ?? 'sample.wav'));
+    const root = rootFor(info);
+    return { sample_id: info.id, name: info.name, duration_seconds: +info.duration.toFixed(3), detected_root: root, detected_root_name: noteName(root) };
+  },
+
+  create_sampler_instrument: ({ name, kind, samples, pads, attack, release }) => {
+    const k = kind === 'drums' ? 'drums' : 'instrument';
+    let zones;
+    if (k === 'drums') {
+      if (pads && Object.keys(pads).length) {
+        zones = Object.entries(pads as Record<string, string>).map(([piece, id]) => {
+          requireSample(id);
+          const pitch = SAMPLE_DRUMS[piece.toLowerCase()] ?? parsePitch(piece, true);
+          return { sampleId: id, root: pitch, lo: pitch, hi: pitch };
+        });
+      } else {
+        zones = guessDrumPads(((samples ?? []) as { sample_id: string }[]).map((s) => requireSample(s.sample_id)));
+      }
+    } else {
+      const list = (samples ?? []) as { sample_id: string; root?: number | string; lo?: number; hi?: number }[];
+      if (!list.length) throw new Error('Give at least one sample');
+      const explicit = list.some((s) => s.lo !== undefined || s.hi !== undefined);
+      const withRoots = list.map((s) => ({ s, sampleId: s.sample_id, root: s.root !== undefined ? parsePitch(s.root, false) : rootFor(requireSample(s.sample_id)) }));
+      zones = explicit
+        ? withRoots.map(({ s, sampleId, root }) => ({ sampleId, root, lo: clamp(s.lo ?? 0, 0, 127), hi: clamp(s.hi ?? 127, 0, 127) }))
+        : spreadZones(withRoots);
+    }
+    if (!zones.length) throw new Error('No zones: pass samples or pads');
+    const inst = {
+      id: uid('usr'),
+      name: String(name ?? (k === 'drums' ? 'Custom Kit' : 'Sampler')),
+      kind: k as 'instrument' | 'drums',
+      source: 'sampler' as const,
+      zones,
+      attack: clamp(Number(attack ?? 0.003), 0.001, 5),
+      release: clamp(Number(release ?? (k === 'drums' ? 0.08 : 0.35)), 0.01, 10),
+    };
+    st().commit((d) => void (d.instruments = [...(d.instruments ?? []), inst]));
+    return { instrument_id: inst.id, name: inst.name, kind: inst.kind, zones: zones.map((z) => ({ sample_id: z.sampleId, root: noteName(z.root), lo: z.lo, hi: z.hi })) };
+  },
+
+  import_soundfont: async ({ data_base64, preset }) => {
+    const sf = openSoundFont(fromBase64(data_base64));
+    const list = sf.presets.map((p) => ({ index: p.index, name: p.name, bank: p.bank, program: p.program, drums: sf.isDrumPreset(p) }));
+    if (preset === undefined || preset === null || preset === '') return { presets: list, note: 'Call again with preset (index, name or "bank:program") to import one.' };
+    const q = String(preset).trim().toLowerCase();
+    const bp = q.match(/^(\d+):(\d+)$/);
+    const found =
+      (bp ? list.find((p) => p.bank === Number(bp[1]) && p.program === Number(bp[2])) : undefined) ??
+      (/^\d+$/.test(q) ? list.find((p) => p.index === Number(q)) : undefined) ??
+      list.find((p) => p.name.toLowerCase() === q) ??
+      list.find((p) => p.name.toLowerCase().includes(q));
+    if (!found) throw new Error(`Preset "${preset}" not found. Call without preset to list them.`);
+    const inst = await instrumentFromSoundFont(sf, found.index);
+    return { instrument_id: inst.id, name: inst.name, kind: inst.kind, zones: inst.zones.length, note: 'Use it with add_track or update_track (instrument).' };
+  },
+
+  add_audio_region: ({ sample_id, track_id, start_bar, name, offset_seconds, length_bars, gain }) => {
+    const info = requireSample(sample_id);
+    const trackId = track_id ? requireTrack(st().project, track_id).id : undefined;
+    const r = addAudioRegion(info, {
+      trackId,
+      startBeat: barToBeat(start_bar ?? 1),
+      name,
+      offset: offset_seconds !== undefined ? Number(offset_seconds) : undefined,
+      lengthBeats: length_bars !== undefined ? Number(length_bars) * BEATS_PER_BAR : undefined,
+      gain: gain !== undefined ? clamp(Number(gain), 0, 2) : undefined,
+    });
+    return { region_id: r.id, track_id: r.trackId, start_bar: beatToBar(r.start), length_bars: +(r.length / BEATS_PER_BAR).toFixed(3) };
+  },
 
   import_project_json: ({ project }) => {
     const p = typeof project === 'string' ? JSON.parse(project) : project;

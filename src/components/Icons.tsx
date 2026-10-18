@@ -80,3 +80,15 @@ export const DrumIcon = (p: I) => (
 export const Copy = (p: I) => (
   <svg {...base(p)}><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" /></svg>
 );
+export const Wave = (p: I) => (
+  <svg {...base(p)}><path d="M2 12h2M6 8v8M10 4v16M14 7v10M18 10v4M22 12h-2" /></svg>
+);
+export const Fx = (p: I) => (
+  <svg {...base(p)}><path d="M4 7h9M4 17h5M17 7h3M13 17h7" /><circle cx="15" cy="7" r="2" /><circle cx="11" cy="17" r="2" /></svg>
+);
+export const Automation = (p: I) => (
+  <svg {...base(p)}><path d="M3 17l5-6 4 3 4-7 5 4" /><circle cx="8" cy="11" r="1.4" fill="currentColor" /><circle cx="16" cy="7" r="1.4" fill="currentColor" /></svg>
+);
+export const Midi = (p: I) => (
+  <svg {...base(p)}><circle cx="12" cy="12" r="9" /><circle cx="7.5" cy="12" r="1" fill="currentColor" /><circle cx="16.5" cy="12" r="1" fill="currentColor" /><circle cx="9" cy="8" r="1" fill="currentColor" /><circle cx="15" cy="8" r="1" fill="currentColor" /><circle cx="12" cy="6.8" r="1" fill="currentColor" /></svg>
+);

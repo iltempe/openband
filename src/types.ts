@@ -1,7 +1,7 @@
 // Core data model. All musical times are expressed in beats (quarter notes).
 // The project is 4/4: one bar = 4 beats.
 
-export type TrackKind = 'instrument' | 'drums';
+export type TrackKind = 'instrument' | 'drums' | 'audio';
 
 export interface Note {
   id: string;
@@ -24,6 +24,44 @@ export interface Region {
   /** Length in beats. */
   length: number;
   notes: Note[];
+  /** Audio regions (on audio tracks) play a stored sample instead of notes. */
+  audio?: AudioClip;
+}
+
+export interface AudioClip {
+  sampleId: string;
+  /** Seconds into the sample where the region starts playing. */
+  offset: number;
+  /** Linear gain 0..2 (1 = unchanged). */
+  gain: number;
+}
+
+/** One sample mapped onto a key range of a sampler instrument. */
+export interface SampleZone {
+  sampleId: string;
+  /** MIDI pitch at which the sample plays at its original speed. */
+  root: number;
+  lo: number;
+  hi: number;
+  /** Fine tuning in cents. */
+  tune?: number;
+  /** Loop points in seconds (sustaining samples, e.g. from SoundFonts). */
+  loopStart?: number;
+  loopEnd?: number;
+  /** Linear gain applied to this zone. */
+  gain?: number;
+}
+
+/** A user instrument built from imported samples (sampler, custom drum kit or SoundFont preset). */
+export interface CustomInstrument {
+  id: string;
+  name: string;
+  kind: 'instrument' | 'drums';
+  source: 'sampler' | 'soundfont';
+  zones: SampleZone[];
+  /** Envelope in seconds. */
+  attack: number;
+  release: number;
 }
 
 export interface Track {
@@ -62,6 +100,8 @@ export interface Project {
   loop: LoopRange;
   masterVolume: number;
   metronome: boolean;
+  /** Imported instruments, referenced by Track.instrument. */
+  instruments?: CustomInstrument[];
 }
 
 export type BottomPanel = 'smart' | 'editor' | 'mixer' | null;

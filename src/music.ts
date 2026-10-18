@@ -112,6 +112,7 @@ export const KEYS = [
 
 export const TRACK_COLORS = ['#34d399', '#60a5fa', '#a78bfa', '#f472b6', '#22d3ee', '#fb923c', '#a3e635', '#f87171'];
 export const DRUM_COLOR = '#fbbf24';
+export const AUDIO_COLOR = '#e879f9';
 
 /** Fader 0..1 -> decibels (0.8 = 0 dB). */
 export const faderToDb = (v: number) => (v <= 0.001 ? -Infinity : 20 * Math.log10(v / 0.8));

@@ -1,9 +1,10 @@
 import type { CSSProperties } from 'react';
 import type { Track } from '../types';
 import { getTrack, useStore } from '../store';
-import { PRESETS, presetById } from '../audio/instruments';
+import { PRESETS, customInstruments, findInstrument } from '../audio/instruments';
 import { Knob } from './Knob';
 import * as I from './Icons';
+import { InstrumentEditor } from './ImportUI';
 import { categoryLabel, presetDescription, useT } from '../i18n';
 
 export function useTrackUpdater(trackId: string) {
@@ -29,23 +30,28 @@ export function SmartControls() {
 function TrackControls({ track }: { track: Track }) {
   const update = useTrackUpdater(track.id);
   const checkpoint = useStore((s) => s.checkpoint);
-  const preset = presetById(track.instrument);
+  const preset = findInstrument(track.instrument);
   const t = useT();
-  const siblings = PRESETS.filter((p) => p.kind === track.kind);
+  useStore((s) => s.project.instruments);
+  const siblings = [...customInstruments().map((c) => findInstrument(c.id)!), ...PRESETS].filter((p) => p.kind === track.kind);
+  const audio = track.kind === 'audio';
 
   return (
     <div className="smart" style={{ '--track': track.color } as CSSProperties}>
       <div className="smart-card">
-        <div className="smart-art">{track.kind === 'drums' ? <I.DrumIcon width={44} height={44} /> : <I.KeysIcon width={44} height={44} />}</div>
+        <div className="smart-art">{track.kind === 'drums' ? <I.DrumIcon width={44} height={44} /> : audio ? <I.Wave width={44} height={44} /> : <I.KeysIcon width={44} height={44} />}</div>
         <div className="smart-info">
-          <div className="smart-kicker">{preset && categoryLabel(preset.category)}</div>
+          <div className="smart-kicker">{audio ? t('audio.track') : preset && (preset.custom ? t('imp.imported') : categoryLabel(preset.category))}</div>
+          {audio ? (
+            <div className="smart-preset static">{track.name}</div>
+          ) : (
           <select
             className="smart-preset"
             value={track.instrument}
             onChange={(e) =>
               update((t) => {
                 t.instrument = e.target.value;
-                t.cutoff = presetById(e.target.value)!.cutoff;
+                t.cutoff = findInstrument(e.target.value)!.cutoff;
               }, true)
             }
           >
@@ -55,7 +61,8 @@ function TrackControls({ track }: { track: Track }) {
               </option>
             ))}
           </select>
-          <div className="smart-desc">{preset && presetDescription(preset)}</div>
+          )}
+          <div className="smart-desc">{audio ? t('audio.trackDesc') : preset && (preset.custom ? preset.description : presetDescription(preset))}</div>
         </div>
       </div>
       <div className="smart-knobs">
@@ -65,6 +72,7 @@ function TrackControls({ track }: { track: Track }) {
         <Knob label={t('sc.reverb')} value={track.reverb} defaultValue={0.2} color="#a78bfa" onStart={checkpoint} onChange={(v) => update((t) => void (t.reverb = v))} size={64} />
         <Knob label={t('sc.echo')} value={track.delay} defaultValue={0} color="#22d3ee" onStart={checkpoint} onChange={(v) => update((t) => void (t.delay = v))} size={64} />
       </div>
+      {preset?.custom && <InstrumentEditor inst={preset.custom} track={track} />}
     </div>
   );
 }

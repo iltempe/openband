@@ -2,7 +2,8 @@
 import * as Tone from 'tone';
 import type { Project } from '../types';
 import { faderToDb, sendToDb } from '../music';
-import { projectEnd } from '../store';
+import { projectEnd, projectSampleIds } from '../store';
+import { ensureSamples, getBuffer } from './samples';
 import { createInstrument, makeImpulse } from './instruments';
 
 const dbToGain = (db: number) => (db === -Infinity ? 0 : Math.pow(10, db / 20));
@@ -11,6 +12,7 @@ export async function renderProject(p: Project): Promise<Blob> {
   const endBeats = Math.max(projectEnd(p), 4);
   const seconds = (endBeats * 60) / p.bpm + 3;
   const anySolo = p.tracks.some((t) => t.solo);
+  await ensureSamples(projectSampleIds(p));
 
   const buffer = await Tone.Offline(({ transport }) => {
     transport.bpm.value = p.bpm;
@@ -21,7 +23,7 @@ export async function renderProject(p: Project): Promise<Blob> {
 
     for (const track of p.tracks) {
       if (track.mute || (anySolo && !track.solo)) continue;
-      const inst = createInstrument(track.instrument);
+      const inst = createInstrument(track.instrument, p.instruments?.find((c) => c.id === track.instrument));
       inst.setCutoff(track.cutoff);
       const ch = new Tone.Channel({ volume: faderToDb(track.volume), pan: track.pan }).connect(master);
       inst.output.connect(ch);
@@ -29,6 +31,16 @@ export async function renderProject(p: Project): Promise<Blob> {
       ch.connect(new Tone.Gain(dbToGain(sendToDb(track.delay)) * 0.7).connect(delay));
 
       for (const region of p.regions.filter((r) => r.trackId === track.id)) {
+        if (region.audio) {
+          const clip = region.audio;
+          const buffer = getBuffer(clip.sampleId);
+          const dur = buffer ? Math.min((region.length * 60) / p.bpm, buffer.duration - clip.offset) : 0;
+          if (!buffer || dur <= 0) continue;
+          const player = new Tone.Player({ url: new Tone.ToneAudioBuffer(buffer), fadeIn: 0.004, fadeOut: 0.01 }).connect(inst.output);
+          player.volume.value = clip.gain > 0 ? 20 * Math.log10(clip.gain) : -Infinity;
+          transport.schedule((time) => player.start(time, clip.offset, dur), `${Math.round(region.start * PPQ)}i`);
+          continue;
+        }
         for (const n of region.notes) {
           if (n.start < 0 || n.start >= region.length) continue;
           const dur = Math.min(n.duration, region.length - n.start);
