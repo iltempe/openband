@@ -191,6 +191,8 @@ export async function captureWamStates() {
 }
 
 // Keep plugin states in the autosaved project while people tweak plugin GUIs.
-setInterval(() => {
-  if (liveWams.size) void captureWamStates();
-}, 15000);
+if (typeof window !== 'undefined') {
+  setInterval(() => {
+    if (liveWams.size) void captureWamStates();
+  }, 15000);
+}

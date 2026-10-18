@@ -136,6 +136,17 @@ Convenzioni: tempo in 4/4; le battute partono da 1; dentro una regione posizioni
 | ⌘D · ⌫ | Duplica regione · Elimina note o regione |
 | ⌘A (nell'editor) | Seleziona tutte le note |
 
+## Sviluppo
+
+```bash
+npm run dev         # studio con ricarica automatica
+npm run typecheck   # TypeScript
+npm test            # test unitari (Vitest, in Node)
+npm run build       # build di produzione in dist/
+```
+
+La CI esegue typecheck e test a ogni push e pull request. La roadmap v0.2 è descritta in [docs/SPEC.md](docs/SPEC.md); le modifiche sono elencate in [CHANGELOG.md](CHANGELOG.md).
+
 ## Struttura del codice
 
 ```

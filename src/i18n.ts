@@ -559,7 +559,7 @@ export const useLang = create<{ lang: Lang }>(() => ({ lang: initialLang() }));
 
 export function setLang(lang: Lang) {
   useLang.setState({ lang });
-  document.documentElement.lang = lang;
+  if (typeof document !== 'undefined') document.documentElement.lang = lang;
   try {
     localStorage.setItem(STORAGE_KEY, lang);
   } catch {
@@ -567,7 +567,7 @@ export function setLang(lang: Lang) {
   }
 }
 
-document.documentElement.lang = useLang.getState().lang;
+if (typeof document !== 'undefined') document.documentElement.lang = useLang.getState().lang;
 
 export function t(key: MessageKey, vars?: Record<string, string | number>): string {
   const s = DICTS[useLang.getState().lang][key] ?? en[key];

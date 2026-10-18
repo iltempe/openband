@@ -140,6 +140,17 @@ Conventions: 4/4 time; bars start at 1; inside a region, positions and durations
 | ⌘D · ⌫ | Duplicate region · Delete notes or region |
 | ⌘A (in the editor) | Select all notes |
 
+## Development
+
+```bash
+npm run dev         # studio with hot reload
+npm run typecheck   # TypeScript
+npm test            # unit tests (Vitest, run in Node)
+npm run build       # production build in dist/
+```
+
+CI runs typecheck and tests on every push and pull request. The v0.2 roadmap is specified in [docs/SPEC.md](docs/SPEC.md); changes are listed in [CHANGELOG.md](CHANGELOG.md).
+
 ## Code structure
 
 ```

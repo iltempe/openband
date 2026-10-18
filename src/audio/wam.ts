@@ -1,7 +1,6 @@
 // Web Audio Modules 2.0 host: loads WAM plugins (instruments and effects) from URLs, the web's
 // open plugin standard. Plugins are ES modules whose default export has createInstance().
 import * as Tone from 'tone';
-import { initializeWamHost } from '@webaudiomodules/sdk';
 import { cutoffToHz } from '../music';
 import type { Instrument } from './instruments';
 
@@ -101,7 +100,8 @@ const factories = new Map<string, Promise<WamFactory>>();
 function hostGroup(ctx: BaseAudioContext) {
   let g = hostGroups.get(ctx);
   if (!g) {
-    g = initializeWamHost(ctx).then(([id]: [string, string]) => id);
+    // Imported lazily: the SDK touches AudioWorkletNode at load time, which doesn't exist in Node (tests).
+    g = import('@webaudiomodules/sdk').then(({ initializeWamHost }) => initializeWamHost(ctx)).then(([id]: [string, string]) => id);
     hostGroups.set(ctx, g);
   }
   return g;
