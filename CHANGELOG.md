@@ -4,6 +4,14 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 ## Unreleased — v0.2 "The AI that listens"
 
+### F7 · Musical linter and CI
+- Pure lint engine (`src/lint/`) with stable issue ids (hash of rule + target), per-song settings in `project.lint` (`disabled`, `severity`, `ignored`) and a rule registry for later rules.
+- Symbolic rules: `out_of_key` (short chromatic passing notes tolerated), `overlapping_notes`, `notes_outside_region`, `overlapping_regions`, `low_end_clash`, `register_crowding`, `robotic_velocity`, `robotic_timing`, `empty_track`, `bass_panned`, `section_gap`; most have an automatic fix.
+- Audio rules (`clipping`, `low_headroom`, `masking_low_end`, `phase_mono`) reuse `analyze_mix` when `include_audio` is set.
+- MCP: `lint_project`, `apply_fix` (one undo step), `ignore_issue`, and the new primitive `update_notes` (edit notes keeping their ids).
+- Problems panel with a badge in the toolbar, re-checked 1 s after every change.
+- CI for songs: `scripts/openband-lint.mjs` (text, JSON or GitHub annotations; `--fail-on`), a composite GitHub Action `.github/actions/openband-lint`, and a CI job that runs it on the demo. esbuild (MIT, already used by Vite) is now an explicit dev dependency for the CLI.
+
 ### F5 · `analyze_mix`: the AI hears the mix
 - Pure DSP in `src/analysis/`: radix-2 FFT with Hann window; ITU-R BS.1770-4 / EBU R128 loudness (K-weighting at any sample rate, gated integrated, short-term max, LRA, 4× true peak, RMS, crest, clipped samples); band energies (sub … air), centroid and 1/3-octave curve; stereo correlation, width (overall and per band), mono loss; masking between stems; key detection (Krumhansl–Schmuckler from MIDI or from an audio chromagram); rules that turn metrics into issues with concrete suggestions.
 - Heavy work runs in `src/workers/analysis.worker.ts`; spectrograms are drawn on an OffscreenCanvas (log frequency, perceptual colormap, bar grid, section names).

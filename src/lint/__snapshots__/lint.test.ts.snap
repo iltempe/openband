@@ -1,0 +1,75 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`linter > finds exactly the problems planted in the dirty fixture 1`] = `
+[
+  [
+    "bass_panned",
+    {
+      "track_id": "t_bass",
+    },
+  ],
+  [
+    "empty_track",
+    {
+      "track_id": "t_empty",
+    },
+  ],
+  [
+    "low_end_clash",
+    {
+      "from_beat": 0,
+      "to_beat": 4,
+      "track_id": "t_sub",
+    },
+  ],
+  [
+    "notes_outside_region",
+    {
+      "note_ids": [
+        "k_outside",
+      ],
+      "region_id": "r_keys",
+      "track_id": "t_keys",
+    },
+  ],
+  [
+    "out_of_key",
+    {
+      "note_ids": [
+        "k_fsharp",
+      ],
+      "region_id": "r_keys",
+      "track_id": "t_keys",
+    },
+  ],
+  [
+    "overlapping_notes",
+    {
+      "from_beat": 2.5,
+      "note_ids": [
+        "k3",
+        "k_overlap",
+      ],
+      "region_id": "r_keys",
+      "to_beat": 3,
+      "track_id": "t_keys",
+    },
+  ],
+  [
+    "overlapping_regions",
+    {
+      "from_beat": 6,
+      "region_id": "r_keys2",
+      "to_beat": 8,
+      "track_id": "t_keys",
+    },
+  ],
+  [
+    "robotic_velocity",
+    {
+      "region_id": "r_bass",
+      "track_id": "t_bass",
+    },
+  ],
+]
+`;

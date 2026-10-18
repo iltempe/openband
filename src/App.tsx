@@ -14,6 +14,7 @@ import { AIPanel } from './components/AIPanel';
 import { MusicalTyping } from './components/MusicalTyping';
 import { Effects } from './components/Effects';
 import { AnalysisPanel } from './components/AnalysisPanel';
+import { ProblemsPanel } from './components/ProblemsPanel';
 import * as I from './components/Icons';
 import { SoundFontDialog, handleDroppedFiles } from './components/ImportUI';
 import { PluginBrowser, PluginWindow } from './components/Plugins';
@@ -238,6 +239,9 @@ export function App() {
                 <button className={s.bottom === 'analysis' ? 'on' : ''} onClick={() => s.set({ bottom: 'analysis' })}>
                   <I.Wave width={14} height={14} /> {t('an.tab')}
                 </button>
+                <button className={s.bottom === 'problems' ? 'on' : ''} onClick={() => s.set({ bottom: 'problems' })}>
+                  <I.Sparkles width={14} height={14} /> {t('lint.tab')}
+                </button>
                 <div className="eb-spacer" />
                 <button className="dock-close" onClick={() => s.set({ bottom: null })}>
                   <I.Close width={14} height={14} />
@@ -249,6 +253,7 @@ export function App() {
                 {s.bottom === 'mixer' && <Mixer />}
                 {s.bottom === 'fx' && <Effects />}
                 {s.bottom === 'analysis' && <AnalysisPanel />}
+                {s.bottom === 'problems' && <ProblemsPanel />}
               </div>
             </div>
           )}

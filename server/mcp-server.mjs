@@ -125,6 +125,7 @@ async function call(method, params = {}, timeoutMs = 20000) {
 const INSTRUCTIONS = `OpenBand is a GarageBand-style music studio running in the user's browser. You control it with these tools.
 
 Wrap every user request in begin_change("short label") … end_change() so the user can undo it in one step. (Commands sent without it are grouped automatically until you pause for 4 seconds.)
+Run lint_project before declaring a task done and fix errors (apply_fix).
 Before mixing decisions, LISTEN: call analyze_mix (and render_spectrogram if useful). After changes, analyze again and compare.
 The studio also reports what the user does: get_events / wait_for_event (phrases they play, selections, edits, questions). The resource openband://project holds the song and notifies subscribers after each change.
 
@@ -366,6 +367,11 @@ tool('remove_notes', 'Remove notes from a region, filtered by note_ids and/or pi
   to_beat: z.number().optional(),
 });
 
+tool('update_notes', 'Change existing notes in place (keeping their ids): pitch, start (beats from region start), duration, velocity. Only the given fields change.', {
+  region_id: z.string(),
+  notes: z.array(z.object({ id: z.string(), pitch: Pitch.optional(), start: z.number().min(0).optional(), duration: z.number().positive().optional(), velocity: z.number().min(0).max(1).optional() })).min(1),
+});
+
 tool('transpose_region', 'Transpose all notes in a region by semitones.', { region_id: z.string(), semitones: z.number().int().min(-48).max(48) });
 
 tool('quantize_region', 'Snap note starts/lengths in a region to a grid in beats (0.25 = 16th, 0.5 = 8th).', {
@@ -448,6 +454,18 @@ exportTool('export_midi', 'Export the song as a Standard MIDI File (format 1): o
 fileTool('import_midi', 'Import a MIDI file (.mid): each part becomes a track with the closest OpenBand instrument (channel 10 → drums). Adds to the current song unless replace is true; the song tempo is used when the project is empty or replaced.', {
   replace: z.boolean().optional(),
 });
+
+// ---- musical linter
+
+const Severity = z.enum(['info', 'warn', 'error']);
+tool(
+  'lint_project',
+  'Check the song for musical problems: notes out of key, overlapping notes/regions, notes past the region end, low-end clashes, crowded registers, mechanical velocity/timing, empty tracks, panned bass, gaps between sections; with include_audio also clipping, headroom, low-end masking and phase (renders the mix). Each issue has a stable id, a target and often an automatic fix.',
+  { rules: z.array(z.string()).optional(), include_audio: z.boolean().optional(), min_severity: Severity.optional() },
+  { ...readOnly, timeout: 180000 },
+);
+tool('apply_fix', 'Apply the automatic fix of a lint issue (one undo step). Returns what was done.', { issue_id: z.string() });
+tool('ignore_issue', 'Stop reporting a lint issue for this song (stored in the project).', { issue_id: z.string() });
 
 // ---- listening: mix analysis
 

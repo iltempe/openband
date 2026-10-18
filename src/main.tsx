@@ -7,6 +7,7 @@ import { engine } from './audio/engine';
 import { loadDemo } from './demo';
 import { connectBridge } from './bridge';
 import { initMidi } from './input';
+import './lintLive';
 
 if (!hasSavedProject()) loadDemo();
 

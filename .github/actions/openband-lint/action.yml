@@ -1,0 +1,27 @@
+name: OpenBand lint
+description: Check OpenBand songs (.openband.json / .openband) for musical problems — notes out of key, low-end clashes, overlaps, empty tracks… — and annotate them on the pull request.
+branding:
+  icon: music
+  color: purple
+inputs:
+  files:
+    description: Song files to check (space-separated paths or globs)
+    required: true
+  fail-on:
+    description: Fail when an issue of this severity or higher is found (error, warn, info or none)
+    default: error
+  min-severity:
+    description: Report only issues of this severity or higher (info, warn, error)
+    default: info
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+    - name: Install the OpenBand linter
+      shell: bash
+      run: npm ci --prefix "$GITHUB_ACTION_PATH/../../.." --no-audit --no-fund --loglevel=error
+    - name: Lint songs
+      shell: bash
+      run: node "$GITHUB_ACTION_PATH/../../../scripts/openband-lint.mjs" ${{ inputs.files }} --format=github --fail-on=${{ inputs.fail-on }} --min-severity=${{ inputs.min-severity }}

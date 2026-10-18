@@ -11,6 +11,10 @@ import { presetForProgram, readMidi, writeMidi, type MidiSong } from './midi';
 import { addPluginEffect, addPluginInstrument, captureWamStates, getPluginParams, removePluginEffect, searchPlugins, setPluginParams, updateSlot } from './plugins';
 import { wamCatalog } from './audio/wam';
 import { analyzeMix, detectKey, spectrogram } from './mixAnalysis';
+import { lint } from './lint/engine';
+import { hash as lintHash } from './lint/util';
+import type { LintIssue } from './lint/types';
+import type { Severity } from './types';
 import { addAudioRegion, guessDrumPads, instrumentFromSoundFont, openSoundFont, rootFor, spreadZones } from './importers';
 import { emptyProject, enterAiCommand, exitAiCommand, getRegion, getTrack, makeTrack, projectEnd, useStore } from './store';
 import { engine } from './audio/engine';
@@ -440,6 +444,26 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { removed: before - st().project.regions.find((y) => y.id === r.id)!.notes.length };
   },
 
+  update_notes: ({ region_id, notes }) => {
+    const p = st().project;
+    const r = requireRegion(p, region_id);
+    const drums = getTrack(p, r.trackId)?.kind === 'drums';
+    const list = (notes ?? []) as { id: string; pitch?: number | string; start?: number; duration?: number; velocity?: number }[];
+    const missing = list.filter((n) => !r.notes.some((x) => x.id === n.id)).map((n) => n.id);
+    if (missing.length) throw new Error(`Notes not in region ${r.id}: ${missing.join(', ')}. Call get_region_notes.`);
+    st().commit((d) => {
+      const x = d.regions.find((y) => y.id === r.id)!;
+      for (const u of list) {
+        const n = x.notes.find((y) => y.id === u.id)!;
+        if (u.pitch !== undefined) n.pitch = parsePitch(u.pitch, drums);
+        if (u.start !== undefined) n.start = Math.max(0, Number(u.start));
+        if (u.duration !== undefined) n.duration = Math.max(0.0625, Number(u.duration));
+        if (u.velocity !== undefined) n.velocity = clamp(Number(u.velocity), 0.05, 1);
+      }
+    });
+    return { region_id: r.id, updated: list.length };
+  },
+
   transpose_region: ({ region_id, semitones }) => {
     const r = requireRegion(st().project, region_id);
     const s = Math.round(Number(semitones));
@@ -693,6 +717,51 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { exported: true, bytes: blob.size, note: 'The WAV was downloaded by the browser.' };
   },
 
+  // ---------- linter ----------
+
+  lint_project: async ({ rules, include_audio, min_severity }) => {
+    const p = st().project;
+    const res = lint(p, { rules, minSeverity: min_severity });
+    if (include_audio) {
+      // Audio rules reuse analyze_mix (rendering the song).
+      const AUDIO: Record<string, string> = { clipping: 'clipping', true_peak_high: 'low_headroom', low_headroom: 'low_headroom', masking_low_end: 'masking_low_end', phase_mono: 'phase_mono' };
+      const report = (await analyzeMix({ per_track: true })) as unknown as { issues: { code: string; severity: Severity; message: string; suggestion: string; tracks?: string[]; params?: Record<string, string | number> }[] };
+      for (const i of report.issues) {
+        const rule = AUDIO[i.code];
+        if (!rule || (rules && !rules.includes(rule)) || p.lint?.disabled?.includes(rule)) continue;
+        const target = i.tracks?.length ? { track_id: i.tracks[0] } : {};
+        const issue: LintIssue = { id: `${rule}:${lintHash(JSON.stringify([i.code, target]))}`, rule, severity: p.lint?.severity?.[rule] ?? i.severity, category: 'mix', message: `${i.message}. ${i.suggestion}`, target, params: i.params };
+        if (!p.lint?.ignored?.includes(issue.id)) res.issues.push(issue);
+      }
+      res.counts = { error: 0, warn: 0, info: 0 };
+      for (const i of res.issues) res.counts[i.severity]++;
+    }
+    return res;
+  },
+
+  apply_fix: async ({ issue_id }) => {
+    const issue = lint(st().project).issues.find((i) => i.id === issue_id);
+    if (!issue) throw new Error(`Issue "${issue_id}" not found (already fixed?). Call lint_project.`);
+    if (!issue.fix) throw new Error(`Issue "${issue_id}" (${issue.rule}) has no automatic fix`);
+    const open = st().activeTransaction;
+    if (open?.auto) st().endTransaction(open.id);
+    const tx = st().beginTransaction(issue.fix.label, open && !open.auto ? open.source : 'ai');
+    try {
+      for (const c of issue.fix.commands) await commands[c.method](c.params);
+    } finally {
+      st().endTransaction(tx);
+    }
+    return { applied: true, issue_id, label: issue.fix.label, commands: issue.fix.commands.length };
+  },
+
+  ignore_issue: ({ issue_id }) => {
+    st().commit((d) => {
+      d.lint ??= {};
+      d.lint.ignored = [...new Set([...(d.lint.ignored ?? []), String(issue_id)])];
+    });
+    return { ignored: issue_id };
+  },
+
   // ---------- listening (analysis) ----------
 
   analyze_mix: ({ from_bar, to_bar, section_id, per_track, detail }) => analyzeMix({ from_bar, to_bar, section_id, per_track, detail }),
@@ -782,7 +851,7 @@ export const commands: Record<string, (args: P) => unknown> = {
 const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
-  'analyze_mix', 'detect_key', 'render_spectrogram',
+  'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

@@ -2660,3 +2660,89 @@ kbd {
 .mixer {
   position: relative;
 }
+
+/* ---------- problems (linter) ---------- */
+.problems {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.pb-counts {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 600 12px var(--mono);
+}
+.pb-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-left: 6px;
+  background: var(--accent-2);
+}
+.pb-dot.warn {
+  background: var(--cycle);
+}
+.pb-dot.error {
+  background: var(--rec);
+}
+.pb-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 16px;
+}
+.pb-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.pb-item.warn .an-sev {
+  background: var(--cycle);
+}
+.pb-item.error .an-sev {
+  background: var(--rec);
+}
+.pb-text {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+.pb-text strong {
+  display: block;
+  font-size: 12.5px;
+}
+.pb-text small {
+  color: var(--dim);
+  font-size: 11px;
+}
+.pb-badge {
+  position: relative;
+}
+.pb-badge.warn {
+  color: var(--cycle);
+}
+.pb-badge.error {
+  color: var(--rec);
+}
+.pb-count {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  font: 700 9.5px/15px var(--font);
+  color: #111;
+  background: currentColor;
+}
+.pb-count {
+  color: #111;
+  background: var(--cycle);
+}
+.pb-badge.error .pb-count {
+  background: var(--rec);
+}

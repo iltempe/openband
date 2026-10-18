@@ -9,7 +9,8 @@
     "mcp": "node server/mcp-server.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint:song": "node scripts/openband-lint.mjs"
   },
   "keywords": [
     "daw",
@@ -36,9 +37,13 @@
     "@types/react-dom": "^18.3.1",
     "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^4.3.3",
+    "esbuild": "^0.21.5",
     "typescript": "^5.6.3",
     "vite": "^5.4.10",
     "vitest": "^2.1.9"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "bin": {
+    "openband-lint": "scripts/openband-lint.mjs"
+  }
 }

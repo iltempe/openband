@@ -29,6 +29,7 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 - **Live recording** into new regions, with metronome.
 - **MIDI import and export** (Standard MIDI Files, General MIDI programs, drums on channel 10).
 - **The AI listens**: `analyze_mix` renders the song and measures it — loudness (EBU R128 LUFS, true peak, LRA), frequency balance in 7 bands, stereo/phase, masking between tracks, the key — and returns concrete fixes (*“Bass and Drums cover each other at 60–250 Hz: cut 2–3 dB around 80 Hz…”*). `render_spectrogram` gives Claude an image of the mix to look at. The same report is in the **Analysis** panel (N).
+- **Musical linter**: the **Problems** panel (badge in the toolbar) checks the song after every change — notes out of key, overlapping notes and regions, notes past the end of a region, two bass parts clashing below E2, crowded registers, mechanical velocity or timing, empty tracks, panned bass — most with a one-click fix. The AI runs the same checks with `lint_project`, and so can your CI.
 - **The AI follows along**: phrases you play (split after a bar of silence), what you select, play/stop, your edits and questions typed in *Ask the AI* reach the connected AI as events. A switch in the AI panel turns activity sharing off (questions are always sent).
 - **Undo by intent**: everything the AI does for one request is a single, labelled undo step (*“Undo: Lo-fi beat (23 commands)”*); drags and knob turns are one step each.
 - **Undo/redo**, autosave, **WAV export** with offline rendering; projects with imported sounds are saved as a single `.openband` file that bundles the samples.
@@ -42,6 +43,8 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 | ![Amp, EQ, compressor and a WAM reverb on the bass](docs/effects.png) | ![Audio clip with waveform](docs/audio.png) |
 | **Analysis (what the AI hears)** | **Spectrogram (what the AI sees)** |
 | ![Analysis panel](docs/analysis.png) | ![Spectrogram of the demo](docs/spectrogram.png) |
+| **Problems (musical linter)** | |
+| ![Problems panel](docs/problems.png) | |
 | **WAM plugin window** | **Plugin browser** |
 | ![Synth-101 WAM plugin](docs/plugins.png) | ![Searching plugins in plain language](docs/plugin-browser.png) |
 
@@ -72,6 +75,26 @@ A demo song opens on first launch. The “Enter the studio” click is needed be
 - **Automation**: click **A** on a track to open its lane, choose the parameter, click to add points, drag to move them, double-click to delete.
 - **MIDI**: *Import MIDI…* / *Export MIDI* in the ⋯ menu, or drop a `.mid` file on the studio.
 - **Plugins**: click *Plugins* in the library and describe what you need (*“wide dark reverb”*, *“synth monofonico”*) or filter by instruments/effects; instruments get their own track, effects are added to the selected track (also from *+ Plugin* in the Effects panel). *Edit* opens the plugin's window. Plugins come from the [WAM community collection](https://github.com/boourns/wam-community) and need an internet connection the first time they load.
+
+### Lint your songs in CI
+
+If you keep songs in a Git repository, check every pull request with the OpenBand linter:
+
+```yaml
+# .github/workflows/songs.yml
+on: [push, pull_request]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: iltempe/openband/.github/actions/openband-lint@main
+        with:
+          files: songs/*.openband.json songs/*.openband
+          fail-on: error        # or warn / info / none
+```
+
+Problems appear as annotations on the pull request. Locally: `node scripts/openband-lint.mjs song.openband.json [--format=text|json|github] [--fail-on=warn]`. Rules can be disabled or re-graded per song in `project.lint` (`disabled`, `severity`, `ignored`).
 
 ## Connect an AI (MCP)
 
@@ -124,6 +147,7 @@ The bridge only accepts connections from `127.0.0.1` and from pages served on lo
 | Undo | `begin_change` / `end_change` (one undo step per request, with a label), `get_history`, `undo` / `redo` (with `steps`) |
 | Tracks | `add_track` (instrument, drums or audio), `update_track` (instrument, volume, pan, mute, solo, reverb, echo, tone), `delete_track` |
 | Sounds | `import_sample`, `list_samples`, `create_sampler_instrument`, `import_soundfont`, `add_audio_region` — files are read from a local path or an http(s) URL |
+| Linter | `lint_project` (symbolic rules, optionally audio ones), `apply_fix`, `ignore_issue`; `update_notes` edits notes in place |
 | Listening | `analyze_mix` (bars or section, per track, summary/full), `render_spectrogram` (returns an image), `detect_key` (MIDI, audio or both) |
 | Mix | `set_track_effects` (amp, EQ, compressor), `set_automation`, `clear_automation` |
 | Plugins | `add_plugin` (from a plain-language description), `search_plugins`, `list_plugins`, `add_plugin_instrument`, `add_plugin_effect`, `remove_plugin_effect`, `set_plugin_bypass`, `get_plugin_params`, `set_plugin_params`, `show_plugin` |
@@ -178,6 +202,8 @@ src/
   audio/wam.ts            Web Audio Modules host (catalog, loading, instruments, effects)
   audio/context.ts        native AudioContext for Tone.js (required by WAM)
   plugins.ts              plugin search by description, parameters, saved state
+  lint/                   musical linter (pure): engine and rules, CLI entry
+scripts/openband-lint.mjs  linter CLI for CI; .github/actions/openband-lint is the GitHub Action
   automation.ts           automation curves
   analysis/               pure DSP: FFT, loudness (BS.1770), spectrum, stereo, masking, key, issues
   workers/                analysis worker (FFT, loudness, spectrogram images off the main thread)

@@ -9,6 +9,7 @@ import { loadDemo } from '../demo';
 import * as I from './Icons';
 import { importAudioFlow, importSoundFontFlow, openProjectFile, pickFiles } from './ImportUI';
 import { saveProject } from '../importers';
+import { useLint } from '../lintLive';
 import { LANGS, setLang, useLang, useT } from '../i18n';
 
 export async function togglePlay() {
@@ -188,6 +189,20 @@ function ProjectMenu() {
   );
 }
 
+function ProblemsBadge() {
+  const counts = useLint((l) => l.counts);
+  const open = useStore((s) => s.bottom === 'problems');
+  const set = useStore((s) => s.set);
+  const t = useT();
+  const n = counts.error + counts.warn;
+  return (
+    <button className={`icon-btn pb-badge ${open ? 'on' : ''} ${counts.error ? 'error' : n ? 'warn' : ''}`} onClick={() => set({ bottom: open ? null : 'problems' })} title={t('lint.badge', { e: counts.error, w: counts.warn, i: counts.info })}>
+      <I.Sparkles />
+      {n > 0 && <span className="pb-count">{n}</span>}
+    </button>
+  );
+}
+
 export function Toolbar() {
   const s = useStore();
   const p = s.project;
@@ -284,6 +299,7 @@ export function Toolbar() {
         <button className={`icon-btn ${s.keyboardOpen ? 'on' : ''}`} onClick={() => s.set({ keyboardOpen: !s.keyboardOpen })} title={t('tb.typing')}>
           <I.Keyboard />
         </button>
+        <ProblemsBadge />
         <button className={`ai-pill ${s.bridgeStatus}`} onClick={() => s.set({ aiOpen: !s.aiOpen })} title={t('tb.ai')}>
           <span className="dot" />
           <I.Sparkles width={15} height={15} />
