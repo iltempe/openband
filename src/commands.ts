@@ -10,6 +10,7 @@ import type { AutoParam } from './types';
 import { presetForProgram, readMidi, writeMidi, type MidiSong } from './midi';
 import { addPluginEffect, addPluginInstrument, captureWamStates, getPluginParams, removePluginEffect, searchPlugins, setPluginParams, updateSlot } from './plugins';
 import { wamCatalog } from './audio/wam';
+import { analyzeMix, detectKey, spectrogram } from './mixAnalysis';
 import { addAudioRegion, guessDrumPads, instrumentFromSoundFont, openSoundFont, rootFor, spreadZones } from './importers';
 import { emptyProject, enterAiCommand, exitAiCommand, getRegion, getTrack, makeTrack, projectEnd, useStore } from './store';
 import { engine } from './audio/engine';
@@ -692,6 +693,14 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { exported: true, bytes: blob.size, note: 'The WAV was downloaded by the browser.' };
   },
 
+  // ---------- listening (analysis) ----------
+
+  analyze_mix: ({ from_bar, to_bar, section_id, per_track, detail }) => analyzeMix({ from_bar, to_bar, section_id, per_track, detail }),
+
+  detect_key: ({ source }) => detectKey(source),
+
+  render_spectrogram: ({ from_bar, to_bar, section_id, track_id, width, height }) => spectrogram({ from_bar, to_bar, section_id, track_id, width, height }),
+
   // ---------- WAM plugins ----------
 
   list_plugins: async ({ kind }) => ({
@@ -773,6 +782,7 @@ export const commands: Record<string, (args: P) => unknown> = {
 const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
+  'analyze_mix', 'detect_key', 'render_spectrogram',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

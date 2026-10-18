@@ -5,6 +5,7 @@ import { engine } from '../audio/engine';
 import { useFrame } from '../hooks';
 import { Knob } from './Knob';
 import { useTrackUpdater } from './SmartControls';
+import { runAnalysis } from './AnalysisPanel';
 import { useT } from '../i18n';
 
 function Meter({ id }: { id: string }) {
@@ -74,6 +75,16 @@ export function Mixer() {
   const t = useT();
   return (
     <div className="mixer">
+      <button
+        className="mini mixer-analyze"
+        onClick={() => {
+          useStore.getState().set({ bottom: 'analysis' });
+          void runAnalysis();
+        }}
+        title={t('an.mixerHint')}
+      >
+        {t('an.run')}
+      </button>
       <div className="mixer-strips">
         {tracks.map((t) => (
           <Strip key={t.id} track={t} />

@@ -4,6 +4,14 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 ## Unreleased — v0.2 "The AI that listens"
 
+### F5 · `analyze_mix`: the AI hears the mix
+- Pure DSP in `src/analysis/`: radix-2 FFT with Hann window; ITU-R BS.1770-4 / EBU R128 loudness (K-weighting at any sample rate, gated integrated, short-term max, LRA, 4× true peak, RMS, crest, clipped samples); band energies (sub … air), centroid and 1/3-octave curve; stereo correlation, width (overall and per band), mono loss; masking between stems; key detection (Krumhansl–Schmuckler from MIDI or from an audio chromagram); rules that turn metrics into issues with concrete suggestions.
+- Heavy work runs in `src/workers/analysis.worker.ts`; spectrograms are drawn on an OffscreenCanvas (log frequency, perceptual colormap, bar grid, section names).
+- MCP tools: `analyze_mix` (range or section, per-track stats, `summary`/`full` with loudness per bar), `render_spectrogram` (returns an MCP image Claude can see), `detect_key`.
+- The mix is analysed as the exact sum of its stems (renders are deterministic since F4): the demo is analysed in ~6 s.
+- Relative keys (e.g. C / Am) are reported with `same_scale` and not flagged as a mismatch.
+- Analysis panel (N) with LUFS/true-peak meters, band bars, per-track loudness, issues and spectrogram; *Analyze* button in the mixer.
+
 ### F3 · Studio → AI event channel
 - The browser now reports what the user does: live phrases (split after a bar of silence, notes quantized to 1/16 with the raw start kept), selection (throttled to one event per 500 ms), play/stop/loop, finished user edits, recorded regions and questions from the new *Ask the AI* box.
 - MCP server: a 500-event ring buffer with the new tools `get_events` (since_id, kinds, limit) and `wait_for_event` (long-poll up to 60 s, `{timeout:true}` otherwise).

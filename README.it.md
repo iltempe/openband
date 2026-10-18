@@ -26,6 +26,7 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 - **Tastiera musicale** (tasti A–' come un pianoforte, Z/X per l'ottava, C/V per la velocity) e **Web MIDI** per i controller esterni.
 - **Registrazione** dal vivo in nuove regioni, con metronomo.
 - **Import ed export MIDI** (Standard MIDI File, programmi General MIDI, batteria sul canale 10).
+- **L'AI ascolta**: `analyze_mix` renderizza il brano e lo misura (loudness EBU R128 in LUFS, true peak, LRA, equilibrio in 7 bande, stereo/fase, mascheramento tra tracce, tonalità) e restituisce correzioni concrete (*“Basso e batteria si coprono a 60–250 Hz: taglia 2–3 dB intorno a 80 Hz…”*). `render_spectrogram` dà a Claude un'immagine del mix da guardare. Lo stesso rapporto è nel pannello **Analisi** (N).
 - **L'AI ti segue**: le frasi che suoni (separate dopo una battuta di silenzio), ciò che selezioni, play/stop, le tue modifiche e le domande scritte in *Chiedi all'AI* arrivano all'AI collegata come eventi. Un interruttore nel pannello AI disattiva la condivisione dell'attività (le domande vengono sempre inviate).
 - **Annulla per intento**: tutto ciò che l'AI fa per una richiesta è un solo passo di annullamento con etichetta (*“Annulla: Beat lo-fi (23 comandi)”*); trascinamenti e manopole contano un passo ciascuno.
 - **Annulla/ripristina**, salvataggio automatico, **esportazione WAV** con rendering offline; i progetti con suoni importati si salvano in un unico file `.openband` che contiene i campioni.
@@ -37,6 +38,8 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 | ![Piano roll](docs/editor.png) | ![Mixer con effetti su due tracce](docs/mixer.png) |
 | **Effetti** | **Traccia audio** |
 | ![Amp, EQ, compressore e un riverbero WAM sul basso](docs/effects.png) | ![Clip audio con forma d'onda](docs/audio.png) |
+| **Analisi (ciò che l'AI sente)** | **Spettrogramma (ciò che l'AI vede)** |
+| ![Pannello Analisi](docs/analysis.png) | ![Spettrogramma della demo](docs/spectrogram.png) |
 | **Finestra di un plugin WAM** | **Browser dei plugin** |
 | ![Plugin WAM Synth-101](docs/plugins.png) | ![Ricerca dei plugin a parole](docs/plugin-browser.png) |
 
@@ -117,6 +120,7 @@ Il bridge accetta connessioni solo da `127.0.0.1` e da pagine servite su localho
 | Annulla | `begin_change` / `end_change` (un passo di annullamento per richiesta, con etichetta), `get_history`, `undo` / `redo` (con `steps`) |
 | Tracce | `add_track` (strumento, batteria o audio), `update_track` (strumento, volume, pan, mute, solo, riverbero, eco, tono), `delete_track` |
 | Suoni | `import_sample`, `list_samples`, `create_sampler_instrument`, `import_soundfont`, `add_audio_region` — i file si leggono da un percorso locale o da un URL http(s) |
+| Ascolto | `analyze_mix` (battute o sezione, per traccia, summary/full), `render_spectrogram` (restituisce un'immagine), `detect_key` (MIDI, audio o entrambi) |
 | Mix | `set_track_effects` (amp, EQ, compressore), `set_automation`, `clear_automation` |
 | Plugin | `add_plugin` (da una descrizione a parole), `search_plugins`, `list_plugins`, `add_plugin_instrument`, `add_plugin_effect`, `remove_plugin_effect`, `set_plugin_bypass`, `get_plugin_params`, `set_plugin_params`, `show_plugin` |
 | File | `export_wav`, `export_midi` (con `save_to` per salvarli in un percorso), `import_midi` |
@@ -134,7 +138,7 @@ Convenzioni: tempo in 4/4; le battute partono da 1; dentro una regione posizioni
 | Spazio / Invio | Play/Stop · Torna all'inizio |
 | R · C · M | Registra · Ciclo · Metronomo |
 | K | Tastiera musicale (Esc per chiuderla) |
-| Y · B · E · X · F | Libreria · Smart Controls · Editor · Mixer · Effetti |
+| Y · B · E · X · F · N | Libreria · Smart Controls · Editor · Mixer · Effetti · Analisi |
 | ↑ ↓ | Traccia precedente o successiva |
 | ⌘Z / ⇧⌘Z | Annulla / Ripristina |
 | ⌘D · ⌫ | Duplica regione · Elimina note o regione |
@@ -171,6 +175,9 @@ src/
   audio/context.ts        AudioContext nativo per Tone.js (richiesto dai WAM)
   plugins.ts              ricerca dei plugin a parole, parametri, stato salvato
   automation.ts           curve di automazione
+  analysis/               DSP puro: FFT, loudness (BS.1770), spettro, stereo, mascheramento, tonalità, problemi
+  workers/                worker di analisi (FFT, loudness, immagini di spettrogramma fuori dal thread principale)
+  mixAnalysis.ts          analyze_mix / detect_key / render_spectrogram
   midi.ts                 lettura/scrittura file MIDI, mappatura General MIDI
   importers.ts            import dei suoni, file .openband
   components/             Toolbar, Arrangement, Editor, SmartControls, Mixer, Library, AIPanel…

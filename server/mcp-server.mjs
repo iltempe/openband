@@ -125,6 +125,7 @@ async function call(method, params = {}, timeoutMs = 20000) {
 const INSTRUCTIONS = `OpenBand is a GarageBand-style music studio running in the user's browser. You control it with these tools.
 
 Wrap every user request in begin_change("short label") … end_change() so the user can undo it in one step. (Commands sent without it are grouped automatically until you pause for 4 seconds.)
+Before mixing decisions, LISTEN: call analyze_mix (and render_spectrogram if useful). After changes, analyze again and compare.
 The studio also reports what the user does: get_events / wait_for_event (phrases they play, selections, edits, questions). The resource openband://project holds the song and notifies subscribers after each change.
 
 Conventions:
@@ -447,6 +448,42 @@ exportTool('export_midi', 'Export the song as a Standard MIDI File (format 1): o
 fileTool('import_midi', 'Import a MIDI file (.mid): each part becomes a track with the closest OpenBand instrument (channel 10 → drums). Adds to the current song unless replace is true; the song tempo is used when the project is empty or replaced.', {
   replace: z.boolean().optional(),
 });
+
+// ---- listening: mix analysis
+
+const RangeArgs = {
+  from_bar: z.number().min(1).optional(),
+  to_bar: z.number().min(1).optional().describe('exclusive'),
+  section_id: z.string().optional(),
+};
+
+tool(
+  'analyze_mix',
+  'LISTEN to the mix: renders the song (or a bar range / section) and measures it. Returns master loudness (integrated/short-term LUFS, LRA, true peak, crest), stereo (correlation, width, mono loss), energy per band (sub, bass, lowmid, mid, highmid, presence, air), per-track loudness/peak/dominant band/share of the mix, masking between tracks, the detected key, and concrete issues with suggestions. detail "full" adds 1/3-octave curves and loudness per bar.',
+  { ...RangeArgs, per_track: z.boolean().optional().describe('default true'), detail: z.enum(['summary', 'full']).optional() },
+  { ...readOnly, timeout: 180000 },
+);
+
+server.registerTool(
+  'render_spectrogram',
+  {
+    description: 'Render a spectrogram image (log frequency 30 Hz–16 kHz, bar grid, section names) of the mix or of one track, so you can SEE the arrangement: where instruments sit, density, gaps, harshness.',
+    inputSchema: { ...RangeArgs, track_id: z.string().optional(), width: z.number().int().min(256).max(2048).optional(), height: z.number().int().min(128).max(1024).optional() },
+    annotations: { readOnlyHint: true },
+  },
+  async (args) => {
+    try {
+      const r = await call('render_spectrogram', args ?? {}, 180000);
+      return { content: [{ type: 'image', data: r.png_base64, mimeType: 'image/png' }, { type: 'text', text: JSON.stringify({ width: r.width, height: r.height, from_bar: r.from_bar, to_bar: r.to_bar }) }] };
+    } catch (e) {
+      return { ...text(`Error: ${e.message}`), isError: true };
+    }
+  },
+);
+
+tool('detect_key', 'Detect the key of the music from the MIDI notes, from the audio tracks, or both. Returns key, confidence, alternatives and whether it matches the project key.', {
+  source: z.enum(['midi', 'audio', 'both']).optional(),
+}, { ...readOnly, timeout: 180000 });
 
 // ---- studio → AI events (answered by this server, not the studio)
 

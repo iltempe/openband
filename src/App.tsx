@@ -13,6 +13,7 @@ import { Library } from './components/Library';
 import { AIPanel } from './components/AIPanel';
 import { MusicalTyping } from './components/MusicalTyping';
 import { Effects } from './components/Effects';
+import { AnalysisPanel } from './components/AnalysisPanel';
 import * as I from './components/Icons';
 import { SoundFontDialog, handleDroppedFiles } from './components/ImportUI';
 import { PluginBrowser, PluginWindow } from './components/Plugins';
@@ -119,6 +120,9 @@ function useShortcuts() {
           break;
         case 'f':
           toggleBottom('fx');
+          break;
+        case 'n':
+          toggleBottom('analysis');
           break;
       }
     };
@@ -231,6 +235,9 @@ export function App() {
                 <button className={s.bottom === 'fx' ? 'on' : ''} onClick={() => s.set({ bottom: 'fx' })}>
                   <I.Fx width={14} height={14} /> {t('fx.tab')}
                 </button>
+                <button className={s.bottom === 'analysis' ? 'on' : ''} onClick={() => s.set({ bottom: 'analysis' })}>
+                  <I.Wave width={14} height={14} /> {t('an.tab')}
+                </button>
                 <div className="eb-spacer" />
                 <button className="dock-close" onClick={() => s.set({ bottom: null })}>
                   <I.Close width={14} height={14} />
@@ -241,6 +248,7 @@ export function App() {
                 {s.bottom === 'editor' && <Editor />}
                 {s.bottom === 'mixer' && <Mixer />}
                 {s.bottom === 'fx' && <Effects />}
+                {s.bottom === 'analysis' && <AnalysisPanel />}
               </div>
             </div>
           )}
