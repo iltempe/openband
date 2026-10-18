@@ -8,6 +8,7 @@ import { loadDemo } from './demo';
 import { connectBridge } from './bridge';
 import { initMidi } from './input';
 import './lintLive';
+import { initReference } from './reference';
 
 if (!hasSavedProject()) loadDemo();
 
@@ -16,6 +17,7 @@ useStore.subscribe((s, prev) => {
   if (s.project !== prev.project) engine.sync(s.project);
 });
 
+initReference();
 connectBridge();
 initMidi();
 

@@ -44,11 +44,18 @@ class AudioEngine {
   /** Click forced on regardless of the project setting (count-in while recording). */
   metronomeForced = false;
   private ready = false;
+  private monitor!: Tone.Gain;
+  private refPlayer: Tone.Player | null = null;
+  private refGain = 1;
+  /** True while the reference track is heard instead of the mix. */
+  listeningToReference = false;
 
   private setup() {
     if (this.ready) return;
     this.ready = true;
-    this.master = new Tone.Gain(1).toDestination();
+    // master → monitor → speakers; the monitor is what the reference A/B switch fades out.
+    this.monitor = new Tone.Gain(1).toDestination();
+    this.master = new Tone.Gain(1).connect(this.monitor);
     this.masterMeter = new Tone.Meter({ smoothing: 0.85 });
     this.master.connect(this.masterMeter);
     this.reverb = new Tone.Convolver(makeImpulse(2.8, 3.2)).connect(this.master);
@@ -113,6 +120,35 @@ class AudioEngine {
     transport().start(t0);
     return t0;
   }
+  // ---------- reference track (A/B) ----------
+
+  /** Reference audio, synced to the transport from bar 1 (offset/duration in seconds trim it). */
+  setReference(buf: AudioBuffer | null, offset = 0, duration?: number) {
+    this.setup();
+    this.refPlayer?.unsync().dispose();
+    this.refPlayer = null;
+    if (buf) {
+      this.refPlayer = new Tone.Player(buf).toDestination();
+      this.refPlayer.sync().start(0, offset, duration);
+    }
+    this.applyAB();
+  }
+  /** Gain for the reference while listening to it (loudness matching). */
+  setReferenceGain(g: number) {
+    this.refGain = g;
+    this.applyAB();
+  }
+  listenReference(on: boolean) {
+    this.listeningToReference = on && !!this.refPlayer;
+    this.applyAB();
+  }
+  private applyAB() {
+    if (!this.ready) return;
+    const b = this.listeningToReference && !!this.refPlayer;
+    this.monitor.gain.rampTo(b ? 0 : 1, 0.03);
+    if (this.refPlayer) this.refPlayer.volume.rampTo(b ? 20 * Math.log10(Math.max(1e-6, this.refGain)) : -Infinity, 0.03);
+  }
+
   stop() {
     if (!this.ready) return;
     transport().pause();

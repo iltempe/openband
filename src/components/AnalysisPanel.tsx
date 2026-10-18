@@ -4,6 +4,8 @@ import { runCommand } from '../commands';
 import { useAnalysis } from '../mixAnalysis';
 import { useT, type MessageKey } from '../i18n';
 import * as I from './Icons';
+import { ReferenceCard, compareNow, loadReferenceFile } from './Reference';
+import { useReference } from '../reference';
 
 interface Issue {
   severity: 'info' | 'warn' | 'error';
@@ -40,6 +42,8 @@ export function AnalysisPanel() {
   const loop = useStore((s) => s.project.loop);
   const set = useStore((s) => s.set);
   const t = useT();
+  const comparison = useReference((x) => x.comparison);
+  const hasRef = useStore((s) => !!s.project.reference);
   const r = result as unknown as Result | null;
   const issueText = (i: Issue) => {
     const k = `iss.${i.code}` as MessageKey;
@@ -66,6 +70,9 @@ export function AnalysisPanel() {
         <button className="btn" onClick={() => runCommand('analyze_harmony', {}, 'ui').catch((e) => useStore.getState().notify((e as Error).message))}>
           {t('an.chords')}
         </button>
+        <button className="btn" onClick={() => (hasRef ? compareNow() : void loadReferenceFile())} title={t('ref.hint')}>
+          {hasRef ? t('ref.compare') : t('ref.load')}
+        </button>
         {r && <span className="analysis-range">{t('an.range', { from: r.range.from_bar, to: r.range.to_bar })}</span>}
         {error && <span className="wave-missing">{error}</span>}
       </div>
@@ -85,13 +92,16 @@ export function AnalysisPanel() {
           ))}
         </div>
       )}
-      {!r ? (
+      {!r && !comparison ? (
         <div className="panel-empty">
           <I.Wave width={28} height={28} />
           <p>{t('an.empty')}</p>
         </div>
       ) : (
         <div className="analysis-body">
+          <ReferenceCard />
+          {r && (
+          <>
           <div className="an-card an-master">
             <div className="an-big">
               {fmt(r.master.lufs_integrated)}
@@ -164,6 +174,8 @@ export function AnalysisPanel() {
             })}
           </div>
           {spectrogram && <img className="an-spectrogram" alt="" src={`data:image/png;base64,${spectrogram}`} />}
+          </>
+          )}
         </div>
       )}
     </div>

@@ -4,6 +4,13 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 ## Unreleased — v0.2 "The AI that listens"
 
+### F6 · Reference matching
+- Pure module `src/analysis/reference.ts`: master profile (integrated LUFS, true peak, crest, LRA, correlation, width, 7 bands, 31 third-octave bands) with the spectrum and RMS gated like BS.1770, so silence around a song doesn't change its balance; comparison after loudness matching (tonal diff per band and per 1/3 octave, loudness, crest, width) and suggestions — boosts on the master, cuts on the track with the most energy in the band, gain, compression, width.
+- `project.reference` (schema v2): the sample is stored and bundled in `.openband` files like the others but isn't on the timeline; its analysis is cached.
+- MCP: `import_reference` (path or URL, optional `from_seconds`/`to_seconds`), `compare_to_reference` (bars or a section), `clear_reference`.
+- UI: Reference strip in the mixer (load, A/B switch synced to the song position, loudness match, compare) and a comparison card in the Analysis panel with the two curves, the differences and the suggestions. The mixer's Analyze button moved into the master strip (it used to cover it).
+- Accepted: the demo compared with its own WAV export gives 0.0 on every difference.
+
 ### F11 · Microphone recording and hum-to-MIDI
 - Pure module `src/analysis/pitchtrack.ts`: YIN pitch tracking (FFT difference function, parabolic interpolation, 70–1100 Hz), median smoothing, note segmentation (onsets from silence, +6 dB energy jumps or a new stable pitch held 60 ms; vibrato stays one note; blips under 80 ms dropped), snap to the key and quantize with strength. Runs in the analysis worker. Sampler pitch detection now uses YIN too.
 - Recording (`src/recording.ts`): raw microphone input (no echo cancellation/AGC) captured by an AudioWorklet with sample timestamps, one-bar count-in, takes trimmed exactly at the start bar with the browser's output latency plus a manual offset (ms, remembered), stored as WAV samples on an audio track. *Hum a melody* adds the notes on a new instrument track and keeps the hummed audio, muted.

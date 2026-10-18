@@ -228,6 +228,9 @@ export interface ReferenceTrack {
   sampleId: string;
   name: string;
   loudnessMatched: boolean;
+  /** Part of the file used, seconds. */
+  from?: number;
+  to?: number;
   /** Cached analysis of the reference (format of analyze_mix's master block). */
   analysis?: Record<string, unknown>;
 }

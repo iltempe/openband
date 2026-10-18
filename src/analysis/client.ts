@@ -41,3 +41,9 @@ export const pitchTrackInWorker = (channels: Float32Array[], sampleRate: number)
   run<import('./pitchtrack').TrackedNote[]>({ type: 'pitchtrack', channels, sampleRate }, channels.map((c) => c.buffer));
 
 export const audioKeyInWorker = (channels: Float32Array[], sampleRate: number) => run<KeyResult | null>({ type: 'audioKey', channels, sampleRate }, channels.map((c) => c.buffer));
+
+export const profileInWorker = (channels: Float32Array[], sampleRate: number) =>
+  run<import('./reference').MasterProfile>({ type: 'profile', channels, sampleRate }, channels.map((c) => c.buffer));
+
+export const bandsInWorker = (channels: Float32Array[], sampleRate: number) =>
+  run<Record<import('./spectrum').BandId, number>>({ type: 'bands', channels, sampleRate }, channels.map((c) => c.buffer));

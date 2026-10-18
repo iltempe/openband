@@ -27,6 +27,7 @@ import type { Severity } from './types';
 import { addAudioRegion, guessDrumPads, instrumentFromSoundFont, openSoundFont, rootFor, spreadZones } from './importers';
 import { emptyProject, enterAiCommand, exitAiCommand, getRegion, getTrack, makeTrack, projectEnd, useStore } from './store';
 import { engine } from './audio/engine';
+import { clearReference, compareToReference, importReference } from './reference';
 import { audioRegionToMidi, audioToMidi, recordFromMic, requestRecording, useMic } from './recording';
 import { download, renderProject } from './audio/render';
 import { t as tr, useLang } from './i18n';
@@ -962,6 +963,15 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   render_spectrogram: ({ from_bar, to_bar, section_id, track_id, width, height }) => spectrogram({ from_bar, to_bar, section_id, track_id, width, height }),
 
+  // ---------- reference track ----------
+
+  import_reference: ({ data_base64, filename, from_seconds, to_seconds }) =>
+    importReference(fromBase64(data_base64), String(filename ?? 'reference.wav'), from_seconds === undefined ? undefined : Number(from_seconds), to_seconds === undefined ? undefined : Number(to_seconds)),
+
+  compare_to_reference: ({ from_bar, to_bar, section_id }) => compareToReference({ from_bar, to_bar, section_id }),
+
+  clear_reference: () => clearReference(),
+
   // ---------- recording ----------
 
   record_audio: async ({ track_id, start_bar, bars, mode }) => {
@@ -1071,7 +1081,7 @@ const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

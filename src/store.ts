@@ -246,6 +246,7 @@ export const useStore = create<State>((set, get) => ({
 export const projectSampleIds = (p: Project) => [
   ...(p.instruments ?? []).flatMap((i) => i.zones.map((z) => z.sampleId)),
   ...p.regions.flatMap((r) => (r.audio ? [r.audio.sampleId] : [])),
+  ...(p.reference ? [p.reference.sampleId] : []),
 ];
 
 // Keep the imported-instrument registry and the sample cache in step with the project.

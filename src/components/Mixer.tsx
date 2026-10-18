@@ -7,6 +7,7 @@ import { Knob } from './Knob';
 import { useTrackUpdater } from './SmartControls';
 import { runAnalysis } from './AnalysisPanel';
 import { useT } from '../i18n';
+import { ReferenceStrip } from './Reference';
 
 function Meter({ id }: { id: string }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -75,23 +76,26 @@ export function Mixer() {
   const t = useT();
   return (
     <div className="mixer">
-      <button
-        className="mini mixer-analyze"
-        onClick={() => {
-          useStore.getState().set({ bottom: 'analysis' });
-          void runAnalysis();
-        }}
-        title={t('an.mixerHint')}
-      >
-        {t('an.run')}
-      </button>
       <div className="mixer-strips">
         {tracks.map((t) => (
           <Strip key={t.id} track={t} />
         ))}
       </div>
+      <ReferenceStrip />
       <div className="strip master">
-        <div className="strip-knobs master-title">{t('mix.master')}</div>
+        <div className="strip-knobs master-title">
+          {t('mix.master')}
+          <button
+            className="mini mixer-analyze"
+            onClick={() => {
+              useStore.getState().set({ bottom: 'analysis' });
+              void runAnalysis();
+            }}
+            title={t('an.mixerHint')}
+          >
+            {t('an.run')}
+          </button>
+        </div>
         <div className="strip-fader">
           <Meter id="master" />
           <input

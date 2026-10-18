@@ -128,7 +128,7 @@ Wrap every user request in begin_change("short label") … end_change() so the u
 When the user talks about parts of a song (verse, chorus…), call get_structure first and operate on sections (move_section, duplicate_section). Use the energy profile to make a section 'bigger' (more tracks, higher register, more notes, higher velocity) or 'smaller'. If there are no sections yet, auto_sections proposes them.
 For vocal lines, keep lyrics and melody aligned: set_lyrics → align_lyrics → check_prosody. Put stressed syllables on strong beats (suggest_melody_rhythm helps).
 Run lint_project before declaring a task done and fix errors (apply_fix).
-Before mixing decisions, LISTEN: call analyze_mix (and render_spectrogram if useful). After changes, analyze again and compare.
+Before mixing decisions, LISTEN: call analyze_mix (and render_spectrogram if useful). After changes, analyze again and compare. If the user names a song they want to sound like, import_reference it and use compare_to_reference.
 The studio also reports what the user does: get_events / wait_for_event (phrases they play, selections, edits, questions). The resource openband://project holds the song and notifies subscribers after each change.
 
 Conventions:
@@ -563,6 +563,19 @@ tool('analyze_harmony', 'Chords of the MIDI parts (per bar, or per half bar when
 tool('detect_key', 'Detect the key of the music from the MIDI notes, from the audio tracks, or both. Returns key, confidence, alternatives and whether it matches the project key.', {
   source: z.enum(['midi', 'audio', 'both']).optional(),
 }, { ...readOnly, timeout: 180000 });
+
+// ---- reference track
+
+fileTool('import_reference', 'Load a reference song (a commercial track the user wants to sound like) for mix matching. It is not put on the timeline. Optional from_seconds/to_seconds pick an excerpt (e.g. the chorus). Returns its loudness, dynamics, stereo width and band balance.', {
+  from_seconds: z.number().min(0).optional(),
+  to_seconds: z.number().min(0).optional(),
+});
+
+tool('compare_to_reference', 'Compare the mix (or bars / a section of it) with the reference track, after matching their loudness: loudness_diff_lu, crest_diff_db, width_diff, tonal_diff_db per band (mix minus reference; negative = the mix has less) and concrete suggestions (EQ on the master or on the track that has the most energy in a band, gain, compression, width).', {
+  ...RangeArgs,
+}, { ...readOnly, timeout: 180000 });
+
+tool('clear_reference', 'Remove the reference track from the project.', {});
 
 // ---- recording
 

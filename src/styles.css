@@ -2652,10 +2652,8 @@ kbd {
   border-radius: 10px;
 }
 .mixer-analyze {
-  position: absolute;
-  top: 10px;
-  right: 14px;
-  z-index: 2;
+  margin-top: 8px;
+  letter-spacing: 0;
 }
 .mixer {
   position: relative;
@@ -3149,4 +3147,165 @@ kbd {
   justify-content: flex-end;
   gap: 8px;
   padding: 6px 16px 16px;
+}
+
+/* ---------- reference track ---------- */
+.ref-strip {
+  gap: 8px;
+  justify-content: flex-start;
+}
+.ref-strip.listening {
+  box-shadow: inset 0 0 0 1px #f59e0b;
+}
+.ref-name,
+.ref-empty {
+  width: 100%;
+  font-size: 11px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dim);
+}
+.ref-name {
+  color: inherit;
+  font-weight: 600;
+}
+.ref-empty {
+  white-space: normal;
+}
+.ref-ab {
+  display: flex;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.ref-ab button {
+  width: 30px;
+  height: 30px;
+  font-weight: 700;
+}
+.ref-ab button.on {
+  background: var(--accent);
+  color: #fff;
+}
+.ref-ab button:last-child.on {
+  background: #f59e0b;
+}
+.ref-match {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--dim);
+}
+.ref-strip .strip-name {
+  margin-top: auto;
+}
+.ref-x {
+  opacity: 0.7;
+}
+.an-ref {
+  grid-column: 1 / -1;
+}
+.an-ref .an-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ref-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+.ref-legend i {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.ref-legend i.mix,
+.ref-curves path.mix {
+  background: #60a5fa;
+  stroke: #60a5fa;
+}
+.ref-legend i.ref,
+.ref-curves path.ref {
+  background: #f59e0b;
+  stroke: #f59e0b;
+}
+.ref-curves {
+  width: 100%;
+  max-width: 720px;
+  display: block;
+}
+.ref-curves path {
+  fill: none;
+  stroke-width: 2;
+}
+.ref-curves .grid {
+  stroke: var(--line-2);
+}
+.ref-curves text {
+  font-size: 9px;
+  fill: var(--dim);
+}
+.ref-stats,
+.ref-bands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--dim);
+}
+.ref-stats b,
+.ref-bands b {
+  color: var(--text, #fff);
+}
+.ref-bands .less b {
+  color: #60a5fa;
+}
+.ref-bands .more b {
+  color: #f59e0b;
+}
+.ref-sugg {
+  margin-top: 6px;
+  font-size: 12px;
+}
+.ref-sugg b {
+  color: #f59e0b;
+  margin-right: 4px;
+}
+.strip.master .master-title {
+  flex-direction: column;
+  justify-content: center;
+}
+.mixer-analyze {
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.an-ref {
+  flex: 1 1 100%;
+}
+.ref-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  align-items: flex-start;
+}
+.ref-layout .ref-curves {
+  flex: 1 1 320px;
+  max-width: 560px;
+}
+.ref-text {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+.ref-text .ref-stats {
+  margin-top: 0;
 }
