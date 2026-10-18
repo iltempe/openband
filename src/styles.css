@@ -859,6 +859,13 @@ input[type='range']::-moz-range-thumb {
   background: rgba(26, 28, 35, 0.85);
   backdrop-filter: blur(8px);
   box-shadow: inset 0 0 0 1px var(--line-2);
+  /* Floats over the tracks: stay discreet until used. */
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+.zoom-ctl:hover,
+.zoom-ctl:focus-within {
+  opacity: 1;
 }
 .zoom-ctl input {
   width: 90px;

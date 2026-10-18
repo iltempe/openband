@@ -33,7 +33,9 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 
 | Piano roll | Mixer |
 |---|---|
-| ![Piano roll](docs/editor.png) | ![Mixer](docs/mixer.png) |
+| ![Piano roll](docs/editor.png) | ![Mixer with effects on two tracks](docs/mixer.png) |
+| **Effects** | **Audio track** |
+| ![Amp, EQ and compressor on the bass](docs/effects.png) | ![Audio clip with waveform](docs/audio.png) |
 
 > The online demo can't talk to your AI: for security, the MCP server only accepts pages served from localhost. To let your AI play, run OpenBand locally as shown below.
 
@@ -53,6 +55,14 @@ npm run build
 ```
 
 A demo song opens on first launch. The “Enter the studio” click is needed because browsers only enable audio after a user interaction.
+
+## Sounds, effects, automation and MIDI
+
+- **Your own sounds**: use *Import sounds* at the top of the library. *Sampler* turns audio files into an instrument (name them like `Piano_C4.wav` to set the keys, otherwise the pitch is detected); *Drum kit* maps files named kick, snare, hat, clap, tom… to the kit; *SoundFont* opens a `.sf2` library and lets you pick presets; *Audio* puts files on the timeline. You can also drop files anywhere on the studio. Free SoundFonts to try: FluidR3_GM (MIT) or GeneralUser GS.
+- **Saving**: projects with imported sounds are saved as one `.openband` file that contains the samples, so they open anywhere.
+- **Effects**: select a track and press **F** (or click *FX* on a mixer strip). Each unit has its own power button.
+- **Automation**: click **A** on a track to open its lane, choose the parameter, click to add points, drag to move them, double-click to delete.
+- **MIDI**: *Import MIDI…* / *Export MIDI* in the ⋯ menu, or drop a `.mid` file on the studio.
 
 ## Connect an AI (MCP)
 
@@ -87,6 +97,8 @@ claude mcp add openband -- node /absolute/path/to/openband/server/mcp-server.mjs
 Then open the studio (`npm run dev`, or let the AI call `open_studio` after an `npm run build`) and ask, for example:
 
 > Make a lo-fi beat at 82 BPM in D minor with drums, bass and Rhodes, then start the loop.
+
+> Import ~/Samples/vocal.wav as an audio track at bar 5, put a compressor on the bass, fade the pad in over two bars and save the song as ~/Desktop/song.wav and song.mid.
 
 Environment variables: `OPENBAND_PORT` (default 7777; if you change it, open the app with `?mcp=<port>`) and `OPENBAND_DEV_URL` (default `http://localhost:5173`).
 

@@ -31,7 +31,9 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 
 | Piano roll | Mixer |
 |---|---|
-| ![Piano roll](docs/editor.png) | ![Mixer](docs/mixer.png) |
+| ![Piano roll](docs/editor.png) | ![Mixer con effetti su due tracce](docs/mixer.png) |
+| **Effetti** | **Traccia audio** |
+| ![Amp, EQ e compressore sul basso](docs/effects.png) | ![Clip audio con forma d'onda](docs/audio.png) |
 
 > Nella demo online l'AI non può collegarsi: per motivi di sicurezza il server MCP accetta solo pagine servite da localhost. Per farla suonare alla tua AI, avvia OpenBand in locale come spiegato qui sotto.
 
@@ -49,6 +51,14 @@ npm run build
 ```
 
 Al primo avvio si apre un brano demo. Il clic su “Entra nello studio” (“Enter the studio” in inglese) serve perché i browser abilitano l'audio solo dopo un'interazione dell'utente.
+
+## Suoni, effetti, automazioni e MIDI
+
+- **I tuoi suoni**: usa *Importa suoni* in cima alla libreria. *Campionatore* trasforma file audio in uno strumento (chiamali per esempio `Piano_C4.wav` per indicare i tasti, altrimenti la nota viene riconosciuta); *Kit batteria* assegna i file chiamati kick, snare, hat, clap, tom… ai pezzi del kit; *SoundFont* apre una libreria `.sf2` e ti fa scegliere i preset; *Audio* mette i file sulla timeline. Puoi anche trascinare i file ovunque nello studio. SoundFont gratuiti da provare: FluidR3_GM (MIT) o GeneralUser GS.
+- **Salvataggio**: i progetti con suoni importati si salvano in un unico file `.openband` che contiene i campioni, così si aprono ovunque.
+- **Effetti**: seleziona una traccia e premi **F** (o clicca *FX* su un canale del mixer). Ogni unità ha il suo pulsante di accensione.
+- **Automazioni**: clicca **A** su una traccia per aprirne la corsia, scegli il parametro, clicca per aggiungere punti, trascinali per spostarli, doppio clic per eliminarli.
+- **MIDI**: *Importa MIDI…* / *Esporta MIDI* nel menu ⋯, oppure trascina un file `.mid` nello studio.
 
 ## Collegare un'AI (MCP)
 
@@ -83,6 +93,8 @@ claude mcp add openband -- node /percorso/assoluto/openband/server/mcp-server.mj
 Poi apri lo studio (`npm run dev`, oppure lascia che l'AI chiami `open_studio` dopo un `npm run build`) e chiedi, per esempio:
 
 > Crea un beat lo-fi a 82 BPM in Re minore con batteria, basso e Rhodes, poi fai partire il loop.
+
+> Importa ~/Samples/voce.wav come traccia audio alla battuta 5, metti un compressore sul basso, fai entrare il pad in dissolvenza in due battute e salva il brano come ~/Desktop/brano.wav e brano.mid.
 
 Variabili d'ambiente: `OPENBAND_PORT` (predefinita 7777; se la cambi, apri l'app con `?mcp=<porta>`) e `OPENBAND_DEV_URL` (predefinita `http://localhost:5173`).
 

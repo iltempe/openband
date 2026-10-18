@@ -126,7 +126,10 @@ Conventions:
 Typical workflow: get_project → set_tempo/set_key → add_track (list_instruments for ids) → add_drum_pattern / add_chord_progression / add_region with notes → duplicate_region to extend → update_track to mix → transport play.
 Prefer few, musically complete calls (e.g. a whole 4-bar melody in one add_region). Always reuse ids returned by previous calls.
 
-Imported sounds: import_sample loads an audio file (local path or URL) and returns a sample_id. Use it to build instruments with create_sampler_instrument (melodic sampler or drum kit), or put it on the timeline with add_audio_region (audio tracks). import_soundfont lists the presets of a .sf2 file, then imports one as an instrument. Imported instruments get ids like "usr_..." that work in add_track / update_track.`;
+Imported sounds: import_sample loads an audio file (local path or URL) and returns a sample_id. Use it to build instruments with create_sampler_instrument (melodic sampler or drum kit), or put it on the timeline with add_audio_region (audio tracks). import_soundfont lists the presets of a .sf2 file, then imports one as an instrument. Imported instruments get ids like "usr_..." that work in add_track / update_track.
+
+Mixing: set_track_effects adds an amp sim, 3-band EQ and compressor to a track; set_automation draws curves for volume, pan, tone, reverb or echo over time (e.g. fades, filter sweeps, auto-pan).
+Files: export_wav and export_midi download in the browser, or write to disk with save_to; import_midi turns a .mid file into tracks.`;
 
 const server = new McpServer({ name: 'openband', version: '0.1.0' }, { instructions: INSTRUCTIONS });
 
