@@ -4,6 +4,13 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 ## Unreleased — v0.2 "The AI that listens"
 
+### F12 · Takes, comping and blind A/B
+- Pure module `src/takes.ts`: the region's content becomes "Take 1" on the first alternative, edits to the active take are kept when switching, comping cuts notes at segment boundaries (held notes end there, earlier ones begin there), one take per loop pass for cycle recording.
+- Cycle recording: recording with the cycle on and playing over several passes makes one region over the cycle with one take per pass (the last one active).
+- MCP: `add_take`, `list_takes`, `set_active_take`, `delete_take`, `comp_takes`, `start_ab_test` (result as the `ab_result` event).
+- Blind test (`src/abtest.ts`): takes shuffled into A–D; the mapping stays in a module closure — never in a store, the project or the DOM — until the user confirms their ranking. Switching letters swaps the notes live while the region loops, with no undo steps; the original take is restored at the end, with a button to keep the winner.
+- UI: "n takes" badge on regions, takes dialog (switch, delete, drag across lanes to comp, pick 2–4 for a blind test), blind-test overlay with ranking and reveal.
+
 ### F6 · Reference matching
 - Pure module `src/analysis/reference.ts`: master profile (integrated LUFS, true peak, crest, LRA, correlation, width, 7 bands, 31 third-octave bands) with the spectrum and RMS gated like BS.1770, so silence around a song doesn't change its balance; comparison after loudness matching (tonal diff per band and per 1/3 octave, loudness, crest, width) and suggestions — boosts on the master, cuts on the track with the most energy in the band, gain, compression, width.
 - `project.reference` (schema v2): the sample is stored and bundled in `.openband` files like the others but isn't on the timeline; its analysis is cached.

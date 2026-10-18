@@ -19,6 +19,7 @@ import { LyricsPanel } from './components/Lyrics';
 import * as I from './components/Icons';
 import { SoundFontDialog, handleDroppedFiles } from './components/ImportUI';
 import { MicOverlay } from './components/Mic';
+import { ABOverlay, TakesDialog } from './components/Takes';
 import { PluginBrowser, PluginWindow } from './components/Plugins';
 import { LANGS, setLang, useLang, useT } from './i18n';
 
@@ -269,6 +270,8 @@ export function App() {
       {s.keyboardOpen && <MusicalTyping />}
       <SoundFontDialog />
       <MicOverlay />
+      <TakesDialog />
+      <ABOverlay />
       <PluginBrowser />
       <PluginWindow />
       {s.toast && <div className="toast">{s.toast}</div>}

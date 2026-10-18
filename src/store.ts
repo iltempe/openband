@@ -114,6 +114,8 @@ const entry = (project: Project, label: string, source: 'ui' | 'ai', commands: n
 let aiDepth = 0;
 export const enterAiCommand = () => void aiDepth++;
 export const exitAiCommand = () => void (aiDepth = Math.max(0, aiDepth - 1));
+/** True while a command sent by the AI is running. */
+export const isAiCommand = () => aiDepth > 0;
 
 export const useStore = create<State>((set, get) => ({
   project: loadSaved() ?? emptyProject(),

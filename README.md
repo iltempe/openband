@@ -30,6 +30,7 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 - **Microphone recording and hum-to-MIDI**: record your voice or an instrument onto an audio track after a one-bar count-in (with latency compensation), or *hum a melody* and get it back as MIDI notes, snapped to the key and gently quantized. Any monophonic audio clip can be converted the same way. When the AI asks to record, you always confirm first.
 - **MIDI import and export** (Standard MIDI Files, General MIDI programs, drums on channel 10).
 - **The AI listens**: `analyze_mix` renders the song and measures it — loudness (EBU R128 LUFS, true peak, LRA), frequency balance in 7 bands, stereo/phase, masking between tracks, the key — and returns concrete fixes (*“Bass and Drums cover each other at 60–250 Hz: cut 2–3 dB around 80 Hz…”*). `render_spectrogram` gives Claude an image of the mix to look at, and `analyze_harmony` reads the chords with their degrees in the key (*Am7 i7 · Fmaj7 VImaj7 · V7/V…*) and the cadences. The same reports are in the **Analysis** panel (N).
+- **Takes, comping and blind A/B**: every region can hold alternative takes — recorded in cycle mode (one per pass, as in GarageBand) or written by the AI (*“give me 4 bass lines”*). Comp the best parts by dragging across the take lanes, or run a **blind test**: the takes loop as A/B/C/D in random order, you rank them, and only then the names are revealed (and the AI gets your ranking).
 - **Reference matching**: load a song you'd like to sound like (it stays off the timeline), flip **A/B** in the mixer to hear it at the same loudness as your mix and at the same point in the song, and compare: loudness, dynamics, width and the 1/3-octave balance after loudness matching, with suggestions such as *“+2.5 dB above 6 kHz on the master”* or *“cut 2 dB at 250–500 Hz on the Pad, the loudest track there”*.
 - **Song structure**: mark intro, verses, choruses… in the *Structure* lane above the ruler (or let *Suggest* find them from repetitions). Click a section to loop it, drag it to move it with all its content (⌥ pushes the rest of the song), right-click to duplicate or delete it. The AI works in sections too: *“add one more chorus at the end”*, *“make the second verse bigger”*.
 - **Lyrics**: write the words per section in the **Lyrics** panel; Italian lyrics are split into metric syllables (with synalepha: *canto e ballo* = 4) and stressed syllables are marked, English too. Align them to the melody track: syllables appear under the track and inside the piano-roll notes, and prosody problems — stressed syllables on weak beats, long notes on unstressed endings, words cut by rests, syllables vs notes — are underlined and listed. Export a **ChordPro** or chords-over-lyrics sheet.
@@ -37,7 +38,7 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 - **The AI follows along**: phrases you play (split after a bar of silence), what you select, play/stop, your edits and questions typed in *Ask the AI* reach the connected AI as events. A switch in the AI panel turns activity sharing off (questions are always sent).
 - **Undo by intent**: everything the AI does for one request is a single, labelled undo step (*“Undo: Lo-fi beat (23 commands)”*); drags and knob turns are one step each.
 - **Undo/redo**, autosave, **WAV export** with offline rendering; projects with imported sounds are saved as a single `.openband` file that bundles the samples.
-- **AI control via MCP**: 84 tools to compose, arrange, import sounds, add plugins, mix, automate and export — the AI can add a plugin just from a description such as *“a warm tube overdrive”*.
+- **AI control via MCP**: 90 tools to compose, arrange, import sounds, add plugins, mix, automate and export — the AI can add a plugin just from a description such as *“a warm tube overdrive”*.
 - **English and Italian** interface (switch from the start screen or the ⋯ menu).
 
 | Piano roll | Mixer |
@@ -51,6 +52,8 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 | ![Problems panel](docs/problems.png) | ![Lyrics panel](docs/lyrics.png) |
 | **WAM plugin window** | **Plugin browser** |
 | ![Synth-101 WAM plugin](docs/plugins.png) | ![Searching plugins in plain language](docs/plugin-browser.png) |
+| **Takes and comping** | **Blind A/B test** |
+| ![Takes dialog with comping](docs/takes.png) | ![Blind test of three bass takes](docs/blind-test.png) |
 | **Reference matching** | **A/B with the reference** |
 | ![Mix vs reference curves and suggestions](docs/reference.png) | ![Reference strip in the mixer](docs/reference-strip.png) |
 | **Microphone: record or hum** | **The AI asks before recording** |
@@ -159,6 +162,7 @@ The bridge only accepts connections from `127.0.0.1` and from pages served on lo
 | Lyrics | `set_lyrics`, `get_lyrics`, `align_lyrics`, `check_prosody`, `suggest_melody_rhythm`, `export_chord_sheet` (ChordPro or text, optional `save_to`) |
 | Linter | `lint_project` (symbolic rules, optionally audio ones), `apply_fix`, `ignore_issue`; `update_notes` edits notes in place |
 | Listening | `analyze_mix` (bars or section, per track, summary/full), `render_spectrogram` (returns an image), `detect_key` (MIDI, audio or both), `analyze_harmony` (chords, Roman numerals, functions, cadences) |
+| Takes | `add_take`, `list_takes`, `set_active_take`, `delete_take`, `comp_takes` (segments, notes cut at the boundaries), `start_ab_test` (blind test; the ranking arrives as an `ab_result` event) |
 | Reference | `import_reference` (path or URL, optional excerpt), `compare_to_reference` (loudness-matched differences and suggestions), `clear_reference` |
 | Recording | `record_audio` (microphone, count-in, mode `audio` or `hum`; the user confirms), `audio_to_midi` (monophonic audio → notes, snap to key, quantize with strength) |
 | Mix | `set_track_effects` (amp, EQ, compressor), `set_automation`, `clear_automation` |

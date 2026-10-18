@@ -25,8 +25,10 @@ import { hash as lintHash } from './lint/util';
 import type { LintIssue } from './lint/types';
 import type { Severity } from './types';
 import { addAudioRegion, guessDrumPads, instrumentFromSoundFont, openSoundFont, rootFor, spreadZones } from './importers';
-import { emptyProject, enterAiCommand, exitAiCommand, getRegion, getTrack, makeTrack, projectEnd, useStore } from './store';
+import { emptyProject, enterAiCommand, exitAiCommand, isAiCommand, getRegion, getTrack, makeTrack, projectEnd, useStore } from './store';
 import { engine } from './audio/engine';
+import { checkSegments, compNotes, nextTakeName, withTakes, type CompSegment } from './takes';
+import { startABTest } from './abtest';
 import { clearReference, compareToReference, importReference } from './reference';
 import { audioRegionToMidi, audioToMidi, recordFromMic, requestRecording, useMic } from './recording';
 import { download, renderProject } from './audio/render';
@@ -963,6 +965,96 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   render_spectrogram: ({ from_bar, to_bar, section_id, track_id, width, height }) => spectrogram({ from_bar, to_bar, section_id, track_id, width, height }),
 
+  // ---------- takes ----------
+
+  add_take: ({ region_id, notes, name, activate }) => {
+    const p = st().project;
+    const r = requireRegion(p, region_id);
+    if (r.audio) throw new Error('add_take adds MIDI notes; this is an audio region');
+    const parsed = toNotes(notes, getTrack(p, r.trackId)?.kind === 'drums');
+    const base = withTakes(r, Date.now(), () => uid('take'));
+    const take = { id: uid('take'), name: String(name ?? nextTakeName(base.takes)), notes: parsed, createdAt: Date.now(), author: (isAiCommand() ? 'ai' : 'user') as 'ai' | 'user' };
+    const on = activate !== false;
+    st().commit((d) => {
+      const x = d.regions.find((y) => y.id === r.id)!;
+      x.takes = [...base.takes, take];
+      x.activeTakeId = on ? take.id : base.activeTakeId;
+      if (on) {
+        x.notes = parsed.map((n) => ({ ...n }));
+        x.length = Math.max(x.length, regionLengthFor(parsed));
+      }
+    });
+    return { region_id: r.id, take_id: take.id, name: take.name, takes: base.takes.length + 1, active: on };
+  },
+
+  list_takes: ({ region_id }) => {
+    const r = requireRegion(st().project, region_id);
+    const { takes, activeTakeId } = withTakes(r, Date.now(), () => 'take_1');
+    return {
+      region_id: r.id,
+      active_take_id: r.takes?.length ? activeTakeId : null,
+      takes: (r.takes?.length ? takes : []).map((t) => ({ id: t.id, name: t.name, author: t.author, notes: t.notes.length, audio: !!t.audio, active: t.id === activeTakeId, created_at: t.createdAt })),
+    };
+  },
+
+  set_active_take: ({ region_id, take_id }) => {
+    const r = requireRegion(st().project, region_id);
+    if (!r.takes?.length) throw new Error('This region has no takes');
+    const { takes } = withTakes(r, Date.now(), () => uid('take'));
+    const take = takes.find((t) => t.id === take_id || t.name.toLowerCase() === String(take_id).toLowerCase());
+    if (!take) throw new Error(`Take "${take_id}" not found. Call list_takes.`);
+    st().commit((d) => {
+      const x = d.regions.find((y) => y.id === r.id)!;
+      x.takes = takes;
+      x.activeTakeId = take.id;
+      x.notes = take.notes.map((n) => ({ ...n }));
+      if (take.audio) x.audio = { ...take.audio };
+      x.length = Math.max(x.length, x.audio ? x.length : regionLengthFor(x.notes));
+    });
+    return { region_id: r.id, active_take_id: take.id, name: take.name };
+  },
+
+  delete_take: ({ region_id, take_id }) => {
+    const r = requireRegion(st().project, region_id);
+    const { takes, activeTakeId } = withTakes(r, Date.now(), () => uid('take'));
+    const i = takes.findIndex((t) => t.id === take_id);
+    if (i < 0) throw new Error(`Take "${take_id}" not found`);
+    if (takes.length === 1) throw new Error('A region keeps at least one take');
+    const rest = takes.filter((t) => t.id !== take_id);
+    const active = activeTakeId === take_id ? rest[Math.max(0, i - 1)] : rest.find((t) => t.id === activeTakeId)!;
+    st().commit((d) => {
+      const x = d.regions.find((y) => y.id === r.id)!;
+      x.takes = rest;
+      x.activeTakeId = active.id;
+      x.notes = active.notes.map((n) => ({ ...n }));
+      if (active.audio) x.audio = { ...active.audio };
+    });
+    return { region_id: r.id, deleted: take_id, active_take_id: active.id };
+  },
+
+  comp_takes: ({ region_id, segments, name }) => {
+    const r = requireRegion(st().project, region_id);
+    if (r.audio) throw new Error('Comping works on MIDI takes');
+    if (!r.takes?.length) throw new Error('This region has no takes');
+    const { takes } = withTakes(r, Date.now(), () => uid('take'));
+    const segs = checkSegments((segments ?? []) as CompSegment[], takes, r.length);
+    const notes = compNotes(takes, segs, () => uid('n'));
+    const comp = { id: uid('take'), name: String(name ?? 'Comp'), notes, createdAt: Date.now(), author: (isAiCommand() ? 'ai' : 'user') as 'ai' | 'user' };
+    st().commit((d) => {
+      const x = d.regions.find((y) => y.id === r.id)!;
+      x.takes = [...takes, comp];
+      x.activeTakeId = comp.id;
+      x.notes = notes.map((n) => ({ ...n }));
+    });
+    return { region_id: r.id, take_id: comp.id, name: comp.name, notes: notes.length, segments: segs.map((s) => ({ ...s, take: takes.find((t) => t.id === s.take_id)!.name })) };
+  },
+
+  start_ab_test: ({ region_id, take_ids, loop }) => {
+    const r = requireRegion(st().project, region_id);
+    const ids = (take_ids as string[] | undefined)?.length ? (take_ids as string[]) : (r.takes ?? []).slice(-4).map((t) => t.id);
+    return startABTest(r.id, ids, loop !== false);
+  },
+
   // ---------- reference track ----------
 
   import_reference: ({ data_base64, filename, from_seconds, to_seconds }) =>
@@ -1081,7 +1173,7 @@ const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'start_ab_test',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

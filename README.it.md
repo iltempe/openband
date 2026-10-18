@@ -28,6 +28,7 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 - **Registrazione dal microfono e canticchia→MIDI**: registra voce o strumento su una traccia audio dopo una battuta di conteggio (con compensazione della latenza), oppure *canticchia una melodia* e ritrovala come note MIDI, agganciate alla tonalità e quantizzate con delicatezza. Ogni clip audio monofonica si può convertire allo stesso modo. Quando è l'AI a chiedere di registrare, confermi sempre tu.
 - **Import ed export MIDI** (Standard MIDI File, programmi General MIDI, batteria sul canale 10).
 - **L'AI ascolta**: `analyze_mix` renderizza il brano e lo misura (loudness EBU R128 in LUFS, true peak, LRA, equilibrio in 7 bande, stereo/fase, mascheramento tra tracce, tonalità) e restituisce correzioni concrete (*“Basso e batteria si coprono a 60–250 Hz: taglia 2–3 dB intorno a 80 Hz…”*). `render_spectrogram` dà a Claude un'immagine del mix da guardare, e `analyze_harmony` legge gli accordi con i gradi nella tonalità (*Am7 i7 · Fmaj7 VImaj7 · V7/V…*) e le cadenze. Gli stessi rapporti sono nel pannello **Analisi** (N).
+- **Take, comping e A/B alla cieca**: ogni regione può avere più take alternative — registrate in cycle (una per giro, come in GarageBand) o scritte dall'AI (*“dammi 4 linee di basso”*). Componi il meglio trascinando sulle corsie delle take, oppure fai un **test alla cieca**: le take girano in loop come A/B/C/D in ordine casuale, le metti in classifica e solo allora vedi i nomi (e l'AI riceve la tua classifica).
 - **Confronto con una reference**: carica un brano a cui vuoi somigliare (resta fuori dalla timeline), usa **A/B** nel mixer per ascoltarlo alla stessa loudness del tuo mix e nello stesso punto del brano, e confronta: loudness, dinamica, ampiezza stereo e bilanciamento per 1/3 d'ottava a loudness pareggiata, con suggerimenti come *“+2,5 dB sopra i 6 kHz sul master”* o *“taglia 2 dB a 250–500 Hz sul Pad, la traccia più energica lì”*.
 - **Struttura del brano**: segna intro, strofe, ritornelli… nella corsia *Struttura* sopra il righello (oppure lascia che *Suggerisci* li trovi dalle ripetizioni). Un clic su una sezione la mette in loop, trascinandola la sposti con tutto il contenuto (⌥ spinge il resto del brano), con il tasto destro la duplichi o la elimini. Anche l'AI lavora per sezioni: *“aggiungi un altro ritornello alla fine”*, *“rendi più pieno la seconda strofa”*.
 - **Testi**: scrivi le parole per sezione nel pannello **Testo**; i testi italiani vengono divisi in sillabe metriche (con sinalefe: *canto e ballo* = 4) e le sillabe accentate segnate, anche in inglese. Allineali alla traccia della melodia: le sillabe compaiono sotto la traccia e dentro le note del piano roll, e i problemi di prosodia (accenti sui tempi deboli, note lunghe su finali atone, parole spezzate da pause, sillabe e note che non tornano) vengono sottolineati ed elencati. Esporta uno spartito **ChordPro** o con gli accordi sopra il testo.
@@ -35,7 +36,7 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 - **L'AI ti segue**: le frasi che suoni (separate dopo una battuta di silenzio), ciò che selezioni, play/stop, le tue modifiche e le domande scritte in *Chiedi all'AI* arrivano all'AI collegata come eventi. Un interruttore nel pannello AI disattiva la condivisione dell'attività (le domande vengono sempre inviate).
 - **Annulla per intento**: tutto ciò che l'AI fa per una richiesta è un solo passo di annullamento con etichetta (*“Annulla: Beat lo-fi (23 comandi)”*); trascinamenti e manopole contano un passo ciascuno.
 - **Annulla/ripristina**, salvataggio automatico, **esportazione WAV** con rendering offline; i progetti con suoni importati si salvano in un unico file `.openband` che contiene i campioni.
-- **Controllo AI via MCP**: 84 strumenti per comporre, arrangiare, importare suoni, aggiungere plugin, mixare, automatizzare ed esportare: l'AI può aggiungere un plugin solo a partire da una descrizione come *“un overdrive valvolare caldo”*.
+- **Controllo AI via MCP**: 90 strumenti per comporre, arrangiare, importare suoni, aggiungere plugin, mixare, automatizzare ed esportare: l'AI può aggiungere un plugin solo a partire da una descrizione come *“un overdrive valvolare caldo”*.
 - Interfaccia in **inglese e italiano**: l'inglese è predefinito, si cambia dalla schermata iniziale o dal menu ⋯.
 
 | Piano roll | Mixer |
@@ -49,6 +50,8 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 | ![Pannello Problemi](docs/problems.png) | ![Pannello Testo](docs/lyrics.png) |
 | **Finestra di un plugin WAM** | **Browser dei plugin** |
 | ![Plugin WAM Synth-101](docs/plugins.png) | ![Ricerca dei plugin a parole](docs/plugin-browser.png) |
+| **Take e comping** | **Test A/B alla cieca** |
+| ![Finestra delle take con comping](docs/takes.png) | ![Test alla cieca di tre take di basso](docs/blind-test.png) |
 | **Confronto con la reference** | **A/B con la reference** |
 | ![Curve mix vs reference e suggerimenti](docs/reference.png) | ![Striscia Reference nel mixer](docs/reference-strip.png) |
 | **Microfono: registra o canticchia** | **L'AI chiede prima di registrare** |
@@ -155,6 +158,7 @@ Il bridge accetta connessioni solo da `127.0.0.1` e da pagine servite su localho
 | Testi | `set_lyrics`, `get_lyrics`, `align_lyrics`, `check_prosody`, `suggest_melody_rhythm`, `export_chord_sheet` (ChordPro o testo, `save_to` opzionale) |
 | Linter | `lint_project` (regole simboliche, opzionalmente audio), `apply_fix`, `ignore_issue`; `update_notes` modifica le note sul posto |
 | Ascolto | `analyze_mix` (battute o sezione, per traccia, summary/full), `render_spectrogram` (restituisce un'immagine), `detect_key` (MIDI, audio o entrambi), `analyze_harmony` (accordi, numeri romani, funzioni, cadenze) |
+| Take | `add_take`, `list_takes`, `set_active_take`, `delete_take`, `comp_takes` (segmenti, note tagliate ai confini), `start_ab_test` (test alla cieca; la classifica arriva come evento `ab_result`) |
 | Reference | `import_reference` (percorso o URL, estratto opzionale), `compare_to_reference` (differenze a loudness pareggiata e suggerimenti), `clear_reference` |
 | Registrazione | `record_audio` (microfono, conteggio, modo `audio` o `hum`; l'utente conferma), `audio_to_midi` (audio monofonico → note, aggancio alla tonalità, quantizzazione con intensità) |
 | Mix | `set_track_effects` (amp, EQ, compressore), `set_automation`, `clear_automation` |

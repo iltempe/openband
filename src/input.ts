@@ -7,6 +7,7 @@ import { getTrack, makeTrack, useStore } from './store';
 import { t } from './i18n';
 import { PhraseSegmenter } from './phrases';
 import { emitStudioEvent } from './events';
+import { takesFromPasses, type PassNote } from './takes';
 
 /** Musical typing layout, semitone offsets from the current octave's C. */
 export const TYPING_KEYS: Record<string, number> = {
@@ -25,8 +26,12 @@ const st = () => useStore.getState();
 
 interface Rec {
   trackId: string;
-  pending: Map<number, { start: number; velocity: number }>;
-  notes: Note[];
+  pending: Map<number, { start: number; velocity: number; pass: number }>;
+  notes: PassNote[];
+  /** Loop passes so far (cycle recording makes one take per pass). */
+  pass: number;
+  lastPos: number;
+  watch: ReturnType<typeof setInterval>;
 }
 let rec: Rec | null = null;
 
@@ -45,7 +50,14 @@ export async function startRecording() {
     s.commit((d) => void d.tracks.push(t));
     s.set({ selectedTrackId: t.id });
   }
-  rec = { trackId: track.id, pending: new Map(), notes: [] };
+  const r: Rec = { trackId: track.id, pending: new Map(), notes: [], pass: 0, lastPos: engine.position, watch: 0 as unknown as ReturnType<typeof setInterval> };
+  // The transport jumping back means the cycle started over: a new pass.
+  r.watch = setInterval(() => {
+    const pos = engine.position;
+    if (loopLen() && pos < r.lastPos - 0.5) r.pass++;
+    r.lastPos = pos;
+  }, 20);
+  rec = r;
   s.set({ isRecording: true, keyboardOpen: true });
   if (!engine.playing) {
     await engine.play();
@@ -58,10 +70,23 @@ export function stopRecording() {
   if (!rec) return;
   const r = rec;
   rec = null;
+  clearInterval(r.watch);
   const now = engine.position;
-  for (const [pitch, p] of r.pending) r.notes.push(finishNote(pitch, p.start, p.velocity, now));
+  for (const [pitch, p] of r.pending) r.notes.push({ ...finishNote(pitch, p.start, p.velocity, now), pass: p.pass });
   st().set({ isRecording: false });
   if (!r.notes.length) return;
+  const loop = st().project.loop;
+  if (loopLen() && new Set(r.notes.map((n) => n.pass)).size > 1) {
+    // Cycle recording: one region over the cycle, one take per pass, the last one active.
+    const takes = takesFromPasses(r.notes, loop.start, loopLen(), Date.now(), () => uid('take'));
+    const last = takes[takes.length - 1];
+    const region = { id: uid('rgn'), trackId: r.trackId, name: t('rec.region'), start: loop.start, length: loopLen(), notes: last.notes.map((n) => ({ ...n })), takes, activeTakeId: last.id };
+    st().commit((d) => void d.regions.push(region));
+    st().selectRegion(region);
+    st().notify(t('rec.takes', { n: takes.length }));
+    emitStudioEvent({ kind: 'region_recorded', region_id: region.id });
+    return;
+  }
   const startBar = Math.floor(Math.min(...r.notes.map((n) => n.start)) / BEATS_PER_BAR) * BEATS_PER_BAR;
   const end = Math.max(...r.notes.map((n) => n.start + n.duration));
   const length = Math.max(BEATS_PER_BAR, Math.ceil((end - startBar) / BEATS_PER_BAR) * BEATS_PER_BAR);
@@ -71,7 +96,7 @@ export function stopRecording() {
     name: t('rec.region'),
     start: startBar,
     length,
-    notes: r.notes.map((n) => ({ ...n, start: n.start - startBar })),
+    notes: r.notes.map(({ pass: _, ...n }) => ({ ...n, start: n.start - startBar })),
   };
   st().commit((d) => void d.regions.push(region));
   st().selectRegion(region);
@@ -115,7 +140,7 @@ export function liveNoteOn(pitch: number, velocity = st().velocity) {
   if (!engine.contextRunning) void engine.unlock();
   engine.noteOn(trackId, pitch, velocity);
   useLive.setState((s) => ({ active: [...s.active.filter((p) => p !== pitch), pitch] }));
-  if (rec && rec.trackId === trackId) rec.pending.set(pitch, { start: engine.position, velocity });
+  if (rec && rec.trackId === trackId) rec.pending.set(pitch, { start: engine.position, velocity, pass: rec.pass });
 }
 
 export function liveNoteOff(pitch: number) {
@@ -126,7 +151,7 @@ export function liveNoteOff(pitch: number) {
   const p = rec?.pending.get(pitch);
   if (rec && p) {
     rec.pending.delete(pitch);
-    rec.notes.push(finishNote(pitch, p.start, p.velocity, engine.position));
+    rec.notes.push({ ...finishNote(pitch, p.start, p.velocity, engine.position), pass: p.pass });
   }
 }
 

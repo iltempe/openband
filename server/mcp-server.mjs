@@ -127,6 +127,7 @@ const INSTRUCTIONS = `OpenBand is a GarageBand-style music studio running in the
 Wrap every user request in begin_change("short label") … end_change() so the user can undo it in one step. (Commands sent without it are grouped automatically until you pause for 4 seconds.)
 When the user talks about parts of a song (verse, chorus…), call get_structure first and operate on sections (move_section, duplicate_section). Use the energy profile to make a section 'bigger' (more tracks, higher register, more notes, higher velocity) or 'smaller'. If there are no sections yet, auto_sections proposes them.
 For vocal lines, keep lyrics and melody aligned: set_lyrics → align_lyrics → check_prosody. Put stressed syllables on strong beats (suggest_melody_rhythm helps).
+To offer alternatives, add them as takes (add_take) and let the user pick with a blind test (start_ab_test, then wait_for_event ab_result).
 Run lint_project before declaring a task done and fix errors (apply_fix).
 Before mixing decisions, LISTEN: call analyze_mix (and render_spectrogram if useful). After changes, analyze again and compare. If the user names a song they want to sound like, import_reference it and use compare_to_reference.
 The studio also reports what the user does: get_events / wait_for_event (phrases they play, selections, edits, questions). The resource openband://project holds the song and notifies subscribers after each change.
@@ -563,6 +564,35 @@ tool('analyze_harmony', 'Chords of the MIDI parts (per bar, or per half bar when
 tool('detect_key', 'Detect the key of the music from the MIDI notes, from the audio tracks, or both. Returns key, confidence, alternatives and whether it matches the project key.', {
   source: z.enum(['midi', 'audio', 'both']).optional(),
 }, { ...readOnly, timeout: 180000 });
+
+// ---- takes
+
+const NotesArg = z.array(NoteSchema);
+
+tool('add_take', 'Add an alternative version (take) of a MIDI region, e.g. 4 bass variations = 4 add_take calls inside one begin_change. The region\'s current content becomes "Take 1" the first time. The new take becomes active unless activate=false. Notes as in add_region (beats from the region start).', {
+  region_id: z.string(),
+  notes: NotesArg,
+  name: z.string().optional(),
+  activate: z.boolean().optional(),
+});
+
+tool('list_takes', 'List the takes of a region (id, name, author, number of notes, which is active).', { region_id: z.string() }, readOnly);
+
+tool('set_active_take', 'Make a take the one that plays (by id or name).', { region_id: z.string(), take_id: z.string() });
+
+tool('delete_take', 'Delete a take from a region.', { region_id: z.string(), take_id: z.string() });
+
+tool('comp_takes', 'Build a "Comp" take from stretches of several takes: segments [{from_beat, to_beat, take_id}] in beats from the region start, non-overlapping. Notes are cut at the segment boundaries. The comp becomes active.', {
+  region_id: z.string(),
+  segments: z.array(z.object({ from_beat: z.number().min(0), to_beat: z.number().min(0), take_id: z.string() })).min(1),
+  name: z.string().optional(),
+});
+
+tool('start_ab_test', 'Open a blind A/B listening test of 2–4 takes of a region (default: its last 4): the user hears them as A/B/C/D in random order while the region loops, ranks them, and only then sees the names. Returns test_id. The result arrives as an "ab_result" event with the take ids ranked best first (empty if cancelled): wait_for_event({kinds:["ab_result"]}).', {
+  region_id: z.string(),
+  take_ids: z.array(z.string()).min(2).max(4).optional(),
+  loop: z.boolean().optional(),
+}, readOnly);
 
 // ---- reference track
 

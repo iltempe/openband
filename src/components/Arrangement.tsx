@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { TakesBadge } from './Takes';
 import type { AutoParam, Region, Track } from '../types';
 import { useStore, projectEnd } from '../store';
 import { engine } from '../audio/engine';
@@ -394,7 +395,10 @@ function RegionView({ region, track }: { region: Region; track: Track }) {
         useStore.getState().set({ bottom: 'editor' });
       }}
     >
-      <div className="region-head">{region.name}</div>
+      <div className="region-head">
+        <span className="region-title">{region.name}</span>
+        <TakesBadge region={region} />
+      </div>
       {region.audio ? <AudioPreview region={region} /> : <RegionPreview region={region} drums={track.kind === 'drums'} />}
       <div className="region-resize" onPointerDown={(e) => startDrag(e, 'resize')} />
     </div>
