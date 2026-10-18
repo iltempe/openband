@@ -8,6 +8,7 @@ import { detectPitch, encodeMonoWav, ensureSamples, getStoredSample, importSampl
 import { SoundFont } from './audio/soundfont';
 import { download } from './audio/render';
 import { captureWamStates } from './plugins';
+import { migrate } from './migrations';
 
 const st = () => useStore.getState();
 
@@ -213,9 +214,9 @@ export async function readProjectFile(data: ArrayBuffer): Promise<Project> {
       const ab = content.slice().buffer;
       await importSample(ab, manifest[id]?.name ?? id, manifest[id]?.type);
     }
-    return JSON.parse(strFromU8(files['project.json']));
+    return migrate(strFromU8(files['project.json']));
   }
-  return JSON.parse(new TextDecoder().decode(bytes));
+  return migrate(new TextDecoder().decode(bytes));
 }
 
 // ---------- drum pad helpers for the UI ----------

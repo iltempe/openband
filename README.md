@@ -63,7 +63,7 @@ A demo song opens on first launch. The “Enter the studio” click is needed be
 ## Sounds, effects, automation and MIDI
 
 - **Your own sounds**: use *Import sounds* at the top of the library. *Sampler* turns audio files into an instrument (name them like `Piano_C4.wav` to set the keys, otherwise the pitch is detected); *Drum kit* maps files named kick, snare, hat, clap, tom… to the kit; *SoundFont* opens a `.sf2` library and lets you pick presets; *Audio* puts files on the timeline. You can also drop files anywhere on the studio. Free SoundFonts to try: FluidR3_GM (MIT) or GeneralUser GS.
-- **Saving**: projects with imported sounds are saved as one `.openband` file that contains the samples, so they open anywhere.
+- **Saving**: projects with imported sounds are saved as one `.openband` file that contains the samples, so they open anywhere. Songs saved by older versions open as usual and are upgraded automatically.
 - **Effects**: select a track and press **F** (or click *FX* on a mixer strip). Each unit has its own power button.
 - **Automation**: click **A** on a track to open its lane, choose the parameter, click to add points, drag to move them, double-click to delete.
 - **MIDI**: *Import MIDI…* / *Export MIDI* in the ⋯ menu, or drop a `.mid` file on the studio.

@@ -15,6 +15,7 @@ import { emptyProject, enterAiCommand, exitAiCommand, getRegion, getTrack, makeT
 import { engine } from './audio/engine';
 import { download, renderProject } from './audio/render';
 import { t as tr } from './i18n';
+import { migrate } from './migrations';
 
 type P = Record<string, any>;
 
@@ -677,9 +678,8 @@ export const commands: Record<string, (args: P) => unknown> = {
   },
 
   import_project_json: ({ project }) => {
-    const p = typeof project === 'string' ? JSON.parse(project) : project;
-    if (!p || p.version !== 1 || !Array.isArray(p.tracks) || !Array.isArray(p.regions)) throw new Error('Invalid OpenBand project');
-    st().loadProject(p as Project);
+    const p = migrate(project);
+    st().loadProject(p);
     return summarize(p);
   },
 

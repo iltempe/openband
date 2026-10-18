@@ -26,6 +26,18 @@ export interface Region {
   notes: Note[];
   /** Audio regions (on audio tracks) play a stored sample instead of notes. */
   audio?: AudioClip;
+  /** Alternative versions of the content (F12); notes/audio above always hold the active one. */
+  takes?: Take[];
+  activeTakeId?: string;
+}
+
+export interface Take {
+  id: string;
+  name: string;
+  notes: Note[];
+  audio?: AudioClip;
+  createdAt: number;
+  author: 'user' | 'ai';
 }
 
 export interface AudioClip {
@@ -123,7 +135,7 @@ export interface LoopRange {
 }
 
 export interface Project {
-  version: 1;
+  version: 2;
   name: string;
   bpm: number;
   key: string;
@@ -134,6 +146,99 @@ export interface Project {
   metronome: boolean;
   /** Imported instruments, referenced by Track.instrument. */
   instruments?: CustomInstrument[];
+  // ---- schema v2 (all optional) ----
+  /** Song structure (F8): ordered, non-overlapping. */
+  sections?: Section[];
+  /** Lyrics aligned to a melody (F10). */
+  lyrics?: LyricsDoc;
+  /** Comments/explanations attached to parts of the song (F14). */
+  annotations?: Annotation[];
+  /** Reference track for mix matching (F6); not on the timeline. */
+  reference?: ReferenceTrack;
+  /** Linter configuration (F7). */
+  lint?: LintConfig;
+  meta?: ProjectMeta;
+}
+
+export interface ProjectMeta {
+  createdAt: number;
+  updatedAt: number;
+  /** Stable identity of the song across saves, versions and copies. */
+  projectId: string;
+}
+
+export type SectionKind = 'intro' | 'verse' | 'prechorus' | 'chorus' | 'bridge' | 'solo' | 'breakdown' | 'outro' | 'custom';
+
+export interface Section {
+  id: string;
+  name: string;
+  kind: SectionKind;
+  /** Beats. */
+  start: number;
+  length: number;
+  color?: string;
+}
+
+export interface LyricsDoc {
+  language: 'it' | 'en';
+  /** Track carrying the vocal melody. */
+  melodyTrackId?: string;
+  lines: LyricLine[];
+}
+
+export interface LyricLine {
+  id: string;
+  sectionId?: string;
+  text: string;
+  syllables: Syllable[];
+}
+
+export interface Syllable {
+  text: string;
+  stressed: boolean;
+  /** Absolute beat assigned by alignment. */
+  beat?: number;
+  noteId?: string;
+  /** Continues over the next note. */
+  melisma?: boolean;
+}
+
+export interface AnnotationTarget {
+  type: 'project' | 'track' | 'region' | 'notes' | 'section' | 'range';
+  id?: string;
+  note_ids?: string[];
+  from_beat?: number;
+  to_beat?: number;
+}
+
+export interface Annotation {
+  id: string;
+  target: AnnotationTarget;
+  /** Short markdown, at most 500 characters. */
+  text: string;
+  author: 'ai' | 'user';
+  txId?: string;
+  createdAt: number;
+  resolved?: boolean;
+  /** Set when the target no longer exists. */
+  orphaned?: boolean;
+}
+
+export interface ReferenceTrack {
+  sampleId: string;
+  name: string;
+  loudnessMatched: boolean;
+  /** Cached analysis of the reference (format of analyze_mix's master block). */
+  analysis?: Record<string, unknown>;
+}
+
+export type Severity = 'info' | 'warn' | 'error';
+
+export interface LintConfig {
+  disabled?: string[];
+  severity?: Record<string, Severity>;
+  /** Issue ids the user chose to ignore. */
+  ignored?: string[];
 }
 
 export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | null;

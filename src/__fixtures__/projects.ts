@@ -7,7 +7,7 @@ export const demoV1Raw: unknown = demoV1;
 
 const base = (over: Partial<Project> = {}): Project =>
   ({
-    version: 1,
+    version: 2,
     name: 'Fixture',
     bpm: 120,
     key: 'C',

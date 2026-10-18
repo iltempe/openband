@@ -4,13 +4,16 @@ import { AUDIO_COLOR, DRUM_COLOR, TRACK_COLORS, uid } from './music';
 import { defaultPreset, findInstrument, setCustomInstruments } from './audio/instruments';
 import { ensureSamples } from './audio/samples';
 import { t } from './i18n';
+import { migrate } from './migrations';
 
-const STORAGE_KEY = 'openband.project.v1';
+const STORAGE_KEY = 'openband.project.v2';
+/** Autosave key used by OpenBand 0.1 (schema v1), still read as a fallback. */
+const LEGACY_STORAGE_KEY = 'openband.project.v1';
 const HISTORY_LIMIT = 120;
 
 export function emptyProject(name = t('name.untitled'), bpm = 110): Project {
   return {
-    version: 1,
+    version: 2,
     name,
     bpm,
     key: 'Am',
@@ -19,6 +22,7 @@ export function emptyProject(name = t('name.untitled'), bpm = 110): Project {
     loop: { enabled: false, start: 0, end: 16 },
     masterVolume: 0.8,
     metronome: false,
+    meta: { projectId: uid('song'), createdAt: Date.now(), updatedAt: Date.now() },
   };
 }
 
@@ -84,7 +88,8 @@ interface State {
   countCommand: () => void;
   undo: (steps?: number) => void;
   redo: (steps?: number) => void;
-  loadProject: (p: Project) => void;
+  /** Replace the project (any schema version: it is migrated). */
+  loadProject: (p: unknown) => void;
   set: (partial: Partial<State>) => void;
   selectRegion: (r: Region | null) => void;
   notify: (msg: string) => void;
@@ -93,10 +98,8 @@ interface State {
 
 function loadSaved(): Project | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const p = JSON.parse(raw) as Project;
-    return p && p.version === 1 && Array.isArray(p.tracks) ? p : null;
+    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
+    return raw ? migrate(raw) : null;
   } catch {
     return null;
   }
@@ -207,7 +210,8 @@ export const useStore = create<State>((set, get) => ({
       set({ project: next.project, past: [...past, { ...next, project }], future: future.slice(1) });
     }
   },
-  loadProject: (p) => {
+  loadProject: (raw) => {
+    const p = migrate(raw);
     const { project, past } = get();
     set({
       project: p,
@@ -252,7 +256,8 @@ useStore.subscribe((s, prev) => {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(s.project));
+      const p = s.project;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(p.meta ? { ...p, meta: { ...p.meta, updatedAt: Date.now() } } : p));
     } catch {
       /* storage unavailable */
     }
