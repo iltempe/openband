@@ -20,6 +20,7 @@ import * as I from './components/Icons';
 import { SoundFontDialog, handleDroppedFiles } from './components/ImportUI';
 import { MicOverlay } from './components/Mic';
 import { ABOverlay, TakesDialog } from './components/Takes';
+import { CommentsPanel, ExplainMenu } from './components/Comments';
 import { PluginBrowser, PluginWindow } from './components/Plugins';
 import { LANGS, setLang, useLang, useT } from './i18n';
 
@@ -215,6 +216,7 @@ export function App() {
   useShortcuts();
   useFileDrop();
   const s = useStore();
+  const annCount = (s.project.annotations ?? []).filter((a) => !a.resolved).length;
   const t = useT();
 
   return (
@@ -248,6 +250,10 @@ export function App() {
                 <button className={s.bottom === 'lyrics' ? 'on' : ''} onClick={() => s.set({ bottom: 'lyrics' })}>
                   <I.PianoRoll width={14} height={14} /> {t('ly.tab')}
                 </button>
+                <button className={s.bottom === 'comments' ? 'on' : ''} onClick={() => s.set({ bottom: 'comments' })}>
+                  <I.Sparkles width={14} height={14} /> {t('cm.tab')}
+                  {annCount > 0 && <span className="cm-tab-count">{annCount}</span>}
+                </button>
                 <div className="eb-spacer" />
                 <button className="dock-close" onClick={() => s.set({ bottom: null })}>
                   <I.Close width={14} height={14} />
@@ -261,6 +267,7 @@ export function App() {
                 {s.bottom === 'analysis' && <AnalysisPanel />}
                 {s.bottom === 'problems' && <ProblemsPanel />}
                 {s.bottom === 'lyrics' && <LyricsPanel />}
+                {s.bottom === 'comments' && <CommentsPanel />}
               </div>
             </div>
           )}
@@ -272,6 +279,7 @@ export function App() {
       <MicOverlay />
       <TakesDialog />
       <ABOverlay />
+      <ExplainMenu />
       <PluginBrowser />
       <PluginWindow />
       {s.toast && <div className="toast">{s.toast}</div>}

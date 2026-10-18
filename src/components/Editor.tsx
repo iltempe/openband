@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { CommentPin, explain } from './Comments';
 import type { Note, Region, Track } from '../types';
 import { getRegion, getTrack, useStore } from '../store';
 import { engine } from '../audio/engine';
@@ -56,6 +57,11 @@ function EditorBar({ region, track }: { region: Region; track: Track }) {
         />
         <span className="eb-sub">{track.name}</span>
       </div>
+      {sel.length > 0 && (
+        <button className="mini eb-explain" onClick={() => explain({ type: 'notes', id: region.id, note_ids: sel.map((n) => n.id) })} title={t('cm.explainHint')}>
+          {t('cm.explainNotes', { n: sel.length })}
+        </button>
+      )}
       <div className="eb-group">
         <label>{t('ed.length')}</label>
         <button className="mini" onClick={() => updateRegion((r) => void (r.length = Math.max(BEATS_PER_BAR, r.length - BEATS_PER_BAR)))}>
@@ -321,6 +327,7 @@ function PianoRoll({ region, track }: { region: Region; track: Track }) {
                   )}
                 </div>
               ))}
+              <NotePins region={region} ppb={ppb} />
               <EditorPlayhead region={region} ppb={ppb} />
             </div>
           </div>
@@ -431,3 +438,29 @@ function StepSequencer({ region, track }: { region: Region; track: Track }) {
 }
 
 const Row = ({ children }: { children: React.ReactNode }) => <>{children}</>;
+
+/** Comment pins above the notes they talk about. */
+function NotePins({ region, ppb }: { region: Region; ppb: number }) {
+  const annotations = useStore((s) => s.project.annotations);
+  const groups = new Map<string, NonNullable<typeof annotations>>();
+  for (const a of annotations ?? []) {
+    if (a.resolved || a.target.type !== 'notes' || a.target.id !== region.id) continue;
+    const k = [...(a.target.note_ids ?? [])].sort().join(',');
+    groups.set(k, [...(groups.get(k) ?? []), a]);
+  }
+  return (
+    <>
+      {[...groups.values()].map((list) => {
+        const ns = region.notes.filter((n) => list[0].target.note_ids?.includes(n.id));
+        if (!ns.length) return null;
+        const first = ns.reduce((a, b) => (b.start < a.start ? b : a));
+        const top = Math.max(...ns.map((n) => n.pitch));
+        return (
+          <span key={list[0].id} className="cm-note-pin" style={{ left: first.start * ppb, top: (HIGH - top) * ROW_H - 16 }}>
+            <CommentPin list={list} target={list[0].target} />
+          </span>
+        );
+      })}
+    </>
+  );
+}

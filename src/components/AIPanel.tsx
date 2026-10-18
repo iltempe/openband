@@ -1,4 +1,5 @@
 import { useStore } from '../store';
+import { Markdown, openComments } from './Comments';
 import type { BridgeLogEntry } from '../types';
 import { useState } from 'react';
 import { emitStudioEvent, setActivitySharing, useActivitySharing } from '../events';
@@ -141,6 +142,7 @@ export function AIPanel() {
                   {isOpen && <span className="ai-group-live">{t('ai.inProgress')}</span>}
                 </div>
               )}
+              {g.txId && <TxNotes txId={g.txId} />}
               {g.items.map((l) => (
                 <div key={l.id} className={`ai-log-item ${l.ok ? '' : 'err'}`}>
                   <span className="ai-log-time">{new Date(l.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
@@ -153,5 +155,21 @@ export function AIPanel() {
         })}
       </div>
     </aside>
+  );
+}
+
+/** The AI's explanations made during one transaction, shown with its activity. */
+function TxNotes({ txId }: { txId: string }) {
+  const annotations = useStore((s) => s.project.annotations);
+  const list = (annotations ?? []).filter((a) => a.txId === txId);
+  if (!list.length) return null;
+  return (
+    <div className="ai-notes">
+      {list.map((a) => (
+        <button key={a.id} className="ai-note" onClick={() => openComments(a.target)}>
+          <Markdown text={a.text} />
+        </button>
+      ))}
+    </div>
   );
 }

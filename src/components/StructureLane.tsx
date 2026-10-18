@@ -1,5 +1,6 @@
 // Structure lane above the ruler: song sections as coloured blocks.
 import { useState } from 'react';
+import { CommentPin, explain } from './Comments';
 import type { Section, SectionKind } from '../types';
 import { useStore } from '../store';
 import { runCommand } from '../commands';
@@ -39,6 +40,8 @@ export function StructureLane() {
   const sections = useStore((s) => s.project.sections ?? []);
   const zoom = useStore((s) => s.zoom);
   const commit = useStore((s) => s.commit);
+  const annotations = useStore((s) => s.project.annotations);
+  const openAnn = (annotations ?? []).filter((a) => !a.resolved && !a.orphaned);
   const [drag, setDrag] = useState<{ id: string; dx: number } | null>(null);
   const [menu, setMenu] = useState<{ id: string; x: number } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -125,11 +128,23 @@ export function StructureLane() {
           ) : (
             <span>{s.name}</span>
           )}
+          <CommentPin list={openAnn.filter((a) => a.target.type === 'section' && a.target.id === s.id)} target={{ type: 'section', id: s.id }} />
         </div>
+      ))}
+      {/* Comments about bar ranges sit on the lane at their first beat. */}
+      {Object.values(
+        openAnn
+          .filter((a) => a.target.type === 'range')
+          .reduce<Record<string, typeof openAnn>>((m, a) => ((m[`${a.target.from_beat}-${a.target.to_beat}`] ??= []).push(a), m), {}),
+      ).map((list) => (
+        <span key={list[0].id} className="cm-range" style={{ left: (list[0].target.from_beat ?? 0) * zoom }}>
+          <CommentPin list={list} target={list[0].target} />
+        </span>
       ))}
       {menu && (
         <div className="struct-menu" style={{ left: menu.x }} onPointerDown={(e) => e.stopPropagation()}>
           <button onClick={() => (setMenu(null), void run('duplicate_section', { section_id: menu.id }))}>{t('sec.duplicate')}</button>
+          <button onClick={() => (setMenu(null), explain({ type: 'section', id: menu.id }))}>{t('cm.explain')}</button>
           <select
             value={sections.find((s) => s.id === menu.id)?.kind}
             onChange={(e) => {

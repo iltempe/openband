@@ -127,6 +127,7 @@ const INSTRUCTIONS = `OpenBand is a GarageBand-style music studio running in the
 Wrap every user request in begin_change("short label") … end_change() so the user can undo it in one step. (Commands sent without it are grouped automatically until you pause for 4 seconds.)
 When the user talks about parts of a song (verse, chorus…), call get_structure first and operate on sections (move_section, duplicate_section). Use the energy profile to make a section 'bigger' (more tracks, higher register, more notes, higher velocity) or 'smaller'. If there are no sections yet, auto_sections proposes them.
 For vocal lines, keep lyrics and melody aligned: set_lyrics → align_lyrics → check_prosody. Put stressed syllables on strong beats (suggest_melody_rhythm helps).
+When get_status reports teach_mode: true, explain your non-obvious musical choices (harmony, voicing, rhythm, mix) with annotate on the exact notes/region/section, using analyze_harmony to be precise. An ask event with context.explain is a request to explain that part: answer with annotate.
 To offer alternatives, add them as takes (add_take) and let the user pick with a blind test (start_ab_test, then wait_for_event ab_result).
 Run lint_project before declaring a task done and fix errors (apply_fix).
 Before mixing decisions, LISTEN: call analyze_mix (and render_spectrogram if useful). After changes, analyze again and compare. If the user names a song they want to sound like, import_reference it and use compare_to_reference.
@@ -564,6 +565,30 @@ tool('analyze_harmony', 'Chords of the MIDI parts (per bar, or per half bar when
 tool('detect_key', 'Detect the key of the music from the MIDI notes, from the audio tracks, or both. Returns key, confidence, alternatives and whether it matches the project key.', {
   source: z.enum(['midi', 'audio', 'both']).optional(),
 }, { ...readOnly, timeout: 180000 });
+
+// ---- annotations ("Explain" mode)
+
+const TargetSchema = z.object({
+  type: z.enum(['project', 'track', 'region', 'notes', 'section', 'range']),
+  id: z.string().optional().describe('track/region/section id (for notes: the region, optional)'),
+  note_ids: z.array(z.string()).optional(),
+  from_beat: z.number().min(0).optional(),
+  to_beat: z.number().min(0).optional(),
+}).describe('What the annotation is about. Ranges are in beats from the song start (bar n starts at beat (n-1)*4).');
+
+tool('annotate', 'Attach a short explanation (markdown, max 500 characters) to part of the song: why a chord, voicing, rhythm or mix choice works. It appears as a pin on the arrangement / piano roll and in the Comments panel. Answer "Explain" questions (ask events with context.explain) this way.', {
+  target: TargetSchema,
+  text: z.string().max(500),
+});
+
+tool('list_annotations', 'List annotations (optionally only those about a target; resolved ones only with include_resolved). Annotations whose target was deleted are marked orphaned.', {
+  target: TargetSchema.partial().optional(),
+  include_resolved: z.boolean().optional(),
+}, readOnly);
+
+tool('resolve_annotation', 'Mark an annotation as resolved (or resolved=false to reopen it).', { annotation_id: z.string(), resolved: z.boolean().optional() });
+
+tool('delete_annotation', 'Delete an annotation.', { annotation_id: z.string() });
 
 // ---- takes
 

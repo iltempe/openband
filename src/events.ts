@@ -16,7 +16,7 @@ export type StudioEvent =
   | { kind: 'transport'; action: 'play' | 'stop' | 'loop'; bar: number }
   | { kind: 'user_edit'; label: string }
   | { kind: 'region_recorded'; region_id: string }
-  | { kind: 'ask'; text: string; context?: { region_id?: string; section_id?: string } }
+  | { kind: 'ask'; text: string; context?: { region_id?: string; section_id?: string; note_ids?: string[]; track_id?: string; explain?: boolean } }
   | { kind: 'ab_result'; test_id: string; ranking: string[] };
 
 /** Events the user triggers on purpose: always sent, even with activity sharing off. */
@@ -33,6 +33,27 @@ function initialShare() {
   // On by default when the studio runs locally (where an AI can actually be connected).
   return typeof location === 'undefined' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
 }
+
+/** "Teach me" mode: the AI explains its non-obvious choices with annotations. */
+const TEACH_KEY = 'openband.teachMode';
+export const useTeachMode = create<{ on: boolean }>(() => {
+  try {
+    return { on: localStorage.getItem(TEACH_KEY) === '1' };
+  } catch {
+    return { on: false };
+  }
+});
+export function setTeachMode(on: boolean) {
+  useTeachMode.setState({ on });
+  try {
+    localStorage.setItem(TEACH_KEY, on ? '1' : '0');
+  } catch {
+    // not persisted
+  }
+}
+
+/** Ask the AI to explain something (the "Explain" buttons). */
+export const askExplain = (text: string, context: NonNullable<Extract<StudioEvent, { kind: 'ask' }>['context']>) => emitStudioEvent({ kind: 'ask', text, context: { ...context, explain: true } });
 
 export const useActivitySharing = create<{ share: boolean }>(() => ({ share: initialShare() }));
 export function setActivitySharing(share: boolean) {

@@ -29,6 +29,8 @@ import { emptyProject, enterAiCommand, exitAiCommand, isAiCommand, getRegion, ge
 import { engine } from './audio/engine';
 import { checkSegments, compNotes, nextTakeName, withTakes, type CompSegment } from './takes';
 import { startABTest } from './abtest';
+import { MAX_ANNOTATION, checkTarget, matchesTarget } from './annotations';
+import { useTeachMode } from './events';
 import { clearReference, compareToReference, importReference } from './reference';
 import { audioRegionToMidi, audioToMidi, recordFromMic, requestRecording, useMic } from './recording';
 import { download, renderProject } from './audio/render';
@@ -211,6 +213,7 @@ export const commands: Record<string, (args: P) => unknown> = {
       position: { bar: Math.floor(pos / BEATS_PER_BAR) + 1, beat: +((pos % BEATS_PER_BAR) + 1).toFixed(2) },
       selected_track_id: st().selectedTrackId,
       selected_region_id: st().selectedRegionId,
+      teach_mode: useTeachMode.getState().on,
     };
   },
 
@@ -965,6 +968,43 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   render_spectrogram: ({ from_bar, to_bar, section_id, track_id, width, height }) => spectrogram({ from_bar, to_bar, section_id, track_id, width, height }),
 
+  // ---------- annotations ("Explain" mode) ----------
+
+  annotate: ({ target, text }) => {
+    const body = String(text ?? '').trim();
+    if (!body) throw new Error('text is empty');
+    if (body.length > MAX_ANNOTATION) throw new Error(`Annotations are at most ${MAX_ANNOTATION} characters (got ${body.length}): keep them short`);
+    const p = st().project;
+    const tgt = checkTarget(p, target);
+    const ai = isAiCommand();
+    const a = { id: uid('ann'), target: tgt, text: body, author: (ai ? 'ai' : 'user') as 'ai' | 'user', createdAt: Date.now(), ...(ai && st().activeTransaction ? { txId: st().activeTransaction!.id } : {}) };
+    st().commit((d) => void (d.annotations = [...(d.annotations ?? []), a]), { label: 'Annotation' });
+    return { annotation_id: a.id, target: tgt };
+  },
+
+  list_annotations: ({ target, include_resolved }) => {
+    const list = (st().project.annotations ?? []).filter((a) => (include_resolved || !a.resolved) && (!target || matchesTarget(a.target, target)));
+    return { annotations: list.map((a) => ({ id: a.id, target: a.target, text: a.text, author: a.author, created_at: a.createdAt, ...(a.resolved ? { resolved: true } : {}), ...(a.orphaned ? { orphaned: true } : {}) })) };
+  },
+
+  resolve_annotation: ({ annotation_id, resolved }) => {
+    const a = (st().project.annotations ?? []).find((x) => x.id === annotation_id);
+    if (!a) throw new Error(`Annotation "${annotation_id}" not found`);
+    const on = resolved !== false;
+    st().commit((d) => {
+      const x = d.annotations!.find((y) => y.id === annotation_id)!;
+      if (on) x.resolved = true;
+      else delete x.resolved;
+    }, { label: 'Annotation' });
+    return { annotation_id, resolved: on };
+  },
+
+  delete_annotation: ({ annotation_id }) => {
+    if (!(st().project.annotations ?? []).some((x) => x.id === annotation_id)) throw new Error(`Annotation "${annotation_id}" not found`);
+    st().commit((d) => void (d.annotations = d.annotations!.filter((y) => y.id !== annotation_id)), { label: 'Annotation' });
+    return { deleted: annotation_id };
+  },
+
   // ---------- takes ----------
 
   add_take: ({ region_id, notes, name, activate }) => {
@@ -1173,7 +1213,7 @@ const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'start_ab_test',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'start_ab_test', 'list_annotations',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

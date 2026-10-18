@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { CommentPin, useComments } from './Comments';
 import { TakesBadge } from './Takes';
 import type { AutoParam, Region, Track } from '../types';
 import { useStore, projectEnd } from '../store';
@@ -336,6 +337,8 @@ function TrackHeader({ track, selected }: { track: Track; selected: boolean }) {
 function RegionView({ region, track }: { region: Region; track: Track }) {
   const zoom = useStore((s) => s.zoom);
   const selected = useStore((s) => s.selectedRegionId === region.id);
+  const annotations = useStore((s) => s.project.annotations);
+  const notes = (annotations ?? []).filter((a) => !a.resolved && (a.target.type === 'region' || a.target.type === 'notes') && a.target.id === region.id);
 
   const startDrag = (e: React.PointerEvent, mode: 'move' | 'resize') => {
     e.stopPropagation();
@@ -394,9 +397,15 @@ function RegionView({ region, track }: { region: Region; track: Track }) {
         e.stopPropagation();
         useStore.getState().set({ bottom: 'editor' });
       }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        useStore.getState().selectRegion(region);
+        useComments.setState({ menu: { x: e.clientX, y: e.clientY, target: { type: 'region', id: region.id } } });
+      }}
     >
       <div className="region-head">
         <span className="region-title">{region.name}</span>
+        <CommentPin list={notes} target={{ type: 'region', id: region.id }} />
         <TakesBadge region={region} />
       </div>
       {region.audio ? <AudioPreview region={region} /> : <RegionPreview region={region} drums={track.kind === 'drums'} />}

@@ -4,6 +4,12 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 ## Unreleased — v0.2 "The AI that listens"
 
+### F14 · "Explain" mode (annotations)
+- Pure module `src/annotations.ts`: target validation (project, track, region, notes, section, bar range), orphan reconciliation run inside every commit — deleting a target marks its annotations *orphaned* without deleting them, and undo restores them — pin anchors and threads.
+- MCP: `annotate` (max 500 characters, records the AI transaction it belongs to), `list_annotations`, `resolve_annotation`, `delete_annotation`; `get_status` reports `teach_mode`; the instructions ask the AI to annotate non-obvious choices when it's on and to answer *Explain* requests with `annotate`.
+- *Explain* on the region context menu, the section menu and the piano-roll selection sends an `ask` event with the context (`explain: true`).
+- UI: comment pins on regions, sections, bar ranges and notes in the piano roll; a Comments panel with threads, replies, resolve/reopen, *Teach me* toggle; the AI panel shows the explanations under the request that produced them. Markdown is rendered without HTML injection.
+
 ### F12 · Takes, comping and blind A/B
 - Pure module `src/takes.ts`: the region's content becomes "Take 1" on the first alternative, edits to the active take are kept when switching, comping cuts notes at segment boundaries (held notes end there, earlier ones begin there), one take per loop pass for cycle recording.
 - Cycle recording: recording with the cycle on and playing over several passes makes one region over the cycle with one take per pass (the last one active).
