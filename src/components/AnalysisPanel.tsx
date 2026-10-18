@@ -36,7 +36,7 @@ export async function runAnalysis(loopOnly = false) {
 }
 
 export function AnalysisPanel() {
-  const { result, running, error, spectrogram } = useAnalysis();
+  const { result, running, error, spectrogram, harmony } = useAnalysis();
   const loop = useStore((s) => s.project.loop);
   const set = useStore((s) => s.set);
   const t = useT();
@@ -63,9 +63,28 @@ export function AnalysisPanel() {
         >
           {t('an.spectrogram')}
         </button>
+        <button className="btn" onClick={() => runCommand('analyze_harmony', {}, 'ui').catch((e) => useStore.getState().notify((e as Error).message))}>
+          {t('an.chords')}
+        </button>
         {r && <span className="analysis-range">{t('an.range', { from: r.range.from_bar, to: r.range.to_bar })}</span>}
         {error && <span className="wave-missing">{error}</span>}
       </div>
+      {harmony && (
+        <div className="an-chords">
+          {harmony.chords.map((c, i) => (
+            <span key={i} className={`an-chord ${c.function}`} title={`${t('an.bar')} ${c.bar}${c.beat > 1 ? `.${c.beat}` : ''} · ${c.function} · ${Math.round(c.confidence * 100)}%`}>
+              <strong>{c.chord}</strong>
+              <small>{c.roman}</small>
+            </span>
+          ))}
+          {harmony.cadences.map((c, i) => (
+            <span key={`c${i}`} className="an-cadence">
+              {t(`an.cad.${c.type}` as MessageKey)} · {t('an.bar')} {c.bar}
+              {c.section ? ` (${c.section})` : ''}
+            </span>
+          ))}
+        </div>
+      )}
       {!r ? (
         <div className="panel-empty">
           <I.Wave width={28} height={28} />

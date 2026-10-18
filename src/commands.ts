@@ -10,7 +10,7 @@ import type { AutoParam } from './types';
 import { presetForProgram, readMidi, writeMidi, type MidiSong } from './midi';
 import { addPluginEffect, addPluginInstrument, captureWamStates, getPluginParams, removePluginEffect, searchPlugins, setPluginParams, updateSlot } from './plugins';
 import { wamCatalog } from './audio/wam';
-import { analyzeMix, detectKey, spectrogram } from './mixAnalysis';
+import { analyzeHarmony, analyzeMix, detectKey, spectrogram } from './mixAnalysis';
 import { lint } from './lint/engine';
 import { SECTION_COLORS, assertNoOverlap, deleteSection, duplicateSection, energyProfile, moveSection, proposeSections, sortSections, splitRegionAt } from './structure';
 import { useAnalysis } from './mixAnalysis';
@@ -855,6 +855,8 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   detect_key: ({ source }) => detectKey(source),
 
+  analyze_harmony: ({ from_bar, to_bar, section_id, track_ids }) => analyzeHarmony({ from_bar, to_bar, section_id, track_ids }),
+
   render_spectrogram: ({ from_bar, to_bar, section_id, track_id, width, height }) => spectrogram({ from_bar, to_bar, section_id, track_id, width, height }),
 
   // ---------- WAM plugins ----------
@@ -938,7 +940,7 @@ export const commands: Record<string, (args: P) => unknown> = {
 const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
-  'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections',
+  'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

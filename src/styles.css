@@ -2865,3 +2865,50 @@ kbd {
   padding-left: 8px;
   padding-right: 9px;
 }
+
+/* ---------- harmony strip ---------- */
+.an-chords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 16px 0;
+}
+.an-chord {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 52px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.an-chord strong {
+  font-size: 13px;
+}
+.an-chord small {
+  font: 600 10.5px var(--mono);
+  color: var(--muted);
+}
+.an-chord.tonic {
+  box-shadow: inset 0 -2px 0 var(--play), inset 0 0 0 1px var(--line-2);
+}
+.an-chord.subdominant {
+  box-shadow: inset 0 -2px 0 var(--accent-2), inset 0 0 0 1px var(--line-2);
+}
+.an-chord.dominant,
+.an-chord.secondary {
+  box-shadow: inset 0 -2px 0 var(--cycle), inset 0 0 0 1px var(--line-2);
+}
+.an-chord.borrowed,
+.an-chord.chromatic {
+  box-shadow: inset 0 -2px 0 var(--accent), inset 0 0 0 1px var(--line-2);
+}
+.an-cadence {
+  align-self: center;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--panel-3);
+}

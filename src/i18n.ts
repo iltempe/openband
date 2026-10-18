@@ -344,6 +344,15 @@ const en = {
   'sec.kind.outro': 'Outro',
   'sec.kind.custom': 'Section',
 
+  // Harmony (F9)
+  'an.chords': 'Chords',
+  'an.bar': 'Bar',
+  'an.cad.authentic': 'Authentic cadence',
+  'an.cad.plagal': 'Plagal cadence',
+  'an.cad.ii-V-I': 'ii–V–I',
+  'an.cad.deceptive': 'Deceptive cadence',
+  'an.cad.half': 'Half cadence',
+
   // Default names
   'name.untitled': 'My song',
   'name.newSong': 'New song',
@@ -711,6 +720,14 @@ const it: Record<MessageKey, string> = {
   'sec.kind.breakdown': 'Breakdown',
   'sec.kind.outro': 'Finale',
   'sec.kind.custom': 'Sezione',
+
+  'an.chords': 'Accordi',
+  'an.bar': 'Battuta',
+  'an.cad.authentic': 'Cadenza perfetta',
+  'an.cad.plagal': 'Cadenza plagale',
+  'an.cad.ii-V-I': 'ii–V–I',
+  'an.cad.deceptive': 'Cadenza d’inganno',
+  'an.cad.half': 'Cadenza sospesa',
 
   'name.untitled': 'Il mio brano',
   'name.newSong': 'Nuovo brano',

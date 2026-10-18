@@ -4,6 +4,13 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 ## Unreleased — v0.2 "The AI that listens"
 
+### F9 · Harmonic analysis
+- Pure module `src/analysis/harmony.ts`: chord recognition from MIDI (pitch classes weighted by duration × velocity, 14 templates, bass for inversions → slash chords; one chord per bar, split in halves only when one chord can't explain the bar, so walking basses don't create fake chords; added tones must really be present; sixth chords over their sixth read as minor sevenths).
+- Roman numerals in the project key with functions: diatonic degrees, the harmonic-minor V, secondary dominants (V7/V, V/vi…), modal borrowing (bVII, iv…), chromatic chords.
+- Cadences: authentic, plagal, ii–V–I, deceptive and half — only those closing a section when sections exist.
+- MCP tool `analyze_harmony`; chord strip with degrees (coloured by function) and cadences in the Analysis panel.
+- Accepted: I–V–vi–IV, ii–V–I in C and Am–Dm–E7–Am recognised exactly; the demo reads Am7 · Fmaj7 · C · G.
+
 ### F8 · Sections as first-class objects
 - Pure module `src/structure.ts`: `splitRegionAt` (notes crossing the cut are shortened, audio clips keep the right sample offset), `moveSection` and `duplicateSection` with or without ripple (regions are split at the boundaries; automation and other sections follow), `deleteSection` with or without content, energy profiles and `proposeSections` (4-bar blocks compared by note fingerprints, roles from repetition and density).
 - MCP: `get_structure` (energy profile per section, loudness when a full analysis is cached), `add_section`, `update_section`, `delete_section`, `move_section`, `duplicate_section`, `split_region`, `auto_sections`; every edit is one undo step. Instructions tell the AI to work in sections.

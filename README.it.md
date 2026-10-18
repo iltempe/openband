@@ -26,7 +26,7 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 - **Tastiera musicale** (tasti A–' come un pianoforte, Z/X per l'ottava, C/V per la velocity) e **Web MIDI** per i controller esterni.
 - **Registrazione** dal vivo in nuove regioni, con metronomo.
 - **Import ed export MIDI** (Standard MIDI File, programmi General MIDI, batteria sul canale 10).
-- **L'AI ascolta**: `analyze_mix` renderizza il brano e lo misura (loudness EBU R128 in LUFS, true peak, LRA, equilibrio in 7 bande, stereo/fase, mascheramento tra tracce, tonalità) e restituisce correzioni concrete (*“Basso e batteria si coprono a 60–250 Hz: taglia 2–3 dB intorno a 80 Hz…”*). `render_spectrogram` dà a Claude un'immagine del mix da guardare. Lo stesso rapporto è nel pannello **Analisi** (N).
+- **L'AI ascolta**: `analyze_mix` renderizza il brano e lo misura (loudness EBU R128 in LUFS, true peak, LRA, equilibrio in 7 bande, stereo/fase, mascheramento tra tracce, tonalità) e restituisce correzioni concrete (*“Basso e batteria si coprono a 60–250 Hz: taglia 2–3 dB intorno a 80 Hz…”*). `render_spectrogram` dà a Claude un'immagine del mix da guardare, e `analyze_harmony` legge gli accordi con i gradi nella tonalità (*Am7 i7 · Fmaj7 VImaj7 · V7/V…*) e le cadenze. Gli stessi rapporti sono nel pannello **Analisi** (N).
 - **Struttura del brano**: segna intro, strofe, ritornelli… nella corsia *Struttura* sopra il righello (oppure lascia che *Suggerisci* li trovi dalle ripetizioni). Un clic su una sezione la mette in loop, trascinandola la sposti con tutto il contenuto (⌥ spinge il resto del brano), con il tasto destro la duplichi o la elimini. Anche l'AI lavora per sezioni: *“aggiungi un altro ritornello alla fine”*, *“rendi più pieno la seconda strofa”*.
 - **Linter musicale**: il pannello **Problemi** (contatore nella toolbar) controlla il brano dopo ogni modifica (note fuori tonalità, note e regioni sovrapposte, note oltre la fine della regione, due bassi che si scontrano sotto il Mi2, registri affollati, velocity o tempi meccanici, tracce vuote, basso spostato nel pan) e quasi sempre offre una correzione con un clic. L'AI fa gli stessi controlli con `lint_project`, e può farli anche la tua CI.
 - **L'AI ti segue**: le frasi che suoni (separate dopo una battuta di silenzio), ciò che selezioni, play/stop, le tue modifiche e le domande scritte in *Chiedi all'AI* arrivano all'AI collegata come eventi. Un interruttore nel pannello AI disattiva la condivisione dell'attività (le domande vengono sempre inviate).
@@ -146,7 +146,7 @@ Il bridge accetta connessioni solo da `127.0.0.1` e da pagine servite su localho
 | Suoni | `import_sample`, `list_samples`, `create_sampler_instrument`, `import_soundfont`, `add_audio_region` — i file si leggono da un percorso locale o da un URL http(s) |
 | Struttura | `get_structure` (sezioni con profilo di energia), `add_section`, `update_section`, `delete_section`, `move_section`, `duplicate_section` (con ripple), `split_region`, `auto_sections` |
 | Linter | `lint_project` (regole simboliche, opzionalmente audio), `apply_fix`, `ignore_issue`; `update_notes` modifica le note sul posto |
-| Ascolto | `analyze_mix` (battute o sezione, per traccia, summary/full), `render_spectrogram` (restituisce un'immagine), `detect_key` (MIDI, audio o entrambi) |
+| Ascolto | `analyze_mix` (battute o sezione, per traccia, summary/full), `render_spectrogram` (restituisce un'immagine), `detect_key` (MIDI, audio o entrambi), `analyze_harmony` (accordi, numeri romani, funzioni, cadenze) |
 | Mix | `set_track_effects` (amp, EQ, compressore), `set_automation`, `clear_automation` |
 | Plugin | `add_plugin` (da una descrizione a parole), `search_plugins`, `list_plugins`, `add_plugin_instrument`, `add_plugin_effect`, `remove_plugin_effect`, `set_plugin_bypass`, `get_plugin_params`, `set_plugin_params`, `show_plugin` |
 | File | `export_wav`, `export_midi` (con `save_to` per salvarli in un percorso), `import_midi` |
@@ -204,7 +204,7 @@ src/
   structure.ts            sezioni: dividi, sposta, duplica (ripple), profili di energia, proposte automatiche
 scripts/openband-lint.mjs  CLI del linter per la CI; .github/actions/openband-lint è la GitHub Action
   automation.ts           curve di automazione
-  analysis/               DSP puro: FFT, loudness (BS.1770), spettro, stereo, mascheramento, tonalità, problemi
+  analysis/               DSP puro: FFT, loudness (BS.1770), spettro, stereo, mascheramento, tonalità, problemi; armonia (accordi, gradi, cadenze)
   workers/                worker di analisi (FFT, loudness, immagini di spettrogramma fuori dal thread principale)
   mixAnalysis.ts          analyze_mix / detect_key / render_spectrogram
   midi.ts                 lettura/scrittura file MIDI, mappatura General MIDI

@@ -7,9 +7,11 @@ import { projectEnd, useStore } from './store';
 import { renderBuffer, renderStems } from './audio/render';
 import { analyzeInWorker, audioKeyInWorker, channelsOf, spectrogramInWorker } from './analysis/client';
 import { keyFromProfile, profileFromNotes, sameKey, sameScale, type KeyResult } from './analysis/key';
+import { analyzeChords, findCadences, type Cadence } from './analysis/harmony';
 
-export const useAnalysis = create<{ result: Record<string, unknown> | null; running: boolean; error: string | null; spectrogram: string | null }>(() => ({
+export const useAnalysis = create<{ result: Record<string, unknown> | null; running: boolean; error: string | null; spectrogram: string | null; harmony: HarmonyResult | null }>(() => ({
   result: null,
+  harmony: null,
   running: false,
   error: null,
   spectrogram: null,
@@ -46,6 +48,35 @@ export function symbolicKey(p: Project, fromBeat = 0, toBeat = Infinity): KeyRes
     .flatMap((r) => r.notes.filter((n) => n.start < r.length).map((n) => ({ ...n, start: r.start + n.start, duration: Math.min(n.duration, r.length - n.start) })))
     .filter((n) => n.start < toBeat && n.start + n.duration > fromBeat);
   return notes.length ? keyFromProfile(profileFromNotes(notes)) : null;
+}
+
+export interface HarmonyResult {
+  key: string;
+  range: { from_bar: number; to_bar: number };
+  chords: { bar: number; beat: number; chord: string; roman: string; function: string; confidence: number; bars: number }[];
+  cadences: Cadence[];
+}
+
+/** Chords (with degrees in the project key) and cadences of the MIDI parts in a range. */
+export function analyzeHarmony(args: RangeArgs & { track_ids?: string[] }): HarmonyResult {
+  const p = useStore.getState().project;
+  const range = rangeFor(p, args);
+  const wanted = args.track_ids?.length ? new Set(args.track_ids) : null;
+  const tracks = p.tracks.filter((t) => t.kind === 'instrument' && !t.mute && (!wanted || wanted.has(t.id) || wanted.has(t.name)));
+  const ids = new Set(tracks.map((t) => t.id));
+  const notes = p.regions
+    .filter((r) => ids.has(r.trackId) && !r.audio)
+    .flatMap((r) => r.notes.filter((n) => n.start < r.length).map((n) => ({ pitch: n.pitch, start: r.start + n.start, duration: Math.min(n.duration, r.length - n.start), velocity: n.velocity })));
+  const chords = analyzeChords(notes, p.key, range.fromBeat, range.toBeat);
+  const ends = (p.sections ?? []).map((s) => ({ beat: s.start + s.length, name: s.name }));
+  const res: HarmonyResult = {
+    key: p.key,
+    range: { from_bar: range.from_bar, to_bar: range.to_bar },
+    chords: chords.map((c) => ({ bar: c.bar, beat: c.beat, chord: c.chord, roman: c.roman, function: c.function, confidence: c.confidence, bars: +(c.length / 4).toFixed(2) })),
+    cadences: findCadences(chords, ends.length ? ends : undefined),
+  };
+  useAnalysis.setState({ harmony: res });
+  return res;
 }
 
 export async function analyzeMix(args: RangeArgs & { per_track?: boolean; detail?: 'summary' | 'full' }) {

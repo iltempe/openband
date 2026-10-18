@@ -520,6 +520,10 @@ server.registerTool(
   },
 );
 
+tool('analyze_harmony', 'Chords of the MIDI parts (per bar, or per half bar when they change), with Roman numerals in the project key (I, ii7, V7/V, bVII…), harmonic function and confidence, plus cadences (authentic, plagal, ii–V–I, deceptive, half) — at section ends when sections exist. Drums are excluded.', {
+  ...RangeArgs, track_ids: z.array(z.string()).optional(),
+}, readOnly);
+
 tool('detect_key', 'Detect the key of the music from the MIDI notes, from the audio tracks, or both. Returns key, confidence, alternatives and whether it matches the project key.', {
   source: z.enum(['midi', 'audio', 'both']).optional(),
 }, { ...readOnly, timeout: 180000 });
