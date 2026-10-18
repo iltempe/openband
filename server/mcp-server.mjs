@@ -128,6 +128,7 @@ Wrap every user request in begin_change("short label") … end_change() so the u
 When the user talks about parts of a song (verse, chorus…), call get_structure first and operate on sections (move_section, duplicate_section). Use the energy profile to make a section 'bigger' (more tracks, higher register, more notes, higher velocity) or 'smaller'. If there are no sections yet, auto_sections proposes them.
 For vocal lines, keep lyrics and melody aligned: set_lyrics → align_lyrics → check_prosody. Put stressed syllables on strong beats (suggest_melody_rhythm helps).
 When get_status reports teach_mode: true, explain your non-obvious musical choices (harmony, voicing, rhythm, mix) with annotate on the exact notes/region/section, using analyze_harmony to be precise. An ask event with context.explain is a request to explain that part: answer with annotate.
+Before a big rework, save_version; to try a different direction without losing the current one, create_branch + checkout (merge brings the good parts back).
 To offer alternatives, add them as takes (add_take) and let the user pick with a blind test (start_ab_test, then wait_for_event ab_result).
 Run lint_project before declaring a task done and fix errors (apply_fix).
 Before mixing decisions, LISTEN: call analyze_mix (and render_spectrogram if useful). After changes, analyze again and compare. If the user names a song they want to sound like, import_reference it and use compare_to_reference.
@@ -430,7 +431,9 @@ tool('redo', 'Redo the last undone change.', { steps: z.number().int().min(1).ma
 tool('begin_change', 'Start one undoable change and name it after the user\'s request (e.g. "Lo-fi beat in D minor"). Every command until end_change becomes a single undo step. Closes any change still open.', { label: z.string() });
 tool('end_change', 'Close the change opened with begin_change. Returns its label and how many commands it grouped.', {});
 tool('get_history', 'The undo history: past and future steps with label, source (ui/ai) and number of commands, plus the change currently open.', { limit: z.number().int().min(1).max(200).optional() }, readOnly);
-tool('export_project_json', 'Export the complete project as JSON (for saving or analysis).', {}, readOnly);
+tool('export_project_json', 'Export the complete project as JSON (for saving or analysis). canonical: true gives deterministic JSON (sorted keys, rounded numbers, sorted notes) for versioning songs with git.', {
+  canonical: z.boolean().optional(),
+}, readOnly);
 tool('import_project_json', 'Replace the current project with an OpenBand project JSON (as produced by export_project_json).', {
   project: z.union([z.string(), z.record(z.string(), z.any())]),
 });
@@ -565,6 +568,33 @@ tool('analyze_harmony', 'Chords of the MIDI parts (per bar, or per half bar when
 tool('detect_key', 'Detect the key of the music from the MIDI notes, from the audio tracks, or both. Returns key, confidence, alternatives and whether it matches the project key.', {
   source: z.enum(['midi', 'audio', 'both']).optional(),
 }, { ...readOnly, timeout: 180000 });
+
+// ---- versions and branches
+
+tool('save_version', 'Save the current state of the song as a version on the current branch (like a commit). Do it before big changes, so the user can go back.', { label: z.string().optional() });
+
+tool('list_versions', 'List saved versions (newest first) with branch, label, author, parents, which one is HEAD, and whether there are unsaved changes.', { branch: z.string().optional() }, readOnly);
+
+tool('create_branch', 'Create a branch (an alternative direction for the song) from a version (default: HEAD). It does not switch to it: call checkout.', {
+  name: z.string(),
+  from_version_id: z.string().optional(),
+});
+
+tool('checkout', 'Switch the song to a branch (its latest version) or to a version. Unsaved changes are saved first as a "WIP" version. Undoable.', {
+  branch: z.string().optional(),
+  version_id: z.string().optional(),
+});
+
+tool('diff_versions', 'What changed between two versions (ids, branch names or "HEAD"); b defaults to the current state. Returns a readable summary ("Bass: 12 notes changed in Chorus; tempo 82→86") and structured changes.', {
+  a: z.string(),
+  b: z.string().optional(),
+}, readOnly);
+
+tool('merge', 'Three-way merge of a branch into the current one: changes made on only one side are combined; when both changed the same thing it is a conflict. strategy: manual (default: conflicts are returned and our side is kept), ours or theirs. pick resolves specific entities, e.g. [{entity:"region", id:"rgn_x", from:"b"}] = take that region from the other branch; for a track field use id "trk_x.volume"; project fields by name ("bpm"). Without conflicts a merge version is saved.', {
+  from_branch: z.string(),
+  strategy: z.enum(['manual', 'ours', 'theirs']).optional(),
+  pick: z.array(z.object({ entity: z.enum(['project', 'track', 'region', 'section', 'lyrics', 'instrument', 'annotation']), id: z.string(), from: z.enum(['a', 'b']) })).optional(),
+});
 
 // ---- annotations ("Explain" mode)
 

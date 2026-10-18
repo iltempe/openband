@@ -4,6 +4,12 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 ## Unreleased — v0.2 "The AI that listens"
 
+### F13 · Versions, branches, diff and merge
+- Pure modules in `src/versions/`: `canonical.ts` (deterministic JSON: sorted keys, numbers to 4 decimals, notes/regions/sections sorted — the same song always gives the same string), `diff.ts` (by id: project fields, tracks per field, regions added/removed/moved/resized, notes added/removed/changed with a pitch+start fallback within a 32nd, sections, lyrics; plus a readable summary such as “Bass: 3 notes changed in Chorus; tempo 82→86”), `merge.ts` (three-way, entity level with field-level merging for tracks; strategies `manual`/`ours`/`theirs`, granular `pick`; common-ancestor search).
+- Storage: versions (gzip snapshots via fflate) and branch refs in IndexedDB (the database moves to v2, samples untouched); HEAD per song.
+- MCP: `save_version`, `list_versions`, `create_branch`, `checkout` (undoable, saves a WIP version first when there are unsaved changes), `diff_versions`, `merge` (applied as one undo step; saves a merge version with two parents when there are no conflicts); `export_project_json({canonical: true})`.
+- UI: Versions panel with the branch graph, save/branch/checkout, change summary, merge with per-conflict *keep ours / take theirs*; compare view (regions green/yellow/red dashed, ghost notes in the piano roll, banner) and synced A/B listening between now and the selected version (rendered offline, played through the reference player).
+
 ### F14 · "Explain" mode (annotations)
 - Pure module `src/annotations.ts`: target validation (project, track, region, notes, section, bar range), orphan reconciliation run inside every commit — deleting a target marks its annotations *orphaned* without deleting them, and undo restores them — pin anchors and threads.
 - MCP: `annotate` (max 500 characters, records the AI transaction it belongs to), `list_annotations`, `resolve_annotation`, `delete_annotation`; `get_status` reports `teach_mode`; the instructions ask the AI to annotate non-obvious choices when it's on and to answer *Explain* requests with `annotate`.

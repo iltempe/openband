@@ -29,6 +29,8 @@ import { emptyProject, enterAiCommand, exitAiCommand, isAiCommand, getRegion, ge
 import { engine } from './audio/engine';
 import { checkSegments, compNotes, nextTakeName, withTakes, type CompSegment } from './takes';
 import { startABTest } from './abtest';
+import { canonicalJSON } from './versions/canonical';
+import { checkout, createBranch, diffVersions, listVersions, mergeBranch, saveVersion } from './versioning';
 import { MAX_ANNOTATION, checkTarget, matchesTarget } from './annotations';
 import { useTeachMode } from './events';
 import { clearReference, compareToReference, importReference } from './reference';
@@ -640,7 +642,7 @@ export const commands: Record<string, (args: P) => unknown> = {
     };
   },
 
-  export_project_json: () => st().project,
+  export_project_json: ({ canonical }) => (canonical ? { canonical: true, json: canonicalJSON(st().project) } : st().project),
 
   // ---------- imported sounds ----------
 
@@ -968,6 +970,39 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   render_spectrogram: ({ from_bar, to_bar, section_id, track_id, width, height }) => spectrogram({ from_bar, to_bar, section_id, track_id, width, height }),
 
+  // ---------- versions ----------
+
+  save_version: async ({ label }) => {
+    const v = await saveVersion(String(label ?? ''), isAiCommand() ? 'ai' : 'user');
+    return { version_id: v.id, label: v.label, branch: v.branch };
+  },
+
+  list_versions: ({ branch }) => listVersions(branch),
+
+  create_branch: ({ name, from_version_id }) => createBranch(String(name ?? ''), from_version_id),
+
+  checkout: ({ branch, version_id }) => checkout({ branch, version_id }, isAiCommand() ? 'ai' : 'user'),
+
+  diff_versions: async ({ a, b }) => {
+    const d = await diffVersions(String(a ?? 'HEAD'), b);
+    // Compact: the summary plus counts and ids, not whole regions.
+    return {
+      identical: d.identical,
+      summary: d.summary,
+      project: d.project,
+      tracks: { added: d.tracks.added.map((t) => ({ id: t.id, name: t.name })), removed: d.tracks.removed.map((t) => ({ id: t.id, name: t.name })), changed: d.tracks.changed },
+      regions: {
+        added: d.regions.added.map((r) => ({ id: r.id, name: r.name, track_id: r.trackId, start_bar: beatToBar(r.start) })),
+        removed: d.regions.removed.map((r) => ({ id: r.id, name: r.name, track_id: r.trackId, start_bar: beatToBar(r.start) })),
+        changed: d.regions.changed.map((r) => ({ id: r.id, name: r.name, track_id: r.track_id, fields: r.fields, ...(r.notes ? { notes: { added: r.notes.added.length, removed: r.notes.removed.length, changed: r.notes.changed.length } } : {}) })),
+      },
+      sections: { added: d.sections.added.map((s) => s.name), removed: d.sections.removed.map((s) => s.name), changed: d.sections.changed },
+      lyrics_changed: d.lyrics_changed,
+    };
+  },
+
+  merge: ({ from_branch, strategy, pick }) => mergeBranch(String(from_branch ?? ''), strategy ?? 'manual', pick ?? [], isAiCommand() ? 'ai' : 'user'),
+
   // ---------- annotations ("Explain" mode) ----------
 
   annotate: ({ target, text }) => {
@@ -1213,7 +1248,7 @@ const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'start_ab_test', 'list_annotations',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'start_ab_test', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

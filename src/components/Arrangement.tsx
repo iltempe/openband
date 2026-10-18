@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { useVersions } from '../versioning';
 import { CommentPin, useComments } from './Comments';
 import { TakesBadge } from './Takes';
 import type { AutoParam, Region, Track } from '../types';
@@ -254,6 +255,7 @@ const TrackRow = memo(function TrackRow({ track, regions }: { track: Track; regi
         {regions.map((r) => (
           <RegionView key={r.id} region={r} track={track} />
         ))}
+        <RemovedGhosts trackId={track.id} />
       </div>
     </div>
     {laneOpen && <AutomationLane track={track} />}
@@ -337,6 +339,7 @@ function TrackHeader({ track, selected }: { track: Track; selected: boolean }) {
 function RegionView({ region, track }: { region: Region; track: Track }) {
   const zoom = useStore((s) => s.zoom);
   const selected = useStore((s) => s.selectedRegionId === region.id);
+  const diffState = useVersions((v) => (v.compare ? (v.compare.diff.regions.added.some((x) => x.id === region.id) ? 'added' : v.compare.diff.regions.changed.some((x) => x.id === region.id) ? 'changed' : 'same') : null));
   const annotations = useStore((s) => s.project.annotations);
   const notes = (annotations ?? []).filter((a) => !a.resolved && (a.target.type === 'region' || a.target.type === 'notes') && a.target.id === region.id);
 
@@ -390,7 +393,7 @@ function RegionView({ region, track }: { region: Region; track: Track }) {
 
   return (
     <div
-      className={`region ${selected ? 'selected' : ''} ${track.kind}`}
+      className={`region ${selected ? 'selected' : ''} ${track.kind} ${diffState ? `diff-${diffState}` : ''}`}
       style={{ left: region.start * zoom, width: Math.max(6, region.length * zoom - 1) }}
       onPointerDown={(e) => startDrag(e, 'move')}
       onDoubleClick={(e) => {
@@ -452,3 +455,20 @@ const RegionPreview = memo(function RegionPreview({ region, drums }: { region: R
     </svg>
   );
 });
+
+/** Compare view: regions of the other version that are gone now, as red outlines. */
+function RemovedGhosts({ trackId }: { trackId: string }) {
+  const removed = useVersions((v) => v.compare?.diff.regions.removed);
+  const zoom = useStore((s) => s.zoom);
+  return (
+    <>
+      {(removed ?? [])
+        .filter((r) => r.trackId === trackId)
+        .map((r) => (
+          <div key={r.id} className="region-ghost" style={{ left: r.start * zoom, width: Math.max(6, r.length * zoom - 1) }}>
+            {r.name}
+          </div>
+        ))}
+    </>
+  );
+}

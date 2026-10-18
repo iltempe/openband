@@ -21,6 +21,7 @@ import { SoundFontDialog, handleDroppedFiles } from './components/ImportUI';
 import { MicOverlay } from './components/Mic';
 import { ABOverlay, TakesDialog } from './components/Takes';
 import { CommentsPanel, ExplainMenu } from './components/Comments';
+import { CompareBanner, VersionsPanel } from './components/Versions';
 import { PluginBrowser, PluginWindow } from './components/Plugins';
 import { LANGS, setLang, useLang, useT } from './i18n';
 
@@ -254,6 +255,9 @@ export function App() {
                   <I.Sparkles width={14} height={14} /> {t('cm.tab')}
                   {annCount > 0 && <span className="cm-tab-count">{annCount}</span>}
                 </button>
+                <button className={s.bottom === 'versions' ? 'on' : ''} onClick={() => s.set({ bottom: 'versions' })}>
+                  <I.Cycle width={14} height={14} /> {t('ver.tab')}
+                </button>
                 <div className="eb-spacer" />
                 <button className="dock-close" onClick={() => s.set({ bottom: null })}>
                   <I.Close width={14} height={14} />
@@ -268,6 +272,7 @@ export function App() {
                 {s.bottom === 'problems' && <ProblemsPanel />}
                 {s.bottom === 'lyrics' && <LyricsPanel />}
                 {s.bottom === 'comments' && <CommentsPanel />}
+                {s.bottom === 'versions' && <VersionsPanel />}
               </div>
             </div>
           )}
@@ -280,6 +285,7 @@ export function App() {
       <TakesDialog />
       <ABOverlay />
       <ExplainMenu />
+      <CompareBanner />
       <PluginBrowser />
       <PluginWindow />
       {s.toast && <div className="toast">{s.toast}</div>}

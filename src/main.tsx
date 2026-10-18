@@ -9,6 +9,7 @@ import { connectBridge } from './bridge';
 import { initMidi } from './input';
 import './lintLive';
 import { initReference } from './reference';
+import { initVersions } from './versioning';
 
 if (!hasSavedProject()) loadDemo();
 
@@ -18,6 +19,7 @@ useStore.subscribe((s, prev) => {
 });
 
 initReference();
+initVersions();
 connectBridge();
 initMidi();
 

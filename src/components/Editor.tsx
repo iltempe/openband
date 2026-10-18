@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useVersions } from '../versioning';
 import { CommentPin, explain } from './Comments';
 import type { Note, Region, Track } from '../types';
 import { getRegion, getTrack, useStore } from '../store';
@@ -303,6 +304,7 @@ function PianoRoll({ region, track }: { region: Region; track: Track }) {
                 ))}
               </div>
               <div className="pr-region-end" style={{ left: region.length * ppb }} />
+              <GhostNotes region={region} ppb={ppb} />
               {region.notes.map((n) => (
                 <div
                   key={n.id}
@@ -461,6 +463,24 @@ function NotePins({ region, ppb }: { region: Region; ppb: number }) {
           </span>
         );
       })}
+    </>
+  );
+}
+
+/** Compare view: notes of this region in the other version that differ from now, as ghosts behind. */
+function GhostNotes({ region, ppb }: { region: Region; ppb: number }) {
+  const other = useVersions((v) => v.compare?.snapshot.regions.find((r) => r.id === region.id));
+  if (!other) return null;
+  const now = new Map(region.notes.map((n) => [n.id, n]));
+  const differs = (n: Region['notes'][number]) => {
+    const x = now.get(n.id);
+    return !x || x.pitch !== n.pitch || Math.abs(x.start - n.start) > 1e-6 || Math.abs(x.duration - n.duration) > 1e-6;
+  };
+  return (
+    <>
+      {other.notes.filter(differs).map((n) => (
+        <div key={`g${n.id}`} className="pr-ghost" style={{ left: n.start * ppb, top: (HIGH - n.pitch) * ROW_H, width: Math.max(4, n.duration * ppb - 1), height: ROW_H - 1 }} />
+      ))}
     </>
   );
 }

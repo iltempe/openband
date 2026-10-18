@@ -3678,3 +3678,153 @@ kbd {
   font-size: 12px;
   line-height: 1.4;
 }
+
+/* ---------- versions (compare view) ---------- */
+.region.diff-added {
+  box-shadow: inset 0 0 0 2px #22c55e, 0 0 0 2px rgba(34, 197, 94, 0.35);
+}
+.region.diff-changed {
+  box-shadow: inset 0 0 0 2px #facc15, 0 0 0 2px rgba(250, 204, 21, 0.35);
+}
+.region.diff-same {
+  opacity: 0.55;
+}
+.region-ghost {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  border-radius: 8px;
+  border: 2px dashed #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  pointer-events: none;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.pr-ghost {
+  position: absolute;
+  border-radius: 3px;
+  border: 1.5px dashed rgba(250, 204, 21, 0.85);
+  background: rgba(250, 204, 21, 0.12);
+  pointer-events: none;
+}
+.versions {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.ver-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 14px;
+  padding: 10px 16px 12px;
+  overflow: hidden;
+}
+.ver-graph {
+  flex: 1 1 420px;
+  min-width: 0;
+  overflow: auto;
+}
+.ver-side {
+  flex: 0 1 380px;
+  min-width: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ver-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding-right: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.ver-row:hover {
+  background: var(--panel-2);
+}
+.ver-row.selected {
+  background: var(--panel-3);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.ver-lanes {
+  flex: none;
+  height: 34px;
+}
+.ver-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ver-chip {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #0b0c10;
+}
+.ver-head {
+  flex: none;
+  font-size: 10px;
+  font-weight: 800;
+  color: #22c55e;
+  letter-spacing: 0.06em;
+}
+.ver-meta {
+  flex: none;
+  font-size: 11px;
+  color: var(--dim);
+}
+.ver-summary {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.ver-legend {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--dim);
+}
+.ver-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+  border-radius: 3px;
+  vertical-align: -1px;
+}
+.ver-conflict {
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  border-left: 3px solid #ef4444;
+}
+.ver-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ver-input {
+  flex: 1;
+  min-width: 120px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--line-2);
+  background: var(--panel-3);
+  color: inherit;
+  outline: none;
+}

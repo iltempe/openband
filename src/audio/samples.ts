@@ -22,10 +22,14 @@ const DB_NAME = 'openband';
 const STORE = 'samples';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
-function db(): Promise<IDBDatabase> {
+/** The app's IndexedDB: v1 = samples; v2 adds versions and branches (F13). */
+export function db(): Promise<IDBDatabase> {
   dbPromise ??= new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: 'id' });
+    const req = indexedDB.open(DB_NAME, 2);
+    req.onupgradeneeded = () => {
+      const d = req.result;
+      for (const name of [STORE, 'versions', 'branches']) if (!d.objectStoreNames.contains(name)) d.createObjectStore(name, { keyPath: 'id' });
+    };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });

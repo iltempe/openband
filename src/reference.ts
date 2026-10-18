@@ -100,6 +100,12 @@ function syncReference() {
   if (!r) setAB(false);
 }
 
+/** Give the reference player back to the project's reference (after something borrowed it). */
+export function refreshReferencePlayer() {
+  loadedRef = '\u0000';
+  syncReference();
+}
+
 export function initReference() {
   useStore.subscribe((s, prev) => s.project.reference !== prev.project.reference && syncReference());
   onSamplesChanged(syncReference);
