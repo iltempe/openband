@@ -191,6 +191,18 @@ const en = {
   'fx.release': 'Release',
   'fx.makeup': 'Makeup',
 
+  // Automation
+  'auto.volume': 'Volume',
+  'auto.pan': 'Pan',
+  'auto.tone': 'Brightness',
+  'auto.reverb': 'Reverb',
+  'auto.echo': 'Echo',
+  'auto.clear': 'Clear',
+  'auto.clearHint': 'Remove all points of this curve',
+  'auto.toggle': 'Automation',
+  'auto.hint': 'Click to add points · drag to move · double-click to delete · ⌥ for free positioning',
+  'auto.bar': 'Bar',
+
   // Default names
   'name.untitled': 'My song',
   'name.newSong': 'New song',
@@ -413,6 +425,17 @@ const it: Record<MessageKey, string> = {
   'fx.attack': 'Attacco',
   'fx.release': 'Rilascio',
   'fx.makeup': 'Guadagno',
+
+  'auto.volume': 'Volume',
+  'auto.pan': 'Pan',
+  'auto.tone': 'Brillantezza',
+  'auto.reverb': 'Riverbero',
+  'auto.echo': 'Eco',
+  'auto.clear': 'Cancella',
+  'auto.clearHint': 'Rimuovi tutti i punti di questa curva',
+  'auto.toggle': 'Automazione',
+  'auto.hint': 'Clic per aggiungere punti · trascina per spostarli · doppio clic per eliminarli · ⌥ per posizionarli liberamente',
+  'auto.bar': 'Battuta',
 
   'name.untitled': 'Il mio brano',
   'name.newSong': 'Nuovo brano',

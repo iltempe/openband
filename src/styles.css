@@ -2178,3 +2178,80 @@ kbd {
   color: #111;
   background: var(--track);
 }
+
+/* ---------- automation ---------- */
+.auto-row {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--track) 5%, var(--bg));
+}
+.auto-head {
+  position: sticky;
+  left: 0;
+  z-index: 20;
+  width: 252px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 18px;
+  background: var(--panel);
+  border-right: 1px solid var(--line-2);
+  color: var(--track);
+}
+.auto-head select {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel-3);
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  padding: 3px 6px;
+  color: var(--text);
+}
+.auto-lane {
+  position: relative;
+  flex: 1;
+  background-image: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px var(--bar));
+}
+.auto-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  cursor: crosshair;
+}
+.auto-curve {
+  fill: none;
+  stroke: var(--track);
+  stroke-width: 2;
+}
+.auto-static {
+  stroke: color-mix(in srgb, var(--track) 50%, transparent);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+.auto-point {
+  fill: var(--bg);
+  stroke: var(--track);
+  stroke-width: 2;
+  cursor: grab;
+}
+.auto-point:hover {
+  fill: var(--track);
+}
+.auto-hint {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--dim);
+  font-size: 11.5px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.ms.auto.has {
+  color: var(--track);
+}
+.ms.auto.on {
+  background: var(--track);
+  color: #111;
+}

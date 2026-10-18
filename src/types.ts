@@ -84,6 +84,17 @@ export interface Track {
   cutoff: number;
   /** Insert effects, applied in this order: amp → EQ → compressor. Missing = all off. */
   fx?: TrackFx;
+  /** Automation curves; a parameter with points follows its curve instead of the static value. */
+  automation?: Partial<Record<AutoParam, AutoPoint[]>>;
+}
+
+export type AutoParam = 'volume' | 'pan' | 'tone' | 'reverb' | 'echo';
+
+export interface AutoPoint {
+  /** Position in beats from the song start. */
+  beat: number;
+  /** In the parameter's own range: volume/tone/reverb/echo 0..1, pan −1..1. */
+  value: number;
 }
 
 export interface TrackFx {

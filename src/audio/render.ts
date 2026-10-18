@@ -6,6 +6,7 @@ import { projectEnd, projectSampleIds } from '../store';
 import { ensureSamples, getBuffer } from './samples';
 import { createInstrument, makeImpulse } from './instruments';
 import { FxChain } from './fx';
+import { effectiveValue, hasAutomation } from '../automation';
 
 const dbToGain = (db: number) => (db === -Infinity ? 0 : Math.pow(10, db / 20));
 
@@ -31,8 +32,22 @@ export async function renderProject(p: Project): Promise<Blob> {
       fx.update(track.fx);
       inst.output.connect(fx.input);
       fx.output.connect(ch);
-      ch.connect(new Tone.Gain(dbToGain(sendToDb(track.reverb))).connect(reverb));
-      ch.connect(new Tone.Gain(dbToGain(sendToDb(track.delay)) * 0.7).connect(delay));
+      const revSend = new Tone.Gain(dbToGain(sendToDb(track.reverb))).connect(reverb);
+      const delSend = new Tone.Gain(dbToGain(sendToDb(track.delay)) * 0.7).connect(delay);
+      ch.connect(revSend);
+      ch.connect(delSend);
+      if (hasAutomation(track)) {
+        const auto = track.automation!;
+        transport.scheduleRepeat((time) => {
+          const beat = transport.getTicksAtTime(time) / PPQ;
+          const v = (p: 'volume' | 'pan' | 'tone' | 'reverb' | 'echo') => effectiveValue(track, p, beat);
+          if (auto.volume?.length) ch.volume.rampTo(Math.max(-100, faderToDb(v('volume'))), 0.03, time);
+          if (auto.pan?.length) ch.pan.rampTo(v('pan'), 0.03, time);
+          if (auto.reverb?.length) revSend.gain.rampTo(dbToGain(sendToDb(v('reverb'))), 0.03, time);
+          if (auto.echo?.length) delSend.gain.rampTo(dbToGain(sendToDb(v('echo'))) * 0.7, 0.03, time);
+          if (auto.tone?.length) inst.setCutoff(v('tone'), time);
+        }, '32n', 0);
+      }
 
       for (const region of p.regions.filter((r) => r.trackId === track.id)) {
         if (region.audio) {

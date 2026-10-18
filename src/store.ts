@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { BottomPanel, BridgeLogEntry, BridgeStatus, Project, Region, Track, TrackKind } from './types';
+import type { AutoParam, BottomPanel, BridgeLogEntry, BridgeStatus, Project, Region, Track, TrackKind } from './types';
 import { AUDIO_COLOR, DRUM_COLOR, TRACK_COLORS, uid } from './music';
 import { defaultPreset, findInstrument, setCustomInstruments } from './audio/instruments';
 import { ensureSamples } from './audio/samples';
@@ -60,6 +60,8 @@ interface State {
   keyboardOpen: boolean;
   bottom: BottomPanel;
   zoom: number;
+  /** Open automation lanes: track id → parameter shown. */
+  automationLanes: Record<string, AutoParam>;
 
   octave: number;
   velocity: number;
@@ -112,6 +114,7 @@ export const useStore = create<State>((set, get) => ({
   keyboardOpen: false,
   bottom: 'smart',
   zoom: 34,
+  automationLanes: {},
 
   octave: 4,
   velocity: 0.8,

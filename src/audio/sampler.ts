@@ -92,8 +92,8 @@ export class SampleInstrument implements Instrument {
     const t = time ?? Tone.now();
     this.voices.filter((v) => v.pitch === pitch && !v.released).forEach((v) => this.release(v, t));
   }
-  setCutoff(v: number) {
-    this.output.frequency.rampTo(cutoffToHz(v), 0.05);
+  setCutoff(v: number, time?: number) {
+    this.output.frequency.rampTo(cutoffToHz(v), 0.05, time);
   }
   releaseAll() {
     const t = Tone.now();
@@ -116,8 +116,8 @@ export class AudioTrackInput implements Instrument {
   trigger() {}
   noteOn() {}
   noteOff() {}
-  setCutoff(v: number) {
-    this.output.frequency.rampTo(cutoffToHz(v), 0.05);
+  setCutoff(v: number, time?: number) {
+    this.output.frequency.rampTo(cutoffToHz(v), 0.05, time);
   }
   releaseAll() {}
   dispose() {

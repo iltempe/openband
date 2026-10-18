@@ -1,6 +1,7 @@
 // Live audio engine: keeps a Tone.js graph in sync with the Project state.
 import * as Tone from 'tone';
-import type { Project, Track } from '../types';
+import type { AutoParam, Project, Track } from '../types';
+import { effectiveValue, hasAutomation } from '../automation';
 import { faderToDb, sendToDb } from '../music';
 import { createInstrument, customById, makeImpulse, type Instrument } from './instruments';
 import { getBuffer, onSamplesChanged } from './samples';
@@ -61,6 +62,8 @@ class AudioEngine {
       const beat = Math.round(transport().getTicksAtTime(time) / PPQ) % 4;
       this.click.triggerAttackRelease(beat === 0 ? 'G6' : 'C6', 0.03, time, beat === 0 ? 1 : 0.6);
     }, '4n').start(0);
+    // Automation: evaluate the curves every 32nd note, in step with the transport (loops included).
+    transport().scheduleRepeat((time) => this.tickAutomation(time), '32n', 0);
     // Audio clips and sampler zones need their buffers: rebuild once a sample finishes loading.
     onSamplesChanged(() => {
       this.samplesVersion++;
@@ -175,18 +178,36 @@ class AudioEngine {
       node.presetId = signature;
     }
     const ch = node.channel;
-    const db = faderToDb(track.volume);
-    if (ch.volume.value !== db) ch.volume.rampTo(db, 0.04);
-    ch.pan.rampTo(track.pan, 0.04);
     if (ch.mute !== track.mute) ch.mute = track.mute;
     if (ch.solo !== track.solo) ch.solo = track.solo;
-    node.reverbSend.gain.rampTo(Math.pow(10, sendToDb(track.reverb) / 20) || 0, 0.05);
-    node.delaySend.gain.rampTo((Math.pow(10, sendToDb(track.delay) / 20) || 0) * 0.7, 0.05);
-    node.instrument.setCutoff(track.cutoff);
+    this.applyMix(node, track, this.position);
     const fxSignature = JSON.stringify(track.fx ?? null);
     if (fxSignature !== node.fxSignature) {
       node.fxSignature = fxSignature;
       node.fx.update(track.fx);
+    }
+  }
+
+  /** Volume, pan, sends and tone at a song position (automation curves or static values). */
+  private applyMix(node: TrackNode, track: Track, beat: number, time?: number, onlyAutomated = false) {
+    const want = (p: AutoParam) => !onlyAutomated || !!track.automation?.[p]?.length;
+    const v = (p: AutoParam) => effectiveValue(track, p, beat);
+    const ramp = time === undefined ? 0.04 : 0.03;
+    if (want('volume')) node.channel.volume.rampTo(Math.max(-100, faderToDb(v('volume'))), ramp, time);
+    if (want('pan')) node.channel.pan.rampTo(v('pan'), ramp, time);
+    if (want('reverb')) node.reverbSend.gain.rampTo(Math.pow(10, sendToDb(v('reverb')) / 20) || 0, ramp, time);
+    if (want('echo')) node.delaySend.gain.rampTo((Math.pow(10, sendToDb(v('echo')) / 20) || 0) * 0.7, ramp, time);
+    if (want('tone')) node.instrument.setCutoff(v('tone'), time);
+  }
+
+  private tickAutomation(time: number) {
+    const p = this.lastProject;
+    if (!p) return;
+    const beat = transport().getTicksAtTime(time) / transport().PPQ;
+    for (const track of p.tracks) {
+      if (!hasAutomation(track)) continue;
+      const node = this.nodes.get(track.id);
+      if (node) this.applyMix(node, track, beat, time, true);
     }
   }
 

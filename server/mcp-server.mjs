@@ -269,6 +269,22 @@ tool(
   },
 );
 
+tool(
+  'set_automation',
+  'Draw an automation curve on a track parameter: volume 0..1 (0.8 = unity), pan -1..1, tone 0..1, reverb 0..1, echo 0..1. Points are {bar (1-based, fractional ok) or beat (0-based from song start), value}; values are interpolated linearly and held before the first / after the last point. Replaces the curve unless replace is false. Example fade-in: [{bar:1,value:0},{bar:3,value:0.8}].',
+  {
+    track_id: z.string(),
+    param: z.enum(['volume', 'pan', 'tone', 'reverb', 'echo']),
+    points: z.array(z.object({ bar: z.number().min(1).optional(), beat: z.number().min(0).optional(), value: z.number() })).min(1),
+    replace: z.boolean().optional(),
+  },
+);
+
+tool('clear_automation', 'Remove the automation curve of one parameter (or all of them) from a track, returning to the static value.', {
+  track_id: z.string(),
+  param: z.enum(['volume', 'pan', 'tone', 'reverb', 'echo']).optional(),
+});
+
 tool('delete_track', 'Delete a track and all its regions.', { track_id: z.string() });
 
 tool('add_region', 'Create a region (MIDI clip) on a track, optionally with notes. If length_bars is omitted it fits the notes. Returns region_id.', {

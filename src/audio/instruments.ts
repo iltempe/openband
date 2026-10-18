@@ -67,7 +67,8 @@ export interface Instrument {
   trigger(pitch: number, duration: number, time: number, velocity: number): void;
   noteOn(pitch: number, velocity: number, time?: number): void;
   noteOff(pitch: number, time?: number): void;
-  setCutoff(v: number): void;
+  /** Optional time schedules the change (automation); otherwise it applies now. */
+  setCutoff(v: number, time?: number): void;
   releaseAll(): void;
   dispose(): void;
 }
@@ -186,8 +187,8 @@ class MelodicInstrument implements Instrument {
   noteOff(pitch: number, time?: number) {
     this.synth.triggerRelease(midiHz(pitch), time);
   }
-  setCutoff(v: number) {
-    this.output.frequency.rampTo(cutoffToHz(v), 0.05);
+  setCutoff(v: number, time?: number) {
+    this.output.frequency.rampTo(cutoffToHz(v), 0.05, time);
   }
   releaseAll() {
     this.synth.releaseAll();
@@ -324,8 +325,8 @@ class DrumKit implements Instrument {
     this.trigger(pitch, 0.2, time ?? Tone.now(), velocity);
   }
   noteOff() {}
-  setCutoff(v: number) {
-    this.output.frequency.rampTo(cutoffToHz(v), 0.05);
+  setCutoff(v: number, time?: number) {
+    this.output.frequency.rampTo(cutoffToHz(v), 0.05, time);
   }
   releaseAll() {}
   dispose() {

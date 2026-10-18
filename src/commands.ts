@@ -5,6 +5,8 @@ import { BEATS_PER_BAR, KEYS, clamp, drumByPitch, noteName, parseChord, parsePit
 import { PRESETS, customInstruments, findInstrument } from './audio/instruments';
 import { getBuffer, importSample, useSamples } from './audio/samples';
 import { normalizeFx } from './audio/fx';
+import { AUTO_PARAMS, autoParam, sortPoints } from './automation';
+import type { AutoParam } from './types';
 import { addAudioRegion, guessDrumPads, instrumentFromSoundFont, openSoundFont, rootFor, spreadZones } from './importers';
 import { emptyProject, getRegion, getTrack, makeTrack, projectEnd, useStore } from './store';
 import { engine } from './audio/engine';
@@ -92,6 +94,15 @@ function summarize(p: Project, includeNotes = false) {
       delay: t.delay,
       tone: t.cutoff,
       ...(t.fx && (t.fx.amp.on || t.fx.eq.on || t.fx.comp.on) ? { effects: describeFx(t) } : {}),
+      ...(t.automation && Object.values(t.automation).some((x) => x?.length)
+        ? {
+            automation: Object.fromEntries(
+              Object.entries(t.automation)
+                .filter(([, pts]) => pts?.length)
+                .map(([k, pts]) => [k, pts!.map((pt) => ({ bar: +beatToBar(pt.beat).toFixed(4), value: +pt.value.toFixed(3) }))]),
+            ),
+          }
+        : {}),
       regions: p.regions
         .filter((r) => r.trackId === t.id)
         .sort((a, b) => a.start - b.start)
@@ -255,6 +266,34 @@ export const commands: Record<string, (args: P) => unknown> = {
       tr.fx = fx;
     });
     return { track_id: t.id, effects: describeFx(getTrack(st().project, t.id)!) };
+  },
+
+  set_automation: ({ track_id, param, points, replace }) => {
+    const t = requireTrack(st().project, track_id);
+    if (!AUTO_PARAMS.some((p) => p.id === param)) throw new Error(`Unknown parameter "${param}". Use: ${AUTO_PARAMS.map((p) => p.id).join(', ')}`);
+    const info = autoParam(param as AutoParam);
+    const parsed = ((points ?? []) as { bar?: number; beat?: number; value: number }[]).map((pt) => ({
+      beat: pt.beat !== undefined ? Math.max(0, Number(pt.beat)) : barToBeat(Number(pt.bar ?? 1)),
+      value: clamp(Number(pt.value), info.min, info.max),
+    }));
+    st().commit((d) => {
+      const tr = d.tracks.find((x) => x.id === t.id)!;
+      tr.automation ??= {};
+      const keep = replace === false ? tr.automation[param as AutoParam] ?? [] : [];
+      tr.automation[param as AutoParam] = sortPoints([...keep, ...parsed]);
+    });
+    return { track_id: t.id, param, points: getTrack(st().project, t.id)!.automation![param as AutoParam]!.length };
+  },
+
+  clear_automation: ({ track_id, param }) => {
+    const t = requireTrack(st().project, track_id);
+    st().commit((d) => {
+      const tr = d.tracks.find((x) => x.id === t.id)!;
+      if (!tr.automation) return;
+      if (param) delete tr.automation[param as AutoParam];
+      else delete tr.automation;
+    });
+    return { track_id: t.id, cleared: param ?? 'all' };
   },
 
   delete_track: ({ track_id }) => {

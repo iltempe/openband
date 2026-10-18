@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
-import type { Region, Track } from '../types';
+import type { AutoParam, Region, Track } from '../types';
 import { useStore, projectEnd } from '../store';
 import { engine } from '../audio/engine';
 import { BEATS_PER_BAR, DRUM_PIECES, clamp, uid } from '../music';
@@ -8,6 +8,7 @@ import { usePosition } from '../hooks';
 import { commands } from '../commands';
 import * as I from './Icons';
 import { Waveform } from './Audio';
+import { AutomationLane } from './AutomationLane';
 import { handleDroppedFiles, importAudioFlow } from './ImportUI';
 import { useT } from '../i18n';
 
@@ -59,8 +60,8 @@ export function Arrangement() {
             </div>
             <Ruler totalBeats={totalBeats} />
           </div>
-          {project.tracks.map((t, i) => (
-            <TrackRow key={t.id} track={t} index={i} regions={project.regions.filter((r) => r.trackId === t.id)} />
+          {project.tracks.map((t) => (
+            <TrackRow key={t.id} track={t} regions={project.regions.filter((r) => r.trackId === t.id)} />
           ))}
           {project.tracks.length === 0 && <EmptyState />}
           <Playhead scrollRef={scrollRef} />
@@ -199,7 +200,7 @@ function Playhead({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) {
 
 // ---------- Tracks ----------
 
-const TrackRow = memo(function TrackRow({ track, index, regions }: { track: Track; index: number; regions: Region[] }) {
+const TrackRow = memo(function TrackRow({ track, regions }: { track: Track; regions: Region[] }) {
   const zoom = useStore((s) => s.zoom);
   const selected = useStore((s) => s.selectedTrackId === track.id);
   const set = useStore((s) => s.set);
@@ -217,11 +218,15 @@ const TrackRow = memo(function TrackRow({ track, index, regions }: { track: Trac
     set({ bottom: 'editor' });
   };
 
+  const laneOpen = useStore((s) => !!s.automationLanes[track.id]);
+
   return (
+    <>
     <div className={`track-row ${selected ? 'selected' : ''}`} style={{ height: TRACK_H, '--track': track.color } as CSSProperties}>
       <TrackHeader track={track} selected={selected} />
       <div
         className="lane"
+        data-track-id={track.id}
         onPointerDown={(e) => {
           if (e.target === e.currentTarget) set({ selectedTrackId: track.id, selectedRegionId: null });
         }}
@@ -236,10 +241,12 @@ const TrackRow = memo(function TrackRow({ track, index, regions }: { track: Trac
         title={track.kind === 'audio' ? t('arr.audioLaneHint') : t('arr.laneHint')}
       >
         {regions.map((r) => (
-          <RegionView key={r.id} region={r} track={track} trackIndex={index} />
+          <RegionView key={r.id} region={r} track={track} />
         ))}
       </div>
     </div>
+    {laneOpen && <AutomationLane track={track} />}
+    </>
   );
 });
 
@@ -248,6 +255,7 @@ function TrackHeader({ track, selected }: { track: Track; selected: boolean }) {
   const commit = useStore((s) => s.commit);
   const [renaming, setRenaming] = useState(false);
   const t = useT();
+  const laneOpen = useStore((s) => !!s.automationLanes[track.id]);
   const update = (fn: (t: Track) => void, history = true) =>
     commit((d) => fn(d.tracks.find((t) => t.id === track.id)!), { history });
 
@@ -292,6 +300,18 @@ function TrackHeader({ track, selected }: { track: Track; selected: boolean }) {
         <button className={`ms solo ${track.solo ? 'on' : ''}`} onClick={() => update((t) => void (t.solo = !t.solo))} title="Solo">
           S
         </button>
+        <button
+          className={`ms auto ${laneOpen ? 'on' : ''} ${track.automation && Object.values(track.automation).some((p) => p?.length) ? 'has' : ''}`}
+          onClick={() => {
+            const lanes = { ...useStore.getState().automationLanes };
+            if (lanes[track.id]) delete lanes[track.id];
+            else lanes[track.id] = (Object.keys(track.automation ?? {})[0] as AutoParam | undefined) ?? 'volume';
+            set({ automationLanes: lanes });
+          }}
+          title={t('auto.toggle')}
+        >
+          A
+        </button>
       </div>
       <button className="th-delete" onClick={() => commands.delete_track({ track_id: track.id })} title={t('arr.deleteTrack')}>
         <I.Trash width={14} height={14} />
@@ -302,7 +322,7 @@ function TrackHeader({ track, selected }: { track: Track; selected: boolean }) {
 
 // ---------- Regions ----------
 
-function RegionView({ region, track, trackIndex }: { region: Region; track: Track; trackIndex: number }) {
+function RegionView({ region, track }: { region: Region; track: Track }) {
   const zoom = useStore((s) => s.zoom);
   const selected = useStore((s) => s.selectedRegionId === region.id);
 
@@ -335,8 +355,10 @@ function RegionView({ region, track, trackIndex }: { region: Region; track: Trac
           if (!r) return;
           if (mode === 'move') {
             r.start = Math.max(0, Math.round((region.start + dx) / snap) * snap);
-            const ti = clamp(trackIndex + Math.round(dy / TRACK_H), 0, tracks.length - 1);
-            if (tracks[ti].kind === track.kind) r.trackId = tracks[ti].id;
+            // Find the lane under the pointer (automation lanes make row heights uneven).
+            const over = document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>('[data-track-id]')?.dataset.trackId;
+            const target = tracks.find((x) => x.id === over);
+            if (target && target.kind === track.kind) r.trackId = target.id;
           } else {
             r.length = Math.max(snap, Math.round((region.length + dx) / snap) * snap);
           }
