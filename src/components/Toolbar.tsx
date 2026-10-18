@@ -8,6 +8,7 @@ import { commands } from '../commands';
 import { loadDemo } from '../demo';
 import { download } from '../audio/render';
 import * as I from './Icons';
+import { LANGS, setLang, useLang, useT } from '../i18n';
 
 export async function togglePlay() {
   const s = useStore.getState();
@@ -39,6 +40,7 @@ function Lcd() {
   const commit = useStore((s) => s.commit);
   const [editingTempo, setEditingTempo] = useState(false);
   const drag = useRef<{ y: number; bpm: number } | null>(null);
+  const t = useT();
 
   const bar = Math.floor(pos / BEATS_PER_BAR) + 1;
   const beat = Math.floor(pos % BEATS_PER_BAR) + 1;
@@ -54,11 +56,11 @@ function Lcd() {
           <span className="lcd-dim">.</span>
           {tick}
         </div>
-        <div className="lcd-label">BATTUTA · MOVIMENTO</div>
+        <div className="lcd-label">{t('lcd.position')}</div>
       </div>
       <div
         className="lcd-cell lcd-tempo"
-        title="Trascina in verticale o doppio clic per modificare"
+        title={t('lcd.tempoHint')}
         onPointerDown={(e) => {
           if (editingTempo) return;
           (e.target as Element).setPointerCapture(e.pointerId);
@@ -88,7 +90,7 @@ function Lcd() {
         ) : (
           <div className="lcd-value">{Math.round(project.bpm)}</div>
         )}
-        <div className="lcd-label">TEMPO</div>
+        <div className="lcd-label">{t('lcd.tempo')}</div>
       </div>
       <div className="lcd-cell lcd-key">
         <select className="lcd-select" value={project.key} onChange={(e) => commit((d) => void (d.key = e.target.value))}>
@@ -98,7 +100,7 @@ function Lcd() {
             </option>
           ))}
         </select>
-        <div className="lcd-label">TONALITÀ · 4/4</div>
+        <div className="lcd-label">{t('lcd.key')}</div>
       </div>
     </div>
   );
@@ -108,30 +110,32 @@ function ProjectMenu() {
   const [open, setOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const s = useStore();
+  const t = useT();
+  const lang = useLang((l) => l.lang);
   const close = () => setOpen(false);
 
   const exportWav = async () => {
     close();
-    s.notify('Rendering del brano in corso…');
+    s.notify(t('menu.rendering'));
     try {
       await commands.export_wav({});
-      s.notify('WAV esportato');
+      s.notify(t('menu.wavDone'));
     } catch (e) {
-      s.notify(`Esportazione non riuscita: ${(e as Error).message}`);
+      s.notify(t('menu.wavFailed', { error: (e as Error).message }));
     }
   };
 
   return (
     <div className="menu-wrap">
-      <button className="icon-btn" onClick={() => setOpen(!open)} title="Progetto">
+      <button className="icon-btn" onClick={() => setOpen(!open)} title={t('menu.title')}>
         <I.Menu />
       </button>
       {open && (
         <>
           <div className="menu-scrim" onClick={close} />
           <div className="menu">
-            <button onClick={() => (close(), commands.new_project({}))}>Nuovo progetto vuoto</button>
-            <button onClick={() => (close(), loadDemo())}>Carica brano demo</button>
+            <button onClick={() => (close(), commands.new_project({}))}>{t('menu.new')}</button>
+            <button onClick={() => (close(), loadDemo())}>{t('menu.demo')}</button>
             <hr />
             <button
               onClick={() => {
@@ -140,11 +144,20 @@ function ProjectMenu() {
                 download(new Blob([JSON.stringify(p, null, 2)], { type: 'application/json' }), `${p.name}.openband.json`);
               }}
             >
-              Salva progetto (.json)
+              {t('menu.save')}
             </button>
-            <button onClick={() => (close(), fileRef.current?.click())}>Apri progetto…</button>
+            <button onClick={() => (close(), fileRef.current?.click())}>{t('menu.open')}</button>
             <hr />
-            <button onClick={exportWav}>Esporta brano in WAV</button>
+            <button onClick={exportWav}>{t('menu.exportWav')}</button>
+            <hr />
+            <div className="menu-label">{t('menu.language')}</div>
+            <div className="lang-switch">
+              {LANGS.map((l) => (
+                <button key={l.id} className={l.id === lang ? 'on' : ''} onClick={() => setLang(l.id)}>
+                  {l.label}
+                </button>
+              ))}
+            </div>
           </div>
         </>
       )}
@@ -158,7 +171,7 @@ function ProjectMenu() {
           if (!f) return;
           try {
             commands.import_project_json({ project: await f.text() });
-            s.notify(`Aperto “${f.name}”`);
+            s.notify(t('menu.opened', { name: f.name }));
           } catch (err) {
             s.notify((err as Error).message);
           }
@@ -172,6 +185,7 @@ function ProjectMenu() {
 export function Toolbar() {
   const s = useStore();
   const p = s.project;
+  const t = useT();
   const toggleBottom = (b: typeof s.bottom) => s.set({ bottom: s.bottom === b ? null : b });
 
   return (
@@ -190,7 +204,7 @@ export function Toolbar() {
           </svg>
           <input className="project-name" value={p.name} onChange={(e) => s.commit((d) => void (d.name = e.target.value), { history: false })} />
         </div>
-        <button className={`icon-btn ${s.libraryOpen ? 'on' : ''}`} onClick={() => s.set({ libraryOpen: !s.libraryOpen })} title="Libreria (Y)">
+        <button className={`icon-btn ${s.libraryOpen ? 'on' : ''}`} onClick={() => s.set({ libraryOpen: !s.libraryOpen })} title={t('tb.library')}>
           <I.Library />
         </button>
         <button className={`icon-btn ${s.bottom === 'smart' ? 'on' : ''}`} onClick={() => toggleBottom('smart')} title="Smart Controls (B)">
@@ -206,19 +220,19 @@ export function Toolbar() {
 
       <div className="tb-group tb-center">
         <div className="transport">
-          <button className="t-btn" onClick={rewind} title="Vai all'inizio (Invio)">
+          <button className="t-btn" onClick={rewind} title={t('tb.toStart')}>
             <I.ToStart />
           </button>
-          <button className={`t-btn t-play ${s.isPlaying ? 'on' : ''}`} onClick={togglePlay} title="Play / Stop (Spazio)">
+          <button className={`t-btn t-play ${s.isPlaying ? 'on' : ''}`} onClick={togglePlay} title={t('tb.play')}>
             {s.isPlaying ? <I.Pause /> : <I.Play />}
           </button>
-          <button className={`t-btn t-rec ${s.isRecording ? 'on' : ''}`} onClick={toggleRecord} title="Registra (R)">
+          <button className={`t-btn t-rec ${s.isRecording ? 'on' : ''}`} onClick={toggleRecord} title={t('tb.record')}>
             <I.Record />
           </button>
           <button
             className={`t-btn t-cycle ${p.loop.enabled ? 'on' : ''}`}
             onClick={() => s.commit((d) => void (d.loop.enabled = !d.loop.enabled))}
-            title="Ciclo (C)"
+            title={t('tb.cycle')}
           >
             <I.Cycle />
           </button>
@@ -227,20 +241,20 @@ export function Toolbar() {
         <button
           className={`t-btn t-metro ${p.metronome ? 'on' : ''}`}
           onClick={() => s.commit((d) => void (d.metronome = !d.metronome), { history: false })}
-          title="Metronomo (M)"
+          title={t('tb.metronome')}
         >
           <I.Metronome />
         </button>
       </div>
 
       <div className="tb-group tb-right">
-        <button className="icon-btn" onClick={s.undo} disabled={!s.past.length} title="Annulla (⌘Z)">
+        <button className="icon-btn" onClick={s.undo} disabled={!s.past.length} title={t('tb.undo')}>
           <I.Undo />
         </button>
-        <button className="icon-btn" onClick={s.redo} disabled={!s.future.length} title="Ripristina (⇧⌘Z)">
+        <button className="icon-btn" onClick={s.redo} disabled={!s.future.length} title={t('tb.redo')}>
           <I.Redo />
         </button>
-        <div className="master-vol" title="Volume master">
+        <div className="master-vol" title={t('tb.masterVolume')}>
           <I.Speaker width={16} height={16} />
           <input
             type="range"
@@ -251,13 +265,13 @@ export function Toolbar() {
             onChange={(e) => s.commit((d) => void (d.masterVolume = Number(e.target.value)), { history: false })}
           />
         </div>
-        <button className={`icon-btn ${s.keyboardOpen ? 'on' : ''}`} onClick={() => s.set({ keyboardOpen: !s.keyboardOpen })} title="Tastiera musicale (K)">
+        <button className={`icon-btn ${s.keyboardOpen ? 'on' : ''}`} onClick={() => s.set({ keyboardOpen: !s.keyboardOpen })} title={t('tb.typing')}>
           <I.Keyboard />
         </button>
-        <button className={`ai-pill ${s.bridgeStatus}`} onClick={() => s.set({ aiOpen: !s.aiOpen })} title="Pannello AI / MCP">
+        <button className={`ai-pill ${s.bridgeStatus}`} onClick={() => s.set({ aiOpen: !s.aiOpen })} title={t('tb.ai')}>
           <span className="dot" />
           <I.Sparkles width={15} height={15} />
-          <span>{s.bridgeStatus === 'connected' ? 'AI collegata' : 'MCP'}</span>
+          <span>{s.bridgeStatus === 'connected' ? t('tb.aiConnected') : 'MCP'}</span>
         </button>
         <ProjectMenu />
       </div>

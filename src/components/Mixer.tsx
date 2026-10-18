@@ -5,6 +5,7 @@ import { engine } from '../audio/engine';
 import { useFrame } from '../hooks';
 import { Knob } from './Knob';
 import { useTrackUpdater } from './SmartControls';
+import { useT } from '../i18n';
 
 function Meter({ id }: { id: string }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -25,12 +26,13 @@ function Strip({ track }: { track: Track }) {
   const checkpoint = useStore((s) => s.checkpoint);
   const selected = useStore((s) => s.selectedTrackId === track.id);
   const set = useStore((s) => s.set);
+  const t = useT();
   return (
     <div className={`strip ${selected ? 'selected' : ''}`} style={{ '--track': track.color } as CSSProperties} onPointerDown={() => set({ selectedTrackId: track.id })}>
       <div className="strip-knobs">
-        <Knob label="Pan" size={34} value={track.pan} min={-1} max={1} bipolar defaultValue={0} onStart={checkpoint} onChange={(v) => update((t) => void (t.pan = v))} format={() => ''} />
-        <Knob label="Rev" size={34} value={track.reverb} color="#a78bfa" defaultValue={0.2} onStart={checkpoint} onChange={(v) => update((t) => void (t.reverb = v))} format={() => ''} />
-        <Knob label="Eco" size={34} value={track.delay} color="#22d3ee" defaultValue={0} onStart={checkpoint} onChange={(v) => update((t) => void (t.delay = v))} format={() => ''} />
+        <Knob label={t('sc.pan')} size={34} value={track.pan} min={-1} max={1} bipolar defaultValue={0} onStart={checkpoint} onChange={(v) => update((t) => void (t.pan = v))} format={() => ''} />
+        <Knob label={t('mix.rev')} size={34} value={track.reverb} color="#a78bfa" defaultValue={0.2} onStart={checkpoint} onChange={(v) => update((t) => void (t.reverb = v))} format={() => ''} />
+        <Knob label={t('sc.echo')} size={34} value={track.delay} color="#22d3ee" defaultValue={0} onStart={checkpoint} onChange={(v) => update((t) => void (t.delay = v))} format={() => ''} />
       </div>
       <div className="strip-fader">
         <Meter id={track.id} />
@@ -59,6 +61,7 @@ export function Mixer() {
   const master = useStore((s) => s.project.masterVolume);
   const commit = useStore((s) => s.commit);
   const checkpoint = useStore((s) => s.checkpoint);
+  const t = useT();
   return (
     <div className="mixer">
       <div className="mixer-strips">
@@ -67,7 +70,7 @@ export function Mixer() {
         ))}
       </div>
       <div className="strip master">
-        <div className="strip-knobs master-title">MASTER</div>
+        <div className="strip-knobs master-title">{t('mix.master')}</div>
         <div className="strip-fader">
           <Meter id="master" />
           <input
@@ -81,7 +84,7 @@ export function Mixer() {
             onChange={(e) => commit((d) => void (d.masterVolume = Number(e.target.value)), { history: false })}
           />
         </div>
-        <div className="strip-name">Uscita stereo</div>
+        <div className="strip-name">{t('mix.out')}</div>
       </div>
     </div>
   );

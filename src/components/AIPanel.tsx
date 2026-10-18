@@ -1,28 +1,26 @@
 import { useStore } from '../store';
 import { BRIDGE_ENABLED, BRIDGE_URL } from '../bridge';
 import * as I from './Icons';
+import { useT } from '../i18n';
 
-const CONFIG = `{
+const config = (path: string) => `{
   "mcpServers": {
     "openband": {
       "command": "node",
-      "args": ["/PERCORSO/openband/server/mcp-server.mjs"]
+      "args": ["${path}/openband/server/mcp-server.mjs"]
     }
   }
 }`;
 
-const EXAMPLES = [
-  'Crea un beat lo-fi a 82 BPM in Re minore con batteria, basso e Rhodes',
-  'Aggiungi una melodia di synth lead sulle battute 5–8',
-  'Rendi il ritornello più energico: hi-hat in sedicesimi e crash sull’1',
-  'Abbassa il pad, alza il riverbero sul piano e fai partire il loop',
-];
+const EXAMPLES = ['ai.ex1', 'ai.ex2', 'ai.ex3', 'ai.ex4'] as const;
 
 export function AIPanel() {
   const status = useStore((s) => s.bridgeStatus);
   const log = useStore((s) => s.bridgeLog);
   const set = useStore((s) => s.set);
   const notify = useStore((s) => s.notify);
+  const t = useT();
+  const CONFIG = config(t('ai.path'));
 
   return (
     <aside className="ai-panel">
@@ -33,7 +31,7 @@ export function AIPanel() {
           </div>
           <div className={`ai-status ${status}`}>
             <span className="dot" />
-            {status === 'connected' ? 'Server MCP collegato' : status === 'connecting' ? 'Connessione in corso…' : BRIDGE_ENABLED ? 'Server MCP non raggiungibile' : 'Demo online · AI disponibile in locale'}
+            {status === 'connected' ? t('ai.connected') : status === 'connecting' ? t('ai.connecting') : BRIDGE_ENABLED ? t('ai.unreachable') : t('ai.demo')}
           </div>
         </div>
         <button className="icon-btn" onClick={() => set({ aiOpen: false })}>
@@ -44,8 +42,8 @@ export function AIPanel() {
       {!BRIDGE_ENABLED && (
         <div className="ai-setup">
           <p>
-            Questa è la demo online: per farla suonare alla tua AI, clona il progetto da{' '}
-            <a href="https://github.com/iltempe/openband" target="_blank" rel="noreferrer">GitHub</a> e avvialo in locale.
+            {t('ai.demoText1')}{' '}
+            <a href="https://github.com/iltempe/openband" target="_blank" rel="noreferrer">GitHub</a> {t('ai.demoText2')}
           </p>
         </div>
       )}
@@ -53,30 +51,30 @@ export function AIPanel() {
       {BRIDGE_ENABLED && status !== 'connected' && (
         <div className="ai-setup">
           <p>
-            Aggiungi OpenBand al tuo client MCP (Claude Desktop, Cursor, ecc.). Il client avvia il server, che si collega a questa finestra su <code>{BRIDGE_URL}</code>.
+            {t('ai.setup1')} <code>{BRIDGE_URL}</code>.
           </p>
           <pre>{CONFIG}</pre>
           <button
             className="mini"
             onClick={() => {
-              navigator.clipboard?.writeText(CONFIG).then(() => notify('Configurazione copiata'), () => notify('Copia non riuscita'));
+              navigator.clipboard?.writeText(CONFIG).then(() => notify(t('ai.copied')), () => notify(t('ai.copyFailed')));
             }}
           >
-            <I.Copy width={13} height={13} /> Copia configurazione
+            <I.Copy width={13} height={13} /> {t('ai.copy')}
           </button>
         </div>
       )}
 
-      <div className="ai-section">Prova a chiedere</div>
+      <div className="ai-section">{t('ai.try')}</div>
       <div className="ai-examples">
         {EXAMPLES.map((e) => (
-          <div key={e} className="ai-example">“{e}”</div>
+          <div key={e} className="ai-example">“{t(e)}”</div>
         ))}
       </div>
 
-      <div className="ai-section">Attività</div>
+      <div className="ai-section">{t('ai.activity')}</div>
       <div className="ai-log">
-        {log.length === 0 && <div className="ai-log-empty">I comandi ricevuti dall’AI appariranno qui.</div>}
+        {log.length === 0 && <div className="ai-log-empty">{t('ai.logEmpty')}</div>}
         {log.map((l) => (
           <div key={l.id} className={`ai-log-item ${l.ok ? '' : 'err'}`}>
             <span className="ai-log-time">{new Date(l.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>

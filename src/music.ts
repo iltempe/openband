@@ -47,15 +47,15 @@ export interface DrumPiece {
 export const DRUM_PIECES: DrumPiece[] = [
   { pitch: 49, name: 'Crash', short: 'CR', aliases: ['crash', 'cymbal'] },
   { pitch: 51, name: 'Ride', short: 'RD', aliases: ['ride'] },
-  { pitch: 50, name: 'Tom alto', short: 'T1', aliases: ['hightom', 'high_tom', 'tom1', 'tom_high'] },
-  { pitch: 48, name: 'Tom medio', short: 'T2', aliases: ['midtom', 'mid_tom', 'tom2', 'tom_mid'] },
-  { pitch: 45, name: 'Tom basso', short: 'T3', aliases: ['lowtom', 'low_tom', 'tom3', 'floortom', 'tom_low'] },
-  { pitch: 46, name: 'Hi-hat aperto', short: 'OH', aliases: ['openhat', 'open_hat', 'ohh', 'oh', 'hihat_open'] },
-  { pitch: 42, name: 'Hi-hat chiuso', short: 'HH', aliases: ['hihat', 'hat', 'hh', 'chh', 'closedhat', 'closed_hat', 'hihat_closed'] },
+  { pitch: 50, name: 'High tom', short: 'T1', aliases: ['hightom', 'high_tom', 'tom1', 'tom_high', 'tomalto'] },
+  { pitch: 48, name: 'Mid tom', short: 'T2', aliases: ['midtom', 'mid_tom', 'tom2', 'tom_mid', 'tommedio'] },
+  { pitch: 45, name: 'Low tom', short: 'T3', aliases: ['lowtom', 'low_tom', 'tom3', 'floortom', 'tom_low', 'tombasso'] },
+  { pitch: 46, name: 'Open hi-hat', short: 'OH', aliases: ['openhat', 'open_hat', 'ohh', 'oh', 'hihat_open', 'hihataperto'] },
+  { pitch: 42, name: 'Closed hi-hat', short: 'HH', aliases: ['hihat', 'hat', 'hh', 'chh', 'closedhat', 'closed_hat', 'hihat_closed', 'hihatchiuso'] },
   { pitch: 37, name: 'Rim', short: 'RM', aliases: ['rim', 'rimshot', 'sidestick'] },
   { pitch: 39, name: 'Clap', short: 'CP', aliases: ['clap', 'handclap'] },
-  { pitch: 38, name: 'Rullante', short: 'SN', aliases: ['snare', 'sd'] },
-  { pitch: 36, name: 'Cassa', short: 'KK', aliases: ['kick', 'bd', 'bassdrum', 'bass_drum'] },
+  { pitch: 38, name: 'Snare', short: 'SN', aliases: ['snare', 'sd', 'rullante'] },
+  { pitch: 36, name: 'Kick', short: 'KK', aliases: ['kick', 'bd', 'bassdrum', 'bass_drum', 'cassa'] },
 ];
 
 export function findDrum(name: string): DrumPiece | undefined {

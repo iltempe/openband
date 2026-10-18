@@ -24,6 +24,7 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 - **Live recording** into new regions, with metronome.
 - **Undo/redo**, autosave, save and open `.json` projects, **WAV export** with offline rendering.
 - **AI control via MCP**: 32 tools to compose, arrange, mix and play.
+- **English and Italian** interface (switch from the start screen or the ⋯ menu).
 
 | Piano roll | Mixer |
 |---|---|
@@ -46,7 +47,7 @@ Or build once, and the MCP server will serve the app itself on `http://127.0.0.1
 npm run build
 ```
 
-A demo song opens on first launch. The “Entra nello studio” (enter the studio) click is needed because browsers only enable audio after a user interaction.
+A demo song opens on first launch. The “Enter the studio” click is needed because browsers only enable audio after a user interaction.
 
 ## Connect an AI (MCP)
 
@@ -130,7 +131,6 @@ server/mcp-server.mjs     MCP server (stdio) + WebSocket bridge + static files
 
 ## Roadmap
 
-- English UI (the interface is currently in Italian)
 - Audio tracks (microphone and guitar) with waveforms
 - Per-track effects (compressor, EQ, amp sim) and automation
 - Generative “Drummer” and a freely licensed (CC0) loop library

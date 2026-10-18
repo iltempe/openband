@@ -6,6 +6,7 @@ import { PRESETS, presetById } from './audio/instruments';
 import { emptyProject, getRegion, getTrack, makeTrack, projectEnd, useStore } from './store';
 import { engine } from './audio/engine';
 import { download, renderProject } from './audio/render';
+import { t as tr } from './i18n';
 
 type P = Record<string, any>;
 
@@ -124,7 +125,7 @@ export const commands: Record<string, (args: P) => unknown> = {
   }),
 
   new_project: ({ name, bpm, key }) => {
-    const p = emptyProject(name ?? 'Nuovo brano', clamp(Number(bpm ?? 110), 40, 240));
+    const p = emptyProject(name ?? tr('name.newSong'), clamp(Number(bpm ?? 110), 40, 240));
     if (key) p.key = key;
     engine.stop();
     engine.position = 0;
@@ -331,7 +332,7 @@ export const commands: Record<string, (args: P) => unknown> = {
         if (vel) notes.push({ id: uid('n'), pitch, start: i * stepBeats, duration: stepBeats, velocity: vel });
       }
     }
-    const region = createRegion(t.id, barToBeat(start_bar ?? 1), nBars * BEATS_PER_BAR, name ?? 'Beat', notes);
+    const region = createRegion(t.id, barToBeat(start_bar ?? 1), nBars * BEATS_PER_BAR, name ?? tr('name.beat'), notes);
     return { region_id: region.id, note_count: notes.length };
   },
 
@@ -360,7 +361,7 @@ export const commands: Record<string, (args: P) => unknown> = {
       }
     });
     const len = Math.ceil((chords.length * bpc) / BEATS_PER_BAR) * BEATS_PER_BAR;
-    const region = createRegion(t.id, barToBeat(start_bar ?? 1), len, name ?? 'Accordi', notes);
+    const region = createRegion(t.id, barToBeat(start_bar ?? 1), len, name ?? tr('name.chords'), notes);
     return { region_id: region.id, note_count: notes.length, length_bars: len / BEATS_PER_BAR };
   },
 
@@ -456,19 +457,19 @@ function shortSummary(method: string, p: P): string {
     case 'set_tempo':
       return `Tempo → ${p.bpm} BPM`;
     case 'add_track':
-      return `Nuova traccia ${p.name ?? p.instrument ?? p.kind ?? ''}`;
+      return tr('ai.sum.track', { name: p.name ?? p.instrument ?? p.kind ?? '' });
     case 'add_region':
-      return `Regione su battuta ${p.start_bar ?? 1} (${p.notes?.length ?? 0} note)`;
+      return tr('ai.sum.region', { bar: p.start_bar ?? 1, n: p.notes?.length ?? 0 });
     case 'add_notes':
-      return `${p.notes?.length ?? 0} note aggiunte`;
+      return tr('ai.sum.notes', { n: p.notes?.length ?? 0 });
     case 'add_drum_pattern':
-      return `Pattern di batteria: ${Object.keys(p.pattern ?? {}).join(', ')}`;
+      return tr('ai.sum.drums', { pieces: Object.keys(p.pattern ?? {}).join(', ') });
     case 'add_chord_progression':
-      return `Accordi: ${(p.chords ?? []).join(' – ')}`;
+      return tr('ai.sum.chords', { chords: (p.chords ?? []).join(' – ') });
     case 'transport':
-      return `Trasporto: ${p.action}`;
+      return tr('ai.sum.transport', { action: p.action });
     case 'update_track':
-      return `Traccia aggiornata: ${Object.keys(p).filter((k) => k !== 'track_id').join(', ')}`;
+      return tr('ai.sum.updateTrack', { fields: Object.keys(p).filter((k) => k !== 'track_id').join(', ') });
     default:
       return method.replace(/_/g, ' ');
   }

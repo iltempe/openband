@@ -1,12 +1,13 @@
 // Starter song shown on first launch, built through the same command API the AI uses.
 import { commands } from './commands';
 import { useStore } from './store';
+import { t } from './i18n';
 
 export function loadDemo() {
   const c = commands as Record<string, (a: Record<string, unknown>) => any>;
-  c.new_project({ name: 'Notte a Trastevere', bpm: 92, key: 'Am' });
+  c.new_project({ name: t('demo.name'), bpm: 92, key: 'Am' });
 
-  const drums = c.add_track({ instrument: 'kit-studio', name: 'Batteria' }).track_id;
+  const drums = c.add_track({ instrument: 'kit-studio', name: t('demo.drums') }).track_id;
   const beat = c.add_drum_pattern({
     track_id: drums,
     start_bar: 1,
@@ -20,7 +21,7 @@ export function loadDemo() {
   }).region_id;
   c.duplicate_region({ region_id: beat, times: 3 });
 
-  const bass = c.add_track({ instrument: 'finger-bass', name: 'Basso' }).track_id;
+  const bass = c.add_track({ instrument: 'finger-bass', name: t('demo.bass') }).track_id;
   const roots = [33, 29, 36, 31];
   const bassNotes = roots.flatMap((r, i) => [
     { pitch: r, start: i * 4, duration: 1.5, velocity: 0.9 },
@@ -29,10 +30,10 @@ export function loadDemo() {
     { pitch: r + 12, start: i * 4 + 3, duration: 0.5, velocity: 0.7 },
     { pitch: r + 10, start: i * 4 + 3.5, duration: 0.5, velocity: 0.6 },
   ]);
-  const bassRegion = c.add_region({ track_id: bass, start_bar: 1, length_bars: 4, notes: bassNotes, name: 'Linea di basso' }).region_id;
+  const bassRegion = c.add_region({ track_id: bass, start_bar: 1, length_bars: 4, notes: bassNotes, name: t('demo.bassLine') }).region_id;
   c.duplicate_region({ region_id: bassRegion, times: 1 });
 
-  const keys = c.add_track({ instrument: 'velvet-keys', name: 'Piano elettrico' }).track_id;
+  const keys = c.add_track({ instrument: 'velvet-keys', name: t('demo.keys') }).track_id;
   const keysRegion = c.add_chord_progression({
     track_id: keys,
     start_bar: 1,

@@ -2,6 +2,7 @@ import { getTrack, useStore } from '../store';
 import { DRUM_TYPING_KEYS, TYPING_KEYS, liveNoteOff, liveNoteOn, useLive } from '../input';
 import { drumByPitch, isBlackKey, noteName } from '../music';
 import * as I from './Icons';
+import { drumLabel, useT } from '../i18n';
 
 const KEY_FOR = Object.fromEntries(Object.entries(TYPING_KEYS).map(([k, v]) => [v, k]));
 
@@ -11,6 +12,7 @@ export function MusicalTyping() {
   const track = getTrack(s.project, s.selectedTrackId);
   const drums = track?.kind === 'drums';
   const base = (s.octave + 1) * 12;
+  const t = useT();
 
   const press = (p: number) => {
     liveNoteOn(p);
@@ -25,14 +27,14 @@ export function MusicalTyping() {
     <div className="typing">
       <div className="typing-head">
         <div className="typing-title">
-          <I.Keyboard width={16} height={16} /> Tastiera musicale
-          <span className="typing-track">{track ? track.name : 'nessuna traccia'}</span>
+          <I.Keyboard width={16} height={16} /> {t('typing.title')}
+          <span className="typing-track">{track ? track.name : t('typing.noTrack')}</span>
         </div>
         <div className="typing-info">
           {!drums && (
             <span>
               <kbd>Z</kbd>
-              <kbd>X</kbd> ottava {s.octave - 4 >= 0 ? `+${s.octave - 4}` : s.octave - 4}
+              <kbd>X</kbd> {t('typing.octave')} {s.octave - 4 >= 0 ? `+${s.octave - 4}` : s.octave - 4}
             </span>
           )}
           <span>
@@ -48,7 +50,7 @@ export function MusicalTyping() {
         <div className="pads">
           {Object.entries(DRUM_TYPING_KEYS).map(([k, p]) => (
             <button key={k} className={`pad ${active.includes(p) ? 'on' : ''}`} onPointerDown={() => press(p)}>
-              <span className="pad-name">{drumByPitch(p)?.name}</span>
+              <span className="pad-name">{(() => { const d = drumByPitch(p); return d && drumLabel(d); })()}</span>
               <kbd>{k.toUpperCase()}</kbd>
             </button>
           ))}

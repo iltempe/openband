@@ -4,6 +4,7 @@ import type { Note } from './types';
 import { BEATS_PER_BAR, uid } from './music';
 import { engine } from './audio/engine';
 import { getTrack, makeTrack, useStore } from './store';
+import { t } from './i18n';
 
 /** Musical typing layout, semitone offsets from the current octave's C. */
 export const TYPING_KEYS: Record<string, number> = {
@@ -47,7 +48,7 @@ export async function startRecording() {
     await engine.play();
     s.set({ isPlaying: true });
   }
-  s.notify(`Registrazione su “${track.name}” — suona con la tastiera o un controller MIDI`);
+  s.notify(t('rec.start', { name: track.name }));
 }
 
 export function stopRecording() {
@@ -64,14 +65,14 @@ export function stopRecording() {
   const region = {
     id: uid('rgn'),
     trackId: r.trackId,
-    name: 'Registrazione',
+    name: t('rec.region'),
     start: startBar,
     length,
     notes: r.notes.map((n) => ({ ...n, start: n.start - startBar })),
   };
   st().commit((d) => void d.regions.push(region));
   st().selectRegion(region);
-  st().notify(`Registrate ${r.notes.length} note`);
+  st().notify(t('rec.done', { n: r.notes.length }));
 }
 
 function finishNote(pitch: number, start: number, velocity: number, end: number): Note {

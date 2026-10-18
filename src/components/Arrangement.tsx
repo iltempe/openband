@@ -7,6 +7,7 @@ import { presetById } from '../audio/instruments';
 import { usePosition } from '../hooks';
 import { commands } from '../commands';
 import * as I from './Icons';
+import { useT } from '../i18n';
 
 export const HEADER_W = 252;
 export const TRACK_H = 80;
@@ -20,6 +21,7 @@ export function Arrangement() {
   const zoom = useStore((s) => s.zoom);
   const set = useStore((s) => s.set);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const t = useT();
   const totalBeats = Math.max(40 * BEATS_PER_BAR, Math.ceil((projectEnd(project) + 24 * BEATS_PER_BAR) / BEATS_PER_BAR) * BEATS_PER_BAR);
 
   useEffect(() => {
@@ -44,10 +46,10 @@ export function Arrangement() {
           <div className="arr-top" style={{ height: RULER_H }}>
             <div className="arr-corner">
               <button className="chip" onClick={() => commands.add_track({ kind: 'instrument' })}>
-                <I.Plus width={14} height={14} /> Strumento
+                <I.Plus width={14} height={14} /> {t('arr.addInstrument')}
               </button>
               <button className="chip" onClick={() => commands.add_track({ kind: 'drums' })}>
-                <I.Plus width={14} height={14} /> Batteria
+                <I.Plus width={14} height={14} /> {t('arr.addDrums')}
               </button>
             </div>
             <Ruler totalBeats={totalBeats} />
@@ -69,16 +71,17 @@ export function Arrangement() {
 }
 
 function EmptyState() {
+  const t = useT();
   return (
     <div className="empty-state" style={{ marginLeft: HEADER_W }}>
-      <h2>Inizia un nuovo brano</h2>
-      <p>Aggiungi una traccia, scegli un suono dalla libreria, oppure chiedi alla tua AI di comporre per te via MCP.</p>
+      <h2>{t('arr.emptyTitle')}</h2>
+      <p>{t('arr.emptyText')}</p>
       <div className="row">
         <button className="btn primary" onClick={() => commands.add_track({ kind: 'instrument' })}>
-          <I.KeysIcon /> Strumento software
+          <I.KeysIcon /> {t('arr.softwareInstrument')}
         </button>
         <button className="btn" onClick={() => commands.add_track({ kind: 'drums' })}>
-          <I.DrumIcon /> Batteria
+          <I.DrumIcon /> {t('arr.addDrums')}
         </button>
       </div>
     </div>
@@ -196,6 +199,7 @@ const TrackRow = memo(function TrackRow({ track, index, regions }: { track: Trac
   const selected = useStore((s) => s.selectedTrackId === track.id);
   const set = useStore((s) => s.set);
   const commit = useStore((s) => s.commit);
+  const t = useT();
 
   const onLaneDoubleClick = (e: React.MouseEvent) => {
     if (e.target !== e.currentTarget) return;
@@ -216,7 +220,7 @@ const TrackRow = memo(function TrackRow({ track, index, regions }: { track: Trac
           if (e.target === e.currentTarget) set({ selectedTrackId: track.id, selectedRegionId: null });
         }}
         onDoubleClick={onLaneDoubleClick}
-        title="Doppio clic per creare una regione"
+        title={t('arr.laneHint')}
       >
         {regions.map((r) => (
           <RegionView key={r.id} region={r} track={track} trackIndex={index} />
@@ -230,6 +234,7 @@ function TrackHeader({ track, selected }: { track: Track; selected: boolean }) {
   const set = useStore((s) => s.set);
   const commit = useStore((s) => s.commit);
   const [renaming, setRenaming] = useState(false);
+  const t = useT();
   const update = (fn: (t: Track) => void, history = true) =>
     commit((d) => fn(d.tracks.find((t) => t.id === track.id)!), { history });
 
@@ -250,7 +255,7 @@ function TrackHeader({ track, selected }: { track: Track; selected: boolean }) {
             onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
           />
         ) : (
-          <div className="th-name" onDoubleClick={() => setRenaming(true)} title="Doppio clic per rinominare">
+          <div className="th-name" onDoubleClick={() => setRenaming(true)} title={t('arr.renameHint')}>
             {track.name}
           </div>
         )}
@@ -264,7 +269,7 @@ function TrackHeader({ track, selected }: { track: Track; selected: boolean }) {
           value={track.volume}
           onPointerDown={() => useStore.getState().checkpoint()}
           onChange={(e) => update((t) => void (t.volume = Number(e.target.value)), false)}
-          title="Volume"
+          title={t('sc.volume')}
         />
       </div>
       <div className="th-btns">
@@ -275,7 +280,7 @@ function TrackHeader({ track, selected }: { track: Track; selected: boolean }) {
           S
         </button>
       </div>
-      <button className="th-delete" onClick={() => commands.delete_track({ track_id: track.id })} title="Elimina traccia">
+      <button className="th-delete" onClick={() => commands.delete_track({ track_id: track.id })} title={t('arr.deleteTrack')}>
         <I.Trash width={14} height={14} />
       </button>
     </div>

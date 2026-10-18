@@ -2,11 +2,12 @@ import { create } from 'zustand';
 import type { BottomPanel, BridgeLogEntry, BridgeStatus, Project, Region, Track, TrackKind } from './types';
 import { DRUM_COLOR, TRACK_COLORS, uid } from './music';
 import { defaultPreset, presetById } from './audio/instruments';
+import { t } from './i18n';
 
 const STORAGE_KEY = 'openband.project.v1';
 const HISTORY_LIMIT = 120;
 
-export function emptyProject(name = 'Il mio brano', bpm = 110): Project {
+export function emptyProject(name = t('name.untitled'), bpm = 110): Project {
   return {
     version: 1,
     name,

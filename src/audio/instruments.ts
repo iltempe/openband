@@ -16,21 +16,21 @@ export interface InstrumentPreset {
 }
 
 export const PRESETS: InstrumentPreset[] = [
-  { id: 'felt-piano', name: 'Felt Piano', kind: 'instrument', category: 'Tastiere', description: 'Pianoforte morbido e intimo', cutoff: 0.78 },
-  { id: 'velvet-keys', name: 'Velvet Keys', kind: 'instrument', category: 'Tastiere', description: 'Piano elettrico FM vintage', cutoff: 0.85 },
-  { id: 'retro-organ', name: 'Retro Organ', kind: 'instrument', category: 'Tastiere', description: 'Organo a ruote foniche', cutoff: 0.8 },
-  { id: 'crystal-bells', name: 'Crystal Bells', kind: 'instrument', category: 'Tastiere', description: 'Campane FM luccicanti', cutoff: 0.95 },
-  { id: 'neon-lead', name: 'Neon Lead', kind: 'instrument', category: 'Synth', description: 'Lead analogico a dente di sega', cutoff: 0.82 },
-  { id: 'pluck', name: 'Glass Pluck', kind: 'instrument', category: 'Synth', description: 'Pizzicato brillante', cutoff: 0.9 },
-  { id: 'chip', name: '8-Bit Hero', kind: 'instrument', category: 'Synth', description: 'Onda quadra da console retrò', cutoff: 0.9 },
-  { id: 'sub-bass', name: 'Sub Bass', kind: 'instrument', category: 'Bassi', description: 'Basso profondo e rotondo', cutoff: 0.55 },
-  { id: 'acid-bass', name: 'Acid Line', kind: 'instrument', category: 'Bassi', description: 'Basso risonante stile 303', cutoff: 0.7 },
-  { id: 'finger-bass', name: 'Finger Bass', kind: 'instrument', category: 'Bassi', description: 'Basso elettrico pizzicato', cutoff: 0.6 },
-  { id: 'aurora-pad', name: 'Aurora Pad', kind: 'instrument', category: 'Pad & Archi', description: 'Pad ampio ed evolutivo', cutoff: 0.62 },
-  { id: 'silk-strings', name: 'Silk Strings', kind: 'instrument', category: 'Pad & Archi', description: 'Ensemble d’archi sintetico', cutoff: 0.68 },
-  { id: 'kit-studio', name: 'Studio Kit', kind: 'drums', category: 'Batterie', description: 'Batteria pop asciutta e punchy', cutoff: 1 },
-  { id: 'kit-808', name: 'Trap 808', kind: 'drums', category: 'Batterie', description: 'Drum machine con cassa lunga', cutoff: 1 },
-  { id: 'kit-lofi', name: 'Dusty Lo-Fi', kind: 'drums', category: 'Batterie', description: 'Kit polveroso e saturo', cutoff: 0.72 },
+  { id: 'felt-piano', name: 'Felt Piano', kind: 'instrument', category: 'Keys', description: 'Soft, intimate piano', cutoff: 0.78 },
+  { id: 'velvet-keys', name: 'Velvet Keys', kind: 'instrument', category: 'Keys', description: 'Vintage FM electric piano', cutoff: 0.85 },
+  { id: 'retro-organ', name: 'Retro Organ', kind: 'instrument', category: 'Keys', description: 'Tonewheel organ', cutoff: 0.8 },
+  { id: 'crystal-bells', name: 'Crystal Bells', kind: 'instrument', category: 'Keys', description: 'Shimmering FM bells', cutoff: 0.95 },
+  { id: 'neon-lead', name: 'Neon Lead', kind: 'instrument', category: 'Synth', description: 'Analog sawtooth lead', cutoff: 0.82 },
+  { id: 'pluck', name: 'Glass Pluck', kind: 'instrument', category: 'Synth', description: 'Bright pluck', cutoff: 0.9 },
+  { id: 'chip', name: '8-Bit Hero', kind: 'instrument', category: 'Synth', description: 'Retro console square wave', cutoff: 0.9 },
+  { id: 'sub-bass', name: 'Sub Bass', kind: 'instrument', category: 'Bass', description: 'Deep, round bass', cutoff: 0.55 },
+  { id: 'acid-bass', name: 'Acid Line', kind: 'instrument', category: 'Bass', description: 'Resonant 303-style bass', cutoff: 0.7 },
+  { id: 'finger-bass', name: 'Finger Bass', kind: 'instrument', category: 'Bass', description: 'Fingered electric bass', cutoff: 0.6 },
+  { id: 'aurora-pad', name: 'Aurora Pad', kind: 'instrument', category: 'Pads & Strings', description: 'Wide, evolving pad', cutoff: 0.62 },
+  { id: 'silk-strings', name: 'Silk Strings', kind: 'instrument', category: 'Pads & Strings', description: 'Synth string ensemble', cutoff: 0.68 },
+  { id: 'kit-studio', name: 'Studio Kit', kind: 'drums', category: 'Drums', description: 'Tight, punchy pop kit', cutoff: 1 },
+  { id: 'kit-808', name: 'Trap 808', kind: 'drums', category: 'Drums', description: 'Drum machine with long kick', cutoff: 1 },
+  { id: 'kit-lofi', name: 'Dusty Lo-Fi', kind: 'drums', category: 'Drums', description: 'Dusty, saturated kit', cutoff: 0.72 },
 ];
 
 export const presetById = (id: string) => PRESETS.find((p) => p.id === id);

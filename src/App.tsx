@@ -13,6 +13,7 @@ import { Library } from './components/Library';
 import { AIPanel } from './components/AIPanel';
 import { MusicalTyping } from './components/MusicalTyping';
 import * as I from './components/Icons';
+import { LANGS, setLang, useLang, useT } from './i18n';
 
 function useShortcuts() {
   useEffect(() => {
@@ -135,6 +136,8 @@ function useShortcuts() {
 function Splash() {
   const set = useStore((s) => s.set);
   const name = useStore((s) => s.project.name);
+  const t = useT();
+  const lang = useLang((s) => s.lang);
   return (
     <div className="splash">
       <div className="splash-glow" />
@@ -150,7 +153,7 @@ function Splash() {
           <path d="M8 40c7 0 7-16 14-16s7 16 14 16 7-16 14-16" fill="none" stroke="url(#sg)" strokeWidth="6" strokeLinecap="round" />
         </svg>
         <h1>OpenBand</h1>
-        <p>Lo studio musicale open source che puoi suonare tu o la tua AI.</p>
+        <p>{t('splash.tagline')}</p>
         <button
           className="btn primary big"
           onClick={async () => {
@@ -158,10 +161,17 @@ function Splash() {
             set({ audioReady: true });
           }}
         >
-          Entra nello studio
+          {t('splash.enter')}
         </button>
         <div className="splash-sub">
-          Progetto: <strong>{name}</strong>
+          {t('splash.project')} <strong>{name}</strong>
+        </div>
+        <div className="lang-switch">
+          {LANGS.map((l) => (
+            <button key={l.id} className={l.id === lang ? 'on' : ''} onClick={() => setLang(l.id)}>
+              {l.label}
+            </button>
+          ))}
         </div>
       </div>
     </div>

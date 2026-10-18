@@ -6,18 +6,20 @@ import { BEATS_PER_BAR, DRUM_PIECES, clamp, isBlackKey, noteName, uid } from '..
 import { useFrame, usePosition } from '../hooks';
 import { commands } from '../commands';
 import * as I from './Icons';
+import { drumLabel, useT } from '../i18n';
 
 export function Editor() {
   const project = useStore((s) => s.project);
   const regionId = useStore((s) => s.selectedRegionId);
   const region = getRegion(project, regionId);
   const track = region ? getTrack(project, region.trackId) : undefined;
+  const t = useT();
 
   if (!region || !track) {
     return (
       <div className="panel-empty">
         <I.PianoRoll width={28} height={28} />
-        <p>Seleziona una regione, oppure fai doppio clic su una traccia per crearne una.</p>
+        <p>{t('ed.empty')}</p>
       </div>
     );
   }
@@ -35,6 +37,7 @@ function EditorBar({ region, track }: { region: Region; track: Track }) {
   const updateRegion = (fn: (r: Region) => void) => commit((d) => fn(d.regions.find((r) => r.id === region.id)!));
   const bars = region.length / BEATS_PER_BAR;
   const sel = region.notes.filter((n) => selectedNoteIds.includes(n.id));
+  const t = useT();
   const avgVel = sel.length ? sel.reduce((a, n) => a + n.velocity, 0) / sel.length : useStore.getState().velocity;
 
   return (
@@ -51,29 +54,29 @@ function EditorBar({ region, track }: { region: Region; track: Track }) {
         <span className="eb-sub">{track.name}</span>
       </div>
       <div className="eb-group">
-        <label>Lunghezza</label>
+        <label>{t('ed.length')}</label>
         <button className="mini" onClick={() => updateRegion((r) => void (r.length = Math.max(BEATS_PER_BAR, r.length - BEATS_PER_BAR)))}>
           −
         </button>
-        <span className="eb-val">{bars % 1 ? bars.toFixed(2) : bars} batt.</span>
+        <span className="eb-val">{t('ed.bars', { n: bars % 1 ? bars.toFixed(2) : bars })}</span>
         <button className="mini" onClick={() => updateRegion((r) => void (r.length += BEATS_PER_BAR))}>
           +
         </button>
       </div>
       {track.kind === 'instrument' && (
         <div className="eb-group">
-          <label>Trasponi</label>
+          <label>{t('ed.transpose')}</label>
           <button className="mini" onClick={() => commands.transpose_region({ region_id: region.id, semitones: -12 })}>−8va</button>
           <button className="mini" onClick={() => commands.transpose_region({ region_id: region.id, semitones: -1 })}>−1</button>
           <button className="mini" onClick={() => commands.transpose_region({ region_id: region.id, semitones: 1 })}>+1</button>
           <button className="mini" onClick={() => commands.transpose_region({ region_id: region.id, semitones: 12 })}>+8va</button>
-          <button className="mini" onClick={() => commands.quantize_region({ region_id: region.id, grid: 0.25 })} title="Quantizza a 1/16">
-            Quantizza
+          <button className="mini" onClick={() => commands.quantize_region({ region_id: region.id, grid: 0.25 })} title={t('ed.quantizeHint')}>
+            {t('ed.quantize')}
           </button>
         </div>
       )}
       <div className="eb-group">
-        <label>Velocity</label>
+        <label>{t('ed.velocity')}</label>
         <input
           type="range"
           min={0.05}
@@ -93,10 +96,10 @@ function EditorBar({ region, track }: { region: Region; track: Track }) {
         <span className="eb-val">{Math.round(avgVel * 127)}</span>
       </div>
       <div className="eb-spacer" />
-      <button className="mini" onClick={() => commands.duplicate_region({ region_id: region.id })} title="Duplica (⌘D)">
-        <I.Copy width={14} height={14} /> Duplica
+      <button className="mini" onClick={() => commands.duplicate_region({ region_id: region.id })} title={t('ed.duplicateHint')}>
+        <I.Copy width={14} height={14} /> {t('ed.duplicate')}
       </button>
-      <button className="mini danger" onClick={() => commands.delete_region({ region_id: region.id })} title="Elimina regione">
+      <button className="mini danger" onClick={() => commands.delete_region({ region_id: region.id })} title={t('ed.deleteRegion')}>
         <I.Trash width={14} height={14} />
       </button>
     </div>
@@ -118,6 +121,7 @@ function PianoRoll({ region, track }: { region: Region; track: Track }) {
   const [ppb, setPpb] = useState(90);
   const [snap, setSnap] = useState(0.25);
   const lastDur = useRef(1);
+  const t = useT();
   const scrollRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const rows = HIGH - LOW + 1;
@@ -239,17 +243,17 @@ function PianoRoll({ region, track }: { region: Region; track: Track }) {
   return (
     <div className="pr">
       <div className="pr-tools">
-        <label>Griglia</label>
+        <label>{t('ed.grid')}</label>
         <select value={snap} onChange={(e) => setSnap(Number(e.target.value))}>
           <option value={1}>1/4</option>
           <option value={0.5}>1/8</option>
           <option value={0.25}>1/16</option>
           <option value={0.125}>1/32</option>
-          <option value={1 / 3}>1/8 terzina</option>
+          <option value={1 / 3}>{t('ed.triplet')}</option>
         </select>
-        <label>Zoom</label>
+        <label>{t('ed.zoom')}</label>
         <input type="range" min={30} max={240} value={ppb} onChange={(e) => setPpb(Number(e.target.value))} />
-        <span className="hint">Clic: aggiungi · Trascina: sposta · Bordo destro: durata · Doppio clic: elimina · ⇧ multi-selezione</span>
+        <span className="hint">{t('ed.prHint')}</span>
       </div>
       <div className="pr-scroll" ref={scrollRef}>
         <div className="pr-inner" style={{ width: KEYS_W + viewBeats * ppb, height: PR_RULER + rows * ROW_H }}>
@@ -333,6 +337,7 @@ const STEP = 0.25;
 function StepSequencer({ region, track }: { region: Region; track: Track }) {
   const commit = useStore((s) => s.commit);
   const paint = useRef<null | 'add' | 'remove'>(null);
+  const t = useT();
   const steps = Math.round(region.length / STEP);
   const [current, setCurrent] = useState(-1);
   useFrame(() => {
@@ -380,7 +385,7 @@ function StepSequencer({ region, track }: { region: Region; track: Track }) {
   return (
     <div className="seq">
       <div className="pr-tools">
-        <span className="hint">Clic o trascina per disegnare i colpi · ⇧ clic per cambiare l’accento · Barra spaziatrice per ascoltare</span>
+        <span className="hint">{t('ed.seqHint')}</span>
       </div>
       <div className="seq-scroll">
         <div className="seq-grid" style={{ gridTemplateColumns: `128px repeat(${steps}, ${CELL_W}px)` }}>
@@ -394,7 +399,7 @@ function StepSequencer({ region, track }: { region: Region; track: Track }) {
             <Row key={piece.pitch}>
               <button className="seq-label" onPointerDown={() => engine.preview(track.id, piece.pitch)}>
                 <span className="seq-short">{piece.short}</span>
-                {piece.name}
+                {drumLabel(piece)}
               </button>
               {Array.from({ length: steps }, (_, s) => {
                 const i = find(region.notes, piece.pitch, s);

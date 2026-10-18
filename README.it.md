@@ -22,6 +22,7 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 - **Registrazione** dal vivo in nuove regioni, con metronomo.
 - **Annulla/ripristina**, salvataggio automatico, salvataggio e apertura dei progetti `.json`, **esportazione WAV** con rendering offline.
 - **Controllo AI via MCP**: 32 strumenti per comporre, arrangiare, mixare e riprodurre.
+- Interfaccia in **inglese e italiano**: l'inglese è predefinito, si cambia dalla schermata iniziale o dal menu ⋯.
 
 | Piano roll | Mixer |
 |---|---|
@@ -42,7 +43,7 @@ Oppure compila una volta: il server MCP servirà l'app da solo su `http://127.0.
 npm run build
 ```
 
-Al primo avvio si apre un brano demo. Il clic su “Entra nello studio” serve perché i browser abilitano l'audio solo dopo un'interazione dell'utente.
+Al primo avvio si apre un brano demo. Il clic su “Entra nello studio” (“Enter the studio” in inglese) serve perché i browser abilitano l'audio solo dopo un'interazione dell'utente.
 
 ## Collegare un'AI (MCP)
 
