@@ -347,15 +347,28 @@ export function createInstrument(presetId: string, custom = customs.get(presetId
   return new MelodicInstrument(presetId);
 }
 
-/** Synthetic stereo impulse response for the shared reverb (no IR files needed). */
+/** Small seeded PRNG (mulberry32): the reverb must sound the same on every render. */
+export function seeded(seed: number) {
+  let a = seed | 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Synthetic stereo impulse response for the shared reverb (no IR files needed). Deterministic, so
+ * repeated renders (exports, analysis, stems) are identical. */
 export function makeImpulse(seconds: number, decay = 3): Tone.ToneAudioBuffer {
   const rate = Tone.getContext().sampleRate;
   const len = Math.floor(rate * seconds);
   const chans = [new Float32Array(len), new Float32Array(len)];
+  const rnd = seeded(0x0b5e7a11);
   for (const ch of chans) {
     for (let i = 0; i < len; i++) {
       const t = i / len;
-      ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay) * (i < rate * 0.004 ? i / (rate * 0.004) : 1);
+      ch[i] = (rnd() * 2 - 1) * Math.pow(1 - t, decay) * (i < rate * 0.004 ? i / (rate * 0.004) : 1);
     }
   }
   return Tone.ToneAudioBuffer.fromArray(chans);

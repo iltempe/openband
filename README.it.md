@@ -160,7 +160,7 @@ src/
   input.ts                tastiera musicale, Web MIDI, registrazione
   audio/instruments.ts    preset sintetizzati (Tone.js)
   audio/engine.ts         grafo audio live, trasporto, metronomo, misuratori
-  audio/render.ts         rendering offline in WAV
+  audio/render.ts         rendering offline: brano, intervalli, stem (deterministico), WAV
   audio/samples.ts        audio importato (IndexedDB), forme d'onda, riconoscimento della nota
   audio/sampler.ts        strumenti a campioni (campionatore, kit, preset SoundFont)
   audio/soundfont.ts      lettore SoundFont 2
