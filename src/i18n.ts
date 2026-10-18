@@ -234,6 +234,17 @@ const en = {
   'fx.chainPlugins': 'Amp → EQ → Compressor → Plugins',
   'cat.Plugins': 'Plugins',
 
+  // History / transactions
+  'hist.edit': 'Edit',
+  'hist.load': 'Open project',
+  'hist.aiChange': 'AI change',
+  'tb.undoLabel': 'Undo: {label} ({n} commands) — ⌘Z',
+  'tb.redoLabel': 'Redo: {label} ({n} commands) — ⇧⌘Z',
+  'ai.groupCount': '{n} commands',
+  'ai.undoThis': 'Undo this',
+  'ai.undoOnlyLast': 'Only the latest change can be undone from here',
+  'ai.inProgress': 'in progress…',
+
   // Default names
   'name.untitled': 'My song',
   'name.newSong': 'New song',
@@ -496,6 +507,16 @@ const it: Record<MessageKey, string> = {
   'plug.libHint': 'Aggiungi strumenti ed effetti plugin WAM',
   'fx.chainPlugins': 'Amp → EQ → Compressore → Plugin',
   'cat.Plugins': 'Plugin',
+
+  'hist.edit': 'Modifica',
+  'hist.load': 'Apri progetto',
+  'hist.aiChange': 'Modifica dell’AI',
+  'tb.undoLabel': 'Annulla: {label} ({n} comandi) — ⌘Z',
+  'tb.redoLabel': 'Ripristina: {label} ({n} comandi) — ⇧⌘Z',
+  'ai.groupCount': '{n} comandi',
+  'ai.undoThis': 'Annulla questo',
+  'ai.undoOnlyLast': 'Da qui si può annullare solo l’ultima modifica',
+  'ai.inProgress': 'in corso…',
 
   'name.untitled': 'Il mio brano',
   'name.newSong': 'Nuovo brano',

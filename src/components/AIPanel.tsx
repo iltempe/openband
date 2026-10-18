@@ -1,4 +1,5 @@
 import { useStore } from '../store';
+import type { BridgeLogEntry } from '../types';
 import { BRIDGE_ENABLED, BRIDGE_URL } from '../bridge';
 import * as I from './Icons';
 import { useT } from '../i18n';
@@ -14,9 +15,23 @@ const config = (path: string) => `{
 
 const EXAMPLES = ['ai.ex1', 'ai.ex2', 'ai.ex3', 'ai.ex4'] as const;
 
+/** Consecutive log entries of the same transaction form one group (the log is newest first). */
+function groupByTransaction(log: BridgeLogEntry[]) {
+  const groups: { key: string; txId?: string; items: BridgeLogEntry[] }[] = [];
+  for (const l of log) {
+    const last = groups[groups.length - 1];
+    if (last && l.txId && last.txId === l.txId) last.items.push(l);
+    else groups.push({ key: l.id, txId: l.txId, items: [l] });
+  }
+  return groups;
+}
+
 export function AIPanel() {
   const status = useStore((s) => s.bridgeStatus);
   const log = useStore((s) => s.bridgeLog);
+  const past = useStore((s) => s.past);
+  const open = useStore((s) => s.activeTransaction);
+  const undo = useStore((s) => s.undo);
   const set = useStore((s) => s.set);
   const notify = useStore((s) => s.notify);
   const t = useT();
@@ -75,13 +90,34 @@ export function AIPanel() {
       <div className="ai-section">{t('ai.activity')}</div>
       <div className="ai-log">
         {log.length === 0 && <div className="ai-log-empty">{t('ai.logEmpty')}</div>}
-        {log.map((l) => (
-          <div key={l.id} className={`ai-log-item ${l.ok ? '' : 'err'}`}>
-            <span className="ai-log-time">{new Date(l.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-            <span className="ai-log-method">{l.method}</span>
-            <span className="ai-log-sum">{l.summary}</span>
-          </div>
-        ))}
+        {groupByTransaction(log).map((g) => {
+          const step = g.txId ? past.find((h) => h.id === g.txId) : undefined;
+          const isOpen = !!g.txId && open?.id === g.txId;
+          const isLast = !!step && past[past.length - 1]?.id === step.id;
+          return (
+            <div key={g.key} className={`ai-group ${g.txId ? 'tx' : ''}`}>
+              {g.txId && (step || isOpen) && (
+                <div className="ai-group-head">
+                  <span className="ai-group-label">{step?.label ?? open?.label}</span>
+                  <span className="ai-group-count">{t('ai.groupCount', { n: g.items.length })}</span>
+                  {step && (
+                    <button className="mini" disabled={!isLast} title={isLast ? '' : t('ai.undoOnlyLast')} onClick={() => undo()}>
+                      ↶ {t('ai.undoThis')}
+                    </button>
+                  )}
+                  {isOpen && <span className="ai-group-live">{t('ai.inProgress')}</span>}
+                </div>
+              )}
+              {g.items.map((l) => (
+                <div key={l.id} className={`ai-log-item ${l.ok ? '' : 'err'}`}>
+                  <span className="ai-log-time">{new Date(l.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                  <span className="ai-log-method">{l.method}</span>
+                  <span className="ai-log-sum">{l.summary}</span>
+                </div>
+              ))}
+            </div>
+          );
+        })}
       </div>
     </aside>
   );

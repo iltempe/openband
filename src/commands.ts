@@ -11,7 +11,7 @@ import { presetForProgram, readMidi, writeMidi, type MidiSong } from './midi';
 import { addPluginEffect, addPluginInstrument, captureWamStates, getPluginParams, removePluginEffect, searchPlugins, setPluginParams, updateSlot } from './plugins';
 import { wamCatalog } from './audio/wam';
 import { addAudioRegion, guessDrumPads, instrumentFromSoundFont, openSoundFont, rootFor, spreadZones } from './importers';
-import { emptyProject, getRegion, getTrack, makeTrack, projectEnd, useStore } from './store';
+import { emptyProject, enterAiCommand, exitAiCommand, getRegion, getTrack, makeTrack, projectEnd, useStore } from './store';
 import { engine } from './audio/engine';
 import { download, renderProject } from './audio/render';
 import { t as tr } from './i18n';
@@ -556,13 +556,44 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { region_id: r.id };
   },
 
-  undo: () => {
-    st().undo();
-    return { ok: true };
+  undo: ({ steps }) => {
+    const before = st().past.length;
+    st().undo(clamp(Math.round(Number(steps ?? 1)), 1, 100));
+    return { undone: before - st().past.length, next_undo: st().past[st().past.length - 1]?.label ?? null };
   },
-  redo: () => {
-    st().redo();
-    return { ok: true };
+  redo: ({ steps }) => {
+    const before = st().future.length;
+    st().redo(clamp(Math.round(Number(steps ?? 1)), 1, 100));
+    return { redone: before - st().future.length, next_redo: st().future[0]?.label ?? null };
+  },
+
+  // ---------- transactions (one undo step per intent) ----------
+
+  begin_change: ({ label }) => {
+    const open = st().activeTransaction;
+    if (open) st().endTransaction(open.id);
+    const id = st().beginTransaction(String(label || tr('hist.aiChange')), 'ai');
+    armTransactionTimer();
+    return { tx_id: id, label: st().activeTransaction!.label };
+  },
+
+  end_change: () => {
+    clearTimeout(txTimer);
+    const tx = st().activeTransaction;
+    if (!tx) return { closed: false };
+    const e = st().endTransaction(tx.id);
+    return { closed: true, label: tx.label, commands: tx.commands, changed: !!e };
+  },
+
+  get_history: ({ limit }) => {
+    const n = clamp(Math.round(Number(limit ?? 20)), 1, 200);
+    const fmt = (e: { label: string; source: string; commands: number; at: number }) => ({ label: e.label, source: e.source, commands: e.commands, at: e.at });
+    const tx = st().activeTransaction;
+    return {
+      past: st().past.slice(-n).reverse().map(fmt),
+      future: st().future.slice(0, n).map(fmt),
+      open: tx ? { label: tx.label, source: tx.source, commands: tx.commands } : null,
+    };
   },
 
   export_project_json: () => st().project,
@@ -738,16 +769,55 @@ export const commands: Record<string, (args: P) => unknown> = {
 };
 
 /** Run a command and record it in the AI activity log. */
+/** Commands that never change the project: they don't open an undo step. */
+const READ_ONLY = new Set([
+  'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi',
+  'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
+]);
+/** Commands that manage history themselves. */
+const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);
+
+/** AI commands without begin_change are grouped until the AI has been quiet for this long. */
+export const transactionConfig = { autoCloseMs: 4000, explicitIdleMs: 60000 };
+let txTimer: ReturnType<typeof setTimeout> | undefined;
+
+function armTransactionTimer() {
+  clearTimeout(txTimer);
+  const tx = st().activeTransaction;
+  if (!tx || tx.source !== 'ai') return;
+  // Explicit changes stay open until end_change; the long timeout only protects against a forgotten one.
+  txTimer = setTimeout(() => {
+    const open = st().activeTransaction;
+    if (open?.id === tx.id) st().endTransaction(open.id);
+  }, tx.auto ? transactionConfig.autoCloseMs : transactionConfig.explicitIdleMs);
+}
+
+/** Run a command and record it in the AI activity log. AI commands are grouped into undo steps. */
 export async function runCommand(method: string, params: P, source: 'ai' | 'ui' = 'ai') {
   const fn = commands[method];
   if (!fn) throw new Error(`Unknown command ${method}`);
+  const ai = source === 'ai';
+  let txId: string | undefined;
+  if (ai && !CONTROL.has(method) && !READ_ONLY.has(method)) {
+    if (!st().activeTransaction) st().beginTransaction(shortSummary(method, params ?? {}), 'ai', { auto: true });
+    st().countCommand();
+    txId = st().activeTransaction?.id;
+  }
+  if (ai && method === 'end_change') txId = st().activeTransaction?.id;
+  if (ai) enterAiCommand();
   try {
     const result = await fn(params ?? {});
-    if (source === 'ai') st().logBridge({ method, ok: true, summary: shortSummary(method, params) });
+    if (ai && method === 'begin_change') txId = st().activeTransaction?.id;
+    if (ai) st().logBridge({ method, ok: true, summary: shortSummary(method, params ?? {}), txId });
     return result;
   } catch (e) {
-    if (source === 'ai') st().logBridge({ method, ok: false, summary: (e as Error).message });
+    if (ai) st().logBridge({ method, ok: false, summary: (e as Error).message, txId });
     throw e;
+  } finally {
+    if (ai) {
+      exitAiCommand();
+      if (txId && method !== 'end_change') armTransactionTimer();
+    }
   }
 }
 

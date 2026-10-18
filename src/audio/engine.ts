@@ -84,11 +84,12 @@ class AudioEngine {
 
   // ---------- transport ----------
 
+  // Before setup() (e.g. in Node tests, where there is no audio) the transport is left alone.
   get position(): number {
-    return transport().ticks / transport().PPQ;
+    return this.ready ? transport().ticks / transport().PPQ : 0;
   }
   set position(beats: number) {
-    transport().ticks = Math.max(0, Math.round(beats * transport().PPQ));
+    if (this.ready) transport().ticks = Math.max(0, Math.round(beats * transport().PPQ));
   }
   get playing() {
     return transport().state === 'started';
@@ -98,6 +99,7 @@ class AudioEngine {
     transport().start();
   }
   stop() {
+    if (!this.ready) return;
     transport().pause();
     this.nodes.forEach((n) => n.instrument.releaseAll());
   }

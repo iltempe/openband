@@ -117,6 +117,8 @@ async function call(method, params = {}, timeoutMs = 20000) {
 
 const INSTRUCTIONS = `OpenBand is a GarageBand-style music studio running in the user's browser. You control it with these tools.
 
+Wrap every user request in begin_change("short label") … end_change() so the user can undo it in one step. (Commands sent without it are grouped automatically until you pause for 4 seconds.)
+
 Conventions:
 - 4/4 time. Bars are 1-based (bar 1 = the very start). One bar = 4 beats.
 - Inside a region, note "start" and "duration" are in BEATS relative to the region start (0 = first beat of the region; 0.25 = a 16th note; 0.5 = an 8th).
@@ -381,8 +383,11 @@ tool('set_loop', 'Set the cycle (loop) range in bars; end_bar is exclusive (1..5
 
 tool('set_metronome', 'Turn the metronome click on or off.', { enabled: z.boolean() });
 tool('open_editor', 'Select a region and show it in the piano roll / step editor so the user can see it.', { region_id: z.string() });
-tool('undo', 'Undo the last change.', {});
-tool('redo', 'Redo the last undone change.', {});
+tool('undo', 'Undo the last change (one whole begin_change…end_change step, or one user edit). steps undoes several.', { steps: z.number().int().min(1).max(100).optional() });
+tool('redo', 'Redo the last undone change.', { steps: z.number().int().min(1).max(100).optional() });
+tool('begin_change', 'Start one undoable change and name it after the user\'s request (e.g. "Lo-fi beat in D minor"). Every command until end_change becomes a single undo step. Closes any change still open.', { label: z.string() });
+tool('end_change', 'Close the change opened with begin_change. Returns its label and how many commands it grouped.', {});
+tool('get_history', 'The undo history: past and future steps with label, source (ui/ai) and number of commands, plus the change currently open.', { limit: z.number().int().min(1).max(200).optional() }, readOnly);
 tool('export_project_json', 'Export the complete project as JSON (for saving or analysis).', {}, readOnly);
 tool('import_project_json', 'Replace the current project with an OpenBand project JSON (as produced by export_project_json).', {
   project: z.union([z.string(), z.record(z.string(), z.any())]),

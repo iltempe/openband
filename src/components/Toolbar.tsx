@@ -254,10 +254,20 @@ export function Toolbar() {
       </div>
 
       <div className="tb-group tb-right">
-        <button className="icon-btn" onClick={s.undo} disabled={!s.past.length} title={t('tb.undo')}>
+        <button
+          className="icon-btn"
+          onClick={() => s.undo()}
+          disabled={!s.past.length && !s.activeTransaction}
+          title={s.past.length ? t('tb.undoLabel', { label: s.past[s.past.length - 1].label, n: s.past[s.past.length - 1].commands }) : t('tb.undo')}
+        >
           <I.Undo />
         </button>
-        <button className="icon-btn" onClick={s.redo} disabled={!s.future.length} title={t('tb.redo')}>
+        <button
+          className="icon-btn"
+          onClick={() => s.redo()}
+          disabled={!s.future.length}
+          title={s.future.length ? t('tb.redoLabel', { label: s.future[0].label, n: s.future[0].commands }) : t('tb.redo')}
+        >
           <I.Redo />
         </button>
         <div className="master-vol" title={t('tb.masterVolume')}>

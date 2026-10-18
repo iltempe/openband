@@ -26,6 +26,7 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 - **Tastiera musicale** (tasti A–' come un pianoforte, Z/X per l'ottava, C/V per la velocity) e **Web MIDI** per i controller esterni.
 - **Registrazione** dal vivo in nuove regioni, con metronomo.
 - **Import ed export MIDI** (Standard MIDI File, programmi General MIDI, batteria sul canale 10).
+- **Annulla per intento**: tutto ciò che l'AI fa per una richiesta è un solo passo di annullamento con etichetta (*“Annulla: Beat lo-fi (23 comandi)”*); trascinamenti e manopole contano un passo ciascuno.
 - **Annulla/ripristina**, salvataggio automatico, **esportazione WAV** con rendering offline; i progetti con suoni importati si salvano in un unico file `.openband` che contiene i campioni.
 - **Controllo AI via MCP**: 52 strumenti per comporre, arrangiare, importare suoni, aggiungere plugin, mixare, automatizzare ed esportare: l'AI può aggiungere un plugin solo a partire da una descrizione come *“un overdrive valvolare caldo”*.
 - Interfaccia in **inglese e italiano**: l'inglese è predefinito, si cambia dalla schermata iniziale o dal menu ⋯.
@@ -110,7 +111,8 @@ Il bridge accetta connessioni solo da `127.0.0.1` e da pagine servite su localho
 
 | Area | Strumenti |
 |---|---|
-| Progetto | `get_project`, `get_status`, `list_instruments`, `new_project`, `rename_project`, `set_tempo`, `set_key`, `set_master_volume`, `export_project_json`, `import_project_json`, `undo`, `redo` |
+| Progetto | `get_project`, `get_status`, `list_instruments`, `new_project`, `rename_project`, `set_tempo`, `set_key`, `set_master_volume`, `export_project_json`, `import_project_json` |
+| Annulla | `begin_change` / `end_change` (un passo di annullamento per richiesta, con etichetta), `get_history`, `undo` / `redo` (con `steps`) |
 | Tracce | `add_track` (strumento, batteria o audio), `update_track` (strumento, volume, pan, mute, solo, riverbero, eco, tono), `delete_track` |
 | Suoni | `import_sample`, `list_samples`, `create_sampler_instrument`, `import_soundfont`, `add_audio_region` — i file si leggono da un percorso locale o da un URL http(s) |
 | Mix | `set_track_effects` (amp, EQ, compressore), `set_automation`, `clear_automation` |

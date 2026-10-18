@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AutoParam, BottomPanel, BridgeLogEntry, BridgeStatus, Project, Region, Track, TrackKind } from './types';
+import type { ActiveTransaction, AutoParam, BottomPanel, HistoryEntry, BridgeLogEntry, BridgeStatus, Project, Region, Track, TrackKind } from './types';
 import { AUDIO_COLOR, DRUM_COLOR, TRACK_COLORS, uid } from './music';
 import { defaultPreset, findInstrument, setCustomInstruments } from './audio/instruments';
 import { ensureSamples } from './audio/samples';
@@ -44,8 +44,10 @@ export function makeTrack(project: Project, kind: TrackKind, instrument?: string
 
 interface State {
   project: Project;
-  past: Project[];
-  future: Project[];
+  past: HistoryEntry[];
+  future: HistoryEntry[];
+  /** Open transaction: commits inside it become a single undo step when it ends. */
+  activeTransaction: ActiveTransaction | null;
 
   selectedTrackId: string | null;
   selectedRegionId: string | null;
@@ -72,12 +74,16 @@ interface State {
   bridgeLog: BridgeLogEntry[];
   toast: string | null;
 
-  /** Apply a mutation to a deep copy of the project. */
-  commit: (mutate: (draft: Project) => void, opts?: { history?: boolean }) => void;
-  /** Push a history snapshot once at the beginning of a drag gesture. */
-  checkpoint: () => void;
-  undo: () => void;
-  redo: () => void;
+  /** Apply a mutation to a deep copy of the project. Outside a transaction it is its own undo step. */
+  commit: (mutate: (draft: Project) => void, opts?: { history?: boolean; label?: string }) => void;
+  /** Start of a UI gesture (drag, knob): everything until pointer-up is one undo step. */
+  checkpoint: (label?: unknown) => void;
+  beginTransaction: (label: string, source: 'ui' | 'ai', opts?: { auto?: boolean }) => string;
+  endTransaction: (txId?: string) => HistoryEntry | null;
+  /** Count one more command in the open transaction. */
+  countCommand: () => void;
+  undo: (steps?: number) => void;
+  redo: (steps?: number) => void;
   loadProject: (p: Project) => void;
   set: (partial: Partial<State>) => void;
   selectRegion: (r: Region | null) => void;
@@ -98,10 +104,18 @@ function loadSaved(): Project | null {
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
+const entry = (project: Project, label: string, source: 'ui' | 'ai', commands: number): HistoryEntry => ({ id: uid('h'), project, label, source, commands, at: Date.now() });
+
+/** > 0 while an AI command is running (set by runCommand), so commits know who made them. */
+let aiDepth = 0;
+export const enterAiCommand = () => void aiDepth++;
+export const exitAiCommand = () => void (aiDepth = Math.max(0, aiDepth - 1));
+
 export const useStore = create<State>((set, get) => ({
   project: loadSaved() ?? emptyProject(),
   past: [],
   future: [],
+  activeTransaction: null,
 
   selectedTrackId: null,
   selectedRegionId: null,
@@ -127,37 +141,77 @@ export const useStore = create<State>((set, get) => ({
   toast: null,
 
   commit: (mutate, opts) => {
-    const { project, past } = get();
+    // A user edit while the AI's change is still open closes the AI step first, so the two don't merge.
+    const open = get().activeTransaction;
+    if (open?.source === 'ai' && aiDepth === 0) get().endTransaction(open.id);
+    const { project, past, activeTransaction } = get();
     const draft = structuredClone(project);
     mutate(draft);
-    const history = opts?.history ?? true;
+    const history = (opts?.history ?? true) && !activeTransaction;
     set({
       project: draft,
-      past: history ? [...past, project].slice(-HISTORY_LIMIT) : past,
+      past: history ? [...past, entry(project, opts?.label ?? t('hist.edit'), 'ui', 1)].slice(-HISTORY_LIMIT) : past,
       future: history ? [] : get().future,
     });
   },
-  checkpoint: () => {
+  checkpoint: (label) => {
+    const id = get().beginTransaction(typeof label === 'string' ? label : t('hist.edit'), 'ui');
+    if (typeof window !== 'undefined') window.addEventListener('pointerup', () => get().endTransaction(id), { once: true });
+  },
+  beginTransaction: (label, source, opts) => {
+    const open = get().activeTransaction;
+    if (open) {
+      set({ activeTransaction: { ...open, depth: open.depth + 1 } });
+      return open.id;
+    }
+    const tx: ActiveTransaction = { id: uid('tx'), label, source, commands: 0, snapshot: get().project, depth: 1, auto: opts?.auto };
+    set({ activeTransaction: tx });
+    return tx.id;
+  },
+  endTransaction: (txId) => {
+    const tx = get().activeTransaction;
+    if (!tx || (txId && tx.id !== txId)) return null;
+    if (tx.depth > 1) {
+      set({ activeTransaction: { ...tx, depth: tx.depth - 1 } });
+      return null;
+    }
     const { project, past } = get();
-    set({ past: [...past, project].slice(-HISTORY_LIMIT), future: [] });
+    const changed = project !== tx.snapshot && JSON.stringify(project) !== JSON.stringify(tx.snapshot);
+    if (!changed) {
+      set({ activeTransaction: null });
+      return null;
+    }
+    const e: HistoryEntry = { id: tx.id, project: tx.snapshot, label: tx.label, source: tx.source, commands: Math.max(1, tx.commands), at: Date.now() };
+    set({ activeTransaction: null, past: [...past, e].slice(-HISTORY_LIMIT), future: [] });
+    return e;
   },
-  undo: () => {
-    const { past, project, future } = get();
-    const prev = past[past.length - 1];
-    if (!prev) return;
-    set({ project: prev, past: past.slice(0, -1), future: [project, ...future] });
+  countCommand: () => {
+    const tx = get().activeTransaction;
+    if (tx) set({ activeTransaction: { ...tx, commands: tx.commands + 1 } });
   },
-  redo: () => {
-    const { past, project, future } = get();
-    const next = future[0];
-    if (!next) return;
-    set({ project: next, past: [...past, project], future: future.slice(1) });
+  undo: (steps = 1) => {
+    const open = get().activeTransaction;
+    if (open) get().endTransaction(open.id);
+    for (let i = 0; i < steps; i++) {
+      const { past, project, future } = get();
+      const prev = past[past.length - 1];
+      if (!prev) return;
+      set({ project: prev.project, past: past.slice(0, -1), future: [{ ...prev, project }, ...future] });
+    }
+  },
+  redo: (steps = 1) => {
+    for (let i = 0; i < steps; i++) {
+      const { past, project, future } = get();
+      const next = future[0];
+      if (!next) return;
+      set({ project: next.project, past: [...past, { ...next, project }], future: future.slice(1) });
+    }
   },
   loadProject: (p) => {
     const { project, past } = get();
     set({
       project: p,
-      past: [...past, project].slice(-HISTORY_LIMIT),
+      past: [...past, entry(project, t('hist.load'), 'ui', 1)].slice(-HISTORY_LIMIT),
       future: [],
       selectedRegionId: null,
       selectedNoteIds: [],

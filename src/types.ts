@@ -144,6 +144,31 @@ export interface BridgeLogEntry {
   method: string;
   ok: boolean;
   summary: string;
+  /** The transaction (undo step) the command belongs to. */
+  txId?: string;
+}
+
+/** One undo step: the project as it was before the change, and what the change was. */
+export interface HistoryEntry {
+  id: string;
+  project: Project;
+  label: string;
+  source: 'ui' | 'ai';
+  /** How many commands the step groups. */
+  commands: number;
+  at: number;
+}
+
+export interface ActiveTransaction {
+  id: string;
+  label: string;
+  source: 'ui' | 'ai';
+  commands: number;
+  snapshot: Project;
+  /** Nesting depth: only the outermost begin/end pair counts. */
+  depth: number;
+  /** Opened automatically for AI commands (closed after a pause) rather than by begin_change. */
+  auto?: boolean;
 }
 
 export type BridgeStatus = 'connecting' | 'connected' | 'disconnected';
