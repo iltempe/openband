@@ -41,6 +41,8 @@ class AudioEngine {
   private delay!: Tone.FeedbackDelay;
   private click!: Tone.Synth;
   private metronomeOn = false;
+  /** Click forced on regardless of the project setting (count-in while recording). */
+  metronomeForced = false;
   private ready = false;
 
   private setup() {
@@ -58,7 +60,7 @@ class AudioEngine {
     }).toDestination();
     const PPQ = transport().PPQ;
     new Tone.Loop((time) => {
-      if (!this.metronomeOn) return;
+      if (!this.metronomeOn && !this.metronomeForced) return;
       const beat = Math.round(transport().getTicksAtTime(time) / PPQ) % 4;
       this.click.triggerAttackRelease(beat === 0 ? 'G6' : 'C6', 0.03, time, beat === 0 ? 1 : 0.6);
     }, '4n').start(0);
@@ -97,6 +99,19 @@ class AudioEngine {
   async play() {
     await this.unlock();
     transport().start();
+  }
+  /**
+   * Click `beats` beats, then start the transport (from the current position) exactly on the next
+   * downbeat. Returns that start time in AudioContext seconds.
+   */
+  async playWithCountIn(beats: number): Promise<number> {
+    await this.unlock();
+    const at = Tone.now() + 0.05;
+    const spb = 60 / transport().bpm.value;
+    for (let i = 0; i < beats; i++) this.click.triggerAttackRelease(i % 4 === 0 ? 'G6' : 'C6', 0.03, at + i * spb, i % 4 === 0 ? 1 : 0.6);
+    const t0 = at + beats * spb;
+    transport().start(t0);
+    return t0;
   }
   stop() {
     if (!this.ready) return;

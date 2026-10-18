@@ -23,6 +23,9 @@ export const Pause = (p: I) => (
 export const Record = (p: I) => (
   <svg {...base(p)}><circle cx="12" cy="12" r="6.5" fill="currentColor" stroke="none" /></svg>
 );
+export const Mic = (p: I) => (
+  <svg {...base(p)}><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" /></svg>
+);
 export const ToStart = (p: I) => (
   <svg {...base(p)}><path d="M6 5v14" /><path d="M19 5v14L9 12z" fill="currentColor" stroke="none" /></svg>
 );

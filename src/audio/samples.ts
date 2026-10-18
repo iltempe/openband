@@ -1,6 +1,7 @@
 // Imported audio: raw bytes live in IndexedDB (they are too big for the project JSON), decoded
 // AudioBuffers are cached in memory. Projects reference samples by id.
 import { create } from 'zustand';
+import { yinTrack } from '../analysis/pitchtrack';
 
 export interface SampleInfo {
   id: string;
@@ -162,36 +163,18 @@ export function getPeaks(id: string): { peaks: Float32Array; secondsPerPeak: num
   return { peaks, secondsPerPeak: PEAK_RES / buf.sampleRate };
 }
 
-/** Rough fundamental estimate (autocorrelation) → nearest MIDI pitch, or undefined if unclear. */
+/** Fundamental of a sample (YIN over its steady part) → nearest MIDI pitch, or undefined if unclear. */
 export function detectPitch(id: string): number | undefined {
   const buf = buffers.get(id);
   if (!buf) return undefined;
   const rate = buf.sampleRate;
   const d = buf.getChannelData(0);
-  // Skip the attack and analyse a short steady window.
-  const start = Math.min(d.length - 1, Math.floor(rate * 0.05));
-  const size = Math.min(d.length - start, Math.floor(rate * 0.12));
-  if (size < 2048) return undefined;
-  const x = d.subarray(start, start + size);
-  let energy = 0;
-  for (let i = 0; i < size; i++) energy += x[i] * x[i];
-  if (energy / size < 1e-5) return undefined;
-  const minLag = Math.floor(rate / 1500);
-  const maxLag = Math.min(Math.floor(rate / 40), size >> 1);
-  let best = -1;
-  let bestLag = 0;
-  for (let lag = minLag; lag <= maxLag; lag++) {
-    let sum = 0;
-    for (let i = 0; i < size - lag; i++) sum += x[i] * x[i + lag];
-    sum /= size - lag;
-    if (sum > best) {
-      best = sum;
-      bestLag = lag;
-    }
-  }
-  if (!bestLag || best / (energy / size) < 0.6) return undefined;
-  const hz = rate / bestLag;
-  return Math.round(69 + 12 * Math.log2(hz / 440));
+  // Skip the attack, look at up to half a second.
+  const x = d.subarray(Math.min(d.length, Math.floor(rate * 0.05)), Math.min(d.length, Math.floor(rate * 0.55)));
+  const voiced = yinTrack(x, rate).filter((f) => f.midi !== null).map((f) => f.midi!);
+  if (voiced.length < 4) return undefined;
+  voiced.sort((a, b) => a - b);
+  return Math.round(voiced[Math.floor(voiced.length / 2)]);
 }
 
 /** Note name in a file name ("Piano_C#4.wav", "bass-A2") → MIDI pitch. */

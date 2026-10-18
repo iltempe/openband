@@ -27,6 +27,7 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 - **Mixer** with level meters, faders, mute and solo, sends and master.
 - **Musical typing** (keys A–' like a piano, Z/X for octave, C/V for velocity) and **Web MIDI** for external controllers.
 - **Live recording** into new regions, with metronome.
+- **Microphone recording and hum-to-MIDI**: record your voice or an instrument onto an audio track after a one-bar count-in (with latency compensation), or *hum a melody* and get it back as MIDI notes, snapped to the key and gently quantized. Any monophonic audio clip can be converted the same way. When the AI asks to record, you always confirm first.
 - **MIDI import and export** (Standard MIDI Files, General MIDI programs, drums on channel 10).
 - **The AI listens**: `analyze_mix` renders the song and measures it — loudness (EBU R128 LUFS, true peak, LRA), frequency balance in 7 bands, stereo/phase, masking between tracks, the key — and returns concrete fixes (*“Bass and Drums cover each other at 60–250 Hz: cut 2–3 dB around 80 Hz…”*). `render_spectrogram` gives Claude an image of the mix to look at, and `analyze_harmony` reads the chords with their degrees in the key (*Am7 i7 · Fmaj7 VImaj7 · V7/V…*) and the cadences. The same reports are in the **Analysis** panel (N).
 - **Song structure**: mark intro, verses, choruses… in the *Structure* lane above the ruler (or let *Suggest* find them from repetitions). Click a section to loop it, drag it to move it with all its content (⌥ pushes the rest of the song), right-click to duplicate or delete it. The AI works in sections too: *“add one more chorus at the end”*, *“make the second verse bigger”*.
@@ -35,7 +36,7 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 - **The AI follows along**: phrases you play (split after a bar of silence), what you select, play/stop, your edits and questions typed in *Ask the AI* reach the connected AI as events. A switch in the AI panel turns activity sharing off (questions are always sent).
 - **Undo by intent**: everything the AI does for one request is a single, labelled undo step (*“Undo: Lo-fi beat (23 commands)”*); drags and knob turns are one step each.
 - **Undo/redo**, autosave, **WAV export** with offline rendering; projects with imported sounds are saved as a single `.openband` file that bundles the samples.
-- **AI control via MCP**: 52 tools to compose, arrange, import sounds, add plugins, mix, automate and export — the AI can add a plugin just from a description such as *“a warm tube overdrive”*.
+- **AI control via MCP**: 71 tools to compose, arrange, import sounds, add plugins, mix, automate and export — the AI can add a plugin just from a description such as *“a warm tube overdrive”*.
 - **English and Italian** interface (switch from the start screen or the ⋯ menu).
 
 | Piano roll | Mixer |
@@ -49,6 +50,8 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 | ![Problems panel](docs/problems.png) | ![Lyrics panel](docs/lyrics.png) |
 | **WAM plugin window** | **Plugin browser** |
 | ![Synth-101 WAM plugin](docs/plugins.png) | ![Searching plugins in plain language](docs/plugin-browser.png) |
+| **Microphone: record or hum** | **The AI asks before recording** |
+| ![Microphone menu](docs/recording.png) | ![Recording confirmation](docs/record-confirm.png) |
 
 > The online demo can't talk to your AI: for security, the MCP server only accepts pages served from localhost. To let your AI play, run OpenBand locally as shown below.
 
@@ -153,6 +156,7 @@ The bridge only accepts connections from `127.0.0.1` and from pages served on lo
 | Lyrics | `set_lyrics`, `get_lyrics`, `align_lyrics`, `check_prosody`, `suggest_melody_rhythm`, `export_chord_sheet` (ChordPro or text, optional `save_to`) |
 | Linter | `lint_project` (symbolic rules, optionally audio ones), `apply_fix`, `ignore_issue`; `update_notes` edits notes in place |
 | Listening | `analyze_mix` (bars or section, per track, summary/full), `render_spectrogram` (returns an image), `detect_key` (MIDI, audio or both), `analyze_harmony` (chords, Roman numerals, functions, cadences) |
+| Recording | `record_audio` (microphone, count-in, mode `audio` or `hum`; the user confirms), `audio_to_midi` (monophonic audio → notes, snap to key, quantize with strength) |
 | Mix | `set_track_effects` (amp, EQ, compressor), `set_automation`, `clear_automation` |
 | Plugins | `add_plugin` (from a plain-language description), `search_plugins`, `list_plugins`, `add_plugin_instrument`, `add_plugin_effect`, `remove_plugin_effect`, `set_plugin_bypass`, `get_plugin_params`, `set_plugin_params`, `show_plugin` |
 | Files | `export_wav`, `export_midi` (optionally `save_to` a path), `import_midi` |
@@ -222,7 +226,7 @@ server/mcp-server.mjs     MCP server (stdio) + WebSocket bridge + static files
 
 ## Roadmap
 
-- Recording audio from the microphone or a guitar interface
+- Multichannel recording from audio interfaces, punch-in and takes
 - Desktop app with Tauri or Electron, hosting native VST/AU plugins
 - Generative “Drummer” and a freely licensed (CC0) loop library
 - Automation of effect parameters; time-stretching audio clips

@@ -27,6 +27,7 @@ import type { Severity } from './types';
 import { addAudioRegion, guessDrumPads, instrumentFromSoundFont, openSoundFont, rootFor, spreadZones } from './importers';
 import { emptyProject, enterAiCommand, exitAiCommand, getRegion, getTrack, makeTrack, projectEnd, useStore } from './store';
 import { engine } from './audio/engine';
+import { audioRegionToMidi, audioToMidi, recordFromMic, requestRecording, useMic } from './recording';
 import { download, renderProject } from './audio/render';
 import { t as tr, useLang } from './i18n';
 
@@ -960,6 +961,33 @@ export const commands: Record<string, (args: P) => unknown> = {
   analyze_harmony: ({ from_bar, to_bar, section_id, track_ids }) => analyzeHarmony({ from_bar, to_bar, section_id, track_ids }),
 
   render_spectrogram: ({ from_bar, to_bar, section_id, track_id, width, height }) => spectrogram({ from_bar, to_bar, section_id, track_id, width, height }),
+
+  // ---------- recording ----------
+
+  record_audio: async ({ track_id, start_bar, bars, mode }) => {
+    const m = mode === 'hum' ? 'hum' : 'audio';
+    if (useMic.getState().state !== 'idle') throw new Error('The microphone is busy');
+    if (track_id) {
+      const t = getTrack(st().project, track_id);
+      if (!t) throw new Error(`No track "${track_id}"`);
+      if (m === 'audio' && t.kind !== 'audio') throw new Error('Audio recordings go on an audio track (omit track_id to create one)');
+    }
+    const startBar = Math.max(1, Math.round(start_bar ?? 1));
+    const n = bars === undefined ? undefined : clamp(Math.round(bars), 1, 64);
+    // The user always confirms: an AI must not switch the microphone on by itself.
+    const ok = await requestRecording(m, startBar, n);
+    if (!ok) return { recorded: false, reason: 'The user declined' };
+    const r = await recordFromMic({ mode: m, trackId: track_id, startBeat: (startBar - 1) * BEATS_PER_BAR, bars: n });
+    return { recorded: true, ...r };
+  },
+
+  audio_to_midi: async ({ region_id, sample_id, track_id, instrument, snap_to_key, quantize, strength, start_bar }) => {
+    const opts = { trackId: track_id, instrument, snapToKey: snap_to_key !== false, quantize: quantize ?? 0.25, strength: strength ?? 0.6 };
+    if (region_id) return audioRegionToMidi(String(region_id), opts);
+    if (!sample_id) throw new Error('Pass region_id (an audio region) or sample_id');
+    if (!getBuffer(String(sample_id))) throw new Error(`Sample "${sample_id}" is not loaded`);
+    return audioToMidi(String(sample_id), (Math.max(1, start_bar ?? 1) - 1) * BEATS_PER_BAR, 0, undefined, opts);
+  },
 
   // ---------- WAM plugins ----------
 

@@ -3044,3 +3044,109 @@ kbd {
 .pr-syl.stressed {
   font-weight: 800;
 }
+
+/* ---------- microphone ---------- */
+.t-mic.on {
+  color: #ff5a5a;
+}
+.mic-menu {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  min-width: 260px;
+}
+.mic-menu button b {
+  display: block;
+  font-weight: 600;
+}
+.mic-menu button span {
+  display: block;
+  font-size: 11.5px;
+  color: var(--dim);
+}
+.mic-menu button:hover span {
+  color: inherit;
+}
+.mic-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.mic-row span:first-child {
+  flex: 1;
+  color: var(--dim);
+}
+.mic-row select,
+.mic-row input {
+  background: var(--panel-3);
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  padding: 3px 6px;
+  color: inherit;
+}
+.mic-row input {
+  width: 64px;
+}
+.mic-overlay {
+  position: fixed;
+  left: 50%;
+  top: 64px;
+  transform: translateX(-50%);
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px 8px 14px;
+  border-radius: 999px;
+  background: rgba(30, 32, 40, 0.94);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), inset 0 0 0 1px var(--line-2);
+  max-width: calc(100vw - 32px);
+}
+.mic-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffb347;
+  flex: none;
+}
+.mic-dot.recording {
+  background: #ff4d4d;
+  animation: mic-pulse 1s ease-in-out infinite;
+}
+.mic-dot.processing {
+  background: var(--accent);
+}
+@keyframes mic-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.mic-status {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.mic-meter {
+  width: 120px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--panel-3);
+  overflow: hidden;
+}
+.mic-meter div {
+  height: 100%;
+  background: linear-gradient(90deg, #3ddc84, #ffd23f 70%, #ff4d4d);
+  transition: width 60ms linear;
+}
+.mic-confirm {
+  width: min(420px, 100%);
+}
+.mic-confirm-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 6px 16px 16px;
+}

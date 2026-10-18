@@ -4,6 +4,12 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 ## Unreleased — v0.2 "The AI that listens"
 
+### F11 · Microphone recording and hum-to-MIDI
+- Pure module `src/analysis/pitchtrack.ts`: YIN pitch tracking (FFT difference function, parabolic interpolation, 70–1100 Hz), median smoothing, note segmentation (onsets from silence, +6 dB energy jumps or a new stable pitch held 60 ms; vibrato stays one note; blips under 80 ms dropped), snap to the key and quantize with strength. Runs in the analysis worker. Sampler pitch detection now uses YIN too.
+- Recording (`src/recording.ts`): raw microphone input (no echo cancellation/AGC) captured by an AudioWorklet with sample timestamps, one-bar count-in, takes trimmed exactly at the start bar with the browser's output latency plus a manual offset (ms, remembered), stored as WAV samples on an audio track. *Hum a melody* adds the notes on a new instrument track and keeps the hummed audio, muted.
+- MCP: `record_audio` (always confirmed by the user in the studio; declining returns `recorded:false`) and `audio_to_midi` (any monophonic audio region or sample).
+- UI: microphone button with a popover (record audio / hum, melody instrument, latency offset), recording pill with count-in, level meter and stop, and the AI confirmation dialog.
+
 ### F10 · Lyrics, prosody and ChordPro
 - Pure modules in `src/lyrics/`: rule-based Italian syllabification (diphthongs/triphthongs, intervocalic i, qu/gu glides, double consonants, inseparable groups, s impura, lexical hiatus dictionary) tested on 372 words; Italian stress (written accents, ~300 sdrucciole, -ere infinitives, forcing with ˈ or an uppercase syllable, unstressed clitics); metric syllables with synalepha; English syllables and stress (heuristics + small dictionary); melismas with `_`.
 - Alignment of lines to the melody (per section and per phrase), prosody checks (syllables vs notes, stress on weak beats, long unstressed endings, words cut by rests) — also as the `lyrics_prosody` lint rule — rhythm suggestions with stressed syllables on beats, ChordPro and chords-over-lyrics export (chord changes after the last syllable are kept).

@@ -3,6 +3,7 @@ import { analyzeAudio, type AnalysisInput } from '../analysis/analyze';
 import { spectrogramPixels, SPEC_FMAX, SPEC_FMIN } from '../analysis/spectrogram';
 import { keyFromProfile, profileFromAudio } from '../analysis/key';
 import { mono } from '../analysis/spectrum';
+import { audioToNotes } from '../analysis/pitchtrack';
 
 export interface SpectrogramRequest {
   channels: Float32Array[];
@@ -18,7 +19,8 @@ export interface SpectrogramRequest {
 type Req =
   | { id: number; type: 'analyze'; input: AnalysisInput }
   | { id: number; type: 'spectrogram'; req: SpectrogramRequest }
-  | { id: number; type: 'audioKey'; channels: Float32Array[]; sampleRate: number };
+  | { id: number; type: 'audioKey'; channels: Float32Array[]; sampleRate: number }
+  | { id: number; type: 'pitchtrack'; channels: Float32Array[]; sampleRate: number };
 
 async function spectrogramPng(r: SpectrogramRequest): Promise<string> {
   const left = 44;
@@ -80,6 +82,7 @@ self.onmessage = async (ev: MessageEvent<Req>) => {
     let result: unknown;
     if (m.type === 'analyze') result = analyzeAudio(m.input);
     else if (m.type === 'spectrogram') result = await spectrogramPng(m.req);
+    else if (m.type === 'pitchtrack') result = audioToNotes(mono(m.channels), m.sampleRate);
     else result = keyFromProfile(profileFromAudio(mono(m.channels), m.sampleRate));
     (self as unknown as Worker).postMessage({ id: m.id, ok: true, result });
   } catch (e) {

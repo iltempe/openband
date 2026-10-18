@@ -11,6 +11,7 @@ import { importAudioFlow, importSoundFontFlow, openProjectFile, pickFiles } from
 import { saveProject } from '../importers';
 import { useLint } from '../lintLive';
 import { LANGS, setLang, useLang, useT } from '../i18n';
+import { MicButton } from './Mic';
 
 export async function togglePlay() {
   const s = useStore.getState();
@@ -250,6 +251,7 @@ export function Toolbar() {
           <button className={`t-btn t-rec ${s.isRecording ? 'on' : ''}`} onClick={toggleRecord} title={t('tb.record')}>
             <I.Record />
           </button>
+          <MicButton />
           <button
             className={`t-btn t-cycle ${p.loop.enabled ? 'on' : ''}`}
             onClick={() => s.commit((d) => void (d.loop.enabled = !d.loop.enabled))}

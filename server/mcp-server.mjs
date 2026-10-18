@@ -143,6 +143,7 @@ Prefer few, musically complete calls (e.g. a whole 4-bar melody in one add_regio
 Imported sounds: import_sample loads an audio file (local path or URL) and returns a sample_id. Use it to build instruments with create_sampler_instrument (melodic sampler or drum kit), or put it on the timeline with add_audio_region (audio tracks). import_soundfont lists the presets of a .sf2 file, then imports one as an instrument. Imported instruments get ids like "usr_..." that work in add_track / update_track.
 
 Mixing: set_track_effects adds an amp sim, 3-band EQ and compressor to a track; set_automation draws curves for volume, pan, tone, reverb or echo over time (e.g. fades, filter sweeps, auto-pan).
+Recording: record_audio records the user's microphone after they confirm (mode "hum" turns a hummed melody into MIDI); audio_to_midi converts an existing monophonic audio region into notes.
 Files: export_wav and export_midi download in the browser, or write to disk with save_to; import_midi turns a .mid file into tracks.
 Plugins: Web Audio Modules (WAM 2.0) instruments and effects. When the user describes a sound or effect in words, call add_plugin with that description (or search_plugins first to compare options); then get_plugin_params / set_plugin_params to dial it in.`;
 
@@ -562,6 +563,26 @@ tool('analyze_harmony', 'Chords of the MIDI parts (per bar, or per half bar when
 tool('detect_key', 'Detect the key of the music from the MIDI notes, from the audio tracks, or both. Returns key, confidence, alternatives and whether it matches the project key.', {
   source: z.enum(['midi', 'audio', 'both']).optional(),
 }, { ...readOnly, timeout: 180000 });
+
+// ---- recording
+
+tool('record_audio', 'Record from the user\'s microphone, with a one-bar count-in, starting at start_bar. The user is always asked to confirm in the studio first (returns {recorded:false} if they decline). mode "audio" makes an audio region; mode "hum" also turns the hummed/sung melody into MIDI notes on a new instrument track (the audio is kept, muted). Without bars, recording runs until the user presses stop.', {
+  mode: z.enum(['audio', 'hum']).optional(),
+  track_id: z.string().optional().describe('Audio track to record onto (default: a new one)'),
+  start_bar: z.number().int().min(1).optional(),
+  bars: z.number().int().min(1).max(64).optional(),
+}, { timeout: 600000 });
+
+tool('audio_to_midi', 'Convert a monophonic audio region (voice, whistle, bass, lead) into MIDI notes: YIN pitch tracking, note segmentation, optional snap to the project key and quantize with strength. The MIDI region is placed at the same position as the audio. Returns the notes.', {
+  region_id: z.string().optional(),
+  sample_id: z.string().optional(),
+  start_bar: z.number().int().min(1).optional().describe('With sample_id: where to place the notes'),
+  track_id: z.string().optional().describe('Instrument track for the notes (default: a new one)'),
+  instrument: z.string().optional(),
+  snap_to_key: z.boolean().optional(),
+  quantize: z.number().min(0).max(4).optional().describe('Grid in beats, 0 = off (default 0.25)'),
+  strength: z.number().min(0).max(1).optional(),
+}, { timeout: 180000 });
 
 // ---- studio → AI events (answered by this server, not the studio)
 

@@ -37,4 +37,7 @@ export const analyzeInWorker = (input: AnalysisInput) =>
 
 export const spectrogramInWorker = (req: SpectrogramRequest) => run<string>({ type: 'spectrogram', req }, req.channels.map((c) => c.buffer));
 
+export const pitchTrackInWorker = (channels: Float32Array[], sampleRate: number) =>
+  run<import('./pitchtrack').TrackedNote[]>({ type: 'pitchtrack', channels, sampleRate }, channels.map((c) => c.buffer));
+
 export const audioKeyInWorker = (channels: Float32Array[], sampleRate: number) => run<KeyResult | null>({ type: 'audioKey', channels, sampleRate }, channels.map((c) => c.buffer));
