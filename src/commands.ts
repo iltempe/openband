@@ -4,6 +4,7 @@ import type { Note, Project, Region, Track, TrackKind } from './types';
 import { BEATS_PER_BAR, KEYS, clamp, drumByPitch, noteName, parseChord, parsePitch, uid } from './music';
 import { PRESETS, customInstruments, findInstrument } from './audio/instruments';
 import { getBuffer, importSample, useSamples } from './audio/samples';
+import { normalizeFx } from './audio/fx';
 import { addAudioRegion, guessDrumPads, instrumentFromSoundFont, openSoundFont, rootFor, spreadZones } from './importers';
 import { emptyProject, getRegion, getTrack, makeTrack, projectEnd, useStore } from './store';
 import { engine } from './audio/engine';
@@ -90,6 +91,7 @@ function summarize(p: Project, includeNotes = false) {
       reverb: t.reverb,
       delay: t.delay,
       tone: t.cutoff,
+      ...(t.fx && (t.fx.amp.on || t.fx.eq.on || t.fx.comp.on) ? { effects: describeFx(t) } : {}),
       regions: p.regions
         .filter((r) => r.trackId === t.id)
         .sort((a, b) => a.start - b.start)
@@ -104,6 +106,15 @@ function summarize(p: Project, includeNotes = false) {
           ...(includeNotes ? { notes: r.notes.map((n) => describeNote(n, t.kind === 'drums')) } : {}),
         })),
     })),
+  };
+}
+
+function describeFx(t: Track) {
+  const fx = normalizeFx(t.fx);
+  return {
+    amp: fx.amp,
+    eq: { on: fx.eq.on, low: fx.eq.low, mid: fx.eq.mid, high: fx.eq.high, mid_freq: fx.eq.midFreq },
+    compressor: fx.comp,
   };
 }
 
@@ -208,6 +219,42 @@ export const commands: Record<string, (args: P) => unknown> = {
       if (tone !== undefined) tr.cutoff = clamp(Number(tone), 0, 1);
     });
     return summarize(st().project).tracks.find((x) => x.id === t.id);
+  },
+
+  set_track_effects: ({ track_id, amp, eq, compressor }) => {
+    const t = requireTrack(st().project, track_id);
+    const num = (v: unknown, lo: number, hi: number) => (v === undefined ? undefined : clamp(Number(v), lo, hi));
+    st().commit((d) => {
+      const tr = d.tracks.find((x) => x.id === t.id)!;
+      const fx = normalizeFx(tr.fx);
+      if (amp) {
+        if (amp.on !== undefined) fx.amp.on = !!amp.on;
+        fx.amp.drive = num(amp.drive, 0, 1) ?? fx.amp.drive;
+        fx.amp.tone = num(amp.tone, 0, 1) ?? fx.amp.tone;
+        fx.amp.level = num(amp.level, 0, 1) ?? fx.amp.level;
+        if (amp.on === undefined) fx.amp.on = true;
+      }
+      if (eq) {
+        if (eq.on !== undefined) fx.eq.on = !!eq.on;
+        fx.eq.low = num(eq.low, -15, 15) ?? fx.eq.low;
+        fx.eq.mid = num(eq.mid, -15, 15) ?? fx.eq.mid;
+        fx.eq.high = num(eq.high, -15, 15) ?? fx.eq.high;
+        fx.eq.midFreq = num(eq.mid_freq, 200, 6000) ?? fx.eq.midFreq;
+        if (eq.on === undefined) fx.eq.on = true;
+      }
+      if (compressor) {
+        const c = compressor;
+        if (c.on !== undefined) fx.comp.on = !!c.on;
+        fx.comp.threshold = num(c.threshold, -60, 0) ?? fx.comp.threshold;
+        fx.comp.ratio = num(c.ratio, 1, 20) ?? fx.comp.ratio;
+        fx.comp.attack = num(c.attack, 0.001, 0.2) ?? fx.comp.attack;
+        fx.comp.release = num(c.release, 0.02, 1) ?? fx.comp.release;
+        fx.comp.makeup = num(c.makeup, 0, 24) ?? fx.comp.makeup;
+        if (c.on === undefined) fx.comp.on = true;
+      }
+      tr.fx = fx;
+    });
+    return { track_id: t.id, effects: describeFx(getTrack(st().project, t.id)!) };
   },
 
   delete_track: ({ track_id }) => {

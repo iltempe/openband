@@ -51,6 +51,16 @@ function Strip({ track }: { track: Track }) {
         <button className={`ms mute ${track.mute ? 'on' : ''}`} onClick={() => update((t) => void (t.mute = !t.mute), true)}>M</button>
         <button className={`ms solo ${track.solo ? 'on' : ''}`} onClick={() => update((t) => void (t.solo = !t.solo), true)}>S</button>
       </div>
+      <button
+        className={`strip-fx ${track.fx && (track.fx.amp.on || track.fx.eq.on || track.fx.comp.on) ? 'on' : ''}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          set({ selectedTrackId: track.id, bottom: 'fx' });
+        }}
+        title={t('fx.open')}
+      >
+        FX
+      </button>
       <div className="strip-name">{track.name}</div>
     </div>
   );

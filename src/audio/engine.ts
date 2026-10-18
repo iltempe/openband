@@ -4,10 +4,13 @@ import type { Project, Track } from '../types';
 import { faderToDb, sendToDb } from '../music';
 import { createInstrument, customById, makeImpulse, type Instrument } from './instruments';
 import { getBuffer, onSamplesChanged } from './samples';
+import { FxChain } from './fx';
 
 interface TrackNode {
   presetId: string;
   instrument: Instrument;
+  fx: FxChain;
+  fxSignature: string;
   channel: Tone.Channel;
   meter: Tone.Meter;
   reverbSend: Tone.Gain;
@@ -157,16 +160,18 @@ class AudioEngine {
       const delaySend = new Tone.Gain(0).connect(this.delay);
       channel.connect(reverbSend);
       channel.connect(delaySend);
+      const fx = new FxChain();
+      fx.output.connect(channel);
       const instrument = createInstrument(track.instrument);
-      instrument.output.connect(channel);
-      node = { presetId: signature, instrument, channel, meter, reverbSend, delaySend };
+      instrument.output.connect(fx.input);
+      node = { presetId: signature, instrument, fx, fxSignature: '', channel, meter, reverbSend, delaySend };
       this.nodes.set(track.id, node);
     } else if (node.presetId !== signature) {
       node.instrument.releaseAll();
       const old = node.instrument;
       setTimeout(() => old.dispose(), 1500);
       node.instrument = createInstrument(track.instrument);
-      node.instrument.output.connect(node.channel);
+      node.instrument.output.connect(node.fx.input);
       node.presetId = signature;
     }
     const ch = node.channel;
@@ -178,6 +183,16 @@ class AudioEngine {
     node.reverbSend.gain.rampTo(Math.pow(10, sendToDb(track.reverb) / 20) || 0, 0.05);
     node.delaySend.gain.rampTo((Math.pow(10, sendToDb(track.delay) / 20) || 0) * 0.7, 0.05);
     node.instrument.setCutoff(track.cutoff);
+    const fxSignature = JSON.stringify(track.fx ?? null);
+    if (fxSignature !== node.fxSignature) {
+      node.fxSignature = fxSignature;
+      node.fx.update(track.fx);
+    }
+  }
+
+  /** Compressor gain reduction of a track in dB (0 when the compressor is off or idle). */
+  reduction(trackId: string): number {
+    return this.nodes.get(trackId)?.fx.reduction ?? 0;
   }
 
   private syncParts(p: Project) {
@@ -231,6 +246,7 @@ class AudioEngine {
   private disposeNode(n: TrackNode) {
     n.instrument.releaseAll();
     n.instrument.dispose();
+    n.fx.dispose();
     n.channel.dispose();
     n.meter.dispose();
     n.reverbSend.dispose();

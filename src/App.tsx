@@ -12,6 +12,7 @@ import { Mixer } from './components/Mixer';
 import { Library } from './components/Library';
 import { AIPanel } from './components/AIPanel';
 import { MusicalTyping } from './components/MusicalTyping';
+import { Effects } from './components/Effects';
 import * as I from './components/Icons';
 import { SoundFontDialog, handleDroppedFiles } from './components/ImportUI';
 import { LANGS, setLang, useLang, useT } from './i18n';
@@ -115,6 +116,9 @@ function useShortcuts() {
         case 'x':
           toggleBottom('mixer');
           break;
+        case 'f':
+          toggleBottom('fx');
+          break;
       }
     };
     const up = (e: KeyboardEvent) => {
@@ -202,6 +206,7 @@ export function App() {
   useShortcuts();
   useFileDrop();
   const s = useStore();
+  const t = useT();
 
   return (
     <div className="app">
@@ -222,6 +227,9 @@ export function App() {
                 <button className={s.bottom === 'mixer' ? 'on' : ''} onClick={() => s.set({ bottom: 'mixer' })}>
                   <I.Mixer width={14} height={14} /> Mixer
                 </button>
+                <button className={s.bottom === 'fx' ? 'on' : ''} onClick={() => s.set({ bottom: 'fx' })}>
+                  <I.Fx width={14} height={14} /> {t('fx.tab')}
+                </button>
                 <div className="eb-spacer" />
                 <button className="dock-close" onClick={() => s.set({ bottom: null })}>
                   <I.Close width={14} height={14} />
@@ -231,6 +239,7 @@ export function App() {
                 {s.bottom === 'smart' && <SmartControls />}
                 {s.bottom === 'editor' && <Editor />}
                 {s.bottom === 'mixer' && <Mixer />}
+                {s.bottom === 'fx' && <Effects />}
               </div>
             </div>
           )}

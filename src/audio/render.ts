@@ -5,6 +5,7 @@ import { faderToDb, sendToDb } from '../music';
 import { projectEnd, projectSampleIds } from '../store';
 import { ensureSamples, getBuffer } from './samples';
 import { createInstrument, makeImpulse } from './instruments';
+import { FxChain } from './fx';
 
 const dbToGain = (db: number) => (db === -Infinity ? 0 : Math.pow(10, db / 20));
 
@@ -26,7 +27,10 @@ export async function renderProject(p: Project): Promise<Blob> {
       const inst = createInstrument(track.instrument, p.instruments?.find((c) => c.id === track.instrument));
       inst.setCutoff(track.cutoff);
       const ch = new Tone.Channel({ volume: faderToDb(track.volume), pan: track.pan }).connect(master);
-      inst.output.connect(ch);
+      const fx = new FxChain();
+      fx.update(track.fx);
+      inst.output.connect(fx.input);
+      fx.output.connect(ch);
       ch.connect(new Tone.Gain(dbToGain(sendToDb(track.reverb))).connect(reverb));
       ch.connect(new Tone.Gain(dbToGain(sendToDb(track.delay)) * 0.7).connect(delay));
 

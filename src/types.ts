@@ -82,6 +82,14 @@ export interface Track {
   delay: number;
   /** Smart control "tone" (low-pass cutoff) 0..1 */
   cutoff: number;
+  /** Insert effects, applied in this order: amp → EQ → compressor. Missing = all off. */
+  fx?: TrackFx;
+}
+
+export interface TrackFx {
+  amp: { on: boolean; /** 0..1 */ drive: number; /** cabinet brightness 0..1 */ tone: number; /** output 0..1 */ level: number };
+  eq: { on: boolean; /** dB −15..15 */ low: number; mid: number; high: number; /** Hz */ midFreq: number };
+  comp: { on: boolean; /** dB −60..0 */ threshold: number; /** 1..20 */ ratio: number; /** seconds */ attack: number; release: number; /** dB 0..24 */ makeup: number };
 }
 
 export interface LoopRange {
@@ -104,7 +112,7 @@ export interface Project {
   instruments?: CustomInstrument[];
 }
 
-export type BottomPanel = 'smart' | 'editor' | 'mixer' | null;
+export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | null;
 
 export interface BridgeLogEntry {
   id: string;

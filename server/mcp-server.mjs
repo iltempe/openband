@@ -256,6 +256,19 @@ tool('update_track', 'Change a track: name, instrument preset (same kind), volum
   tone: z.number().min(0).max(1).optional(),
 });
 
+tool(
+  'set_track_effects',
+  'Set a track\'s insert effects (chain: amp → eq → compressor). Passing a section turns it on unless on:false. amp: drive/tone/level 0..1 (guitar amp + cabinet sim). eq: low/mid/high in dB −15..15, mid_freq 200..6000 Hz. compressor: threshold dB −60..0, ratio 1..20, attack 0.001..0.2 s, release 0.02..1 s, makeup dB 0..24.',
+  {
+    track_id: z.string(),
+    amp: z.object({ on: z.boolean().optional(), drive: z.number().min(0).max(1).optional(), tone: z.number().min(0).max(1).optional(), level: z.number().min(0).max(1).optional() }).optional(),
+    eq: z.object({ on: z.boolean().optional(), low: z.number().min(-15).max(15).optional(), mid: z.number().min(-15).max(15).optional(), high: z.number().min(-15).max(15).optional(), mid_freq: z.number().min(200).max(6000).optional() }).optional(),
+    compressor: z
+      .object({ on: z.boolean().optional(), threshold: z.number().min(-60).max(0).optional(), ratio: z.number().min(1).max(20).optional(), attack: z.number().min(0.001).max(0.2).optional(), release: z.number().min(0.02).max(1).optional(), makeup: z.number().min(0).max(24).optional() })
+      .optional(),
+  },
+);
+
 tool('delete_track', 'Delete a track and all its regions.', { track_id: z.string() });
 
 tool('add_region', 'Create a region (MIDI clip) on a track, optionally with notes. If length_bars is omitted it fits the notes. Returns region_id.', {
