@@ -30,6 +30,7 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 - **MIDI import and export** (Standard MIDI Files, General MIDI programs, drums on channel 10).
 - **The AI listens**: `analyze_mix` renders the song and measures it — loudness (EBU R128 LUFS, true peak, LRA), frequency balance in 7 bands, stereo/phase, masking between tracks, the key — and returns concrete fixes (*“Bass and Drums cover each other at 60–250 Hz: cut 2–3 dB around 80 Hz…”*). `render_spectrogram` gives Claude an image of the mix to look at, and `analyze_harmony` reads the chords with their degrees in the key (*Am7 i7 · Fmaj7 VImaj7 · V7/V…*) and the cadences. The same reports are in the **Analysis** panel (N).
 - **Song structure**: mark intro, verses, choruses… in the *Structure* lane above the ruler (or let *Suggest* find them from repetitions). Click a section to loop it, drag it to move it with all its content (⌥ pushes the rest of the song), right-click to duplicate or delete it. The AI works in sections too: *“add one more chorus at the end”*, *“make the second verse bigger”*.
+- **Lyrics**: write the words per section in the **Lyrics** panel; Italian lyrics are split into metric syllables (with synalepha: *canto e ballo* = 4) and stressed syllables are marked, English too. Align them to the melody track: syllables appear under the track and inside the piano-roll notes, and prosody problems — stressed syllables on weak beats, long notes on unstressed endings, words cut by rests, syllables vs notes — are underlined and listed. Export a **ChordPro** or chords-over-lyrics sheet.
 - **Musical linter**: the **Problems** panel (badge in the toolbar) checks the song after every change — notes out of key, overlapping notes and regions, notes past the end of a region, two bass parts clashing below E2, crowded registers, mechanical velocity or timing, empty tracks, panned bass — most with a one-click fix. The AI runs the same checks with `lint_project`, and so can your CI.
 - **The AI follows along**: phrases you play (split after a bar of silence), what you select, play/stop, your edits and questions typed in *Ask the AI* reach the connected AI as events. A switch in the AI panel turns activity sharing off (questions are always sent).
 - **Undo by intent**: everything the AI does for one request is a single, labelled undo step (*“Undo: Lo-fi beat (23 commands)”*); drags and knob turns are one step each.
@@ -44,8 +45,8 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 | ![Amp, EQ, compressor and a WAM reverb on the bass](docs/effects.png) | ![Audio clip with waveform](docs/audio.png) |
 | **Analysis (what the AI hears)** | **Spectrogram (what the AI sees)** |
 | ![Analysis panel](docs/analysis.png) | ![Spectrogram of the demo](docs/spectrogram.png) |
-| **Problems (musical linter)** | |
-| ![Problems panel](docs/problems.png) | |
+| **Problems (musical linter)** | **Lyrics and prosody** |
+| ![Problems panel](docs/problems.png) | ![Lyrics panel](docs/lyrics.png) |
 | **WAM plugin window** | **Plugin browser** |
 | ![Synth-101 WAM plugin](docs/plugins.png) | ![Searching plugins in plain language](docs/plugin-browser.png) |
 
@@ -149,6 +150,7 @@ The bridge only accepts connections from `127.0.0.1` and from pages served on lo
 | Tracks | `add_track` (instrument, drums or audio), `update_track` (instrument, volume, pan, mute, solo, reverb, echo, tone), `delete_track` |
 | Sounds | `import_sample`, `list_samples`, `create_sampler_instrument`, `import_soundfont`, `add_audio_region` — files are read from a local path or an http(s) URL |
 | Structure | `get_structure` (sections with an energy profile), `add_section`, `update_section`, `delete_section`, `move_section`, `duplicate_section` (with ripple), `split_region`, `auto_sections` |
+| Lyrics | `set_lyrics`, `get_lyrics`, `align_lyrics`, `check_prosody`, `suggest_melody_rhythm`, `export_chord_sheet` (ChordPro or text, optional `save_to`) |
 | Linter | `lint_project` (symbolic rules, optionally audio ones), `apply_fix`, `ignore_issue`; `update_notes` edits notes in place |
 | Listening | `analyze_mix` (bars or section, per track, summary/full), `render_spectrogram` (returns an image), `detect_key` (MIDI, audio or both), `analyze_harmony` (chords, Roman numerals, functions, cadences) |
 | Mix | `set_track_effects` (amp, EQ, compressor), `set_automation`, `clear_automation` |
@@ -206,6 +208,7 @@ src/
   plugins.ts              plugin search by description, parameters, saved state
   lint/                   musical linter (pure): engine and rules, CLI entry
   structure.ts            sections: split, move, duplicate (ripple), energy profiles, auto proposals
+  lyrics/                 syllables (Italian rules + stress, English), alignment, prosody, ChordPro (pure)
 scripts/openband-lint.mjs  linter CLI for CI; .github/actions/openband-lint is the GitHub Action
   automation.ts           automation curves
   analysis/               pure DSP: FFT, loudness (BS.1770), spectrum, stereo, masking, key, issues; harmony (chords, degrees, cadences)

@@ -10,6 +10,7 @@ import * as I from './Icons';
 import { Waveform } from './Audio';
 import { AutomationLane } from './AutomationLane';
 import { StructureCorner, StructureLane } from './StructureLane';
+import { LyricsLane } from './Lyrics';
 import { handleDroppedFiles, importAudioFlow } from './ImportUI';
 import { useT } from '../i18n';
 
@@ -254,6 +255,7 @@ const TrackRow = memo(function TrackRow({ track, regions }: { track: Track; regi
       </div>
     </div>
     {laneOpen && <AutomationLane track={track} />}
+    <LyricsLane track={track} />
     </>
   );
 });

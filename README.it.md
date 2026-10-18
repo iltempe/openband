@@ -28,6 +28,7 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 - **Import ed export MIDI** (Standard MIDI File, programmi General MIDI, batteria sul canale 10).
 - **L'AI ascolta**: `analyze_mix` renderizza il brano e lo misura (loudness EBU R128 in LUFS, true peak, LRA, equilibrio in 7 bande, stereo/fase, mascheramento tra tracce, tonalità) e restituisce correzioni concrete (*“Basso e batteria si coprono a 60–250 Hz: taglia 2–3 dB intorno a 80 Hz…”*). `render_spectrogram` dà a Claude un'immagine del mix da guardare, e `analyze_harmony` legge gli accordi con i gradi nella tonalità (*Am7 i7 · Fmaj7 VImaj7 · V7/V…*) e le cadenze. Gli stessi rapporti sono nel pannello **Analisi** (N).
 - **Struttura del brano**: segna intro, strofe, ritornelli… nella corsia *Struttura* sopra il righello (oppure lascia che *Suggerisci* li trovi dalle ripetizioni). Un clic su una sezione la mette in loop, trascinandola la sposti con tutto il contenuto (⌥ spinge il resto del brano), con il tasto destro la duplichi o la elimini. Anche l'AI lavora per sezioni: *“aggiungi un altro ritornello alla fine”*, *“rendi più pieno la seconda strofa”*.
+- **Testi**: scrivi le parole per sezione nel pannello **Testo**; i testi italiani vengono divisi in sillabe metriche (con sinalefe: *canto e ballo* = 4) e le sillabe accentate segnate, anche in inglese. Allineali alla traccia della melodia: le sillabe compaiono sotto la traccia e dentro le note del piano roll, e i problemi di prosodia (accenti sui tempi deboli, note lunghe su finali atone, parole spezzate da pause, sillabe e note che non tornano) vengono sottolineati ed elencati. Esporta uno spartito **ChordPro** o con gli accordi sopra il testo.
 - **Linter musicale**: il pannello **Problemi** (contatore nella toolbar) controlla il brano dopo ogni modifica (note fuori tonalità, note e regioni sovrapposte, note oltre la fine della regione, due bassi che si scontrano sotto il Mi2, registri affollati, velocity o tempi meccanici, tracce vuote, basso spostato nel pan) e quasi sempre offre una correzione con un clic. L'AI fa gli stessi controlli con `lint_project`, e può farli anche la tua CI.
 - **L'AI ti segue**: le frasi che suoni (separate dopo una battuta di silenzio), ciò che selezioni, play/stop, le tue modifiche e le domande scritte in *Chiedi all'AI* arrivano all'AI collegata come eventi. Un interruttore nel pannello AI disattiva la condivisione dell'attività (le domande vengono sempre inviate).
 - **Annulla per intento**: tutto ciò che l'AI fa per una richiesta è un solo passo di annullamento con etichetta (*“Annulla: Beat lo-fi (23 comandi)”*); trascinamenti e manopole contano un passo ciascuno.
@@ -42,8 +43,8 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 | ![Amp, EQ, compressore e un riverbero WAM sul basso](docs/effects.png) | ![Clip audio con forma d'onda](docs/audio.png) |
 | **Analisi (ciò che l'AI sente)** | **Spettrogramma (ciò che l'AI vede)** |
 | ![Pannello Analisi](docs/analysis.png) | ![Spettrogramma della demo](docs/spectrogram.png) |
-| **Problemi (linter musicale)** | |
-| ![Pannello Problemi](docs/problems.png) | |
+| **Problemi (linter musicale)** | **Testo e prosodia** |
+| ![Pannello Problemi](docs/problems.png) | ![Pannello Testo](docs/lyrics.png) |
 | **Finestra di un plugin WAM** | **Browser dei plugin** |
 | ![Plugin WAM Synth-101](docs/plugins.png) | ![Ricerca dei plugin a parole](docs/plugin-browser.png) |
 
@@ -145,6 +146,7 @@ Il bridge accetta connessioni solo da `127.0.0.1` e da pagine servite su localho
 | Tracce | `add_track` (strumento, batteria o audio), `update_track` (strumento, volume, pan, mute, solo, riverbero, eco, tono), `delete_track` |
 | Suoni | `import_sample`, `list_samples`, `create_sampler_instrument`, `import_soundfont`, `add_audio_region` — i file si leggono da un percorso locale o da un URL http(s) |
 | Struttura | `get_structure` (sezioni con profilo di energia), `add_section`, `update_section`, `delete_section`, `move_section`, `duplicate_section` (con ripple), `split_region`, `auto_sections` |
+| Testi | `set_lyrics`, `get_lyrics`, `align_lyrics`, `check_prosody`, `suggest_melody_rhythm`, `export_chord_sheet` (ChordPro o testo, `save_to` opzionale) |
 | Linter | `lint_project` (regole simboliche, opzionalmente audio), `apply_fix`, `ignore_issue`; `update_notes` modifica le note sul posto |
 | Ascolto | `analyze_mix` (battute o sezione, per traccia, summary/full), `render_spectrogram` (restituisce un'immagine), `detect_key` (MIDI, audio o entrambi), `analyze_harmony` (accordi, numeri romani, funzioni, cadenze) |
 | Mix | `set_track_effects` (amp, EQ, compressore), `set_automation`, `clear_automation` |
@@ -202,6 +204,7 @@ src/
   plugins.ts              ricerca dei plugin a parole, parametri, stato salvato
   lint/                   linter musicale (puro): motore e regole, ingresso CLI
   structure.ts            sezioni: dividi, sposta, duplica (ripple), profili di energia, proposte automatiche
+  lyrics/                 sillabe (regole italiane + accento, inglese), allineamento, prosodia, ChordPro (puro)
 scripts/openband-lint.mjs  CLI del linter per la CI; .github/actions/openband-lint è la GitHub Action
   automation.ts           curve di automazione
   analysis/               DSP puro: FFT, loudness (BS.1770), spettro, stereo, mascheramento, tonalità, problemi; armonia (accordi, gradi, cadenze)

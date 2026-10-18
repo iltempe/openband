@@ -14,6 +14,12 @@ import { analyzeHarmony, analyzeMix, detectKey, spectrogram } from './mixAnalysi
 import { lint } from './lint/engine';
 import { SECTION_COLORS, assertNoOverlap, deleteSection, duplicateSection, energyProfile, moveSection, proposeSections, sortSections, splitRegionAt } from './structure';
 import { useAnalysis } from './mixAnalysis';
+import { buildLines } from './lyrics/lines';
+import { alignProject, prosodyIssues } from './lyrics/project';
+import { suggestRhythm } from './lyrics/prosody';
+import { toChordPro, toChordText } from './lyrics/chordpro';
+import { analyzeChords } from './analysis/harmony';
+import type { LyricLine } from './types';
 import type { Section, SectionKind } from './types';
 import { hash as lintHash } from './lint/util';
 import type { LintIssue } from './lint/types';
@@ -22,7 +28,9 @@ import { addAudioRegion, guessDrumPads, instrumentFromSoundFont, openSoundFont, 
 import { emptyProject, enterAiCommand, exitAiCommand, getRegion, getTrack, makeTrack, projectEnd, useStore } from './store';
 import { engine } from './audio/engine';
 import { download, renderProject } from './audio/render';
-import { t as tr } from './i18n';
+import { t as tr, useLang } from './i18n';
+
+const useLangOf = () => useLang.getState().lang;
 import { migrate } from './migrations';
 
 type P = Record<string, any>;
@@ -804,6 +812,100 @@ export const commands: Record<string, (args: P) => unknown> = {
     note: 'Nothing was changed. Call add_section for the ones you want.',
   }),
 
+  // ---------- lyrics ----------
+
+  set_lyrics: ({ section_id, line_ids, text, language }) => {
+    const p = st().project;
+    const lang = (language ?? p.lyrics?.language ?? (useLangOf() === 'it' ? 'it' : 'en')) as 'it' | 'en';
+    if (section_id && !p.sections?.some((s) => s.id === section_id)) throw new Error(`Section "${section_id}" not found. Call get_structure.`);
+    const fresh = buildLines(String(text ?? ''), lang, () => uid('ly'), section_id);
+    st().commit((d) => {
+      const doc = (d.lyrics ??= { language: lang, lines: [] });
+      doc.language = lang;
+      if (line_ids?.length) {
+        // Replace the given lines one by one, keeping their place and section.
+        (line_ids as string[]).forEach((lid, i) => {
+          const at = doc.lines.findIndex((l) => l.id === lid);
+          if (at < 0) throw new Error(`Line "${lid}" not found. Call get_lyrics.`);
+          if (fresh[i]) doc.lines[at] = { ...fresh[i], id: lid, ...(doc.lines[at].sectionId ? { sectionId: doc.lines[at].sectionId } : {}) };
+        });
+      } else if (section_id) {
+        const first = doc.lines.findIndex((l) => l.sectionId === section_id);
+        const rest = doc.lines.filter((l) => l.sectionId !== section_id);
+        rest.splice(first >= 0 ? first : rest.length, 0, ...fresh);
+        doc.lines = rest;
+      } else doc.lines = fresh;
+      // Keep lines in song order (by section start).
+      const order = new Map((d.sections ?? []).map((s) => [s.id, s.start]));
+      doc.lines = doc.lines.map((l, i) => ({ l, i })).sort((a, b) => (order.get(a.l.sectionId ?? '') ?? 1e9) - (order.get(b.l.sectionId ?? '') ?? 1e9) || a.i - b.i).map((x) => x.l);
+      if (doc.melodyTrackId) {
+        try {
+          const res = alignProject(d, section_id);
+          doc.lines = doc.lines.map((l) => res.updated.get(l.id) ?? l);
+        } catch {
+          // melody track gone: leave lines unaligned
+        }
+      }
+    });
+    return commands.get_lyrics({ section_id });
+  },
+
+  get_lyrics: ({ section_id }) => {
+    const p = st().project;
+    const doc = p.lyrics;
+    if (!doc) return { language: null, melody_track_id: null, lines: [] };
+    const lines = doc.lines.filter((l) => !section_id || l.sectionId === section_id);
+    return {
+      language: doc.language,
+      melody_track_id: doc.melodyTrackId ?? null,
+      lines: lines.map((l) => ({
+        id: l.id,
+        section_id: l.sectionId ?? null,
+        text: l.text,
+        syllable_count: l.syllables.length,
+        syllables: l.syllables.map((s) => ({ text: s.text, stressed: s.stressed, ...(s.beat !== undefined ? { bar: +beatToBar(s.beat).toFixed(3) } : {}), ...(s.noteId ? { note_id: s.noteId } : {}), ...(s.melisma ? { melisma: true } : {}) })),
+        aligned: l.syllables.every((s) => s.noteId),
+      })),
+    };
+  },
+
+  align_lyrics: ({ melody_track_id, section_id }) => {
+    const t = requireTrack(st().project, melody_track_id);
+    if (t.kind !== 'instrument') throw new Error('The melody must be on an instrument track');
+    let report = { orphanSyllables: [] as { line_id: string; count: number }[], orphanNotes: [] as string[] };
+    st().commit((d) => {
+      const doc = (d.lyrics ??= { language: 'it', lines: [] });
+      doc.melodyTrackId = t.id;
+      const res = alignProject(d, section_id);
+      doc.lines = doc.lines.map((l) => res.updated.get(l.id) ?? l);
+      report = res;
+    });
+    return { melody_track_id: t.id, orphan_syllables: report.orphanSyllables, orphan_notes: report.orphanNotes.length, issues: prosodyIssues(st().project, section_id).length };
+  },
+
+  check_prosody: ({ section_id }) => ({ issues: prosodyIssues(st().project, section_id).map((i) => ({ ...i, ...(i.from_beat !== undefined ? { bar: +beatToBar(i.from_beat).toFixed(2) } : {}) })) }),
+
+  suggest_melody_rhythm: ({ line_id }) => {
+    const line = st().project.lyrics?.lines.find((l: LyricLine) => l.id === line_id);
+    if (!line) throw new Error(`Line "${line_id}" not found. Call get_lyrics.`);
+    return { line_id, text: line.text, rhythm: suggestRhythm(line.syllables), note: 'start/duration in beats from the start of the phrase; stressed syllables fall on beats.' };
+  },
+
+  export_chord_sheet: ({ format, return_data }) => {
+    const p = st().project;
+    const melodic = new Set(p.tracks.filter((t) => t.kind === 'instrument' && !t.mute).map((t) => t.id));
+    const notes = p.regions.filter((r) => melodic.has(r.trackId) && !r.audio && r.trackId !== p.lyrics?.melodyTrackId).flatMap((r) => r.notes.filter((n) => n.start < r.length).map((n) => ({ pitch: n.pitch, start: r.start + n.start, duration: Math.min(n.duration, r.length - n.start), velocity: n.velocity })));
+    const end = projectEnd(p);
+    const chords = analyzeChords(notes, p.key, 0, end).map((c) => ({ start: c.start, chord: c.chord }));
+    const sheet = { title: p.name, key: p.key, bpm: p.bpm, sections: p.sections ?? [], chords, lines: p.lyrics?.lines ?? [], length: end };
+    const fmt = format === 'txt' ? 'txt' : 'chordpro';
+    const textOut = fmt === 'txt' ? toChordText(sheet) : toChordPro(sheet);
+    const filename = `${p.name.replace(/[^\w\- ]+/g, '').trim() || 'openband'}.${fmt === 'txt' ? 'txt' : 'cho'}`;
+    if (return_data) return { filename, format: fmt, text: textOut, data_base64: toBase64(new TextEncoder().encode(textOut)), bytes: textOut.length };
+    download(new Blob([textOut], { type: 'text/plain' }), filename);
+    return { exported: true, filename, format: fmt, text: textOut };
+  },
+
   // ---------- linter ----------
 
   lint_project: async ({ rules, include_audio, min_severity }) => {
@@ -941,6 +1043,7 @@ const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

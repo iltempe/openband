@@ -353,6 +353,19 @@ const en = {
   'an.cad.deceptive': 'Deceptive cadence',
   'an.cad.half': 'Half cadence',
 
+  // Lyrics (F10)
+  'ly.tab': 'Lyrics',
+  'ly.section': 'Section',
+  'ly.wholeSong': 'Whole song (no section)',
+  'ly.language': 'Language',
+  'ly.melody': 'Melody',
+  'ly.apply': 'Apply',
+  'ly.align': 'Align to melody',
+  'ly.placeholder': 'One line per verse line. Mark a melisma with _ after a syllable (a_ mo re).',
+  'ly.count': '{n} syllables',
+  'ly.notes': '{n} melody notes in this span',
+  'ly.empty': 'No lyrics here yet.',
+
   // Default names
   'name.untitled': 'My song',
   'name.newSong': 'New song',
@@ -728,6 +741,18 @@ const it: Record<MessageKey, string> = {
   'an.cad.ii-V-I': 'ii–V–I',
   'an.cad.deceptive': 'Cadenza d’inganno',
   'an.cad.half': 'Cadenza sospesa',
+
+  'ly.tab': 'Testo',
+  'ly.section': 'Sezione',
+  'ly.wholeSong': 'Tutto il brano (senza sezione)',
+  'ly.language': 'Lingua',
+  'ly.melody': 'Melodia',
+  'ly.apply': 'Applica',
+  'ly.align': 'Allinea alla melodia',
+  'ly.placeholder': 'Una riga per verso. Segna un melisma con _ dopo la sillaba (a_ mo re).',
+  'ly.count': '{n} sillabe',
+  'ly.notes': '{n} note di melodia in questo tratto',
+  'ly.empty': 'Ancora nessun testo qui.',
 
   'name.untitled': 'Il mio brano',
   'name.newSong': 'Nuovo brano',

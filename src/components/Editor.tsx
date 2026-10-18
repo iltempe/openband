@@ -7,6 +7,7 @@ import { useFrame, usePosition } from '../hooks';
 import { commands } from '../commands';
 import * as I from './Icons';
 import { AudioClipEditor } from './Audio';
+import { useSyllablesByNote } from './Lyrics';
 import { drumLabel, useT } from '../i18n';
 
 export function Editor() {
@@ -124,6 +125,7 @@ function PianoRoll({ region, track }: { region: Region; track: Track }) {
   const [snap, setSnap] = useState(0.25);
   const lastDur = useRef(1);
   const t = useT();
+  const syllables = useSyllablesByNote(track.id);
   const scrollRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const rows = HIGH - LOW + 1;
@@ -312,7 +314,11 @@ function PianoRoll({ region, track }: { region: Region; track: Track }) {
                     mutateNotes((notes) => notes.splice(notes.findIndex((x) => x.id === n.id), 1), true);
                   }}
                 >
-                  {n.duration * ppb > 34 && <span>{noteName(n.pitch)}</span>}
+                  {syllables.get(n.id) ? (
+                    <span className={`pr-syl ${syllables.get(n.id)!.stressed ? 'stressed' : ''} ${syllables.get(n.id)!.bad ? 'bad' : ''}`}>{syllables.get(n.id)!.text}</span>
+                  ) : (
+                    n.duration * ppb > 34 && <span>{noteName(n.pitch)}</span>
+                  )}
                 </div>
               ))}
               <EditorPlayhead region={region} ppb={ppb} />

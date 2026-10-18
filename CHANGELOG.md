@@ -4,6 +4,12 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 ## Unreleased — v0.2 "The AI that listens"
 
+### F10 · Lyrics, prosody and ChordPro
+- Pure modules in `src/lyrics/`: rule-based Italian syllabification (diphthongs/triphthongs, intervocalic i, qu/gu glides, double consonants, inseparable groups, s impura, lexical hiatus dictionary) tested on 372 words; Italian stress (written accents, ~300 sdrucciole, -ere infinitives, forcing with ˈ or an uppercase syllable, unstressed clitics); metric syllables with synalepha; English syllables and stress (heuristics + small dictionary); melismas with `_`.
+- Alignment of lines to the melody (per section and per phrase), prosody checks (syllables vs notes, stress on weak beats, long unstressed endings, words cut by rests) — also as the `lyrics_prosody` lint rule — rhythm suggestions with stressed syllables on beats, ChordPro and chords-over-lyrics export (chord changes after the last syllable are kept).
+- MCP: `set_lyrics`, `get_lyrics`, `align_lyrics`, `check_prosody`, `suggest_melody_rhythm`, `export_chord_sheet`.
+- Lyrics panel (per section, language, melody track, align, ChordPro), lyrics lane under the melody track, syllables in piano-roll notes (stressed in bold, prosody problems underlined).
+
 ### F9 · Harmonic analysis
 - Pure module `src/analysis/harmony.ts`: chord recognition from MIDI (pitch classes weighted by duration × velocity, 14 templates, bass for inversions → slash chords; one chord per bar, split in halves only when one chord can't explain the bar, so walking basses don't create fake chords; added tones must really be present; sixth chords over their sixth read as minor sevenths).
 - Roman numerals in the project key with functions: diatonic degrees, the harmonic-minor V, secondary dominants (V7/V, V/vi…), modal borrowing (bVII, iv…), chromatic chords.

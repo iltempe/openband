@@ -312,4 +312,6 @@ export const sectionGap: LintRule = {
   },
 };
 
-export const SYMBOLIC_RULES = [outOfKey, overlappingNotes, notesOutsideRegion, overlappingRegions, lowEndClash, registerCrowding, roboticVelocity, roboticTiming, emptyTrack, bassPanned, sectionGap];
+import { lyricsProsody } from './lyrics';
+
+export const SYMBOLIC_RULES = [lyricsProsody, outOfKey, overlappingNotes, notesOutsideRegion, overlappingRegions, lowEndClash, registerCrowding, roboticVelocity, roboticTiming, emptyTrack, bassPanned, sectionGap];

@@ -126,6 +126,7 @@ const INSTRUCTIONS = `OpenBand is a GarageBand-style music studio running in the
 
 Wrap every user request in begin_change("short label") … end_change() so the user can undo it in one step. (Commands sent without it are grouped automatically until you pause for 4 seconds.)
 When the user talks about parts of a song (verse, chorus…), call get_structure first and operate on sections (move_section, duplicate_section). Use the energy profile to make a section 'bigger' (more tracks, higher register, more notes, higher velocity) or 'smaller'. If there are no sections yet, auto_sections proposes them.
+For vocal lines, keep lyrics and melody aligned: set_lyrics → align_lyrics → check_prosody. Put stressed syllables on strong beats (suggest_melody_rhythm helps).
 Run lint_project before declaring a task done and fix errors (apply_fix).
 Before mixing decisions, LISTEN: call analyze_mix (and render_spectrogram if useful). After changes, analyze again and compare.
 The studio also reports what the user does: get_events / wait_for_event (phrases they play, selections, edits, questions). The resource openband://project holds the song and notifies subscribers after each change.
@@ -475,6 +476,40 @@ tool('split_region', 'Split a region in two at a bar (or beat): notes crossing t
   region_id: z.string(), at_bar: z.number().min(1).optional(), at_beat: z.number().min(0).optional(),
 });
 tool('auto_sections', 'Propose sections (intro, verse, chorus…) from repetitions in the music and silences. Changes nothing: add the ones you like with add_section.', {}, readOnly);
+
+// ---- lyrics
+
+tool('set_lyrics', 'Write lyrics: text with one line per verse line ("\\n" separated). For a section (section_id) its lines are replaced; with line_ids those lines are rewritten; otherwise all lyrics. Italian lyrics get metric syllables with synalepha; mark a melisma with "_" after a syllable. Lines are re-aligned to the melody if a melody track is set.', {
+  text: z.string(), section_id: z.string().optional(), line_ids: z.array(z.string()).optional(), language: z.enum(['it', 'en']).optional(),
+});
+tool('get_lyrics', 'The lyrics: lines with syllables (stressed or not), the bar and note each syllable sits on, and whether each line is aligned.', { section_id: z.string().optional() }, readOnly);
+tool('align_lyrics', 'Put the syllables on the notes of the melody track, in order (per section when lines belong to sections). Returns syllables or notes left over and the number of prosody issues.', {
+  melody_track_id: z.string(), section_id: z.string().optional(),
+});
+tool('check_prosody', 'Check that melody and words fit: syllables vs notes per phrase, stressed syllables on weak beats, long notes on unstressed endings, words cut by rests.', { section_id: z.string().optional() }, readOnly);
+tool('suggest_melody_rhythm', 'A rhythm for a lyric line (start and duration in beats per syllable) with stressed syllables on beats and a long final note — a starting point to write the melody with add_region / add_notes.', { line_id: z.string() }, readOnly);
+server.registerTool(
+  'export_chord_sheet',
+  {
+    description: 'Export a chord sheet built from sections, the detected chords and the lyrics: ChordPro (.cho) or plain text with chords over the lyrics. Returns the text; with save_to it is also written to that path, otherwise the browser downloads it.',
+    inputSchema: { format: z.enum(['chordpro', 'txt']).optional(), save_to: z.string().optional() },
+    annotations: { readOnlyHint: true },
+  },
+  async ({ format, save_to }) => {
+    try {
+      const res = await call('export_chord_sheet', { format, return_data: !!save_to });
+      if (save_to) {
+        let file = path.resolve(save_to.replace(/^~(?=$|[\\/])/, os.homedir()));
+        if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, res.filename);
+        await fs.promises.writeFile(file, res.text);
+        return text({ saved: file, format: res.format, text: res.text });
+      }
+      return text(res.text);
+    } catch (e) {
+      return { ...text(`Error: ${e.message}`), isError: true };
+    }
+  },
+);
 
 // ---- musical linter
 
