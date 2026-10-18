@@ -125,6 +125,7 @@ async function call(method, params = {}, timeoutMs = 20000) {
 const INSTRUCTIONS = `OpenBand is a GarageBand-style music studio running in the user's browser. You control it with these tools.
 
 Wrap every user request in begin_change("short label") … end_change() so the user can undo it in one step. (Commands sent without it are grouped automatically until you pause for 4 seconds.)
+When the user talks about parts of a song (verse, chorus…), call get_structure first and operate on sections (move_section, duplicate_section). Use the energy profile to make a section 'bigger' (more tracks, higher register, more notes, higher velocity) or 'smaller'. If there are no sections yet, auto_sections proposes them.
 Run lint_project before declaring a task done and fix errors (apply_fix).
 Before mixing decisions, LISTEN: call analyze_mix (and render_spectrogram if useful). After changes, analyze again and compare.
 The studio also reports what the user does: get_events / wait_for_event (phrases they play, selections, edits, questions). The resource openband://project holds the song and notifies subscribers after each change.
@@ -454,6 +455,26 @@ exportTool('export_midi', 'Export the song as a Standard MIDI File (format 1): o
 fileTool('import_midi', 'Import a MIDI file (.mid): each part becomes a track with the closest OpenBand instrument (channel 10 → drums). Adds to the current song unless replace is true; the song tempo is used when the project is empty or replaced.', {
   replace: z.boolean().optional(),
 });
+
+// ---- song structure
+
+const SectionKind = z.enum(['intro', 'verse', 'prechorus', 'chorus', 'bridge', 'solo', 'breakdown', 'outro', 'custom']);
+tool('get_structure', 'The song\'s sections (id, name, kind, start_bar, length_bars) with an energy profile each: active tracks, notes per bar (total and per track), mean velocity and register, and loudness when a full analysis is cached.', {}, readOnly);
+tool('add_section', 'Mark a section of the song (sections never overlap).', { name: z.string(), kind: SectionKind, start_bar: z.number().min(1), length_bars: z.number().positive() });
+tool('update_section', 'Rename, re-type, move or resize a section marker (content is not moved; use move_section for that).', {
+  section_id: z.string(), name: z.string().optional(), kind: SectionKind.optional(), start_bar: z.number().min(1).optional(), length_bars: z.number().positive().optional(),
+});
+tool('delete_section', 'Remove a section marker; with delete_content also the music inside it (regions are split at the boundaries).', { section_id: z.string(), delete_content: z.boolean().optional() });
+tool('move_section', 'Move a section WITH its content (regions split at the boundaries, automation follows) so it starts at to_bar (bar on the current timeline, e.g. the bar after another section). With ripple (default) the rest of the song closes the gap and makes room.', {
+  section_id: z.string(), to_bar: z.number().min(1), ripple: z.boolean().optional(),
+});
+tool('duplicate_section', 'Copy a section with its content, by default right after itself ("one more chorus"), or at to_bar. With ripple (default) what follows moves later.', {
+  section_id: z.string(), to_bar: z.number().min(1).optional(), ripple: z.boolean().optional(),
+});
+tool('split_region', 'Split a region in two at a bar (or beat): notes crossing the cut are shortened, later notes go to the new region.', {
+  region_id: z.string(), at_bar: z.number().min(1).optional(), at_beat: z.number().min(0).optional(),
+});
+tool('auto_sections', 'Propose sections (intro, verse, chorus…) from repetitions in the music and silences. Changes nothing: add the ones you like with add_section.', {}, readOnly);
 
 // ---- musical linter
 

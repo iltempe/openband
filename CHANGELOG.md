@@ -4,6 +4,11 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 ## Unreleased — v0.2 "The AI that listens"
 
+### F8 · Sections as first-class objects
+- Pure module `src/structure.ts`: `splitRegionAt` (notes crossing the cut are shortened, audio clips keep the right sample offset), `moveSection` and `duplicateSection` with or without ripple (regions are split at the boundaries; automation and other sections follow), `deleteSection` with or without content, energy profiles and `proposeSections` (4-bar blocks compared by note fingerprints, roles from repetition and density).
+- MCP: `get_structure` (energy profile per section, loudness when a full analysis is cached), `add_section`, `update_section`, `delete_section`, `move_section`, `duplicate_section`, `split_region`, `auto_sections`; every edit is one undo step. Instructions tell the AI to work in sections.
+- Structure lane above the ruler: click to loop, double-click to add or rename, drag to move (⌥ for ripple), right-click to duplicate, re-type or delete; *Suggest* applies the automatic proposal in one step.
+
 ### F7 · Musical linter and CI
 - Pure lint engine (`src/lint/`) with stable issue ids (hash of rule + target), per-song settings in `project.lint` (`disabled`, `severity`, `ignored`) and a rule registry for later rules.
 - Symbolic rules: `out_of_key` (short chromatic passing notes tolerated), `overlapping_notes`, `notes_outside_region`, `overlapping_regions`, `low_end_clash`, `register_crowding`, `robotic_velocity`, `robotic_timing`, `empty_track`, `bass_panned`, `section_gap`; most have an automatic fix.

@@ -12,6 +12,9 @@ import { addPluginEffect, addPluginInstrument, captureWamStates, getPluginParams
 import { wamCatalog } from './audio/wam';
 import { analyzeMix, detectKey, spectrogram } from './mixAnalysis';
 import { lint } from './lint/engine';
+import { SECTION_COLORS, assertNoOverlap, deleteSection, duplicateSection, energyProfile, moveSection, proposeSections, sortSections, splitRegionAt } from './structure';
+import { useAnalysis } from './mixAnalysis';
+import type { Section, SectionKind } from './types';
 import { hash as lintHash } from './lint/util';
 import type { LintIssue } from './lint/types';
 import type { Severity } from './types';
@@ -717,6 +720,90 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { exported: true, bytes: blob.size, note: 'The WAV was downloaded by the browser.' };
   },
 
+  // ---------- song structure ----------
+
+  get_structure: () => {
+    const p = st().project;
+    // Loudness per section when a full analysis (per-bar loudness) is cached.
+    const perBar = (useAnalysis.getState().result?.per_bar ?? []) as { bar: number; lufs: number }[];
+    const lufsOf = (s: Section) => {
+      const bars = perBar.filter((b) => b.bar >= s.start / 4 + 1 && b.bar < (s.start + s.length) / 4 + 1 && b.lufs > -900);
+      return bars.length ? +(10 * Math.log10(bars.reduce((a, b) => a + Math.pow(10, b.lufs / 10), 0) / bars.length)).toFixed(1) : undefined;
+    };
+    return {
+      length_bars: Math.ceil(projectEnd(p) / BEATS_PER_BAR),
+      sections: sortSections(structuredClone(p)).map((s) => ({
+        id: s.id,
+        name: s.name,
+        kind: s.kind,
+        start_bar: beatToBar(s.start),
+        length_bars: s.length / BEATS_PER_BAR,
+        energy: { ...energyProfile(p, s.start, s.start + s.length), ...(lufsOf(s) !== undefined ? { lufs: lufsOf(s) } : {}) },
+      })),
+    };
+  },
+
+  add_section: ({ name, kind, start_bar, length_bars }) => {
+    const k = (kind ?? 'custom') as SectionKind;
+    const s: Section = { id: uid('sec'), name: String(name ?? k), kind: k, start: barToBeat(start_bar ?? 1), length: Math.max(1, Number(length_bars ?? 4)) * BEATS_PER_BAR, color: SECTION_COLORS[k] };
+    assertNoOverlap(st().project, s);
+    st().commit((d) => {
+      (d.sections ??= []).push(s);
+      sortSections(d);
+    });
+    return { section_id: s.id, start_bar: beatToBar(s.start), length_bars: s.length / BEATS_PER_BAR };
+  },
+
+  update_section: ({ section_id, name, kind, start_bar, length_bars }) => {
+    const cur = st().project.sections?.find((s) => s.id === section_id);
+    if (!cur) throw new Error(`Section "${section_id}" not found. Call get_structure.`);
+    const next: Section = {
+      ...cur,
+      ...(name !== undefined ? { name: String(name) } : {}),
+      ...(kind !== undefined ? { kind, color: SECTION_COLORS[kind as SectionKind] } : {}),
+      ...(start_bar !== undefined ? { start: barToBeat(start_bar) } : {}),
+      ...(length_bars !== undefined ? { length: Math.max(1, Number(length_bars)) * BEATS_PER_BAR } : {}),
+    };
+    assertNoOverlap(st().project, next, cur.id);
+    st().commit((d) => {
+      d.sections = d.sections!.map((s) => (s.id === cur.id ? next : s));
+      sortSections(d);
+    });
+    return { section_id: cur.id };
+  },
+
+  delete_section: ({ section_id, delete_content }) => {
+    st().commit((d) => deleteSection(d, String(section_id), !!delete_content));
+    return { deleted: section_id, content_deleted: !!delete_content };
+  },
+
+  move_section: ({ section_id, to_bar, ripple }) => {
+    st().commit((d) => moveSection(d, String(section_id), barToBeat(Number(to_bar)), ripple !== false));
+    const s = st().project.sections!.find((x) => x.id === section_id)!;
+    return { section_id, start_bar: beatToBar(s.start) };
+  },
+
+  duplicate_section: ({ section_id, to_bar, ripple }) => {
+    let id = '';
+    st().commit((d) => void (id = duplicateSection(d, String(section_id), to_bar !== undefined ? barToBeat(Number(to_bar)) : undefined, ripple !== false)));
+    const s = st().project.sections!.find((x) => x.id === id)!;
+    return { section_id: id, start_bar: beatToBar(s.start), length_bars: s.length / BEATS_PER_BAR };
+  },
+
+  split_region: ({ region_id, at_bar, at_beat }) => {
+    const r = requireRegion(st().project, region_id);
+    const beat = at_beat !== undefined ? Number(at_beat) : barToBeat(Number(at_bar));
+    let id: string | null = null;
+    st().commit((d) => void (id = splitRegionAt(d, r.id, beat)));
+    if (!id) throw new Error(`Bar/beat ${at_bar ?? at_beat} is not inside region ${r.id}`);
+    return { left_region_id: r.id, right_region_id: id };
+  },
+
+  auto_sections: () => ({
+    proposal: proposeSections(st().project).map((s) => ({ name: s.name, kind: s.kind, start_bar: beatToBar(s.start), length_bars: s.length / BEATS_PER_BAR })),
+    note: 'Nothing was changed. Call add_section for the ones you want.',
+  }),
+
   // ---------- linter ----------
 
   lint_project: async ({ rules, include_audio, min_severity }) => {
@@ -851,7 +938,7 @@ export const commands: Record<string, (args: P) => unknown> = {
 const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
-  'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project',
+  'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

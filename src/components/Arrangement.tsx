@@ -9,12 +9,14 @@ import { commands } from '../commands';
 import * as I from './Icons';
 import { Waveform } from './Audio';
 import { AutomationLane } from './AutomationLane';
+import { StructureCorner, StructureLane } from './StructureLane';
 import { handleDroppedFiles, importAudioFlow } from './ImportUI';
 import { useT } from '../i18n';
 
 export const HEADER_W = 252;
 export const TRACK_H = 80;
-const RULER_H = 38;
+const STRUCT_H = 24;
+const RULER_H = 38 + STRUCT_H;
 const LOOP_STRIP = 14;
 
 const snapFor = (zoom: number) => (zoom >= 22 ? 1 : BEATS_PER_BAR);
@@ -48,17 +50,23 @@ export function Arrangement() {
         <div className="arr-inner" style={style}>
           <div className="arr-top" style={{ height: RULER_H }}>
             <div className="arr-corner">
-              <button className="chip" onClick={() => commands.add_track({ kind: 'instrument' })}>
-                <I.Plus width={14} height={14} /> {t('arr.addInstrument')}
-              </button>
-              <button className="chip" onClick={() => commands.add_track({ kind: 'drums' })}>
-                <I.Plus width={14} height={14} /> {t('arr.addDrums')}
-              </button>
-              <button className="chip" onClick={() => commands.add_track({ kind: 'audio' })}>
-                <I.Plus width={14} height={14} /> {t('arr.addAudio')}
-              </button>
+              <StructureCorner />
+              <div className="arr-corner-buttons">
+                <button className="chip" onClick={() => commands.add_track({ kind: 'instrument' })}>
+                  <I.Plus width={14} height={14} /> {t('arr.addInstrument')}
+                </button>
+                <button className="chip" onClick={() => commands.add_track({ kind: 'drums' })}>
+                  <I.Plus width={14} height={14} /> {t('arr.addDrums')}
+                </button>
+                <button className="chip" onClick={() => commands.add_track({ kind: 'audio' })}>
+                  <I.Plus width={14} height={14} /> {t('arr.addAudio')}
+                </button>
+              </div>
             </div>
-            <Ruler totalBeats={totalBeats} />
+            <div className="arr-top-right">
+              <StructureLane />
+              <Ruler totalBeats={totalBeats} />
+            </div>
           </div>
           {project.tracks.map((t) => (
             <TrackRow key={t.id} track={t} regions={project.regions.filter((r) => r.trackId === t.id)} />
@@ -192,7 +200,7 @@ function Playhead({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) {
   }, [x, playing, scrollRef]);
 
   return (
-    <div className="playhead" style={{ transform: `translateX(${x}px)` }}>
+    <div className="playhead" style={{ top: RULER_H, transform: `translateX(${x}px)` }}>
       <div className="playhead-cap" />
     </div>
   );

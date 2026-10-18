@@ -2746,3 +2746,122 @@ kbd {
 .pb-badge.error .pb-count {
   background: var(--rec);
 }
+
+/* ---------- structure lane ---------- */
+.arr-top-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.arr-top-right .ruler {
+  flex: 1;
+}
+.arr-corner {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0;
+  gap: 0;
+}
+.arr-corner-buttons {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+}
+.struct-corner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  flex: none;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.struct-corner .mini {
+  height: 18px;
+  padding: 0 7px;
+  font-size: 10.5px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.struct-lane {
+  position: relative;
+  height: 24px;
+  flex: none;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.struct-block {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  display: flex;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 5px;
+  color: #111;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: grab;
+  opacity: 0.9;
+}
+.struct-block:hover {
+  opacity: 1;
+}
+.struct-block.dragging {
+  opacity: 0.7;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+  z-index: 2;
+}
+.struct-rename {
+  width: 100%;
+  border: none;
+  background: rgba(255, 255, 255, 0.8);
+  color: #111;
+  font: inherit;
+  border-radius: 3px;
+}
+.struct-menu {
+  position: absolute;
+  top: 24px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 170px;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--panel-3);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), inset 0 0 0 1px var(--line-2);
+}
+.struct-menu button,
+.struct-menu select {
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+}
+.struct-menu button:hover {
+  background: var(--accent);
+}
+.struct-menu .danger:hover {
+  background: var(--rec);
+}
+.arr-corner-buttons {
+  gap: 4px;
+}
+.arr-corner-buttons .chip {
+  padding-left: 8px;
+  padding-right: 9px;
+}

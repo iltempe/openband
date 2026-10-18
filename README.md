@@ -29,6 +29,7 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 - **Live recording** into new regions, with metronome.
 - **MIDI import and export** (Standard MIDI Files, General MIDI programs, drums on channel 10).
 - **The AI listens**: `analyze_mix` renders the song and measures it — loudness (EBU R128 LUFS, true peak, LRA), frequency balance in 7 bands, stereo/phase, masking between tracks, the key — and returns concrete fixes (*“Bass and Drums cover each other at 60–250 Hz: cut 2–3 dB around 80 Hz…”*). `render_spectrogram` gives Claude an image of the mix to look at. The same report is in the **Analysis** panel (N).
+- **Song structure**: mark intro, verses, choruses… in the *Structure* lane above the ruler (or let *Suggest* find them from repetitions). Click a section to loop it, drag it to move it with all its content (⌥ pushes the rest of the song), right-click to duplicate or delete it. The AI works in sections too: *“add one more chorus at the end”*, *“make the second verse bigger”*.
 - **Musical linter**: the **Problems** panel (badge in the toolbar) checks the song after every change — notes out of key, overlapping notes and regions, notes past the end of a region, two bass parts clashing below E2, crowded registers, mechanical velocity or timing, empty tracks, panned bass — most with a one-click fix. The AI runs the same checks with `lint_project`, and so can your CI.
 - **The AI follows along**: phrases you play (split after a bar of silence), what you select, play/stop, your edits and questions typed in *Ask the AI* reach the connected AI as events. A switch in the AI panel turns activity sharing off (questions are always sent).
 - **Undo by intent**: everything the AI does for one request is a single, labelled undo step (*“Undo: Lo-fi beat (23 commands)”*); drags and knob turns are one step each.
@@ -147,6 +148,7 @@ The bridge only accepts connections from `127.0.0.1` and from pages served on lo
 | Undo | `begin_change` / `end_change` (one undo step per request, with a label), `get_history`, `undo` / `redo` (with `steps`) |
 | Tracks | `add_track` (instrument, drums or audio), `update_track` (instrument, volume, pan, mute, solo, reverb, echo, tone), `delete_track` |
 | Sounds | `import_sample`, `list_samples`, `create_sampler_instrument`, `import_soundfont`, `add_audio_region` — files are read from a local path or an http(s) URL |
+| Structure | `get_structure` (sections with an energy profile), `add_section`, `update_section`, `delete_section`, `move_section`, `duplicate_section` (with ripple), `split_region`, `auto_sections` |
 | Linter | `lint_project` (symbolic rules, optionally audio ones), `apply_fix`, `ignore_issue`; `update_notes` edits notes in place |
 | Listening | `analyze_mix` (bars or section, per track, summary/full), `render_spectrogram` (returns an image), `detect_key` (MIDI, audio or both) |
 | Mix | `set_track_effects` (amp, EQ, compressor), `set_automation`, `clear_automation` |
@@ -203,6 +205,7 @@ src/
   audio/context.ts        native AudioContext for Tone.js (required by WAM)
   plugins.ts              plugin search by description, parameters, saved state
   lint/                   musical linter (pure): engine and rules, CLI entry
+  structure.ts            sections: split, move, duplicate (ripple), energy profiles, auto proposals
 scripts/openband-lint.mjs  linter CLI for CI; .github/actions/openband-lint is the GitHub Action
   automation.ts           automation curves
   analysis/               pure DSP: FFT, loudness (BS.1770), spectrum, stereo, masking, key, issues
