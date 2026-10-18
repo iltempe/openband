@@ -1,5 +1,7 @@
 import { useStore } from '../store';
 import type { BridgeLogEntry } from '../types';
+import { useState } from 'react';
+import { emitStudioEvent, setActivitySharing, useActivitySharing } from '../events';
 import { BRIDGE_ENABLED, BRIDGE_URL } from '../bridge';
 import * as I from './Icons';
 import { useT } from '../i18n';
@@ -32,6 +34,8 @@ export function AIPanel() {
   const past = useStore((s) => s.past);
   const open = useStore((s) => s.activeTransaction);
   const undo = useStore((s) => s.undo);
+  const share = useActivitySharing((s) => s.share);
+  const [question, setQuestion] = useState('');
   const set = useStore((s) => s.set);
   const notify = useStore((s) => s.notify);
   const t = useT();
@@ -77,6 +81,35 @@ export function AIPanel() {
           >
             <I.Copy width={13} height={13} /> {t('ai.copy')}
           </button>
+        </div>
+      )}
+
+      {status === 'connected' && (
+        <div className="ai-live">
+          <label className="ai-share">
+            <input type="checkbox" checked={share} onChange={(e) => setActivitySharing(e.target.checked)} />
+            <span>
+              {t('ai.share')}
+              <small>{t('ai.shareHint')}</small>
+            </span>
+          </label>
+          <form
+            className="ai-ask"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const text = question.trim();
+              if (!text) return;
+              const s = useStore.getState();
+              emitStudioEvent({ kind: 'ask', text, context: s.selectedRegionId ? { region_id: s.selectedRegionId } : undefined });
+              setQuestion('');
+              notify(t('ai.askSent'));
+            }}
+          >
+            <input placeholder={t('ai.askPlaceholder')} value={question} onChange={(e) => setQuestion(e.target.value)} />
+            <button className="mini" type="submit" disabled={!question.trim()}>
+              {t('ai.ask')}
+            </button>
+          </form>
         </div>
       )}
 

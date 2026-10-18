@@ -5,6 +5,8 @@ import { BEATS_PER_BAR, uid } from './music';
 import { engine } from './audio/engine';
 import { getTrack, makeTrack, useStore } from './store';
 import { t } from './i18n';
+import { PhraseSegmenter } from './phrases';
+import { emitStudioEvent } from './events';
 
 /** Musical typing layout, semitone offsets from the current octave's C. */
 export const TYPING_KEYS: Record<string, number> = {
@@ -74,6 +76,7 @@ export function stopRecording() {
   st().commit((d) => void d.regions.push(region));
   st().selectRegion(region);
   st().notify(t('rec.done', { n: r.notes.length }));
+  emitStudioEvent({ kind: 'region_recorded', region_id: region.id });
 }
 
 function finishNote(pitch: number, start: number, velocity: number, end: number): Note {
@@ -84,9 +87,31 @@ function finishNote(pitch: number, start: number, velocity: number, end: number)
 
 // ---------- live notes ----------
 
+// ---------- phrases for the AI ----------
+
+const phrases = new PhraseSegmenter();
+/** Monotonic clock in beats: keeps running when the transport loops or is stopped. */
+const phraseClock = () => ((performance.now() / 1000) * st().project.bpm) / 60;
+let phraseTimer: ReturnType<typeof setInterval> | undefined;
+let phraseTrack: string | null = null;
+
+function watchPhrase() {
+  if (phraseTimer) return;
+  phraseTimer = setInterval(() => {
+    const p = phrases.poll(phraseClock());
+    if (!p) return;
+    clearInterval(phraseTimer);
+    phraseTimer = undefined;
+    if (phraseTrack) emitStudioEvent({ kind: 'phrase', track_id: phraseTrack, ...p });
+  }, 250);
+}
+
 export function liveNoteOn(pitch: number, velocity = st().velocity) {
   const trackId = st().selectedTrackId ?? st().project.tracks[0]?.id;
   if (!trackId) return;
+  phraseTrack = trackId;
+  phrases.noteOn(pitch, velocity, phraseClock(), engine.position);
+  watchPhrase();
   if (!engine.contextRunning) void engine.unlock();
   engine.noteOn(trackId, pitch, velocity);
   useLive.setState((s) => ({ active: [...s.active.filter((p) => p !== pitch), pitch] }));
@@ -96,6 +121,7 @@ export function liveNoteOn(pitch: number, velocity = st().velocity) {
 export function liveNoteOff(pitch: number) {
   const trackId = st().selectedTrackId ?? st().project.tracks[0]?.id;
   if (trackId) engine.noteOff(trackId, pitch);
+  phrases.noteOff(pitch, phraseClock());
   useLive.setState((s) => ({ active: s.active.filter((p) => p !== pitch) }));
   const p = rec?.pending.get(pitch);
   if (rec && p) {

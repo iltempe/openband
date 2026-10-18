@@ -2,6 +2,8 @@
 // The MCP server forwards each tool call as {type:"call"} and waits for our {type:"result"}.
 import { useStore } from './store';
 import { runCommand } from './commands';
+import { engine } from './audio/engine';
+import { emitSelection, emitStudioEvent, setEventSink } from './events';
 
 const params = new URLSearchParams(location.search);
 const port = params.get('mcp') ?? '7777';
@@ -30,6 +32,11 @@ export function connectBridge() {
   socket.onopen = () => {
     retry = 1000;
     set({ bridgeStatus: 'connected' });
+    const ws = socket!;
+    setEventSink({
+      event: (event) => ws.readyState === 1 && ws.send(JSON.stringify({ type: 'event', event })),
+      projectChanged: () => ws.readyState === 1 && ws.send(JSON.stringify({ type: 'project_changed' })),
+    });
     socket?.send(JSON.stringify({ type: 'hello', app: 'openband', version: '0.1.0' }));
   };
   socket.onmessage = async (ev) => {
@@ -48,11 +55,27 @@ export function connectBridge() {
     }
   };
   socket.onclose = () => {
+    setEventSink(null);
     set({ bridgeStatus: 'disconnected' });
     scheduleReconnect();
   };
   socket.onerror = () => socket?.close();
 }
+
+// What the user does with the transport and the selection, for the AI (see events.ts).
+const bar = () => Math.floor(engine.position / 4) + 1;
+useStore.subscribe((s, prev) => {
+  if (s.isPlaying !== prev.isPlaying) emitStudioEvent({ kind: 'transport', action: s.isPlaying ? 'play' : 'stop', bar: bar() });
+  if (s.project.loop.enabled !== prev.project.loop.enabled && s.project.loop.enabled) emitStudioEvent({ kind: 'transport', action: 'loop', bar: s.project.loop.start / 4 + 1 });
+  if (s.selectedTrackId !== prev.selectedTrackId || s.selectedRegionId !== prev.selectedRegionId || (s.selectedNoteIds !== prev.selectedNoteIds && (s.selectedNoteIds.length > 0 || prev.selectedNoteIds.length > 0))) {
+    emitSelection({
+      kind: 'selection',
+      ...(s.selectedTrackId ? { track_id: s.selectedTrackId } : {}),
+      ...(s.selectedRegionId ? { region_id: s.selectedRegionId } : {}),
+      ...(s.selectedNoteIds.length ? { note_ids: s.selectedNoteIds } : {}),
+    });
+  }
+});
 
 function scheduleReconnect() {
   setTimeout(connectBridge, retry);

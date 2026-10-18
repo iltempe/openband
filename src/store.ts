@@ -5,6 +5,7 @@ import { defaultPreset, findInstrument, setCustomInstruments } from './audio/ins
 import { ensureSamples } from './audio/samples';
 import { t } from './i18n';
 import { migrate } from './migrations';
+import { emitStudioEvent, notifyProjectChanged } from './events';
 
 const STORAGE_KEY = 'openband.project.v2';
 /** Autosave key used by OpenBand 0.1 (schema v1), still read as a fallback. */
@@ -156,6 +157,9 @@ export const useStore = create<State>((set, get) => ({
       past: history ? [...past, entry(project, opts?.label ?? t('hist.edit'), 'ui', 1)].slice(-HISTORY_LIMIT) : past,
       future: history ? [] : get().future,
     });
+    // A standalone user edit (not inside an AI command or transaction).
+    if (history && aiDepth === 0) emitStudioEvent({ kind: 'user_edit', label: opts?.label ?? t('hist.edit') });
+    if (!activeTransaction) notifyProjectChanged();
   },
   checkpoint: (label) => {
     const id = get().beginTransaction(typeof label === 'string' ? label : t('hist.edit'), 'ui');
@@ -186,6 +190,8 @@ export const useStore = create<State>((set, get) => ({
     }
     const e: HistoryEntry = { id: tx.id, project: tx.snapshot, label: tx.label, source: tx.source, commands: Math.max(1, tx.commands), at: Date.now() };
     set({ activeTransaction: null, past: [...past, e].slice(-HISTORY_LIMIT), future: [] });
+    if (tx.source === 'ui') emitStudioEvent({ kind: 'user_edit', label: tx.label });
+    notifyProjectChanged();
     return e;
   },
   countCommand: () => {
@@ -200,6 +206,7 @@ export const useStore = create<State>((set, get) => ({
       const prev = past[past.length - 1];
       if (!prev) return;
       set({ project: prev.project, past: past.slice(0, -1), future: [{ ...prev, project }, ...future] });
+      notifyProjectChanged();
     }
   },
   redo: (steps = 1) => {
@@ -208,6 +215,7 @@ export const useStore = create<State>((set, get) => ({
       const next = future[0];
       if (!next) return;
       set({ project: next.project, past: [...past, { ...next, project }], future: future.slice(1) });
+      notifyProjectChanged();
     }
   },
   loadProject: (raw) => {

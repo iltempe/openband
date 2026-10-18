@@ -28,6 +28,7 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 - **Musical typing** (keys A–' like a piano, Z/X for octave, C/V for velocity) and **Web MIDI** for external controllers.
 - **Live recording** into new regions, with metronome.
 - **MIDI import and export** (Standard MIDI Files, General MIDI programs, drums on channel 10).
+- **The AI follows along**: phrases you play (split after a bar of silence), what you select, play/stop, your edits and questions typed in *Ask the AI* reach the connected AI as events. A switch in the AI panel turns activity sharing off (questions are always sent).
 - **Undo by intent**: everything the AI does for one request is a single, labelled undo step (*“Undo: Lo-fi beat (23 commands)”*); drags and knob turns are one step each.
 - **Undo/redo**, autosave, **WAV export** with offline rendering; projects with imported sounds are saved as a single `.openband` file that bundles the samples.
 - **AI control via MCP**: 52 tools to compose, arrange, import sounds, add plugins, mix, automate and export — the AI can add a plugin just from a description such as *“a warm tube overdrive”*.
@@ -116,6 +117,7 @@ The bridge only accepts connections from `127.0.0.1` and from pages served on lo
 | Area | Tools |
 |---|---|
 | Project | `get_project`, `get_status`, `list_instruments`, `new_project`, `rename_project`, `set_tempo`, `set_key`, `set_master_volume`, `export_project_json`, `import_project_json` |
+| Studio events | `get_events`, `wait_for_event` (phrases you play, selection, transport, edits, questions from *Ask the AI*); resource `openband://project` with change notifications |
 | Undo | `begin_change` / `end_change` (one undo step per request, with a label), `get_history`, `undo` / `redo` (with `steps`) |
 | Tracks | `add_track` (instrument, drums or audio), `update_track` (instrument, volume, pan, mute, solo, reverb, echo, tone), `delete_track` |
 | Sounds | `import_sample`, `list_samples`, `create_sampler_instrument`, `import_soundfont`, `add_audio_region` — files are read from a local path or an http(s) URL |

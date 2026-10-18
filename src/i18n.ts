@@ -245,6 +245,13 @@ const en = {
   'ai.undoOnlyLast': 'Only the latest change can be undone from here',
   'ai.inProgress': 'in progress…',
 
+  // Studio → AI events
+  'ai.share': 'Share my activity with the AI',
+  'ai.shareHint': 'What you play, select and edit is sent to the connected AI so it can react. Questions you ask are always sent.',
+  'ai.askPlaceholder': 'Ask the AI about the selection…',
+  'ai.ask': 'Ask',
+  'ai.askSent': 'Question sent to the AI',
+
   // Default names
   'name.untitled': 'My song',
   'name.newSong': 'New song',
@@ -517,6 +524,12 @@ const it: Record<MessageKey, string> = {
   'ai.undoThis': 'Annulla questo',
   'ai.undoOnlyLast': 'Da qui si può annullare solo l’ultima modifica',
   'ai.inProgress': 'in corso…',
+
+  'ai.share': 'Condividi la mia attività con l’AI',
+  'ai.shareHint': 'Ciò che suoni, selezioni e modifichi viene inviato all’AI collegata così può reagire. Le domande che fai vengono sempre inviate.',
+  'ai.askPlaceholder': 'Chiedi all’AI della selezione…',
+  'ai.ask': 'Chiedi',
+  'ai.askSent': 'Domanda inviata all’AI',
 
   'name.untitled': 'Il mio brano',
   'name.newSong': 'Nuovo brano',

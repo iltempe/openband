@@ -1,0 +1,84 @@
+// Studio → AI event channel. Modules report what the user does here; the bridge forwards it to the
+// MCP server. No dependencies, so the store and input code can use it freely.
+import { create } from 'zustand';
+
+export interface PhraseNoteOut {
+  pitch: number;
+  start: number;
+  duration: number;
+  velocity: number;
+  raw_start: number;
+}
+
+export type StudioEvent =
+  | { kind: 'phrase'; track_id: string; start_bar: number; notes: PhraseNoteOut[] }
+  | { kind: 'selection'; track_id?: string; region_id?: string; note_ids?: string[] }
+  | { kind: 'transport'; action: 'play' | 'stop' | 'loop'; bar: number }
+  | { kind: 'user_edit'; label: string }
+  | { kind: 'region_recorded'; region_id: string }
+  | { kind: 'ask'; text: string; context?: { region_id?: string; section_id?: string } }
+  | { kind: 'ab_result'; test_id: string; ranking: string[] };
+
+/** Events the user triggers on purpose: always sent, even with activity sharing off. */
+const EXPLICIT = new Set<StudioEvent['kind']>(['ask', 'ab_result']);
+const SHARE_KEY = 'openband.shareActivity';
+
+function initialShare() {
+  try {
+    const v = localStorage.getItem(SHARE_KEY);
+    if (v !== null) return v === '1';
+  } catch {
+    // storage unavailable
+  }
+  // On by default when the studio runs locally (where an AI can actually be connected).
+  return typeof location === 'undefined' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+}
+
+export const useActivitySharing = create<{ share: boolean }>(() => ({ share: initialShare() }));
+export function setActivitySharing(share: boolean) {
+  useActivitySharing.setState({ share });
+  try {
+    localStorage.setItem(SHARE_KEY, share ? '1' : '0');
+  } catch {
+    // not persisted
+  }
+}
+
+type Sink = { event(e: StudioEvent & { at: number }): void; projectChanged(): void };
+let sink: Sink | null = null;
+export const setEventSink = (s: Sink | null) => void (sink = s);
+
+export function emitStudioEvent(e: StudioEvent) {
+  if (!sink) return;
+  if (!EXPLICIT.has(e.kind) && !useActivitySharing.getState().share) return;
+  sink.event({ ...e, at: Date.now() });
+}
+
+// Selection changes are throttled: at most one event every 500 ms, always ending on the latest.
+let selTimer: ReturnType<typeof setTimeout> | undefined;
+let selLast = 0;
+let selPending: StudioEvent | null = null;
+export function emitSelection(e: Extract<StudioEvent, { kind: 'selection' }>) {
+  selPending = e;
+  const wait = 500 - (Date.now() - selLast);
+  if (wait <= 0) {
+    selLast = Date.now();
+    emitStudioEvent(e);
+    selPending = null;
+    return;
+  }
+  clearTimeout(selTimer);
+  selTimer = setTimeout(() => {
+    if (!selPending) return;
+    selLast = Date.now();
+    emitStudioEvent(selPending);
+    selPending = null;
+  }, wait);
+}
+
+// "The project changed" notifications for MCP resource subscribers, coalesced.
+let changeTimer: ReturnType<typeof setTimeout> | undefined;
+export function notifyProjectChanged() {
+  clearTimeout(changeTimer);
+  changeTimer = setTimeout(() => sink?.projectChanged(), 300);
+}

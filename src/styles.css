@@ -2441,3 +2441,38 @@ kbd {
 .ai-group-live {
   color: var(--accent-2);
 }
+
+/* ---------- AI panel: live activity ---------- */
+.ai-live {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 16px 12px;
+}
+.ai-share {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ai-share small {
+  display: block;
+  margin-top: 2px;
+  color: var(--dim);
+  font-weight: 400;
+}
+.ai-ask {
+  display: flex;
+  gap: 6px;
+}
+.ai-ask input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 9px;
+  border-radius: 7px;
+  border: 1px solid var(--line-2);
+  background: var(--panel-3);
+  outline: none;
+}

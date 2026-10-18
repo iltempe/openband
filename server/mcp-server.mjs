@@ -9,6 +9,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { WebSocketServer } from 'ws';
 import { z } from 'zod';
+import { SubscribeRequestSchema, UnsubscribeRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { EventBuffer } from './events.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -52,6 +54,9 @@ const wss = new WebSocketServer({
   verifyClient: ({ origin }) => isLocalOrigin(origin),
 });
 
+/** What the user does in the studio (phrases, selection, edits…), newest last. */
+const events = new EventBuffer(500);
+
 /** @type {import('ws').WebSocket | null} */
 let studio = null;
 const pending = new Map();
@@ -68,6 +73,8 @@ wss.on('connection', (ws) => {
     } catch {
       return;
     }
+    if (msg.type === 'event' && msg.event?.kind) return void events.push(msg.event);
+    if (msg.type === 'project_changed') return void notifyProjectResource();
     if (msg.type !== 'result') return;
     const p = pending.get(msg.id);
     if (!p) return;
@@ -118,6 +125,7 @@ async function call(method, params = {}, timeoutMs = 20000) {
 const INSTRUCTIONS = `OpenBand is a GarageBand-style music studio running in the user's browser. You control it with these tools.
 
 Wrap every user request in begin_change("short label") … end_change() so the user can undo it in one step. (Commands sent without it are grouped automatically until you pause for 4 seconds.)
+The studio also reports what the user does: get_events / wait_for_event (phrases they play, selections, edits, questions). The resource openband://project holds the song and notifies subscribers after each change.
 
 Conventions:
 - 4/4 time. Bars are 1-based (bar 1 = the very start). One bar = 4 beats.
@@ -135,6 +143,28 @@ Files: export_wav and export_midi download in the browser, or write to disk with
 Plugins: Web Audio Modules (WAM 2.0) instruments and effects. When the user describes a sound or effect in words, call add_plugin with that description (or search_plugins first to compare options); then get_plugin_params / set_plugin_params to dial it in.`;
 
 const server = new McpServer({ name: 'openband', version: '0.1.0' }, { instructions: INSTRUCTIONS });
+
+// ---- openband://project resource, with change notifications for subscribed clients
+const PROJECT_URI = 'openband://project';
+const subscriptions = new Set();
+server.registerResource(
+  'project',
+  PROJECT_URI,
+  { title: 'Current OpenBand project', description: 'The song open in the studio (same JSON as get_project). Subscribe to be notified after every change.', mimeType: 'application/json' },
+  async (uri) => ({ contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(await call('get_project', {}), null, 2) }] }),
+);
+server.server.registerCapabilities({ resources: { subscribe: true, listChanged: true } });
+server.server.setRequestHandler(SubscribeRequestSchema, async (req) => {
+  subscriptions.add(req.params.uri);
+  return {};
+});
+server.server.setRequestHandler(UnsubscribeRequestSchema, async (req) => {
+  subscriptions.delete(req.params.uri);
+  return {};
+});
+function notifyProjectResource() {
+  if (subscriptions.has(PROJECT_URI)) server.server.sendResourceUpdated({ uri: PROJECT_URI }).catch(() => {});
+}
 
 const text = (v) => ({ content: [{ type: 'text', text: typeof v === 'string' ? v : JSON.stringify(v, null, 2) }] });
 
@@ -417,6 +447,30 @@ exportTool('export_midi', 'Export the song as a Standard MIDI File (format 1): o
 fileTool('import_midi', 'Import a MIDI file (.mid): each part becomes a track with the closest OpenBand instrument (channel 10 → drums). Adds to the current song unless replace is true; the song tempo is used when the project is empty or replaced.', {
   replace: z.boolean().optional(),
 });
+
+// ---- studio → AI events (answered by this server, not the studio)
+
+const EventKind = z.enum(['phrase', 'selection', 'transport', 'user_edit', 'region_recorded', 'ask', 'ab_result']);
+
+server.registerTool(
+  'get_events',
+  {
+    description: 'What the user has been doing in the studio, oldest first: phrases played live (notes in beats from the phrase\'s first bar), selection changes, transport, finished edits, recorded regions and questions asked with "Ask the AI". Pass since_id (the last_id you got) to get only new ones.',
+    inputSchema: { since_id: z.number().int().optional(), kinds: z.array(EventKind).optional(), limit: z.number().int().min(1).max(500).optional() },
+    annotations: { readOnlyHint: true },
+  },
+  async (args) => text(events.list(args)),
+);
+
+server.registerTool(
+  'wait_for_event',
+  {
+    description: 'Wait (long-poll, up to 60 s) for the next studio event of the given kinds, e.g. {kinds:["phrase"]} to answer what the user plays, or ["ask"] for questions. Returns the event, or {timeout:true}. With since_id, an event already received after it is returned immediately.',
+    inputSchema: { kinds: z.array(EventKind).optional(), timeout_ms: z.number().int().min(0).max(60000).optional(), since_id: z.number().int().optional() },
+    annotations: { readOnlyHint: true },
+  },
+  async (args) => text(await events.wait(args)),
+);
 
 // ---- WAM plugins (Web Audio Modules 2.0, the web's open plugin standard)
 
