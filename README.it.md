@@ -163,7 +163,11 @@ Poi chiedi, per esempio:
 
 Variabili d'ambiente: `OPENBAND_PORT` (predefinita 7777; se è occupata si usa la prima porta libera e lo studio si apre con `?mcp=<porta>`), `OPENBAND_OPEN_BROWSER=0` (non aprire il browser), `OPENBAND_COLLAB=1` (stanze multiplayer nella tua rete) e `OPENBAND_DEV_URL` (predefinita `http://localhost:5173`, usata quando manca la build). Problemi? `npx openband doctor` controlla Node, la porta, la build e i tuoi client MCP.
 
-Il bridge accetta connessioni solo da `127.0.0.1` e da pagine servite su localhost.
+**Dalla demo online.** Anche la demo può comandare il server OpenBand sul tuo computer: apri il pannello **AI** → *Collega AI*, installa l'estensione (o esegui `npx openband mcp`) e scrivi il **codice di abbinamento** di 6 cifre che Claude ti dà quando gli chiedi di aprire lo studio (il server lo stampa anche all'avvio). La scheda riceve un token di sessione, quindi ricaricando non lo richiede; riavviare il server lo revoca. Il browser potrebbe chiederti di consentire al sito l'accesso alla rete locale: è così che la pagina raggiunge `127.0.0.1`, scegli *Consenti*. Se il browser rifiuta, *Apri lo studio locale* porta la canzone aperta nello studio servito dal tuo computer.
+
+<img src="docs/connect-ai.png" alt="La procedura Collega AI nella demo online" width="300">
+
+Il bridge accetta solo connessioni in loopback: da pagine servite su localhost (senza codice) e dai siti in `OPENBAND_ALLOWED_ORIGINS` (predefinito `https://iltempe.github.io`), che devono prima abbinarsi: 5 codici sbagliati in un minuto bloccano l'abbinamento per 5 minuti, e i codici scadono dopo 10 minuti.
 
 ### Strumenti MCP
 

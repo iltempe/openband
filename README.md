@@ -165,7 +165,11 @@ Then ask, for example:
 
 Environment variables: `OPENBAND_PORT` (default 7777; when it is taken the next free port is used and the studio opens with `?mcp=<port>`), `OPENBAND_OPEN_BROWSER=0` (don't open the browser), `OPENBAND_COLLAB=1` (multiplayer rooms on your network) and `OPENBAND_DEV_URL` (default `http://localhost:5173`, used when there is no build). Trouble? `npx openband doctor` checks Node, the port, the build and your MCP clients.
 
-The bridge only accepts connections from `127.0.0.1` and from pages served on localhost.
+**From the online demo.** The demo can drive the OpenBand server on your computer too: open the **AI** panel → *Connect AI*, install the extension (or run `npx openband mcp`), and type the 6-digit **pairing code** that Claude gives you when you ask it to open the studio (the server also prints it when it starts). The tab gets a session token, so reloading doesn't ask again; restarting the server revokes it. Your browser may ask to let the site access your local network — that is how the page reaches `127.0.0.1`: choose *Allow*. If your browser refuses, *Open the local studio* takes the song you have open to the studio served on your computer.
+
+<img src="docs/connect-ai.png" alt="Connect AI wizard on the online demo" width="300">
+
+The bridge only accepts connections over loopback: from pages served on localhost (no code needed) and from the sites in `OPENBAND_ALLOWED_ORIGINS` (default `https://iltempe.github.io`), which must pair first — 5 wrong codes in a minute lock pairing for 5 minutes, codes expire after 10 minutes.
 
 ### MCP tools
 

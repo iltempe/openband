@@ -1,5 +1,6 @@
-// WebSocket link to the local MCP server (server/mcp-server.mjs).
+// WebSocket link to the MCP server on this computer (server/mcp-server.mjs).
 // The MCP server forwards each tool call as {type:"call"} and waits for our {type:"result"}.
+import { create } from 'zustand';
 import { useStore } from './store';
 import { runCommand } from './commands';
 import { engine } from './audio/engine';
@@ -7,61 +8,171 @@ import { emitSelection, emitStudioEvent, setEventSink } from './events';
 import { setCollabServer } from './collab/session';
 
 const params = new URLSearchParams(location.search);
-const port = params.get('mcp') ?? '7777';
-export const BRIDGE_URL = `ws://127.0.0.1:${port}/bridge`;
+const IS_LOCAL_PAGE = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
 
-// The MCP server only accepts pages served from localhost, so the hosted demo (GitHub Pages)
-// skips the bridge instead of retrying forever.
-export const BRIDGE_ENABLED = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) || params.has('mcp');
+/** The bridge protocol this app speaks (the server says its own in hello). */
+export const PROTOCOL = 1;
+
+/**
+ * Local pages (served by `npx openband`, the .mcpb or `npm run dev`) connect by themselves, as always.
+ * The online demo connects only when the user asks ("Connect AI"), and pairs with the code the server shows.
+ */
+export const BRIDGE_ENABLED = IS_LOCAL_PAGE || params.has('mcp');
+const TOKEN_KEY = 'openband.bridgeToken';
+const PORT_KEY = 'openband.bridgePort';
+
+export type BridgeProblem =
+  /** Nothing answered; `permission` when the browser reports Local Network Access as blocked (a possible cause). */
+  | { kind: 'unreachable'; port: number; permission?: boolean }
+  | { kind: 'code'; reason: 'wrong' | 'expired' | 'locked' | 'missing'; attemptsLeft?: number; retryInMs?: number }
+  | { kind: 'protocol'; server: number; app: number; version?: string };
+
+/** Connection details for the AI panel (the store keeps the plain status). */
+export const useBridge = create<{ port: number; remote: boolean; pairing: boolean; problem: BridgeProblem | null; serverVersion: string | null }>(() => ({
+  port: Number(params.get('mcp') ?? sessionGet(PORT_KEY) ?? 7777),
+  remote: !IS_LOCAL_PAGE,
+  pairing: false,
+  problem: null,
+  serverVersion: null,
+}));
+
+function sessionGet(k: string) {
+  try {
+    return sessionStorage.getItem(k);
+  } catch {
+    return null;
+  }
+}
+function sessionSet(k: string, v: string | null) {
+  try {
+    if (v === null) sessionStorage.removeItem(k);
+    else sessionStorage.setItem(k, v);
+  } catch {
+    // not kept
+  }
+}
+
+export const bridgeUrl = (port = useBridge.getState().port) => `ws://127.0.0.1:${port}/bridge`;
+/** Kept for the setup text in the AI panel. */
+export const BRIDGE_URL = bridgeUrl();
 
 let socket: WebSocket | null = null;
 let retry = 1000;
+let pendingCode: string | null = null;
+let wanted = false;
+
+/** Chrome's "Local Network Access" permission, when the browser knows it. */
+async function lnaDenied(): Promise<boolean> {
+  try {
+    const st = await navigator.permissions.query({ name: 'local-network-access' as PermissionName });
+    return st.state === 'denied';
+  } catch {
+    return false;
+  }
+}
+
+/** Online demo: connect to the server on `port` and pair with `code` (or with the token of this tab). */
+export function connectRemote(port: number, code?: string) {
+  useBridge.setState({ port, problem: null });
+  sessionSet(PORT_KEY, String(port));
+  pendingCode = code ? code.replace(/\D/g, '') : null;
+  wanted = true;
+  socket?.close();
+  connectBridge();
+}
+
+export function disconnectBridge() {
+  wanted = false;
+  sessionSet(TOKEN_KEY, null);
+  socket?.close();
+}
 
 export function connectBridge() {
   const set = useStore.getState().set;
-  if (!BRIDGE_ENABLED) {
+  const remote = !BRIDGE_ENABLED;
+  // The demo stays offline until the user asks — unless this tab already paired.
+  if (remote && !wanted && !sessionGet(TOKEN_KEY)) {
     set({ bridgeStatus: 'disconnected' });
     return;
   }
+  wanted = true;
   set({ bridgeStatus: 'connecting' });
+  const port = useBridge.getState().port;
+  let opened = false;
   try {
-    socket = new WebSocket(BRIDGE_URL);
+    socket = new WebSocket(bridgeUrl(port));
   } catch {
+    if (remote) return void fail({ kind: 'unreachable', port });
     scheduleReconnect();
     return;
   }
-  socket.onopen = () => {
+  const ws = socket;
+  const send = (m: unknown) => ws.readyState === 1 && ws.send(JSON.stringify(m));
+  ws.onopen = () => {
+    opened = true;
     retry = 1000;
-    set({ bridgeStatus: 'connected' });
-    const ws = socket!;
-    setEventSink({
-      event: (event) => ws.readyState === 1 && ws.send(JSON.stringify({ type: 'event', event })),
-      projectChanged: () => ws.readyState === 1 && ws.send(JSON.stringify({ type: 'project_changed' })),
-    });
-    socket?.send(JSON.stringify({ type: 'hello', app: 'openband', version: '0.1.0' }));
+    send({ type: 'hello', app: 'openband', protocol: PROTOCOL, ...(remote ? { token: sessionGet(TOKEN_KEY) ?? undefined, pair: pendingCode ?? undefined } : {}) });
   };
-  socket.onmessage = async (ev) => {
-    let msg: { type: string; id: string; method: string; params: Record<string, unknown>; collab?: { lan: string[]; port: number } | null };
+  ws.onmessage = async (ev) => {
+    let msg: { type: string; id: string; method: string; params: Record<string, unknown>; collab?: { lan: string[]; port: number } | null; protocol?: number; version?: string; token?: string; reason?: 'wrong' | 'expired' | 'locked' | 'missing'; attempts_left?: number; retry_in_ms?: number };
     try {
       msg = JSON.parse(ev.data);
     } catch {
       return;
     }
-    if (msg.type === 'hello') return void setCollabServer(msg.collab ?? null);
+    if (msg.type === 'pair_required') {
+      // The token was refused (server restarted) or no code yet: ask for one.
+      sessionSet(TOKEN_KEY, null);
+      if (pendingCode) return;
+      useBridge.setState({ pairing: true });
+      set({ bridgeStatus: 'disconnected' });
+      return;
+    }
+    if (msg.type === 'pair_failed') {
+      pendingCode = null;
+      useBridge.setState({ pairing: true, problem: { kind: 'code', reason: msg.reason ?? 'wrong', attemptsLeft: msg.attempts_left, retryInMs: msg.retry_in_ms } });
+      set({ bridgeStatus: 'disconnected' });
+      return;
+    }
+    if (msg.type === 'paired') {
+      pendingCode = null;
+      if (msg.token) sessionSet(TOKEN_KEY, msg.token);
+      return;
+    }
+    if (msg.type === 'hello') {
+      setCollabServer(msg.collab ?? null);
+      const mismatch = typeof msg.protocol === 'number' && msg.protocol !== PROTOCOL;
+      useBridge.setState({ pairing: false, problem: mismatch ? { kind: 'protocol', server: msg.protocol!, app: PROTOCOL, version: msg.version } : null, serverVersion: msg.version ?? null });
+      set({ bridgeStatus: 'connected' });
+      setEventSink({
+        event: (event) => send({ type: 'event', event }),
+        projectChanged: () => send({ type: 'project_changed' }),
+      });
+      return;
+    }
     if (msg.type !== 'call') return;
     try {
       const result = await runCommand(msg.method, msg.params, 'ai');
-      socket?.send(JSON.stringify({ type: 'result', id: msg.id, ok: true, result: result ?? null }));
+      send({ type: 'result', id: msg.id, ok: true, result: result ?? null });
     } catch (e) {
-      socket?.send(JSON.stringify({ type: 'result', id: msg.id, ok: false, error: (e as Error).message }));
+      send({ type: 'result', id: msg.id, ok: false, error: (e as Error).message });
     }
   };
-  socket.onclose = () => {
+  ws.onclose = () => {
+    if (socket !== ws) return;
     setEventSink(null);
     set({ bridgeStatus: 'disconnected' });
-    scheduleReconnect();
+    if (!remote) return void scheduleReconnect();
+    // The demo: say why, instead of retrying blindly.
+    if (!opened) void lnaDenied().then((denied) => fail({ kind: 'unreachable', port, permission: denied }));
+    else if (wanted && sessionGet(TOKEN_KEY) && !useBridge.getState().pairing) scheduleReconnect();
   };
-  socket.onerror = () => socket?.close();
+  ws.onerror = () => ws.close();
+}
+
+function fail(problem: BridgeProblem) {
+  useBridge.setState({ problem });
+  useStore.getState().set({ bridgeStatus: 'disconnected' });
 }
 
 // What the user does with the transport and the selection, for the AI (see events.ts).

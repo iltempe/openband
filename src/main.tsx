@@ -5,6 +5,7 @@ import { App } from './App';
 import { hasSavedProject, useStore } from './store';
 import { engine } from './audio/engine';
 import { loadDemo } from './demo';
+import { consumeHandoff } from './handoff';
 import { connectBridge } from './bridge';
 import { initMidi } from './input';
 import './lintLive';
@@ -12,7 +13,8 @@ import { initReference } from './reference';
 import { initVersions } from './versioning';
 import { initJam } from './jamMode';
 
-if (!hasSavedProject()) loadDemo();
+// A song handed over from the online demo wins; otherwise the autosave, otherwise the demo song.
+if (!consumeHandoff() && !hasSavedProject()) loadDemo();
 
 engine.sync(useStore.getState().project);
 useStore.subscribe((s, prev) => {

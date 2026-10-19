@@ -5,18 +5,10 @@ import { Markdown, openComments } from './Comments';
 import type { BridgeLogEntry } from '../types';
 import { useState } from 'react';
 import { emitStudioEvent, setActivitySharing, useActivitySharing } from '../events';
-import { BRIDGE_ENABLED, BRIDGE_URL } from '../bridge';
+import { BRIDGE_ENABLED, useBridge } from '../bridge';
+import { ConnectAI } from './ConnectAI';
 import * as I from './Icons';
 import { useT } from '../i18n';
-
-const config = (path: string) => `{
-  "mcpServers": {
-    "openband": {
-      "command": "node",
-      "args": ["${path}/openband/server/mcp-server.mjs"]
-    }
-  }
-}`;
 
 const EXAMPLES = ['ai.ex1', 'ai.ex2', 'ai.ex3', 'ai.ex4'] as const;
 
@@ -42,7 +34,7 @@ export function AIPanel() {
   const set = useStore((s) => s.set);
   const notify = useStore((s) => s.notify);
   const t = useT();
-  const CONFIG = config(t('ai.path'));
+  const pairing = useBridge((b) => b.pairing);
 
   return (
     <aside className="ai-panel">
@@ -53,7 +45,7 @@ export function AIPanel() {
           </div>
           <div className={`ai-status ${status}`}>
             <span className="dot" />
-            {status === 'connected' ? t('ai.connected') : status === 'connecting' ? t('ai.connecting') : BRIDGE_ENABLED ? t('ai.unreachable') : t('ai.demo')}
+            {status === 'connected' ? t('ai.connected') : status === 'connecting' ? t('ai.connecting') : BRIDGE_ENABLED ? t('ai.unreachable') : pairing ? t('ca.waitingCode') : t('ai.demo')}
           </div>
         </div>
         <button className="icon-btn" onClick={() => set({ aiOpen: false })}>
@@ -61,31 +53,7 @@ export function AIPanel() {
         </button>
       </div>
 
-      {!BRIDGE_ENABLED && (
-        <div className="ai-setup">
-          <p>
-            {t('ai.demoText1')}{' '}
-            <a href="https://github.com/iltempe/openband" target="_blank" rel="noreferrer">GitHub</a> {t('ai.demoText2')}
-          </p>
-        </div>
-      )}
-
-      {BRIDGE_ENABLED && status !== 'connected' && (
-        <div className="ai-setup">
-          <p>
-            {t('ai.setup1')} <code>{BRIDGE_URL}</code>.
-          </p>
-          <pre>{CONFIG}</pre>
-          <button
-            className="mini"
-            onClick={() => {
-              navigator.clipboard?.writeText(CONFIG).then(() => notify(t('ai.copied')), () => notify(t('ai.copyFailed')));
-            }}
-          >
-            <I.Copy width={13} height={13} /> {t('ai.copy')}
-          </button>
-        </div>
-      )}
+      {status !== 'connected' && <ConnectAI />}
 
       {status === 'connected' && (
         <div className="ai-live">

@@ -11,6 +11,7 @@ import { WebSocketServer } from 'ws';
 import { z } from 'zod';
 import { SubscribeRequestSchema, UnsubscribeRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { EventBuffer } from './events.mjs';
+import { Pairing, classifyOrigin, parseAllowedOrigins } from './pairing.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -75,7 +76,11 @@ const httpServer = http.createServer((req, res) => {
   fs.createReadStream(file).pipe(res);
 });
 
-const isLocalOrigin = (origin) => !origin || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin);
+/** Bridge protocol version, exchanged in hello (the online demo may be newer than this server). */
+const PROTOCOL = 1;
+/** Public sites (the online demo) that may drive the studio after pairing with a code. */
+const ALLOWED_ORIGINS = parseAllowedOrigins(process.env.OPENBAND_ALLOWED_ORIGINS);
+const pairing = new Pairing({ code: process.env.OPENBAND_PAIR_CODE || undefined });
 
 const isLoopback = (addr) => addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
 
@@ -86,9 +91,11 @@ const collab = COLLAB ? (await import('./collab.mjs')).createCollab() : null;
 httpServer.on('upgrade', (req, socket, head) => {
   const { pathname } = new URL(req.url || '/', 'http://x');
   if (pathname === '/bridge') {
-    // The bridge controls the studio: only pages served from this machine, over loopback.
-    if (!isLocalOrigin(req.headers.origin) || !isLoopback(req.socket.remoteAddress)) return void socket.destroy();
-    return void wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+    // The bridge controls the studio: only over loopback, from pages served by this machine — or from an
+    // allowed public site (the online demo), which then has to pair with a code before anything happens.
+    const kind = classifyOrigin(req.headers.origin, ALLOWED_ORIGINS);
+    if (kind === 'reject' || !isLoopback(req.socket.remoteAddress)) return void socket.destroy();
+    return void wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req, kind));
   }
   if (collab?.handles(pathname)) return void collab.upgrade(req, socket, head, pathname);
   socket.destroy();
@@ -111,16 +118,43 @@ const pending = new Map();
 let seq = 0;
 let bridgeError = null;
 
-wss.on('connection', (ws) => {
-  studio = ws; // the most recent tab wins
-  log('studio connected');
-  ws.send(JSON.stringify({ type: 'hello', collab: COLLAB ? { lan: lanUrls(), port: PORT } : null }));
+wss.on('connection', (ws, _req, kind = 'local') => {
+  const send = (m) => ws.readyState === 1 && ws.send(JSON.stringify(m));
+  const welcome = () => {
+    studio = ws; // the most recent tab wins
+    log(kind === 'local' ? 'studio connected' : 'studio connected (paired online demo)');
+    send({ type: 'hello', protocol: PROTOCOL, version: PKG.version, collab: COLLAB ? { lan: lanUrls(), port: PORT } : null });
+  };
+  let paired = kind === 'local';
+  if (paired) welcome();
+  else {
+    send({ type: 'pair_required', protocol: PROTOCOL });
+    // A page that never pairs doesn't keep a socket open.
+    setTimeout(() => !paired && ws.close(4401, 'not paired'), 120000).unref();
+  }
   ws.on('message', (raw) => {
     let msg;
     try {
       msg = JSON.parse(String(raw));
     } catch {
       return;
+    }
+    if (!paired) {
+      if (msg.type !== 'hello') return;
+      if (pairing.valid(msg.token)) {
+        paired = true;
+        send({ type: 'paired', token: msg.token });
+        return void welcome();
+      }
+      if (!msg.pair) return void send({ type: 'pair_required', protocol: PROTOCOL });
+      const r = pairing.attempt(msg.pair);
+      if (!r.ok) {
+        log(`pairing refused (${r.reason})`);
+        return void send({ type: 'pair_failed', reason: r.reason, retry_in_ms: r.retryInMs, attempts_left: r.attemptsLeft });
+      }
+      paired = true;
+      send({ type: 'paired', token: r.token });
+      return void welcome();
     }
     if (msg.type === 'event' && msg.event?.kind) return void events.push(msg.event);
     if (msg.type === 'project_changed') return void notifyProjectResource();
@@ -143,6 +177,7 @@ httpServer.on('error', (err) => {
 });
 httpServer.listen(PORT, HOST, () => {
   log(`bridge on ws://127.0.0.1:${PORT}/bridge`);
+  log(`using the online demo (${ALLOWED_ORIGINS.join(', ')})? Pairing code: ${pairing.pretty()} (valid 10 minutes; open_studio gives a fresh one)`);
   if (COLLAB) log(`multiplayer rooms open on the network: ${lanUrls().join(', ') || '(no LAN address)'}`);
 });
 
@@ -332,6 +367,7 @@ server.registerTool(
   },
   async () => {
     if (studio) return text({ connected: true, url: studioUrl() });
+    const demo = { online_demo: ALLOWED_ORIGINS[0] ? `${ALLOWED_ORIGINS[0]}${ALLOWED_ORIGINS[0].includes('iltempe.github.io') ? '/openband/' : '/'}` : null, pairing_code: pairing.pretty(), port: PORT };
     const url = studioUrl();
     try {
       openBrowser(url);
@@ -342,7 +378,12 @@ server.registerTool(
     return text(
       ok
         ? { connected: true, url, note: 'Ask the user to click "Enter the studio" once so the browser allows audio.' }
-        : { connected: false, url, note: `Opened ${url} but the studio has not connected yet. If you are in dev mode make sure "npm run dev" is running.` },
+        : {
+            connected: false,
+            url,
+            ...demo,
+            note: `Opened ${url} but the studio has not connected yet. If the user prefers the online demo, tell them to open it, choose "Connect AI" and enter the code ${demo.pairing_code} (port ${PORT}).`,
+          },
     );
   },
 );

@@ -6,6 +6,14 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 The v0.3 work follows [docs/SPEC-v0.3.md](docs/SPEC-v0.3.md).
 
+### D3 · The online demo talks to your AI (secure pairing)
+- `server/pairing.mjs` (tested): origins are *local* (localhost pages, no change), *pair* (sites in `OPENBAND_ALLOWED_ORIGINS`, default `https://iltempe.github.io`) or rejected. A 6-digit code valid 10 minutes (spent once used) gives a 32-byte session token kept only in memory, so restarting the server revokes it; 5 wrong codes in a minute lock pairing for 5 minutes. The code is printed at start and returned by `open_studio`.
+- The bridge gives an allowed site nothing — no commands, no events — until it has paired; unpaired sockets are closed after 2 minutes. Integration test on the real server process: unknown origin refused, allowed origin without code refused, wrong ×5 → locked, right code → token, token accepted on reconnection and refused after a restart.
+- Bridge protocol version (1) exchanged in `hello`; a mismatch is explained in the panel (server older: update; page older: reload).
+- App: the demo never connects by itself (no surprise permission prompts); the AI panel has a *Connect AI* wizard — Claude Desktop (download the .mcpb), Claude Code/Cursor (commands to copy, `npx openband setup`), API key (next) — with the pairing form, a warning about the browser's Local Network Access prompt, and errors in plain words (nothing on that port, browser blocking local network, wrong/expired code with attempts left, locked for n minutes).
+- *Open the local studio*: when the demo can't reach the server, the song travels to `http://127.0.0.1:<port>` in the URL fragment (gzip + base64url, never sent to a server) or, when too big, by `postMessage`, accepted only from trusted origins.
+- Fixed: positioned parts of the dock could draw over the AI panel.
+
 ### D2 · Claude Desktop extension (.mcpb)
 - `npm run pack:mcpb` builds `build/openband-<version>.mcpb` with the official `@anthropic-ai/mcpb` tool (validate + pack): the server, the built studio and the production `node_modules`, the OpenBand icon (512×512, also in `public/` for the web app) and a v0.3 manifest. The tool list in the manifest comes from the server's own `tools/list`, so they can't drift apart.
 - Settings (`user_config`): port (default 7777), open the studio automatically (default on), samples folder — relative paths given to the import tools are looked up there.
