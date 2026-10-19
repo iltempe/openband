@@ -28,6 +28,7 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 - **Registrazione dal microfono e canticchia→MIDI**: registra voce o strumento su una traccia audio dopo una battuta di conteggio (con compensazione della latenza), oppure *canticchia una melodia* e ritrovala come note MIDI, agganciate alla tonalità e quantizzate con delicatezza. Ogni clip audio monofonica si può convertire allo stesso modo. Quando è l'AI a chiedere di registrare, confermi sempre tu.
 - **Import ed export MIDI** (Standard MIDI File, programmi General MIDI, batteria sul canale 10).
 - **L'AI ascolta**: `analyze_mix` renderizza il brano e lo misura (loudness EBU R128 in LUFS, true peak, LRA, equilibrio in 7 bande, stereo/fase, mascheramento tra tracce, tonalità) e restituisce correzioni concrete (*“Basso e batteria si coprono a 60–250 Hz: taglia 2–3 dB intorno a 80 Hz…”*). `render_spectrogram` dà a Claude un'immagine del mix da guardare, e `analyze_harmony` legge gli accordi con i gradi nella tonalità (*Am7 i7 · Fmaj7 VImaj7 · V7/V…*) e le cadenze. Gli stessi rapporti sono nel pannello **Analisi** (N).
+- **Suonare insieme, con l'AI come terzo musicista**: apri una stanza dal pulsante delle persone, condividi il link (e la password) e tutti modificano lo stesso brano dal vivo: note diverse della stessa regione si uniscono da sole (CRDT Yjs). Vedi chi è su quale traccia, i suoni importati arrivano a chi non li ha, play/stop può seguire l'host e **l'undo annulla solo il tuo lavoro**. L'AI collegata al tuo browser agisce nella stanza come chiunque altro, e gli altri vedono cosa ha fatto e per chi.
 - **Suona con l'AI (botta e risposta)**: attiva *Jam* nel pannello AI, suona una frase e l'AI risponde alla battuta successiva o all'inizio del loop: la latenza dell'LLM sparisce perché la risposta è quantizzata alla prossima finestra musicale (se arriva tardi passa alla successiva, mai a metà battuta, mai sopra la risposta precedente). Le risposte si sentono ma non si salvano: appaiono come note fantasma luminose nel piano roll finché non premi **Tieni**.
 - **Versioni e branch, come git per le canzoni**: salva versioni, apri un branch per provare un'altra direzione (*“e se il ritornello fosse più lento?”*), torna indietro quando vuoi (annullabile; il lavoro non salvato resta come versione WIP) e **unisci** i branch con un merge a tre vie: le modifiche su tracce, regioni o campi diversi si combinano da sole, i conflitti veri sono elencati con *tieni la nostra / prendi l'altra*. La **vista di confronto** colora la timeline (verde aggiunte, giallo modificate, rosso tratteggiato rimosse), mostra le note dell'altra versione come fantasmi nel piano roll e permette l'A/B sincronizzato fra le due. `export_project_json({canonical:true})` scrive JSON deterministico per git.
 - **Modalità Spiegami**: clic destro su una regione, una sezione o le note selezionate e scegli **Spiega**: l'AI risponde con un commento appuntato proprio lì (*“Do in primo rivolto: il Mi al basso ammorbidisce il passaggio da Fa maj7…”*). Attiva **Insegnami** e l'AI annota le scelte non ovvie mentre lavora. I commenti vivono nel brano (thread, risposte, risolti), sopravvivono a export e undo, e restano — segnati come *eliminato* — se il loro oggetto sparisce.
@@ -39,7 +40,7 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 - **L'AI ti segue**: le frasi che suoni (separate dopo una battuta di silenzio), ciò che selezioni, play/stop, le tue modifiche e le domande scritte in *Chiedi all'AI* arrivano all'AI collegata come eventi. Un interruttore nel pannello AI disattiva la condivisione dell'attività (le domande vengono sempre inviate).
 - **Annulla per intento**: tutto ciò che l'AI fa per una richiesta è un solo passo di annullamento con etichetta (*“Annulla: Beat lo-fi (23 comandi)”*); trascinamenti e manopole contano un passo ciascuno.
 - **Annulla/ripristina**, salvataggio automatico, **esportazione WAV** con rendering offline; i progetti con suoni importati si salvano in un unico file `.openband` che contiene i campioni.
-- **Controllo AI via MCP**: 103 strumenti per comporre, arrangiare, importare suoni, aggiungere plugin, mixare, automatizzare ed esportare: l'AI può aggiungere un plugin solo a partire da una descrizione come *“un overdrive valvolare caldo”*.
+- **Controllo AI via MCP**: 107 strumenti per comporre, arrangiare, importare suoni, aggiungere plugin, mixare, automatizzare ed esportare: l'AI può aggiungere un plugin solo a partire da una descrizione come *“un overdrive valvolare caldo”*.
 - Interfaccia in **inglese e italiano**: l'inglese è predefinito, si cambia dalla schermata iniziale o dal menu ⋯.
 
 | Piano roll | Mixer |
@@ -53,6 +54,8 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 | ![Pannello Problemi](docs/problems.png) | ![Pannello Testo](docs/lyrics.png) |
 | **Finestra di un plugin WAM** | **Browser dei plugin** |
 | ![Plugin WAM Synth-101](docs/plugins.png) | ![Ricerca dei plugin a parole](docs/plugin-browser.png) |
+| **Suonare insieme: stanza, link, persone** | **Cosa vedono gli altri (avatar, attività dell'AI)** |
+| ![Menu della stanza con link e partecipanti](docs/room.png) | ![Lo studio del secondo musicista con l'avatar dell'host e l'attività della stanza](docs/multiplayer.png) |
 | **Jam: l'AI risponde a ciò che suoni** | **La risposta come note fantasma, finché non la tieni** |
 | ![Sezione Jam nel pannello AI](docs/jam.png) | ![Risposta dell'AI come note fantasma nel piano roll](docs/jam-ghosts.png) |
 | **Versioni: grafo dei branch e confronto** | **Note fantasma dell'altra versione** |
@@ -112,6 +115,12 @@ jobs:
 
 I problemi compaiono come annotazioni sulla pull request. In locale: `node scripts/openband-lint.mjs brano.openband.json [--format=text|json|github] [--fail-on=warn]`. Le regole si possono disattivare o cambiare di gravità per ogni brano in `project.lint` (`disabled`, `severity`, `ignored`).
 
+### Suonare insieme
+
+- **Nella stessa rete** (il modo più veloce): avvia il server MCP con `OPENBAND_COLLAB=1`; servirà anche lo studio e un relay per le stanze sul tuo indirizzo di rete locale (stampato all'avvio; il bridge dell'AI resta raggiungibile solo da questo computer). Apri una stanza con *In questa rete* e manda il link.
+- **Peer to peer**: *Peer to peer* collega direttamente i browser con WebRTC; il link apre la demo online. I partecipanti si trovano tramite un server di signaling: quello di OpenBand (`/signal` su un server avviato con `OPENBAND_COLLAB=1`) o quello pubblico di y-webrtc, e puoi indicarne uno tuo con `?signal=wss://…` (viaggia con il link). I server di signaling pubblici vanno e vengono: per sessioni affidabili via internet usane uno sotto il tuo controllo.
+- La password cifra il traffico peer to peer e separa stanze con lo stesso nome; mandala a parte rispetto al link.
+
 ## Collegare un'AI (MCP)
 
 ```
@@ -167,6 +176,7 @@ Il bridge accetta connessioni solo da `127.0.0.1` e da pagine servite su localho
 | Testi | `set_lyrics`, `get_lyrics`, `align_lyrics`, `check_prosody`, `suggest_melody_rhythm`, `export_chord_sheet` (ChordPro o testo, `save_to` opzionale) |
 | Linter | `lint_project` (regole simboliche, opzionalmente audio), `apply_fix`, `ignore_issue`; `update_notes` modifica le note sul posto |
 | Ascolto | `analyze_mix` (battute o sezione, per traccia, summary/full), `render_spectrogram` (restituisce un'immagine), `detect_key` (MIDI, audio o entrambi), `analyze_harmony` (accordi, numeri romani, funzioni, cadenze) |
+| Multiplayer | `create_room` (LAN o peer to peer, password facoltativa), `join_room`, `leave_room`, `get_peers` |
 | Jam | `set_jam_mode` (traccia di risposta, finestra), `play_phrase` (note effimere a `next_bar`, `next_loop` o a una battuta; `commit` opzionale), `keep_answer`; le frasi dell'utente arrivano come eventi `phrase` |
 | Versioni | `save_version`, `list_versions`, `create_branch`, `checkout` (branch o versione, annullabile, salva il WIP), `diff_versions` (riepilogo leggibile + modifiche strutturate), `merge` (a tre vie; `strategy` e `pick` per entità); `export_project_json` con `canonical` |
 | Spiegami | `annotate` (progetto, traccia, regione, note, sezione o intervallo di battute; markdown fino a 500 caratteri), `list_annotations`, `resolve_annotation`, `delete_annotation`; `get_status` riporta `teach_mode` |

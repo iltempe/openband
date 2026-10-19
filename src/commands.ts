@@ -29,6 +29,7 @@ import { emptyProject, enterAiCommand, exitAiCommand, isAiCommand, getRegion, ge
 import { engine } from './audio/engine';
 import { checkSegments, compNotes, nextTakeName, withTakes, type CompSegment } from './takes';
 import { startABTest } from './abtest';
+import { createRoom, getPeers, joinRoom, leaveRoom } from './collab/session';
 import { jamStatus, keepAnswer, playPhrase, setJamMode, useJam } from './jamMode';
 import { canonicalJSON } from './versions/canonical';
 import { checkout, createBranch, diffVersions, listVersions, mergeBranch, saveVersion } from './versioning';
@@ -972,6 +973,13 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   render_spectrogram: ({ from_bar, to_bar, section_id, track_id, width, height }) => spectrogram({ from_bar, to_bar, section_id, track_id, width, height }),
 
+  // ---------- multiplayer ----------
+
+  create_room: ({ password, via }) => createRoom({ password, via }),
+  join_room: ({ room, password, via }) => joinRoom(String(room ?? ''), password, via),
+  leave_room: () => leaveRoom(),
+  get_peers: () => getPeers(),
+
   // ---------- jam (call-and-response) ----------
 
   play_phrase: ({ track_id, notes, at, commit }) => {
@@ -1268,7 +1276,7 @@ const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'start_ab_test', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

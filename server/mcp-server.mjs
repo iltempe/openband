@@ -11,6 +11,7 @@ import { WebSocketServer } from 'ws';
 import { z } from 'zod';
 import { SubscribeRequestSchema, UnsubscribeRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { EventBuffer } from './events.mjs';
+import { createCollab } from './collab.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,7 +20,9 @@ import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 
 const PORT = Number(process.env.OPENBAND_PORT || 7777);
-const HOST = '127.0.0.1';
+/** OPENBAND_COLLAB=1 opens the server to the local network for multiplayer rooms (the AI bridge stays local-only). */
+const COLLAB = process.env.OPENBAND_COLLAB === '1';
+const HOST = process.env.OPENBAND_HOST || (COLLAB ? '0.0.0.0' : '127.0.0.1');
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist');
 const DEV_URL = process.env.OPENBAND_DEV_URL || 'http://localhost:5173';
@@ -48,11 +51,29 @@ const httpServer = http.createServer((req, res) => {
 
 const isLocalOrigin = (origin) => !origin || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin);
 
-const wss = new WebSocketServer({
-  server: httpServer,
-  path: '/bridge',
-  verifyClient: ({ origin }) => isLocalOrigin(origin),
+const isLoopback = (addr) => addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
+
+// One HTTP server, several WebSocket endpoints: route upgrades by path.
+const wss = new WebSocketServer({ noServer: true });
+const collab = COLLAB ? createCollab() : null;
+httpServer.on('upgrade', (req, socket, head) => {
+  const { pathname } = new URL(req.url || '/', 'http://x');
+  if (pathname === '/bridge') {
+    // The bridge controls the studio: only pages served from this machine, over loopback.
+    if (!isLocalOrigin(req.headers.origin) || !isLoopback(req.socket.remoteAddress)) return void socket.destroy();
+    return void wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+  }
+  if (collab?.handles(pathname)) return void collab.upgrade(req, socket, head, pathname);
+  socket.destroy();
 });
+
+/** LAN addresses where other people can open the studio and join rooms. */
+function lanUrls() {
+  return Object.values(os.networkInterfaces())
+    .flat()
+    .filter((a) => a && a.family === 'IPv4' && !a.internal)
+    .map((a) => `http://${a.address}:${PORT}`);
+}
 
 /** What the user does in the studio (phrases, selection, edits…), newest last. */
 const events = new EventBuffer(500);
@@ -66,6 +87,7 @@ let bridgeError = null;
 wss.on('connection', (ws) => {
   studio = ws; // the most recent tab wins
   log('studio connected');
+  ws.send(JSON.stringify({ type: 'hello', collab: COLLAB ? { lan: lanUrls(), port: PORT } : null }));
   ws.on('message', (raw) => {
     let msg;
     try {
@@ -92,9 +114,12 @@ httpServer.on('error', (err) => {
   bridgeError = err.code === 'EADDRINUSE' ? `Port ${PORT} is already in use (another OpenBand MCP server is running?). Set OPENBAND_PORT and open the studio with ?mcp=<port>.` : err.message;
   log(bridgeError);
 });
-httpServer.listen(PORT, HOST, () => log(`bridge on ws://${HOST}:${PORT}/bridge`));
+httpServer.listen(PORT, HOST, () => {
+  log(`bridge on ws://127.0.0.1:${PORT}/bridge`);
+  if (COLLAB) log(`multiplayer rooms open on the network: ${lanUrls().join(', ') || '(no LAN address)'}`);
+});
 
-const studioUrl = () => (fs.existsSync(DIST) ? `http://${HOST}:${PORT}` : DEV_URL) + (PORT !== 7777 ? `?mcp=${PORT}` : '');
+const studioUrl = () => (fs.existsSync(DIST) ? `http://127.0.0.1:${PORT}` : DEV_URL) + (PORT !== 7777 ? `?mcp=${PORT}` : '');
 
 function waitForStudio(ms) {
   return new Promise((resolve) => {
@@ -128,6 +153,7 @@ Wrap every user request in begin_change("short label") … end_change() so the u
 When the user talks about parts of a song (verse, chorus…), call get_structure first and operate on sections (move_section, duplicate_section). Use the energy profile to make a section 'bigger' (more tracks, higher register, more notes, higher velocity) or 'smaller'. If there are no sections yet, auto_sections proposes them.
 For vocal lines, keep lyrics and melody aligned: set_lyrics → align_lyrics → check_prosody. Put stressed syllables on strong beats (suggest_melody_rhythm helps).
 When get_status reports teach_mode: true, explain your non-obvious musical choices (harmony, voicing, rhythm, mix) with annotate on the exact notes/region/section, using analyze_harmony to be precise. An ask event with context.explain is a request to explain that part: answer with annotate.
+In a multiplayer room (get_peers), say who you are acting for and avoid editing a track someone else has selected unless asked.
 To jam with the user: set_jam_mode({enabled:true, response_track_id}), then repeatedly wait_for_event({kinds:["phrase"]}) and answer with play_phrase (it is quantized to the next window, so latency is fine).
 Before a big rework, save_version; to try a different direction without losing the current one, create_branch + checkout (merge brings the good parts back).
 To offer alternatives, add them as takes (add_take) and let the user pick with a blind test (start_ab_test, then wait_for_event ab_result).
@@ -569,6 +595,23 @@ tool('analyze_harmony', 'Chords of the MIDI parts (per bar, or per half bar when
 tool('detect_key', 'Detect the key of the music from the MIDI notes, from the audio tracks, or both. Returns key, confidence, alternatives and whether it matches the project key.', {
   source: z.enum(['midi', 'audio', 'both']).optional(),
 }, { ...readOnly, timeout: 180000 });
+
+// ---- multiplayer rooms
+
+tool('create_room', 'Open a multiplayer room for this song and return a link to share (plus the password, if you set one, which the user must share separately). via "lan" uses this server as relay (needs OPENBAND_COLLAB=1, people on the same network), "p2p" connects browsers directly (WebRTC). Your commands keep working: you act through this browser and everyone sees the changes; undo only takes back each person\'s own work.', {
+  password: z.string().optional(),
+  via: z.enum(['lan', 'p2p']).optional(),
+}, { timeout: 30000 });
+
+tool('join_room', 'Join an existing multiplayer room (the room name from a link, and its password if it has one). The song of the room replaces the open one.', {
+  room: z.string(),
+  password: z.string().optional(),
+  via: z.enum(['lan', 'p2p']).optional(),
+}, { timeout: 30000 });
+
+tool('leave_room', 'Leave the multiplayer room (the song stays open locally).', {});
+
+tool('get_peers', 'Who is in the room: names, who hosts, who has an AI connected, the track each person has selected, and where their playhead is.', {}, readOnly);
 
 // ---- jam: call-and-response
 

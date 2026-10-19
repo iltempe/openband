@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { ShareButton } from './Collab';
 import { useStore } from '../store';
 import { engine } from '../audio/engine';
 import { BEATS_PER_BAR, KEYS, clamp } from '../music';
@@ -302,6 +303,7 @@ export function Toolbar() {
           <I.Keyboard />
         </button>
         <ProblemsBadge />
+        <ShareButton />
         <button className={`ai-pill ${s.bridgeStatus}`} onClick={() => s.set({ aiOpen: !s.aiOpen })} title={t('tb.ai')}>
           <span className="dot" />
           <I.Sparkles width={15} height={15} />

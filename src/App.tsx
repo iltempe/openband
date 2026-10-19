@@ -22,6 +22,7 @@ import { MicOverlay } from './components/Mic';
 import { ABOverlay, TakesDialog } from './components/Takes';
 import { CommentsPanel, ExplainMenu } from './components/Comments';
 import { CompareBanner, VersionsPanel } from './components/Versions';
+import { JoinDialog } from './components/Collab';
 import { PluginBrowser, PluginWindow } from './components/Plugins';
 import { LANGS, setLang, useLang, useT } from './i18n';
 
@@ -286,6 +287,7 @@ export function App() {
       <ABOverlay />
       <ExplainMenu />
       <CompareBanner />
+      <JoinDialog />
       <PluginBrowser />
       <PluginWindow />
       {s.toast && <div className="toast">{s.toast}</div>}

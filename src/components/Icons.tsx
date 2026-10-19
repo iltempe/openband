@@ -26,6 +26,9 @@ export const Record = (p: I) => (
 export const Mic = (p: I) => (
   <svg {...base(p)}><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" /></svg>
 );
+export const People = (p: I) => (
+  <svg {...base(p)}><circle cx="9" cy="8" r="3.2" /><path d="M3 19.5c.6-3.3 3-5 6-5s5.4 1.7 6 5" /><circle cx="17" cy="9" r="2.4" /><path d="M16.5 14.6c2.3.2 3.9 1.7 4.5 4.4" /></svg>
+);
 export const ToStart = (p: I) => (
   <svg {...base(p)}><path d="M6 5v14" /><path d="M19 5v14L9 12z" fill="currentColor" stroke="none" /></svg>
 );

@@ -4,6 +4,15 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 ## Unreleased — v0.2 "The AI that listens"
 
+### F16 · Multiplayer with the AI as a peer
+- Dependencies (all MIT): `yjs`, `y-protocols`, `y-websocket` (client), `y-webrtc` — a CRDT and its sync protocols are far beyond what could reasonably be written here.
+- `src/collab/binding.ts` (tested in Node): the song as top-level Yjs types keyed by id — project fields, track order, tracks per field, regions per field with notes per id, sections, annotations, instruments — written as minimal changes in one transaction, read back in a stable order; per-user `Y.UndoManager` (tracked origin = the local user). Tests: two docs with concurrent edits to different notes of the same region converge; undo doesn't take back the other person's changes; unchanged writes produce no update.
+- `src/collab/session.ts`: rooms over the LAN (the MCP server as relay) or peer to peer (WebRTC, encrypted with a password); store ↔ doc binding (remote changes don't enter the local history); undo goes through the per-user undo manager while in a room, steps still delimited by F1 transactions; awareness with name, colour, selected track/region, playhead and whether an AI is connected; content-addressed samples sent on request to peers that lack them (up to 50 MB each); optional "follow the host's play/stop"; shared log of AI actions.
+- The AI as a peer: the AI connected to one browser acts through it, so its changes reach everyone like any edit, its peer shows an AI badge and the others' AI panel lists what it did and for whom. (It joins through the user's browser rather than as a separate Yjs client of the server: no extra process, same result for the others.)
+- Server: `OPENBAND_COLLAB=1` serves the studio on the LAN plus `/collab/<room>` (a y-websocket-compatible relay) and `/signal` (y-webrtc signaling). WebSocket upgrades are now routed by path, and `/bridge` accepts only loopback connections from local pages.
+- MCP: `create_room`, `join_room`, `leave_room`, `get_peers`.
+- UI: people button with the room menu (name, LAN / peer to peer, password, link, people, follow the host, leave), join dialog for room links, avatars on track headers, "In the room" activity in the AI panel. The toolbar hides the master fader below 1560 px (it is in the mixer too), so the right-hand group no longer slides under the transport.
+
 ### F15 · Live call-and-response
 - Pure module `src/jam.ts`: when the answer starts — `next_bar`, `next_loop` or a given bar, following the cycle — never before the requested window, at least half a beat ahead (otherwise the next window of the same kind), always on a bar line, never overlapping an answer still playing (but allowed to start right where it ends).
 - Engine: `schedulePhrase` plays ephemeral notes at absolute AudioContext times with a lookahead timer (no Tone.Part on the looping transport, so nothing repeats on the next pass); stop cancels what hasn't played; start times stay strictly increasing for monophonic synths.

@@ -1853,6 +1853,12 @@ kbd {
   text-transform: uppercase;
 }
 
+/* The master fader is also in the mixer: give the toolbar room on laptop screens. */
+@media (max-width: 1560px) {
+  .master-vol {
+    display: none;
+  }
+}
 @media (max-width: 1100px) {
   .lcd-key,
   .master-vol,
@@ -3891,4 +3897,110 @@ kbd {
 .jam-status small {
   flex-basis: 100%;
   padding-left: 17px;
+}
+
+/* ---------- multiplayer ---------- */
+.peer-av {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #0b0c10;
+  font-weight: 800;
+  flex: none;
+  box-shadow: 0 0 0 2px var(--panel, #16171d);
+}
+.peer-av.ai {
+  box-shadow: 0 0 0 2px var(--panel, #16171d), 0 0 0 3.5px #c4b5fd;
+}
+.peer-stack {
+  display: inline-flex;
+}
+.peer-stack .peer-av + .peer-av {
+  margin-left: -6px;
+}
+.share-btn.on {
+  color: #22c55e;
+}
+.share-menu {
+  min-width: 300px;
+  padding: 8px;
+}
+.share-menu .menu-label {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--dim);
+}
+.share-menu .menu-label b {
+  color: inherit;
+}
+.share-actions {
+  display: flex;
+  gap: 6px;
+  padding: 4px 10px;
+}
+.share-hint {
+  padding: 4px 10px 6px;
+  font-size: 11px;
+  color: var(--dim);
+  line-height: 1.4;
+}
+.share-link {
+  display: flex;
+  gap: 6px;
+  padding: 4px 10px;
+}
+.share-link input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border-radius: 7px;
+  border: 1px solid var(--line-2);
+  background: var(--panel-3);
+  color: inherit;
+  font-size: 11.5px;
+}
+.peer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 10px;
+}
+.peer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.peer-name {
+  flex: 1;
+}
+.peer-dots {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 6px;
+  vertical-align: -3px;
+}
+.share-menu .btn {
+  margin: 4px 10px 2px;
+}
+.join-fields {
+  padding: 0 6px;
+}
+.share-menu .mic-row input:not([type='checkbox']),
+.join-fields .mic-row input {
+  width: 150px;
+  background: var(--panel-3);
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  padding: 4px 7px;
+  color: inherit;
+}
+.share-link .mini {
+  width: auto;
+  flex: none;
+}
+.share-menu > .btn {
+  width: calc(100% - 20px);
+  text-align: center;
 }

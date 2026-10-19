@@ -112,6 +112,19 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined;
 const entry = (project: Project, label: string, source: 'ui' | 'ai', commands: number): HistoryEntry => ({ id: uid('h'), project, label, source, commands, at: Date.now() });
 
 /** > 0 while an AI command is running (set by runCommand), so commits know who made them. */
+/**
+ * In a multiplayer room undo goes through the room's per-user undo manager (you undo your own work,
+ * not other people's). Steps are still delimited by the transactions below.
+ */
+export interface UndoOverride {
+  undo(): void;
+  redo(): void;
+  /** Close the current undo step. */
+  boundary(): void;
+}
+let undoOverride: UndoOverride | null = null;
+export const setUndoOverride = (o: UndoOverride | null) => void (undoOverride = o);
+
 let aiDepth = 0;
 export const enterAiCommand = () => void aiDepth++;
 export const exitAiCommand = () => void (aiDepth = Math.max(0, aiDepth - 1));
@@ -162,6 +175,7 @@ export const useStore = create<State>((set, get) => ({
       past: history ? [...past, entry(project, opts?.label ?? t('hist.edit'), 'ui', 1)].slice(-HISTORY_LIMIT) : past,
       future: history ? [] : get().future,
     });
+    if (history) undoOverride?.boundary();
     // A standalone user edit (not inside an AI command or transaction).
     if (history && aiDepth === 0) emitStudioEvent({ kind: 'user_edit', label: opts?.label ?? t('hist.edit') });
     if (!activeTransaction) notifyProjectChanged();
@@ -176,6 +190,7 @@ export const useStore = create<State>((set, get) => ({
       set({ activeTransaction: { ...open, depth: open.depth + 1 } });
       return open.id;
     }
+    undoOverride?.boundary();
     const tx: ActiveTransaction = { id: uid('tx'), label, source, commands: 0, snapshot: get().project, depth: 1, auto: opts?.auto };
     set({ activeTransaction: tx });
     return tx.id;
@@ -193,6 +208,7 @@ export const useStore = create<State>((set, get) => ({
       set({ activeTransaction: null });
       return null;
     }
+    undoOverride?.boundary();
     const e: HistoryEntry = { id: tx.id, project: tx.snapshot, label: tx.label, source: tx.source, commands: Math.max(1, tx.commands), at: Date.now() };
     set({ activeTransaction: null, past: [...past, e].slice(-HISTORY_LIMIT), future: [] });
     if (tx.source === 'ui') emitStudioEvent({ kind: 'user_edit', label: tx.label });
@@ -206,6 +222,10 @@ export const useStore = create<State>((set, get) => ({
   undo: (steps = 1) => {
     const open = get().activeTransaction;
     if (open) get().endTransaction(open.id);
+    if (undoOverride) {
+      for (let i = 0; i < steps; i++) undoOverride.undo();
+      return;
+    }
     for (let i = 0; i < steps; i++) {
       const { past, project, future } = get();
       const prev = past[past.length - 1];
@@ -215,6 +235,10 @@ export const useStore = create<State>((set, get) => ({
     }
   },
   redo: (steps = 1) => {
+    if (undoOverride) {
+      for (let i = 0; i < steps; i++) undoOverride.redo();
+      return;
+    }
     for (let i = 0; i < steps; i++) {
       const { past, project, future } = get();
       const next = future[0];

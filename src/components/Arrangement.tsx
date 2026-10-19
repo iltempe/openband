@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { PeerDots } from './Collab';
 import { useVersions } from '../versioning';
 import { CommentPin, useComments } from './Comments';
 import { TakesBadge } from './Takes';
@@ -292,6 +293,7 @@ function TrackHeader({ track, selected }: { track: Track; selected: boolean }) {
         ) : (
           <div className="th-name" onDoubleClick={() => setRenaming(true)} title={t('arr.renameHint')}>
             {track.name}
+            <PeerDots trackId={track.id} />
           </div>
         )}
         <div className="th-sub">{track.kind === 'audio' ? t('audio.track') : findInstrument(track.instrument)?.name}</div>

@@ -4,6 +4,7 @@ import { useStore } from './store';
 import { runCommand } from './commands';
 import { engine } from './audio/engine';
 import { emitSelection, emitStudioEvent, setEventSink } from './events';
+import { setCollabServer } from './collab/session';
 
 const params = new URLSearchParams(location.search);
 const port = params.get('mcp') ?? '7777';
@@ -40,12 +41,13 @@ export function connectBridge() {
     socket?.send(JSON.stringify({ type: 'hello', app: 'openband', version: '0.1.0' }));
   };
   socket.onmessage = async (ev) => {
-    let msg: { type: string; id: string; method: string; params: Record<string, unknown> };
+    let msg: { type: string; id: string; method: string; params: Record<string, unknown>; collab?: { lan: string[]; port: number } | null };
     try {
       msg = JSON.parse(ev.data);
     } catch {
       return;
     }
+    if (msg.type === 'hello') return void setCollabServer(msg.collab ?? null);
     if (msg.type !== 'call') return;
     try {
       const result = await runCommand(msg.method, msg.params, 'ai');

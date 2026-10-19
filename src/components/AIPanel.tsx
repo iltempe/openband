@@ -1,4 +1,5 @@
 import { useStore } from '../store';
+import { RoomActivity } from './Collab';
 import { JamSection } from './Jam';
 import { Markdown, openComments } from './Comments';
 import type { BridgeLogEntry } from '../types';
@@ -123,6 +124,7 @@ export function AIPanel() {
         ))}
       </div>
 
+      <RoomActivity />
       <div className="ai-section">{t('ai.activity')}</div>
       <div className="ai-log">
         {log.length === 0 && <div className="ai-log-empty">{t('ai.logEmpty')}</div>}
