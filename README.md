@@ -81,9 +81,13 @@ npx openband
 
 That's it: the studio opens in your browser (Node 18+). No clone, no build. Prefer zero install? [Open the online demo](https://iltempe.github.io/openband/).
 
-To let an AI play it, add OpenBand to your MCP client — `npx openband setup` finds Claude Desktop, Claude Code, Cursor and VS Code on your computer and does it for you (it asks first and keeps a backup of each file). See [Connect an AI](#connect-an-ai-mcp) for doing it by hand.
+**Claude Desktop — two steps, nothing to install:**
 
-> The `openband` npm package is published with the v0.2 release. Until then, use a checkout (see [Development](#development)).
+[**⬇ Download OpenBand for Claude Desktop**](https://github.com/iltempe/openband/releases/latest/download/openband.mcpb) → double-click the file (or drag it onto Claude Desktop) → *Install*. Then ask Claude for a song: the studio opens in your browser by itself. Claude Desktop already includes Node; the extension's settings let you change the port, turn off the automatic opening and pick a samples folder Claude can import sounds from by name.
+
+**Other AI clients:** add OpenBand to your MCP client — `npx openband setup` finds Claude Desktop, Claude Code, Cursor and VS Code on your computer and does it for you (it asks first and keeps a backup of each file). See [Connect an AI](#connect-an-ai-mcp) for doing it by hand.
+
+> The `openband` npm package and the `.mcpb` extension are published with the v0.2 release. Until then, use a checkout (see [Development](#development)).
 
 A demo song opens on first launch. The “Enter the studio” click is needed because browsers only enable audio after a user interaction.
 
@@ -218,6 +222,7 @@ npm test            # unit tests (Vitest, run in Node)
 npm run build       # production build in dist/
 node bin/openband.mjs mcp   # the MCP server from the checkout (or: claude mcp add openband -- node /path/to/openband/bin/openband.mjs mcp)
 node scripts/smoke-pack.mjs # pack the npm package, install it in an empty folder and test it
+npm run pack:mcpb           # build/openband-<version>.mcpb for Claude Desktop (then npm run smoke:mcpb)
 ```
 
 CI runs typecheck and tests on every push and pull request. The v0.2 roadmap is specified in [docs/SPEC.md](docs/SPEC.md); changes are listed in [CHANGELOG.md](CHANGELOG.md).

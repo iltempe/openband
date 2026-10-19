@@ -19,11 +19,14 @@ import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 
 /** Default 7777; if it is taken (and no port was asked for) the next free one is used. */
-const PORT = process.env.OPENBAND_PORT ? Number(process.env.OPENBAND_PORT) : await findFreePort(7777);
+const PORT = process.env.OPENBAND_PORT && Number(process.env.OPENBAND_PORT) ? Number(process.env.OPENBAND_PORT) : await findFreePort(7777);
 /** stdio MCP (default) or just the studio server (`openband start`). */
 const STDIO = process.env.OPENBAND_STDIO !== '0';
 /** Open the studio in the browser by itself: at start (`openband start`) or at the first tool call (`openband mcp`). */
-const OPEN_BROWSER = process.env.OPENBAND_OPEN_BROWSER !== '0';
+const OPEN_BROWSER = !['0', 'false', 'no'].includes(String(process.env.OPENBAND_OPEN_BROWSER ?? '').toLowerCase());
+/** Folder that relative sample paths are resolved against (the .mcpb extension lets the user pick it). */
+// An unset extension setting can arrive as the literal placeholder: ignore it.
+const SAMPLES_DIR = /\$\{/.test(process.env.OPENBAND_SAMPLES_DIR ?? '') ? '' : process.env.OPENBAND_SAMPLES_DIR || '';
 /** OPENBAND_COLLAB=1 opens the server to the local network for multiplayer rooms (the AI bridge stays local-only). */
 const COLLAB = process.env.OPENBAND_COLLAB === '1';
 const HOST = process.env.OPENBAND_HOST || (COLLAB ? '0.0.0.0' : '127.0.0.1');
@@ -219,7 +222,20 @@ Recording: record_audio records the user's microphone after they confirm (mode "
 Files: export_wav and export_midi download in the browser, or write to disk with save_to; import_midi turns a .mid file into tracks.
 Plugins: Web Audio Modules (WAM 2.0) instruments and effects. When the user describes a sound or effect in words, call add_plugin with that description (or search_plugins first to compare options); then get_plugin_params / set_plugin_params to dial it in.`;
 
-const server = new McpServer({ name: 'openband', version: '0.1.0' }, { instructions: INSTRUCTIONS });
+const server = new McpServer({ name: 'openband', version: PKG.version }, { instructions: INSTRUCTIONS });
+
+// Tool annotations, set in one place for every tool. In MCP, destructiveHint and openWorldHint default to
+// true, so they are always given explicitly.
+/** Tools that throw away or replace work (undo still works in the studio, but the AI should ask first). */
+const DESTRUCTIVE = new Set(['new_project', 'import_project_json', 'delete_track', 'delete_region', 'remove_notes', 'delete_section', 'delete_take', 'delete_annotation', 'clear_automation', 'clear_reference', 'remove_plugin_effect', 'checkout', 'merge', 'import_midi', 'join_room', 'import_dawproject', 'restore_at', 'delete_flub']);
+/** Tools that reach the internet: URL imports and the community plugin catalog, multiplayer rooms. */
+const OPEN_WORLD = new Set(['import_sample', 'import_soundfont', 'import_midi', 'import_reference', 'import_dawproject', 'list_plugins', 'search_plugins', 'add_plugin', 'add_plugin_instrument', 'add_plugin_effect', 'create_room', 'join_room', 'search_loops', 'add_loop']);
+function annotationsFor(name, given = {}) {
+  const readOnly = !!given.readOnlyHint;
+  return { ...given, readOnlyHint: readOnly, ...(readOnly ? {} : { destructiveHint: DESTRUCTIVE.has(name) }), openWorldHint: OPEN_WORLD.has(name) };
+}
+const registerTool = server.registerTool.bind(server);
+server.registerTool = (name, config, cb) => registerTool(name, { ...config, annotations: annotationsFor(name, config.annotations) }, cb);
 
 // ---- openband://project resource, with change notifications for subscribed clients
 const PROJECT_URI = 'openband://project';
@@ -282,7 +298,9 @@ async function readSource(source) {
     const name = decodeURIComponent(new URL(source).pathname.split('/').pop() || 'download');
     return { data, filename: name };
   }
-  const file = path.resolve(source.replace(/^~(?=$|[\/])/, os.homedir()));
+  // Relative paths are looked up in the samples folder chosen in the Claude Desktop extension settings.
+  const expanded = source.replace(/^~(?=$|[\/])/, os.homedir());
+  const file = SAMPLES_DIR && !path.isAbsolute(expanded) ? path.resolve(SAMPLES_DIR, expanded) : path.resolve(expanded);
   const stat = await fs.promises.stat(file).catch(() => null);
   if (!stat || !stat.isFile()) throw new Error(`File not found: ${file}`);
   if (stat.size > MAX_IMPORT_BYTES) throw new Error('File too large (max 200 MB)');
@@ -293,7 +311,7 @@ async function readSource(source) {
 function fileTool(name, description, shape, opts = {}) {
   server.registerTool(
     name,
-    { title: opts.title, description, inputSchema: { source: z.string().describe('Absolute file path (or ~/...) or http(s) URL'), ...shape } },
+    { title: opts.title, description, inputSchema: { source: z.string().describe(SAMPLES_DIR ? `File path (absolute, ~/..., or relative to ${SAMPLES_DIR}) or http(s) URL` : 'Absolute file path (or ~/...) or http(s) URL'), ...shape } },
     async ({ source, ...args }) => {
       try {
         const { data, filename } = await readSource(source);

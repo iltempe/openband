@@ -6,6 +6,13 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 The v0.3 work follows [docs/SPEC-v0.3.md](docs/SPEC-v0.3.md).
 
+### D2 · Claude Desktop extension (.mcpb)
+- `npm run pack:mcpb` builds `build/openband-<version>.mcpb` with the official `@anthropic-ai/mcpb` tool (validate + pack): the server, the built studio and the production `node_modules`, the OpenBand icon (512×512, also in `public/` for the web app) and a v0.3 manifest. The tool list in the manifest comes from the server's own `tools/list`, so they can't drift apart.
+- Settings (`user_config`): port (default 7777), open the studio automatically (default on), samples folder — relative paths given to the import tools are looked up there.
+- Every tool now declares `readOnlyHint`, `destructiveHint` (delete/new/replace/checkout/merge/import with replace…) and `openWorldHint` (URL imports, the plugin catalog, rooms), set in one place in the server.
+- CI builds the bundle on Ubuntu, macOS and Windows and runs its server the way Claude Desktop does (`mcp_config` with `${__dirname}`/`${user_config}` filled in), checking `tools/list` and the annotations; the `.mcpb` is kept as a build artifact. Manual install checklist: [docs/checklists/mcpb.md](docs/checklists/mcpb.md).
+- README: a download button for Claude Desktop (live with the first release).
+
 ### D1 · `npx openband`: no clone, no build
 - npm package `openband` (0.2.0) with the studio already built (`dist/`) and one binary, `bin/openband.mjs`: `openband` / `openband start` (studio in the browser), `openband mcp` (stdio MCP server; the studio opens by itself at the first tool call), `openband setup` (finds Claude Desktop, Claude Code, Cursor and VS Code and adds OpenBand after asking, with a `.bak` of each file), `openband doctor`, `--version`. Node 18+ is checked before anything else, with a clear message.
 - MCP configuration without absolute paths: `{"command": "npx", "args": ["-y", "openband", "mcp"]}`.
