@@ -74,15 +74,14 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 ## Avvio rapido
 
 ```bash
-npm install
-npm run dev          # apri http://localhost:5173
+npx openband
 ```
 
-Oppure compila una volta: il server MCP servirà l'app da solo su `http://127.0.0.1:7777`.
+Fatto: lo studio si apre nel browser (serve Node 18+). Niente clone, niente build. Non vuoi installare nulla? [Apri la demo online](https://iltempe.github.io/openband/).
 
-```bash
-npm run build
-```
+Per farlo suonare a un'AI, aggiungi OpenBand al tuo client MCP: `npx openband setup` trova Claude Desktop, Claude Code, Cursor e VS Code sul tuo computer e lo fa al posto tuo (chiede prima e tiene una copia di backup di ogni file). Per farlo a mano vedi [Collegare un'AI](#collegare-unai-mcp).
+
+> Il pacchetto npm `openband` viene pubblicato con la release v0.2. Fino ad allora usa un checkout (vedi [Sviluppo](#sviluppo)).
 
 Al primo avvio si apre un brano demo. Il clic su “Entra nello studio” (“Enter the studio” in inglese) serve perché i browser abilitano l'audio solo dopo un'interazione dell'utente.
 
@@ -132,26 +131,25 @@ server/mcp-server.mjs ──── WebSocket ws://127.0.0.1:7777/bridge ──�
 
 Il client avvia il server MCP, che inoltra ogni chiamata alla finestra di OpenBand aperta. Ogni comando ricevuto compare nel pannello **AI** dell'app (il pulsante “MCP” in alto a destra).
 
-**Claude Desktop**: aggiungi in `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+**Claude Code**:
+
+```bash
+claude mcp add openband -- npx -y openband mcp
+```
+
+**Claude Desktop, Cursor, VS Code…**, oppure esegui `npx openband setup`. Claude Desktop tiene il file in `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
 ```json
 {
   "mcpServers": {
-    "openband": {
-      "command": "node",
-      "args": ["/percorso/assoluto/openband/server/mcp-server.mjs"]
-    }
+    "openband": { "command": "npx", "args": ["-y", "openband", "mcp"] }
   }
 }
 ```
 
-**Claude Code**:
+Nessun percorso da modificare: `npx` scarica il pacchetto, che contiene lo studio già compilato. Alla prima chiamata di un tool lo studio si apre da solo nel browser.
 
-```bash
-claude mcp add openband -- node /percorso/assoluto/openband/server/mcp-server.mjs
-```
-
-Poi apri lo studio (`npm run dev`, oppure lascia che l'AI chiami `open_studio` dopo un `npm run build`) e chiedi, per esempio:
+Poi chiedi, per esempio:
 
 > Crea un beat lo-fi a 82 BPM in Re minore con batteria, basso e Rhodes, poi fai partire il loop.
 
@@ -159,7 +157,7 @@ Poi apri lo studio (`npm run dev`, oppure lascia che l'AI chiami `open_studio` d
 
 > Importa ~/Samples/voce.wav come traccia audio alla battuta 5, metti un compressore sul basso, fai entrare il pad in dissolvenza in due battute e salva il brano come ~/Desktop/brano.wav e brano.mid.
 
-Variabili d'ambiente: `OPENBAND_PORT` (predefinita 7777; se la cambi, apri l'app con `?mcp=<porta>`) e `OPENBAND_DEV_URL` (predefinita `http://localhost:5173`).
+Variabili d'ambiente: `OPENBAND_PORT` (predefinita 7777; se è occupata si usa la prima porta libera e lo studio si apre con `?mcp=<porta>`), `OPENBAND_OPEN_BROWSER=0` (non aprire il browser), `OPENBAND_COLLAB=1` (stanze multiplayer nella tua rete) e `OPENBAND_DEV_URL` (predefinita `http://localhost:5173`, usata quando manca la build). Problemi? `npx openband doctor` controlla Node, la porta, la build e i tuoi client MCP.
 
 Il bridge accetta connessioni solo da `127.0.0.1` e da pagine servite su localhost.
 
@@ -209,10 +207,15 @@ Convenzioni: tempo in 4/4; le battute partono da 1; dentro una regione posizioni
 ## Sviluppo
 
 ```bash
+git clone https://github.com/iltempe/openband.git
+cd openband
+npm install
 npm run dev         # studio con ricarica automatica
 npm run typecheck   # TypeScript
 npm test            # test unitari (Vitest, in Node)
 npm run build       # build di produzione in dist/
+node bin/openband.mjs mcp   # il server MCP dal checkout (oppure: claude mcp add openband -- node /percorso/openband/bin/openband.mjs mcp)
+node scripts/smoke-pack.mjs # crea il pacchetto npm, lo installa in una cartella vuota e lo prova
 ```
 
 La CI esegue typecheck e test a ogni push e pull request. La roadmap v0.2 è descritta in [docs/SPEC.md](docs/SPEC.md); le modifiche sono elencate in [CHANGELOG.md](CHANGELOG.md).

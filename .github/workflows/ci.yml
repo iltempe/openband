@@ -24,3 +24,24 @@ jobs:
       - uses: ./.github/actions/openband-lint
         with:
           files: src/__fixtures__/demo.v1.json
+
+  # The npm package as a user gets it: pack → install in an empty folder → MCP over stdio + studio over HTTP.
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [18, 20, 22]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: node scripts/smoke-pack.mjs

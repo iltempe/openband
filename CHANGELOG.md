@@ -2,7 +2,19 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
-## Unreleased — v0.2 "The AI that listens"
+## Unreleased — v0.3 "What no DAW has"
+
+The v0.3 work follows [docs/SPEC-v0.3.md](docs/SPEC-v0.3.md).
+
+### D1 · `npx openband`: no clone, no build
+- npm package `openband` (0.2.0) with the studio already built (`dist/`) and one binary, `bin/openband.mjs`: `openband` / `openband start` (studio in the browser), `openband mcp` (stdio MCP server; the studio opens by itself at the first tool call), `openband setup` (finds Claude Desktop, Claude Code, Cursor and VS Code and adds OpenBand after asking, with a `.bak` of each file), `openband doctor`, `--version`. Node 18+ is checked before anything else, with a clear message.
+- MCP configuration without absolute paths: `{"command": "npx", "args": ["-y", "openband", "mcp"]}`.
+- Port 7777 or, when taken, the next free one (passed to the studio with `?mcp=`); the server answers `/version.json`.
+- Runtime dependencies are only the MCP SDK, `ws` and `zod`, plus `yjs`/`y-protocols`, which are loaded only for multiplayer rooms (`OPENBAND_COLLAB=1`). Everything the studio needs is bundled in `dist/`: the tarball is 0.4 MB.
+- CI: `scripts/smoke-pack.mjs` packs the package, installs it in an empty folder and checks that `openband mcp` answers `initialize` + `tools/list` over stdio and `openband start` serves the studio — on Ubuntu, macOS and Windows with Node 18, 20 and 22.
+- The README quick start is one line; cloning moved to Development.
+
+## v0.2 "The AI that listens"
 
 ### F16 · Multiplayer with the AI as a peer
 - Dependencies (all MIT): `yjs`, `y-protocols`, `y-websocket` (client), `y-webrtc` — a CRDT and its sync protocols are far beyond what could reasonably be written here.

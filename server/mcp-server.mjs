@@ -11,7 +11,6 @@ import { WebSocketServer } from 'ws';
 import { z } from 'zod';
 import { SubscribeRequestSchema, UnsubscribeRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { EventBuffer } from './events.mjs';
-import { createCollab } from './collab.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,7 +18,12 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 
-const PORT = Number(process.env.OPENBAND_PORT || 7777);
+/** Default 7777; if it is taken (and no port was asked for) the next free one is used. */
+const PORT = process.env.OPENBAND_PORT ? Number(process.env.OPENBAND_PORT) : await findFreePort(7777);
+/** stdio MCP (default) or just the studio server (`openband start`). */
+const STDIO = process.env.OPENBAND_STDIO !== '0';
+/** Open the studio in the browser by itself: at start (`openband start`) or at the first tool call (`openband mcp`). */
+const OPEN_BROWSER = process.env.OPENBAND_OPEN_BROWSER !== '0';
 /** OPENBAND_COLLAB=1 opens the server to the local network for multiplayer rooms (the AI bridge stays local-only). */
 const COLLAB = process.env.OPENBAND_COLLAB === '1';
 const HOST = process.env.OPENBAND_HOST || (COLLAB ? '0.0.0.0' : '127.0.0.1');
@@ -28,11 +32,30 @@ const DIST = path.join(ROOT, 'dist');
 const DEV_URL = process.env.OPENBAND_DEV_URL || 'http://localhost:5173';
 const log = (...a) => console.error('[openband]', ...a);
 
+async function findFreePort(from) {
+  const net = await import('node:net');
+  for (let p = from; p < from + 50; p++) {
+    const free = await new Promise((resolve) => {
+      const s = net.createServer().once('error', () => resolve(false)).once('listening', () => s.close(() => resolve(true)));
+      s.listen(p, '127.0.0.1');
+    });
+    if (free) return p;
+  }
+  return from;
+}
+
 // ---------------------------------------------------------------- HTTP + WebSocket bridge
 
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.png': 'image/png', '.wav': 'audio/wav' };
 
+const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+
 const httpServer = http.createServer((req, res) => {
+  if (new URL(req.url || '/', 'http://x').pathname === '/version.json') {
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-cache' });
+    res.end(JSON.stringify({ app: 'openband', version: PKG.version }));
+    return;
+  }
   if (!fs.existsSync(DIST)) {
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
     res.end(`OpenBand bridge is running. Run "npm run build" to serve the studio here, or open ${DEV_URL} (npm run dev).`);
@@ -55,7 +78,8 @@ const isLoopback = (addr) => addr === '127.0.0.1' || addr === '::1' || addr === 
 
 // One HTTP server, several WebSocket endpoints: route upgrades by path.
 const wss = new WebSocketServer({ noServer: true });
-const collab = COLLAB ? createCollab() : null;
+// Multiplayer endpoints load Yjs only when asked for.
+const collab = COLLAB ? (await import('./collab.mjs')).createCollab() : null;
 httpServer.on('upgrade', (req, socket, head) => {
   const { pathname } = new URL(req.url || '/', 'http://x');
   if (pathname === '/bridge') {
@@ -129,8 +153,26 @@ function waitForStudio(ms) {
   });
 }
 
+let lastAutoOpen = 0;
+/** Open the studio in the default browser. */
+function openBrowser(url = studioUrl()) {
+  const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'cmd' : 'xdg-open';
+  const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url];
+  spawn(cmd, args, { stdio: 'ignore', detached: true }).on('error', () => {}).unref();
+}
+
 async function call(method, params = {}, timeoutMs = 20000) {
   if (bridgeError) throw new Error(bridgeError);
+  // First tool call and no studio yet: open it (at most once a minute) and wait for it.
+  if ((!studio || studio.readyState !== 1) && OPEN_BROWSER && fs.existsSync(DIST) && Date.now() - lastAutoOpen > 60000) {
+    lastAutoOpen = Date.now();
+    try {
+      openBrowser();
+      await waitForStudio(20000);
+    } catch {
+      // fall through to the error below
+    }
+  }
   if (!studio || studio.readyState !== 1) {
     throw new Error(`The OpenBand studio is not open. Call the open_studio tool, or ask the user to open ${studioUrl()} in a browser.`);
   }
@@ -273,10 +315,8 @@ server.registerTool(
   async () => {
     if (studio) return text({ connected: true, url: studioUrl() });
     const url = studioUrl();
-    const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'cmd' : 'xdg-open';
-    const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url];
     try {
-      spawn(cmd, args, { stdio: 'ignore', detached: true }).unref();
+      openBrowser(url);
     } catch (e) {
       return { ...text(`Could not open a browser: ${e.message}. Ask the user to open ${url}`), isError: true };
     }
@@ -852,5 +892,10 @@ tool('add_audio_region', 'Place an imported sample on the timeline as an audio c
   gain: z.number().min(0).max(2).optional(),
 });
 
-await server.connect(new StdioServerTransport());
-log('MCP server ready');
+if (STDIO) {
+  await server.connect(new StdioServerTransport());
+  log('MCP server ready');
+} else {
+  log(`studio on ${studioUrl()}`);
+  if (OPEN_BROWSER) openBrowser();
+}

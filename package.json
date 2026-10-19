@@ -1,17 +1,7 @@
 {
   "name": "openband",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Open-source GarageBand-style music studio for the browser, controllable by AI through MCP",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
-    "mcp": "node server/mcp-server.mjs",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "lint:song": "node scripts/openband-lint.mjs"
-  },
   "keywords": [
     "daw",
     "music",
@@ -19,21 +9,50 @@
     "mcp",
     "garageband"
   ],
+  "homepage": "https://iltempe.github.io/openband/",
+  "bugs": {
+    "url": "https://github.com/iltempe/openband/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iltempe/openband.git"
+  },
+  "license": "MIT",
   "type": "module",
+  "bin": {
+    "openband": "bin/openband.mjs"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "server/*.mjs",
+    "README.md",
+    "README.it.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "mcp": "node bin/openband.mjs mcp",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint:song": "node scripts/openband-lint.mjs",
+    "start": "node bin/openband.mjs",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "smoke:pack": "node scripts/smoke-pack.mjs"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
-    "@webaudiomodules/sdk": "^0.0.12",
-    "fflate": "^0.8.2",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "tone": "^15.0.4",
     "ws": "^8.22.0",
     "y-protocols": "^1.0.7",
-    "y-webrtc": "^10.3.0",
-    "y-websocket": "^3.1.0",
     "yjs": "^13.6.33",
-    "zod": "^4.6.7",
-    "zustand": "^4.5.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
@@ -41,13 +60,17 @@
     "@types/react-dom": "^18.3.1",
     "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^4.3.3",
+    "@webaudiomodules/sdk": "^0.0.12",
     "esbuild": "^0.21.5",
+    "fflate": "^0.8.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tone": "^15.0.4",
     "typescript": "^5.6.3",
     "vite": "^5.4.10",
-    "vitest": "^2.1.9"
-  },
-  "license": "MIT",
-  "bin": {
-    "openband-lint": "scripts/openband-lint.mjs"
+    "vitest": "^2.1.9",
+    "y-webrtc": "^10.3.0",
+    "y-websocket": "^3.1.0",
+    "zustand": "^4.5.5"
   }
 }
