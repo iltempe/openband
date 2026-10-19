@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { JamGhosts, KeepAnswerButton } from './Jam';
 import { useVersions } from '../versioning';
 import { CommentPin, explain } from './Comments';
 import type { Note, Region, Track } from '../types';
@@ -58,6 +59,7 @@ function EditorBar({ region, track }: { region: Region; track: Track }) {
         />
         <span className="eb-sub">{track.name}</span>
       </div>
+      <KeepAnswerButton region={region} />
       {sel.length > 0 && (
         <button className="mini eb-explain" onClick={() => explain({ type: 'notes', id: region.id, note_ids: sel.map((n) => n.id) })} title={t('cm.explainHint')}>
           {t('cm.explainNotes', { n: sel.length })}
@@ -305,6 +307,7 @@ function PianoRoll({ region, track }: { region: Region; track: Track }) {
               </div>
               <div className="pr-region-end" style={{ left: region.length * ppb }} />
               <GhostNotes region={region} ppb={ppb} />
+              <JamGhosts region={region} ppb={ppb} high={HIGH} rowH={ROW_H} />
               {region.notes.map((n) => (
                 <div
                   key={n.id}

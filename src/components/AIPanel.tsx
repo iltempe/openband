@@ -1,4 +1,5 @@
 import { useStore } from '../store';
+import { JamSection } from './Jam';
 import { Markdown, openComments } from './Comments';
 import type { BridgeLogEntry } from '../types';
 import { useState } from 'react';
@@ -111,6 +112,7 @@ export function AIPanel() {
               {t('ai.ask')}
             </button>
           </form>
+          <JamSection />
         </div>
       )}
 

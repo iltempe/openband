@@ -30,6 +30,7 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 - **Microphone recording and hum-to-MIDI**: record your voice or an instrument onto an audio track after a one-bar count-in (with latency compensation), or *hum a melody* and get it back as MIDI notes, snapped to the key and gently quantized. Any monophonic audio clip can be converted the same way. When the AI asks to record, you always confirm first.
 - **MIDI import and export** (Standard MIDI Files, General MIDI programs, drums on channel 10).
 - **The AI listens**: `analyze_mix` renders the song and measures it — loudness (EBU R128 LUFS, true peak, LRA), frequency balance in 7 bands, stereo/phase, masking between tracks, the key — and returns concrete fixes (*“Bass and Drums cover each other at 60–250 Hz: cut 2–3 dB around 80 Hz…”*). `render_spectrogram` gives Claude an image of the mix to look at, and `analyze_harmony` reads the chords with their degrees in the key (*Am7 i7 · Fmaj7 VImaj7 · V7/V…*) and the cadences. The same reports are in the **Analysis** panel (N).
+- **Jam with the AI (call-and-response)**: turn on *Jam* in the AI panel, play a phrase and the AI answers on the next bar or at the loop start — LLM latency is hidden by quantizing the answer to the next musical window (if it arrives too late it moves to the following one, never mid-bar, never over the previous answer). Answers are heard but not saved: they show as glowing ghost notes in the piano roll until you press **Keep**.
 - **Versions and branches, like git for songs**: save versions, branch off to try another direction (*“what if the chorus were slower?”*), go back at any time (undoable; unsaved work is kept as a WIP version), and **merge** branches three-way — changes on different tracks, regions or fields combine by themselves, real conflicts are listed with *keep ours / take theirs*. The **compare view** colours the timeline (green added, yellow changed, red dashed removed), shows the other version's notes as ghosts in the piano roll, and lets you A/B the two versions in sync. `export_project_json({canonical:true})` writes deterministic JSON for git.
 - **Explain mode**: right-click a region, a section or selected notes and choose **Explain** — the AI answers with a comment pinned right there (*“C in first inversion: E in the bass softens the move from Fmaj7…”*). Turn on **Teach me** and the AI annotates its non-obvious choices while it works. Comments live in the song (threads, replies, resolve), survive export and undo, and are kept — marked *deleted* — if their target goes away.
 - **Takes, comping and blind A/B**: every region can hold alternative takes — recorded in cycle mode (one per pass, as in GarageBand) or written by the AI (*“give me 4 bass lines”*). Comp the best parts by dragging across the take lanes, or run a **blind test**: the takes loop as A/B/C/D in random order, you rank them, and only then the names are revealed (and the AI gets your ranking).
@@ -40,7 +41,7 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 - **The AI follows along**: phrases you play (split after a bar of silence), what you select, play/stop, your edits and questions typed in *Ask the AI* reach the connected AI as events. A switch in the AI panel turns activity sharing off (questions are always sent).
 - **Undo by intent**: everything the AI does for one request is a single, labelled undo step (*“Undo: Lo-fi beat (23 commands)”*); drags and knob turns are one step each.
 - **Undo/redo**, autosave, **WAV export** with offline rendering; projects with imported sounds are saved as a single `.openband` file that bundles the samples.
-- **AI control via MCP**: 100 tools to compose, arrange, import sounds, add plugins, mix, automate and export — the AI can add a plugin just from a description such as *“a warm tube overdrive”*.
+- **AI control via MCP**: 103 tools to compose, arrange, import sounds, add plugins, mix, automate and export — the AI can add a plugin just from a description such as *“a warm tube overdrive”*.
 - **English and Italian** interface (switch from the start screen or the ⋯ menu).
 
 | Piano roll | Mixer |
@@ -54,6 +55,8 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 | ![Problems panel](docs/problems.png) | ![Lyrics panel](docs/lyrics.png) |
 | **WAM plugin window** | **Plugin browser** |
 | ![Synth-101 WAM plugin](docs/plugins.png) | ![Searching plugins in plain language](docs/plugin-browser.png) |
+| **Jam: the AI answers what you play** | **The answer as ghost notes, until you keep it** |
+| ![Jam section in the AI panel](docs/jam.png) | ![AI answer as ghost notes in the piano roll](docs/jam-ghosts.png) |
 | **Versions: branch graph and compare view** | **Ghost notes of the other version** |
 | ![Versions panel with branches and the compare view](docs/versions.png) | ![Piano roll with ghost notes](docs/version-ghosts.png) |
 | **Explain mode: comments pinned to the song** | **The AI's explanations, per request** |
@@ -168,6 +171,7 @@ The bridge only accepts connections from `127.0.0.1` and from pages served on lo
 | Lyrics | `set_lyrics`, `get_lyrics`, `align_lyrics`, `check_prosody`, `suggest_melody_rhythm`, `export_chord_sheet` (ChordPro or text, optional `save_to`) |
 | Linter | `lint_project` (symbolic rules, optionally audio ones), `apply_fix`, `ignore_issue`; `update_notes` edits notes in place |
 | Listening | `analyze_mix` (bars or section, per track, summary/full), `render_spectrogram` (returns an image), `detect_key` (MIDI, audio or both), `analyze_harmony` (chords, Roman numerals, functions, cadences) |
+| Jam | `set_jam_mode` (response track, window), `play_phrase` (ephemeral notes at `next_bar`, `next_loop` or a bar; optional `commit`), `keep_answer`; the user's phrases arrive as `phrase` events |
 | Versions | `save_version`, `list_versions`, `create_branch`, `checkout` (branch or version, undoable, auto-saves WIP), `diff_versions` (readable summary + structured changes), `merge` (three-way; `strategy` and per-entity `pick`); `export_project_json` with `canonical` |
 | Explain | `annotate` (project, track, region, notes, section or bar range; markdown up to 500 characters), `list_annotations`, `resolve_annotation`, `delete_annotation`; `get_status` reports `teach_mode` |
 | Takes | `add_take`, `list_takes`, `set_active_take`, `delete_take`, `comp_takes` (segments, notes cut at the boundaries), `start_ab_test` (blind test; the ranking arrives as an `ab_result` event) |

@@ -29,6 +29,7 @@ import { emptyProject, enterAiCommand, exitAiCommand, isAiCommand, getRegion, ge
 import { engine } from './audio/engine';
 import { checkSegments, compNotes, nextTakeName, withTakes, type CompSegment } from './takes';
 import { startABTest } from './abtest';
+import { jamStatus, keepAnswer, playPhrase, setJamMode, useJam } from './jamMode';
 import { canonicalJSON } from './versions/canonical';
 import { checkout, createBranch, diffVersions, listVersions, mergeBranch, saveVersion } from './versioning';
 import { MAX_ANNOTATION, checkTarget, matchesTarget } from './annotations';
@@ -216,6 +217,7 @@ export const commands: Record<string, (args: P) => unknown> = {
       selected_track_id: st().selectedTrackId,
       selected_region_id: st().selectedRegionId,
       teach_mode: useTeachMode.getState().on,
+      jam: jamStatus(),
     };
   },
 
@@ -970,6 +972,24 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   render_spectrogram: ({ from_bar, to_bar, section_id, track_id, width, height }) => spectrogram({ from_bar, to_bar, section_id, track_id, width, height }),
 
+  // ---------- jam (call-and-response) ----------
+
+  play_phrase: ({ track_id, notes, at, commit }) => {
+    const p = st().project;
+    const trackId = track_id ?? useJam.getState().trackId;
+    if (!trackId) throw new Error('Give track_id (or set_jam_mode with response_track_id)');
+    const track = requireTrack(p, trackId);
+    const parsed = toNotes(notes, track.kind === 'drums').map(({ id: _, ...n }) => n);
+    return playPhrase(track.id, parsed, at, !!commit);
+  },
+
+  set_jam_mode: ({ enabled, response_track_id, window }) => {
+    const id = response_track_id ? requireTrack(st().project, response_track_id).id : undefined;
+    return setJamMode(enabled !== false, id, window);
+  },
+
+  keep_answer: () => keepAnswer(),
+
   // ---------- versions ----------
 
   save_version: async ({ label }) => {
@@ -1248,7 +1268,7 @@ const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'start_ab_test', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'start_ab_test', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

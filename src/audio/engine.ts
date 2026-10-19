@@ -47,6 +47,11 @@ class AudioEngine {
   private monitor!: Tone.Gain;
   private refPlayer: Tone.Player | null = null;
   private refGain = 1;
+  /** Ephemeral notes (the AI's live answers): played at absolute times, never stored in the song. */
+  private phraseQueue: { trackId: string; pitch: number; time: number; duration: number; velocity: number }[] = [];
+  private phraseTimer: ReturnType<typeof setInterval> | null = null;
+  /** Last start per track: monophonic synths need strictly increasing start times. */
+  private phraseLast = new Map<string, number>();
   /** True while the reference track is heard instead of the mix. */
   listeningToReference = false;
 
@@ -149,7 +154,49 @@ class AudioEngine {
     if (this.refPlayer) this.refPlayer.volume.rampTo(b ? 20 * Math.log10(Math.max(1e-6, this.refGain)) : -Infinity, 0.03);
   }
 
+  // ---------- ephemeral phrases (call-and-response) ----------
+
+  /**
+   * Play notes (start/duration in beats, relative to the phrase) on a track's instrument starting at
+   * AudioContext time `at`. A lookahead timer hands them to the instrument just before they sound,
+   * so stopping the transport can cancel what hasn't played yet. Returns when the phrase ends.
+   */
+  schedulePhrase(trackId: string, notes: { pitch: number; start: number; duration: number; velocity: number }[], at: number): number {
+    const spb = 60 / transport().bpm.value;
+    for (const n of notes) this.phraseQueue.push({ trackId, pitch: n.pitch, time: at + n.start * spb, duration: Math.max(0.03, n.duration * spb), velocity: n.velocity });
+    this.phraseQueue.sort((a, b) => a.time - b.time);
+    this.phraseTimer ??= setInterval(() => {
+      const horizon = Tone.now() + 0.12;
+      while (this.phraseQueue.length && this.phraseQueue[0].time < horizon) {
+        const n = this.phraseQueue.shift()!;
+        if (n.time < Tone.now() - 0.02) continue; // too late to be in time: skip it rather than play it out of time
+        const at = Math.max(n.time, Tone.now(), (this.phraseLast.get(n.trackId) ?? 0) + 1e-3);
+        this.phraseLast.set(n.trackId, at);
+        try {
+          this.nodes.get(n.trackId)?.instrument.trigger(n.pitch, n.duration, at, n.velocity);
+        } catch {
+          // an instrument refusing one note must not stop the phrase
+        }
+      }
+      if (!this.phraseQueue.length && this.phraseTimer) {
+        clearInterval(this.phraseTimer);
+        this.phraseTimer = null;
+      }
+    }, 25);
+    return at + Math.max(0, ...notes.map((n) => n.start + n.duration)) * spb;
+  }
+  cancelPhrases() {
+    this.phraseQueue = [];
+    if (this.phraseTimer) clearInterval(this.phraseTimer);
+    this.phraseTimer = null;
+  }
+  /** AudioContext time "now" as the transport sees it. */
+  get now() {
+    return Tone.now();
+  }
+
   stop() {
+    this.cancelPhrases();
     if (!this.ready) return;
     transport().pause();
     this.nodes.forEach((n) => n.instrument.releaseAll());

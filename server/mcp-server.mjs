@@ -128,6 +128,7 @@ Wrap every user request in begin_change("short label") … end_change() so the u
 When the user talks about parts of a song (verse, chorus…), call get_structure first and operate on sections (move_section, duplicate_section). Use the energy profile to make a section 'bigger' (more tracks, higher register, more notes, higher velocity) or 'smaller'. If there are no sections yet, auto_sections proposes them.
 For vocal lines, keep lyrics and melody aligned: set_lyrics → align_lyrics → check_prosody. Put stressed syllables on strong beats (suggest_melody_rhythm helps).
 When get_status reports teach_mode: true, explain your non-obvious musical choices (harmony, voicing, rhythm, mix) with annotate on the exact notes/region/section, using analyze_harmony to be precise. An ask event with context.explain is a request to explain that part: answer with annotate.
+To jam with the user: set_jam_mode({enabled:true, response_track_id}), then repeatedly wait_for_event({kinds:["phrase"]}) and answer with play_phrase (it is quantized to the next window, so latency is fine).
 Before a big rework, save_version; to try a different direction without losing the current one, create_branch + checkout (merge brings the good parts back).
 To offer alternatives, add them as takes (add_take) and let the user pick with a blind test (start_ab_test, then wait_for_event ab_result).
 Run lint_project before declaring a task done and fix errors (apply_fix).
@@ -568,6 +569,23 @@ tool('analyze_harmony', 'Chords of the MIDI parts (per bar, or per half bar when
 tool('detect_key', 'Detect the key of the music from the MIDI notes, from the audio tracks, or both. Returns key, confidence, alternatives and whether it matches the project key.', {
   source: z.enum(['midi', 'audio', 'both']).optional(),
 }, { ...readOnly, timeout: 180000 });
+
+// ---- jam: call-and-response
+
+tool('play_phrase', 'Answer what the user played: the notes (beats from the phrase start, like add_region) are played live on a track at the next musical window — next_bar (default), next_loop (the cycle start) or {bar} — never earlier, and if your answer arrives too late it moves to the following window. The notes are NOT added to the song unless commit:true (the user can also press Keep). Returns when it will start.', {
+  track_id: z.string().optional().describe('Default: the jam response track'),
+  notes: z.array(NoteSchema),
+  at: z.union([z.enum(['next_bar', 'next_loop']), z.object({ bar: z.number().int().min(1) })]).optional(),
+  commit: z.boolean().optional(),
+});
+
+tool('set_jam_mode', 'Turn jam (call-and-response) mode on or off: the studio shows that you are listening, and play_phrase defaults to response_track_id and window. Then loop: wait_for_event({kinds:["phrase"]}) → compose an answer → play_phrase.', {
+  enabled: z.boolean(),
+  response_track_id: z.string().optional(),
+  window: z.enum(['next_bar', 'next_loop']).optional(),
+});
+
+tool('keep_answer', 'Keep the last answer played with play_phrase: its notes are added to the song (one undo step).', {});
 
 // ---- versions and branches
 

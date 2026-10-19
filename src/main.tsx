@@ -10,6 +10,7 @@ import { initMidi } from './input';
 import './lintLive';
 import { initReference } from './reference';
 import { initVersions } from './versioning';
+import { initJam } from './jamMode';
 
 if (!hasSavedProject()) loadDemo();
 
@@ -20,6 +21,7 @@ useStore.subscribe((s, prev) => {
 
 initReference();
 initVersions();
+initJam();
 connectBridge();
 initMidi();
 

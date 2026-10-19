@@ -4,6 +4,12 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 ## Unreleased — v0.2 "The AI that listens"
 
+### F15 · Live call-and-response
+- Pure module `src/jam.ts`: when the answer starts — `next_bar`, `next_loop` or a given bar, following the cycle — never before the requested window, at least half a beat ahead (otherwise the next window of the same kind), always on a bar line, never overlapping an answer still playing (but allowed to start right where it ends).
+- Engine: `schedulePhrase` plays ephemeral notes at absolute AudioContext times with a lookahead timer (no Tone.Part on the looping transport, so nothing repeats on the next pass); stop cancels what hasn't played; start times stay strictly increasing for monophonic synths.
+- MCP: `set_jam_mode`, `play_phrase` (`commit` optional), `keep_answer`; `get_status` reports the jam state; the instructions describe the wait_for_event → play_phrase loop.
+- UI: Jam section in the AI panel (response track, window, "listening / thinking / answers at bar n", Keep / Dismiss) and the answer as glowing ghost notes in the piano roll with a Keep button; Keep adds the notes to the region already covering that spot or makes a new one (one undo step).
+
 ### F13 · Versions, branches, diff and merge
 - Pure modules in `src/versions/`: `canonical.ts` (deterministic JSON: sorted keys, numbers to 4 decimals, notes/regions/sections sorted — the same song always gives the same string), `diff.ts` (by id: project fields, tracks per field, regions added/removed/moved/resized, notes added/removed/changed with a pitch+start fallback within a 32nd, sections, lyrics; plus a readable summary such as “Bass: 3 notes changed in Chorus; tempo 82→86”), `merge.ts` (three-way, entity level with field-level merging for tracks; strategies `manual`/`ours`/`theirs`, granular `pick`; common-ancestor search).
 - Storage: versions (gzip snapshots via fflate) and branch refs in IndexedDB (the database moves to v2, samples untouched); HEAD per song.

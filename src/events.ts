@@ -69,7 +69,12 @@ type Sink = { event(e: StudioEvent & { at: number }): void; projectChanged(): vo
 let sink: Sink | null = null;
 export const setEventSink = (s: Sink | null) => void (sink = s);
 
+/** In-app listeners (e.g. jam mode reacting to phrases); they get every event, shared or not. */
+const local = new Set<(e: StudioEvent) => void>();
+export const onStudioEvent = (fn: (e: StudioEvent) => void) => (local.add(fn), () => void local.delete(fn));
+
 export function emitStudioEvent(e: StudioEvent) {
+  local.forEach((fn) => fn(e));
   if (!sink) return;
   if (!EXPLICIT.has(e.kind) && !useActivitySharing.getState().share) return;
   sink.event({ ...e, at: Date.now() });
