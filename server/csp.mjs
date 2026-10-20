@@ -2,11 +2,14 @@
 // the Node server with OPENBAND_CSP=1), Netlify / Cloudflare Pages (dist/_headers, written at build) and
 // Vercel (vercel.json, checked against this in a test).
 //
-// connect-src: the bridge on this computer, the Anthropic API (in-browser chat), the WAM plugin catalog and
+// connect-src: the bridge on this computer, the AI APIs of the in-browser chat (and local AI servers such
+// as Ollama), the WAM plugin catalog and
 // the collaboration servers. Anything else (importing a sound from an arbitrary URL in the browser, other
 // plugin hosts) is blocked on such instances unless the admin adds it here or in their own headers.
 export const WAM_HOST = 'https://www.webaudiomodules.com';
 export const DEFAULT_COLLAB = ['wss://y-webrtc-eu.fly.dev'];
+/** The AI providers the in-browser chat can call with the user's key (local servers: http://127.0.0.1 / localhost). */
+export const AI_APIS = ['https://api.anthropic.com', 'https://api.openai.com', 'https://generativelanguage.googleapis.com'];
 
 export function contentSecurityPolicy({ collab = DEFAULT_COLLAB, extraConnect = [] } = {}) {
   const directives = {
@@ -18,7 +21,7 @@ export function contentSecurityPolicy({ collab = DEFAULT_COLLAB, extraConnect = 
     'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
     'img-src': ["'self'", 'data:', 'blob:', WAM_HOST],
     'media-src': ["'self'", 'data:', 'blob:'],
-    'connect-src': ["'self'", 'ws://127.0.0.1:*', 'ws://localhost:*', 'http://127.0.0.1:*', 'https://api.anthropic.com', WAM_HOST, ...collab, ...extraConnect],
+    'connect-src': ["'self'", 'ws://127.0.0.1:*', 'ws://localhost:*', 'http://127.0.0.1:*', 'http://localhost:*', ...AI_APIS, WAM_HOST, ...collab, ...extraConnect],
     'object-src': ["'none'"],
     'base-uri': ["'self'"],
     'frame-ancestors': ["'self'"],

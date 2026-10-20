@@ -40,6 +40,7 @@ export function AIPanel() {
   const pairing = useBridge((b) => b.pairing);
   const byoKey = useConfig((c) => c.features.byoKey);
   const hasKey = useApiKey((k) => k.hasKey) && byoKey;
+  const aiModel = useApiKey((k) => k.model);
   const update = useBridge((b) => b.update);
 
   return (
@@ -51,7 +52,7 @@ export function AIPanel() {
           </div>
           <div className={`ai-status ${status}`}>
             <span className="dot" />
-            {status === 'connected' ? t('ai.connected') : hasKey ? t('chat.status') : status === 'connecting' ? t('ai.connecting') : BRIDGE_ENABLED ? t('ai.unreachable') : pairing ? t('ca.waitingCode') : t('ai.demo')}
+            {status === 'connected' ? t('ai.connected') : hasKey ? t('chat.status', { model: aiModel }) : status === 'connecting' ? t('ai.connecting') : BRIDGE_ENABLED ? t('ai.unreachable') : pairing ? t('ca.waitingCode') : t('ai.demo')}
           </div>
         </div>
         <button className="icon-btn" onClick={() => set({ aiOpen: false })}>

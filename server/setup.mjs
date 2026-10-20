@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import readline from 'node:readline/promises';
 import { spawnSync } from 'node:child_process';
-import { SERVER_ENTRY, hasCommand, jsonClients, openbandEntry, readConfig, writeEntry } from './clients.mjs';
+import { SERVER_ENTRY, codexClient, hasCommand, jsonClients, openbandEntry, readCodexEntry, readConfig, writeCodexEntry, writeEntry } from './clients.mjs';
 
 export async function setup(args = []) {
   const yes = args.includes('--yes') || args.includes('-y');
@@ -27,6 +27,15 @@ export async function setup(args = []) {
       if (!(await ask(`Add OpenBand to ${c.name} (${c.file})?`))) continue;
       const r = writeEntry(c);
       console.error(`✓ ${c.name}: added${r.backup ? ` (backup: ${r.backup})` : ''}.${c.id === 'claude-desktop' ? ' Restart Claude Desktop.' : ''}`);
+    }
+    const codex = codexClient();
+    if (fs.existsSync(codex.dir)) {
+      found.push(codex.name);
+      if (JSON.stringify(readCodexEntry(codex.file)) === JSON.stringify(SERVER_ENTRY)) console.error(`✓ ${codex.name}: already set up.`);
+      else if (await ask(`Add OpenBand to ${codex.name} (${codex.file})?`)) {
+        const r = writeCodexEntry(codex);
+        console.error(`✓ ${codex.name}: added${r.backup ? ` (backup: ${r.backup})` : ''}.`);
+      }
     }
     if (hasCommand('claude')) {
       found.push('Claude Code');

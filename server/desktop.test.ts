@@ -25,8 +25,14 @@ describe('desktop app as an MCP server', () => {
     const calls: string[][] = [];
     const run = (_cmd: string, args: string[]) => (calls.push(args), { status: 0 });
     const entry = desktopEntry({ exe, root });
-    const r = connectClients(entry, { clients: [desk, code, absent], claude: '/usr/local/bin/claude', run: run as never });
-    expect(r.map((x) => `${x.name}:${x.status}`)).toEqual(['Claude Desktop:added', 'VS Code:added', 'Cursor:missing', 'Claude Code:added']);
+    const codex = { id: 'codex', name: 'Codex (OpenAI)', dir, file: path.join(dir, 'config.toml') };
+    fs.writeFileSync(codex.file, 'model = "gpt-6.1-sol"\n\n[mcp_servers.other]\ncommand = "x"\n');
+    const r = connectClients(entry, { clients: [desk, code, absent], codex, claude: '/usr/local/bin/claude', run: run as never });
+    expect(r.map((x) => `${x.name}:${x.status}`)).toEqual(['Claude Desktop:added', 'VS Code:added', 'Cursor:missing', 'Codex (OpenAI):added', 'Claude Code:added']);
+    const toml = fs.readFileSync(codex.file, 'utf8');
+    expect(toml).toContain('model = "gpt-6.1-sol"');
+    expect(toml).toContain('[mcp_servers.other]');
+    expect(toml).toContain(`[mcp_servers.openband]\ncommand = ${JSON.stringify(exe)}`);
     const cfg = JSON.parse(fs.readFileSync(desk.file, 'utf8'));
     expect(cfg.mcpServers.openband).toEqual(entry);
     expect(cfg.mcpServers.other).toEqual({ command: 'x' });
@@ -35,6 +41,7 @@ describe('desktop app as an MCP server', () => {
     expect(calls[0]).toEqual(['mcp', 'remove', 'openband', '-s', 'user']);
     expect(calls[1]).toEqual(['mcp', 'add', 'openband', '-s', 'user', '-e', 'ELECTRON_RUN_AS_NODE=1', '-e', `OPENBAND_APP=${exe}`, '--', exe, path.join(root, 'server', 'mcp-server.mjs')]);
     // A second time nothing changes.
-    expect(connectClients(entry, { clients: [desk], claude: null }).map((x) => x.status)).toEqual(['already', 'missing']);
+    expect(connectClients(entry, { clients: [desk], codex, claude: null }).map((x) => x.status)).toEqual(['already', 'already', 'missing']);
+    expect(connectClients(entry, { clients: [], codex: null, claude: null }).map((x) => x.status)).toEqual(['missing', 'missing']);
   });
 });

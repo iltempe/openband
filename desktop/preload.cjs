@@ -10,5 +10,6 @@ contextBridge.exposeInMainWorld('openbandDesktop', {
   onMenu: on('menu'),
   onBridgePort: on('bridge-port'),
   connectClients: () => ipcRenderer.invoke('connect-clients'),
+  localFetch: (url, init) => ipcRenderer.invoke('local-fetch', url, init),
   ready: () => ipcRenderer.send('ready'),
 });

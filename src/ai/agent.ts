@@ -18,12 +18,14 @@ export const MAX_TOOL_CALLS = 40;
 
 let history: Anthropic.Beta.BetaMessageParam[] = [];
 let controller: AbortController | null = null;
+let lastProvider: LLMProvider | null = null;
 let seq = 0;
 const id = () => `c${++seq}`;
 
 export function newChat() {
   if (useChat.getState().busy) return;
   history = [];
+  lastProvider = null;
   useChat.setState({ items: [], live: '' });
 }
 export const stopTurn = () => controller?.abort();
@@ -81,6 +83,9 @@ export async function runTurn(text: string, provider: LLMProvider, opts: { maxTo
   const st = useChat.getState();
   if (st.busy) throw new Error('Wait for the current answer (or press Stop)');
   const max = opts.maxToolCalls ?? MAX_TOOL_CALLS;
+  // Another AI can't read the previous one's messages (ids, reasoning, signatures): it starts afresh.
+  if (lastProvider && lastProvider !== provider) history = [];
+  lastProvider = provider;
   controller = new AbortController();
   const signal = controller.signal;
   useChat.setState((s) => ({ busy: true, live: '', items: [...s.items, { id: id(), role: 'user', text }] }));
@@ -106,7 +111,7 @@ export async function runTurn(text: string, provider: LLMProvider, opts: { maxTo
       useChat.setState({ live: '' });
       if (res.stop_reason === 'refusal') {
         closePendingToolUses('declined');
-        answer += (answer ? '\n\n' : '') + '⚠ Claude declined this request.';
+        answer += (answer ? '\n\n' : '') + '⚠ The AI declined this request.';
         break;
       }
       const uses = res.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use');

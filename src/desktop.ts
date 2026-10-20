@@ -20,11 +20,22 @@ export interface DesktopApi {
   onBridgePort(cb: (port: number) => void): void;
   /** Add OpenBand (this app's own MCP server) to Claude Desktop, Claude Code, Cursor and VS Code. */
   connectClients(): Promise<DesktopClientResult[]>;
+  /** A request to an AI server on this computer (Ollama…), made by the app: no CORS to configure. */
+  localFetch(url: string, init: { method?: string; headers?: Record<string, string>; body?: string }): Promise<{ status: number; statusText: string; body: string }>;
   /** Ready to receive files and menu actions. */
   ready(): void;
 }
 
 export const desktop: DesktopApi | null = typeof window !== 'undefined' ? ((window as unknown as { openbandDesktop?: DesktopApi }).openbandDesktop ?? null) : null;
+
+/** fetch, except that in the desktop app requests to http://localhost go through the app. */
+export async function aiFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  if (desktop && /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?\//.test(url)) {
+    const r = await desktop.localFetch(url, { method: init.method, headers: init.headers as Record<string, string>, body: init.body as string | undefined });
+    return new Response(r.body, { status: r.status, statusText: r.statusText });
+  }
+  return fetch(url, init);
+}
 
 export function initDesktop(openFile: (file: File) => Promise<void>) {
   if (!desktop) return;

@@ -7,6 +7,9 @@ export { INSTRUCTIONS };
 
 /** Kinds the browser can run: studio → AI events belong to the MCP server and are left out. */
 const IN_BROWSER = new Set(['call', 'file', 'export', 'chord_sheet', 'image']);
+/** The agent makes each request one undo step itself: a model opening its own (small local models do)
+ *  would nest a second one inside. */
+const AGENT_OWNED = new Set(['begin_change', 'end_change']);
 
 export interface AgentTool {
   def: ToolDef;
@@ -20,7 +23,7 @@ const sourceArg = z.string().describe('http(s) URL of the file (in the browser, 
 let cache: AgentTool[] | null = null;
 export function agentTools(): AgentTool[] {
   if (cache) return cache;
-  cache = TOOLS.filter((t) => IN_BROWSER.has(t.kind)).map((def) => {
+  cache = TOOLS.filter((t) => IN_BROWSER.has(t.kind) && !AGENT_OWNED.has(t.name)).map((def) => {
     const shape = def.kind === 'file' ? { source: sourceArg, ...def.shape } : def.kind === 'export' ? {} : def.shape;
     const schema = z.object(shape);
     const { $schema: _, ...jsonSchema } = z.toJSONSchema(schema) as Record<string, unknown>;
@@ -35,6 +38,8 @@ export const findTool = (name: string) => agentTools().find((t) => t.def.name ==
 export function validateInput(name: string, input: unknown): { ok: true; value: Record<string, unknown> } | { ok: false; error: string } {
   const t = findTool(name);
   if (!t) return { ok: false, error: `Unknown tool "${name}"` };
+  // Models other than Claude send arguments as a JSON string, which can arrive broken.
+  if (input && typeof input === 'object' && '__invalid_json__' in input) return { ok: false, error: `The arguments for ${name} were not valid JSON: send them again.` };
   const r = t.schema.safeParse(input ?? {});
   if (r.success) return { ok: true, value: r.data as Record<string, unknown> };
   return { ok: false, error: `Invalid input for ${name}: ${r.error.issues.map((i) => `${i.path.join('.') || '(input)'}: ${i.message}`).join('; ')}` };

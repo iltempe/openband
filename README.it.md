@@ -6,7 +6,7 @@
 
 ![OpenBand mentre suona una canzone](docs/demo.gif)
 
-Chiedi a Claude *“crea un beat lo-fi a 82 BPM in Re minore con batteria, basso e Rhodes, poi mettilo in loop”* e guarda tracce, note e mixer muoversi in tempo reale. Oppure suona tu: tracce, piano roll, step sequencer, 15 strumenti sintetizzati, mixer, effetti, plugin, registrazione dal microfono.
+Chiedi alla tua AI (Claude, ChatGPT, Gemini o un modello locale) *“crea un beat lo-fi a 82 BPM in Re minore con batteria, basso e Rhodes, poi mettilo in loop”* e guarda tracce, note e mixer muoversi in tempo reale. Oppure suona tu: tracce, piano roll, step sequencer, 15 strumenti sintetizzati, mixer, effetti, plugin, registrazione dal microfono.
 
 ## Per iniziare
 
@@ -18,7 +18,7 @@ Scegli il modo che fa per te. Nessuno richiede di clonare o compilare.
 | 🖥 **App desktop** | macOS, Windows o Linux | **[Scaricala](docs/DESKTOP.it.md#scaricala)**: lo studio in una finestra sua, collegato a Claude con un clic |
 | 🤖 **Claude Desktop** | Claude Desktop | **[⬇ Scarica openband.mcpb](https://github.com/iltempe/openband/releases/latest/download/openband.mcpb)**, fai doppio clic, scegli *Installa* |
 | 💻 **Claude Code, Cursor, VS Code** | [Node 18+](https://nodejs.org) | Esegui il comando qui sotto |
-| 🔑 **Una API key Anthropic** | un browser | [Demo](https://iltempe.github.io/openband/) → pannello **AI** → scheda *API key* |
+| 🔑 **L'AI che preferisci** | un browser | [Demo](https://iltempe.github.io/openband/) → pannello **AI** → *Modello AI*: Claude, OpenAI, Gemini con la tua chiave, o un modello gratuito sul tuo computer con Ollama |
 
 **Il comando** (Claude Code, Cursor, VS Code, o Claude Desktop senza l'estensione) trova i client AI sul tuo computer e ci aggiunge OpenBand, chiedendo prima e tenendo una copia di backup di ogni file che modifica:
 
@@ -30,7 +30,7 @@ Poi riavvia il client AI e chiedigli una canzone: lo studio si apre da solo nel 
 
 > **Perché non `npx openband`?** Il nome `openband` su npm appartiene a qualcun altro, quindi OpenBand si installa dalle sue release su GitHub. `--allow-remote=all` permette a npm 12 (Node 26) di scaricare un pacchetto da un indirizzo; le versioni precedenti di npm lo ignorano.
 
-**Con una API key** Claude gira dentro la pagina e suona lo studio con gli stessi strumenti che ha via MCP. La chiave resta nel tuo browser e le richieste vanno direttamente ad Anthropic; il costo di ogni risposta è indicato.
+**Qualsiasi AI.** Nella pagina la chat usa Claude, i modelli di OpenAI, Gemini o un modello locale con Ollama, con gli stessi strumenti dei client MCP; la chiave resta nel tuo browser e le richieste vanno direttamente al fornitore. Via MCP OpenBand funziona con Claude Desktop, Claude Code, Codex, Gemini CLI, Cursor, VS Code, claude.ai e la modalità sviluppatore di ChatGPT: vedi **[docs/AI-MODELS.it.md](docs/AI-MODELS.it.md)**.
 
 ## La tua prima canzone
 
@@ -78,6 +78,7 @@ Poi riavvia il client AI e chiedigli una canzone: lo studio si apre da solo nel 
 ## Altro
 
 - **[App desktop](docs/DESKTOP.it.md)**: download, prima apertura, collegare le app AI, compilarla.
+- **[Qualsiasi AI](docs/AI-MODELS.it.md)**: Claude, ChatGPT / OpenAI, Gemini, Ollama e altri modelli locali.
 - **[Collegare un'AI](docs/CONNECT.it.md)**: come funziona, ogni client, abbinare la demo online al tuo computer, variabili d'ambiente, problemi.
 - **[Ospitare il proprio OpenBand](docs/SELF-HOSTING.it.md)**: Netlify, Vercel, Cloudflare, GitHub Pages, Docker; stanze nella tua rete; OpenBand come connettore di claude.ai (anche dal telefono).
 - **[Sviluppo](docs/DEVELOPMENT.it.md)**: compilare dai sorgenti, test, struttura del codice. Modifiche: [CHANGELOG.md](CHANGELOG.md).

@@ -4016,6 +4016,7 @@ kbd {
 }
 .ca-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 3px;
   border-radius: 9px;
@@ -4931,4 +4932,33 @@ div.ca-steps {
 }
 .dk-results .missing {
   opacity: 0.6;
+}
+
+/* The AI picker: labels on the left, fields taking the rest of the row */
+.key-form .mic-row {
+  padding: 4px 0;
+}
+.key-form .mic-row > span:first-child {
+  flex: 0 0 auto;
+  min-width: 52px;
+}
+.key-form .mic-row > select,
+.key-form .mic-row > input,
+.key-form .key-model {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+.key-form .key-model {
+  display: flex;
+  gap: 6px;
+}
+.key-form .key-model input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+.chat-model {
+  font-size: 11px;
+  opacity: 0.8;
 }

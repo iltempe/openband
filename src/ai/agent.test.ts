@@ -35,6 +35,7 @@ describe('in-browser agent', () => {
     expect(names).toContain('add_track');
     expect(names).toContain('render_spectrogram');
     expect(names).not.toContain('wait_for_event');
+    expect(names).not.toContain('begin_change');
     const addTrack = agentTools().find((t) => t.def.name === 'add_track')!;
     expect(addTrack.jsonSchema).toMatchObject({ type: 'object', properties: { kind: { enum: ['instrument', 'drums', 'audio'] } } });
     expect(validateInput('set_tempo', { bpm: 'fast' })).toMatchObject({ ok: false });

@@ -9,8 +9,9 @@ import * as I from './Icons';
 import { KeyForm } from './AIChat';
 import { connectTabs, useConfig, type ConnectTab } from '../config';
 import { desktop, type DesktopClientResult } from '../desktop';
+import { useApiKey } from '../ai/keys';
 
-import { CLAUDE_CODE_ADD as CLI, MCPB_URL, MCP_JSON as JSON_CONFIG, RUN } from '../install';
+import { CLAUDE_CODE_ADD as CLI, CODEX_ADD, MCPB_URL, MCP_JSON as JSON_CONFIG, RUN } from '../install';
 export { MCPB_URL };
 
 // 'apps': the desktop app adds itself to the AI apps on this computer, in one click.
@@ -148,7 +149,7 @@ function DesktopApps() {
 export function ConnectAI() {
   const features = useConfig((c) => c.features);
   const remoteMcp = useConfig((c) => c.remoteMcp);
-  const [tab, setTab] = useState<Tab>(desktop ? 'apps' : remoteMcp ? 'remote' : 'desktop');
+  const [tab, setTab] = useState<Tab>(useApiKey.getState().picking && features.byoKey ? 'key' : desktop ? 'apps' : remoteMcp ? 'remote' : 'desktop');
   const b = useBridge();
   const t = useT();
   // config.json arrives after the first render.
@@ -185,6 +186,8 @@ export function ConnectAI() {
         <div className="ca-steps">
           <p>{t('ca.cli1')}</p>
           <Copyable text={CLI} />
+          <p>{t('ca.cliCodex')}</p>
+          <Copyable text={CODEX_ADD} />
           <p>{t('ca.cli2')}</p>
           <Copyable text={`${RUN} setup`} />
           <p>{t('ca.cli3')}</p>

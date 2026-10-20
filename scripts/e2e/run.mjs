@@ -107,7 +107,7 @@ tests.selfhost = async () => {
     await p.evaluate(() => document.querySelector('.ai-pill').click());
     await wait(300);
     const tabs = await p.evaluate(() => [...document.querySelectorAll('.ca-tabs button')].map((b) => b.textContent));
-    check(tabs.length > 0 && !tabs.some((t) => /API key/.test(t)), `features.byoKey=false hides the API key tab (tabs: ${tabs.join(', ')})`);
+    check(tabs.length > 0 && !tabs.some((t) => /AI model|API key/.test(t)), `features.byoKey=false hides the API key tab (tabs: ${tabs.join(', ')})`);
     const catalog = await p.evaluate(async () => (await fetch('https://www.webaudiomodules.com/community/plugins.json')).ok).catch(() => false);
     check(catalog, 'the plugin catalog is reachable under the CSP');
     check(violations.length === 0, `no CSP violations${violations.length ? `: ${violations.join(' | ')}` : ''}`);

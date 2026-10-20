@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { jsonClients, openbandEntry, readConfig, writeEntry } from './clients.mjs';
+import { codexClient, jsonClients, openbandEntry, readCodexEntry, readConfig, writeCodexEntry, writeEntry } from './clients.mjs';
 
 /** The MCP entry for the app at `exe`, whose files (server/, dist/) are in `root`. */
 export function desktopEntry({ exe, root }) {
@@ -30,7 +30,7 @@ export function findClaudeCli(env = process.env) {
  * Cursor and VS Code through their JSON files (a .bak of each is kept), Claude Code through its CLI.
  * Returns one line per client.
  */
-export function connectClients(entry, { clients = jsonClients(), claude = findClaudeCli(), run = spawnSync } = {}) {
+export function connectClients(entry, { clients = jsonClients(), codex = codexClient(), claude = findClaudeCli(), run = spawnSync } = {}) {
   const out = [];
   for (const c of clients) {
     if (!fs.existsSync(c.dir)) {
@@ -47,6 +47,18 @@ export function connectClients(entry, { clients = jsonClients(), claude = findCl
       out.push({ name: c.name, status: 'added', detail: c.id === 'claude-desktop' ? 'restart' : r.backup ? `backup: ${r.backup}` : undefined });
     } catch (e) {
       out.push({ name: c.name, status: 'failed', detail: e instanceof SyntaxError ? `${c.file} is not valid JSON` : e.message });
+    }
+  }
+  if (!codex || !fs.existsSync(codex.dir)) out.push({ name: codex?.name ?? 'Codex (OpenAI)', status: 'missing' });
+  else {
+    try {
+      if (JSON.stringify(readCodexEntry(codex.file)) === JSON.stringify(entry)) out.push({ name: codex.name, status: 'already' });
+      else {
+        const r = writeCodexEntry(codex, entry);
+        out.push({ name: codex.name, status: 'added', detail: r.backup ? `backup: ${r.backup}` : undefined });
+      }
+    } catch (e) {
+      out.push({ name: codex.name, status: 'failed', detail: e.message });
     }
   }
   if (!claude) out.push({ name: 'Claude Code', status: 'missing' });

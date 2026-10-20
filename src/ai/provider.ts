@@ -1,7 +1,9 @@
-// LLM providers for the in-browser agent. Anthropic first; the interface leaves room for others
-// (OpenAI-compatible endpoints, local models through Ollama) later.
+// LLM providers for the in-browser agent: Anthropic (here), OpenAI, Gemini, Ollama and any
+// OpenAI-compatible server (openai.ts). makeProvider picks one from the user's choice.
 import Anthropic from '@anthropic-ai/sdk';
 import type { ModelId, Usage } from './models';
+import { baseUrlOf, type AiChoice } from './keys';
+import { ChatCompletionsProvider, OpenAIResponsesProvider } from './openai';
 
 export * from './models';
 
@@ -31,6 +33,14 @@ export interface TurnRequest {
 export interface LLMProvider {
   readonly id: string;
   turn(req: TurnRequest): Promise<TurnResult>;
+}
+
+/** The provider for what the user picked; `key` is null (or 'none') for servers that need none. */
+export function makeProvider(c: AiChoice, key: string | null): LLMProvider {
+  const k = key && key !== 'none' ? key : null;
+  if (c.provider === 'anthropic') return new AnthropicProvider(k ?? '', c.model);
+  if (c.provider === 'openai') return new OpenAIResponsesProvider(baseUrlOf(c), k ?? '', c.model);
+  return new ChatCompletionsProvider(c.provider, baseUrlOf(c), k, c.model);
 }
 
 /**

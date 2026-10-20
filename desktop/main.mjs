@@ -276,6 +276,15 @@ ipcMain.on('ready', (e) => {
   for (const [c, p] of pending.splice(0)) win.webContents.send(c, p);
 });
 ipcMain.on('version', (e) => (e.returnValue = version));
+// AI servers on this computer (Ollama, LM Studio) only accept web pages they know; the app's own page
+// reaches them through here instead, loopback http only.
+ipcMain.handle('local-fetch', async (e, url, init = {}) => {
+  if (e.sender !== win?.webContents) throw new Error('not allowed');
+  const u = new URL(url);
+  if (u.protocol !== 'http:' || !['localhost', '127.0.0.1', '[::1]'].includes(u.hostname)) throw new Error('Only servers on this computer');
+  const res = await net.fetch(url, { method: init.method ?? 'GET', headers: init.headers ?? {}, body: init.body });
+  return { status: res.status, statusText: res.statusText, body: await res.text() };
+});
 ipcMain.handle('connect-clients', (e) => (e.sender === win?.webContents ? connectClients() : []));
 
 app.setAboutPanelOptions?.({ applicationName: 'OpenBand', applicationVersion: version, copyright: 'MIT license' });

@@ -6,6 +6,7 @@ export const NPX_ARGS = ['-y', '--allow-remote=all'];
 export const RUN = `npx ${NPX_ARGS.join(' ')} ${PACKAGE_SPEC}`;
 export const MCP_COMMAND = `${RUN} mcp`;
 export const CLAUDE_CODE_ADD = `claude mcp add openband -- ${MCP_COMMAND}`;
+export const CODEX_ADD = `codex mcp add openband -- ${MCP_COMMAND}`;
 export const MCP_JSON = `{
   "mcpServers": {
     "openband": { "command": "npx", "args": ["-y", "--allow-remote=all", "${PACKAGE_SPEC}", "mcp"] }
