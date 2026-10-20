@@ -34,7 +34,17 @@ export async function runChecks({ port = Number(process.env.OPENBAND_PORT || 777
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const major = Number(process.versions.node.split('.')[0]);
   add(major >= 18, `Node ${process.versions.node}`, 'Install Node 18 or newer from https://nodejs.org (or use the .mcpb extension for Claude Desktop).');
-  add(true, `OpenBand ${pkg.version}`);
+  const depVersion = (name) => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(root, 'node_modules', ...name.split('/'), 'package.json'), 'utf8')).version;
+    } catch {
+      return null;
+    }
+  };
+  const deps = ['@modelcontextprotocol/sdk', 'ws', 'zod'].map((d) => [d, depVersion(d)]);
+  const missingDeps = deps.filter(([, v]) => !v).map(([d]) => d);
+  add(true, `OpenBand ${pkg.version} (${deps.filter(([, v]) => v).map(([d, v]) => `${d} ${v}`).join(', ')})`);
+  if (missingDeps.length) add(false, `Missing packages: ${missingDeps.join(', ')}`, 'Reinstall: npx openband@latest (or npm install in a checkout).');
   add(fs.existsSync(path.join(root, 'dist', 'index.html')), 'Studio build (dist/)', 'Run "npm run build" (only needed in a git checkout; the npm package ships it).');
   if (await portInUse(port)) {
     const who = await whoIsOnPort(port);
@@ -55,9 +65,17 @@ export async function runChecks({ port = Number(process.env.OPENBAND_PORT || 777
     const usesNpx = entry && entry.command === 'npx' && (entry.args ?? []).includes('openband');
     const usesPath = entry && (entry.args ?? []).some((a) => /mcp-server\.mjs$/.test(a));
     const pathOk = usesPath && (entry.args ?? []).every((a) => !/mcp-server\.mjs$/.test(a) || fs.existsSync(a));
+    // A local checkout: which version is it?
+    const checkout = usesPath ? (entry.args ?? []).find((a) => /mcp-server\.mjs$/.test(a)) : null;
+    let checkoutVersion = '';
+    try {
+      if (checkout && pathOk) checkoutVersion = ` ${JSON.parse(fs.readFileSync(path.join(path.dirname(checkout), '..', 'package.json'), 'utf8')).version}`;
+    } catch {
+      // not an OpenBand checkout
+    }
     if (entry && (usesNpx || pathOk)) configured++;
     // Not configured is only a warning (you may not use that client); a broken entry is an error.
-    add(!!entry && (usesNpx || pathOk), `${c.name}: ${!entry ? 'OpenBand not configured' : usesNpx ? 'uses npx openband' : pathOk ? 'uses a local checkout' : 'points to a file that does not exist'}`, 'Run "npx openband setup".', !entry);
+    add(!!entry && (usesNpx || pathOk), `${c.name}: ${!entry ? 'OpenBand not configured' : usesNpx ? 'uses npx openband' : pathOk ? `uses a local checkout${checkoutVersion}` : 'points to a file that does not exist'}`, 'Run "npx openband setup".', !entry);
   }
   if (hasCommand('claude')) {
     anyClient = true;

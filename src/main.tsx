@@ -15,6 +15,8 @@ import { initJam } from './jamMode';
 import { initFirstRun } from './firstRun';
 import { loadKeyState } from './ai/keys';
 import { initPwa } from './pwa';
+import { initDiagnostics } from './diagnostics';
+import { ErrorBoundary } from './components/Diagnostics';
 
 // A song handed over from the online demo wins; otherwise the autosave, otherwise the demo song.
 if (!consumeHandoff() && !hasSavedProject()) loadDemo();
@@ -30,7 +32,12 @@ initJam();
 initFirstRun();
 void loadKeyState();
 initPwa();
+initDiagnostics();
 connectBridge();
 initMidi();
 
-createRoot(document.getElementById('root')!).render(<App />);
+createRoot(document.getElementById('root')!).render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>,
+);

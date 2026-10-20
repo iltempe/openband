@@ -38,6 +38,7 @@ function openbandPwa(): Plugin {
 
 export default defineConfig({
   plugins: [react(), openbandPwa()],
+  define: { __APP_VERSION__: JSON.stringify(JSON.parse(fs.readFileSync('package.json', 'utf8')).version) },
   // Relative asset paths: the same build works from the MCP server (/) and GitHub Pages (/openband/).
   base: './',
   server: { port: 5173 },

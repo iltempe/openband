@@ -22,6 +22,7 @@ import { ABOverlay, TakesDialog } from './components/Takes';
 import { CommentsPanel, ExplainMenu } from './components/Comments';
 import { CompareBanner, VersionsPanel } from './components/Versions';
 import { JoinDialog } from './components/Collab';
+import { DiagnosticsPage } from './components/Diagnostics';
 import { ShortcutsSheet, TemplateGallery, TourCard, Welcome, useOverlays } from './components/Welcome';
 import { PluginBrowser, PluginWindow } from './components/Plugins';
 import { useT } from './i18n';
@@ -247,6 +248,7 @@ export function App() {
       <ExplainMenu />
       <CompareBanner />
       <JoinDialog />
+      <DiagnosticsPage />
       <PluginBrowser />
       <PluginWindow />
       {s.toast && <div className="toast">{s.toast}</div>}

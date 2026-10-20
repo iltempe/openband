@@ -7,8 +7,10 @@ import { engine } from './audio/engine';
 import { emitSelection, emitStudioEvent, setEventSink } from './events';
 import { setCollabServer } from './collab/session';
 
-const params = new URLSearchParams(location.search);
-const IS_LOCAL_PAGE = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+// (Guarded so the module can be imported in Node tests.)
+const loc = typeof location !== 'undefined' ? location : ({ search: '', hostname: 'localhost' } as Location);
+const params = new URLSearchParams(loc.search);
+const IS_LOCAL_PAGE = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(loc.hostname);
 
 /** The bridge protocol this app speaks (the server says its own in hello). */
 export const PROTOCOL = 1;
@@ -29,7 +31,9 @@ export type BridgeProblem =
 
 /** Connection details for the AI panel (the store keeps the plain status). */
 export const useBridge = create<{ port: number; remote: boolean; pairing: boolean; problem: BridgeProblem | null; serverVersion: string | null }>(() => ({
-  port: Number(params.get('mcp') ?? sessionGet(PORT_KEY) ?? 7777),
+  // A page served by the OpenBand server talks to that same server (whatever free port it got);
+  // Vite's dev server (5173) and the online demo default to 7777.
+  port: Number(params.get('mcp') ?? (IS_LOCAL_PAGE && loc.port && loc.port !== '5173' ? loc.port : null) ?? sessionGet(PORT_KEY) ?? 7777),
   remote: !IS_LOCAL_PAGE,
   pairing: false,
   problem: null,

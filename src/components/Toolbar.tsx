@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useDiagnostics } from './Diagnostics';
 import { installApp, isSafari, usePwa } from '../pwa';
 import { useOverlays } from './Welcome';
 import { beginTour } from '../firstRun';
@@ -174,6 +175,7 @@ function ProjectMenu() {
               <button onClick={() => (close(), pwa.canInstall ? void installApp() : s.notify(t('pwa.safari')))}>{t('pwa.install')}</button>
             )}
             <button onClick={() => (close(), beginTour(true))}>{t('tour.replay')}</button>
+            <button onClick={() => (close(), useDiagnostics.setState({ open: true }))}>{t('diag.title')}</button>
             <hr />
             <div className="menu-label">{t('menu.language')}</div>
             <div className="lang-switch">

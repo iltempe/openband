@@ -6,6 +6,13 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 The v0.3 work follows [docs/SPEC-v0.3.md](docs/SPEC-v0.3.md).
 
+### D7 · Diagnostics, doctor and one-click bug reports
+- `openband doctor` now also lists the versions of its packages (MCP SDK, ws, zod) and of the checkout a client config points to, flags missing packages, and treats "client installed but without OpenBand" as a warning (⚠) rather than a failure.
+- *⋯ → Diagnostics*: app and browser versions, AudioContext state, sample rate, base/output latency, bridge status (port, server version, last problem), permissions (microphone, MIDI, Local Network Access), IndexedDB usage, plugins loaded and failed, local metrics (time to first sound / export) and the last 50 JS errors (captured from `error` / `unhandledrejection`).
+- *Report a problem*: a pre-filled GitHub issue (`bug.yml` form, diagnostics in a `<details>` block) with a preview step; tests check that song names, track names, lyrics, the project id and API keys never end up in it. Issue templates `bug.yml` and `feature.yml`.
+- A React error boundary: "Something went wrong — your work is safe" with *Reload* and *Report it*.
+- Fixed: a studio served by the OpenBand server on a port other than 7777 (taken port) looked for the bridge on 7777 when opened without `?mcp=`; it now uses the server's own port.
+
 ### D5 · Installable and offline (PWA)
 - `manifest.webmanifest` (standalone window, theme colours, 192/512/maskable/SVG icons), File Handling for `.openband`, `.openband.json`, `.mid` and `.dawproject` (opened through `launchQueue` with the same commands as the import menu), Launch Handler reusing the open window.
 - A small hand-written service worker generated at build time (`scripts/sw.template.js` + a Vite plugin): every built file precached under a versioned cache, hashed assets cache-first, the page network-first with the cached copy offline, plugins/fonts cached at runtime after their first use, the bridge and server endpoints never cached. Registered only in production builds. The build also writes `version.json` and a `404.html` for deep links on static hosts.
