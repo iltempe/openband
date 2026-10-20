@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { noteName, parseChord, parsePitch } from './music';
+import { normalizeKey, noteName, parseChord, parsePitch } from './music';
 import { demoV1Raw, dirtyProjectFixture, emptyProjectFixture } from './__fixtures__/projects';
 import { readMidi, writeMidi } from './midi';
 import type { Project } from './types';
@@ -40,5 +40,20 @@ describe('MIDI files', () => {
     const total = p.regions.reduce((n, r) => n + r.notes.filter((x) => x.start < r.length).length, 0);
     expect(song.parts.reduce((n, part) => n + part.notes.length, 0)).toBe(total);
     expect(song.parts.find((part) => part.channel === 9)?.name).toBe('Drums');
+  });
+});
+
+describe('normalizeKey', () => {
+  it('reads keys the way people write them', () => {
+    expect(normalizeKey('D minor')).toBe('Dm');
+    expect(normalizeKey('Dm')).toBe('Dm');
+    expect(normalizeKey('Bb major')).toBe('Bb');
+    expect(normalizeKey('f#m')).toBe('F#m');
+    expect(normalizeKey('A# min')).toBe('Bbm');
+    expect(normalizeKey('G#')).toBe('Ab');
+    expect(normalizeKey('C')).toBe('C');
+    expect(normalizeKey('E♭ minor')).toBe('Ebm');
+    expect(normalizeKey('H')).toBeNull();
+    expect(normalizeKey('lo-fi')).toBeNull();
   });
 });

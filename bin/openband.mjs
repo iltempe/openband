@@ -1,11 +1,14 @@
 #!/usr/bin/env node
-// openband — the OpenBand studio and its MCP server, with nothing to clone or build.
+// openband — the OpenBand studio and its MCP server, with nothing to clone or build. Installed from the
+// GitHub Release (see server/package.mjs for why not `npx openband`):
 //
-//   npx -y github:iltempe/openband          open the studio in the browser (server on 127.0.0.1:7777, or the next free port)
-//   npx -y github:iltempe/openband mcp      MCP server over stdio, for Claude Desktop / Claude Code / Cursor / VS Code
-//   npx -y github:iltempe/openband setup    add OpenBand to the MCP clients installed on this computer
-//   npx -y github:iltempe/openband doctor   check that everything is in place
-//   npx -y github:iltempe/openband --version   (see server/package.mjs for why not `npx openband`)
+//   npx -y --allow-remote=all https://github.com/iltempe/openband/releases/latest/download/openband.tgz [command]
+//
+//   (no command)  open the studio in the browser (server on 127.0.0.1:7777, or the next free port)
+//   mcp           MCP server over stdio, for Claude Desktop / Claude Code / Cursor / VS Code
+//   setup         add OpenBand to the MCP clients installed on this computer
+//   doctor        check that everything is in place
+//   --version
 //
 // Only syntax every Node version understands is used before the version check below.
 var major = Number(process.versions.node.split('.')[0]);

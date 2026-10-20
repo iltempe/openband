@@ -1,5 +1,5 @@
 // openband doctor: is everything in place? ✓/✗ with a fix for each ✗. Returns the exit code.
-import { PACKAGE_SPEC, RUN } from './package.mjs';
+import { RUN, isOurPackage } from './package.mjs';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
@@ -63,7 +63,7 @@ export async function runChecks({ port = Number(process.env.OPENBAND_PORT || 777
       add(false, `${c.name}: config is not valid JSON`, `Fix ${c.file}`);
       continue;
     }
-    const usesNpx = entry && entry.command === 'npx' && (entry.args ?? []).includes(PACKAGE_SPEC);
+    const usesNpx = entry && entry.command === 'npx' && (entry.args ?? []).some(isOurPackage);
     // An entry from an older setup: `npx openband` now runs someone else's npm package.
     const strangerPackage = entry && entry.command === 'npx' && (entry.args ?? []).some((a) => /^openband(@.*)?$/.test(a));
     const usesPath = entry && (entry.args ?? []).some((a) => /mcp-server\.mjs$/.test(a));

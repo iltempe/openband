@@ -51,7 +51,7 @@ describe('doctor', () => {
     expect(portCheck.ok).toBe(false);
     expect(portCheck.fix).toMatch(/next free port/);
     const cursor = checks.find((c: { label: string }) => c.label.startsWith('Cursor'));
-    expect(cursor).toMatchObject({ ok: false, fix: expect.stringMatching(/openband setup/) });
+    expect(cursor).toMatchObject({ ok: false, fix: expect.stringMatching(/openband.tgz setup/) });
   });
 
   it('flags a config pointing to a missing checkout and a broken JSON file', async () => {

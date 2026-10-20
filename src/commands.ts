@@ -2,7 +2,7 @@
 // Bars are 1-based (bar 1 starts at beat 0); positions inside regions are in beats.
 import type { Note, Project, Region, Track, TrackKind } from './types';
 import { markFirstExport } from './firstRun';
-import { BEATS_PER_BAR, KEYS, clamp, keyInterval, drumByPitch, noteName, parseChord, parsePitch, uid } from './music';
+import { BEATS_PER_BAR, KEYS, clamp, keyInterval, normalizeKey, drumByPitch, noteName, parseChord, parsePitch, uid } from './music';
 import { PRESETS, customInstruments, findInstrument } from './audio/instruments';
 import { getBuffer, importSample, useSamples } from './audio/samples';
 import { normalizeFx } from './audio/fx';
@@ -40,6 +40,13 @@ import { exportDawproject, importDawproject } from './interop/dawproject';
 import { addLoop, findLoops } from './loopsLive';
 import { detectTempo, stretchFactor } from './audio/stretch';
 import { DRUM_STYLES, generateDrums, spansFor, type DrumStyle, type DrummerOptions } from './generate/drummer';
+
+/** A key in KEYS' spelling, from any common way of writing it; an error the AI can act on otherwise. */
+function requireKey(input: unknown): string {
+  const k = normalizeKey(String(input));
+  if (!k) throw new Error(`"${input}" is not a key: use a note and optionally "m" for minor, e.g. "Am", "Eb", "F#m"`);
+  return k;
+}
 
 function drummerOptions(o: P): DrummerOptions {
   const style = String(o.style ?? 'pop') as DrumStyle;
@@ -324,7 +331,7 @@ export const commands: Record<string, (args: P) => unknown> = {
   new_project: ({ name, bpm, key }) => {
     void autoVersion(tr('jr.newSong'), st().project, isAiCommand() ? 'ai' : 'user');
     const p = emptyProject(name ?? tr('name.newSong'), clamp(Number(bpm ?? 110), 40, 240));
-    if (key) p.key = key;
+    if (key) p.key = requireKey(key);
     engine.stop();
     engine.position = 0;
     st().loadProject(p);
@@ -342,11 +349,12 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { bpm: v };
   },
 
-  set_key: ({ key, transpose_audio }) => {
+  set_key: ({ key: input, transpose_audio }) => {
+    const key = requireKey(input);
     const from = st().project.key;
     const shift = transpose_audio ? keyInterval(from, String(key)) : 0;
     st().commit((d) => {
-      d.key = String(key);
+      d.key = key;
       // "Also transpose the audio clips" (F23): the nearest way (up to a tritone up or down).
       if (shift)
         for (const r of d.regions)

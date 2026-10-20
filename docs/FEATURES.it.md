@@ -1,0 +1,109 @@
+# OpenBand: funzionalità
+
+🇬🇧 [English](FEATURES.md) · 🇮🇹 Italiano · [← README](../README.it.md)
+
+- **Arrangiamento**: tracce strumento, batteria e audio; regioni MIDI da trascinare, ridimensionare, duplicare (⌥-trascina o ⌘D) e spostare tra tracce dello stesso tipo; righello con ciclo (loop) e zoom (⌘ + rotella).
+- **Piano roll**: aggiungi, sposta, allunga e cancella note; griglia da 1/4 a 1/32 e terzine; trasposizione, quantizzazione e velocity.
+- **Step sequencer** per la batteria: 11 pezzi (cassa, rullante, clap, rim, hi-hat chiuso e aperto, 3 tom, crash, ride), disegno a trascinamento, accenti.
+- **15 strumenti sintetizzati**: piano, piano elettrico FM, organo, campane, lead, pluck, 8-bit, 3 bassi, pad, archi e 3 kit di batteria (Studio, Trap 808, Lo-Fi).
+- **Importa i tuoi suoni**: trasforma file audio in un **campionatore** suonabile (i nomi delle note nei file indicano i tasti, altrimenti la nota viene riconosciuta), crea **kit batteria** da campioni (cassa, rullante, hi-hat… riconosciuti dal nome), carica strumenti da librerie **SoundFont (.sf2)** o trascina file audio sulla timeline.
+- **Tracce audio** con forma d'onda: clip con guadagno e punto d'inizio, incluse nell'esportazione WAV.
+- **Smart Controls**: volume, pan, brillantezza (filtro), riverbero ed eco per traccia.
+- **Effetti per traccia**: simulatore di amplificatore (gain, tono del cabinet, livello), EQ a 3 bande con medi regolabili e compressore con misuratore di riduzione.
+- **Automazioni** di volume, pan, brillantezza, riverbero ed eco: disegni le curve in una corsia sotto ogni traccia.
+- **Plugin (Web Audio Modules 2.0)**, lo standard aperto dei plugin per il web: sfoglia la raccolta della community con synth, drum machine, amplificatori, pedali e riverberi, oppure carica qualsiasi WAM da un URL. I plugin strumento suonano il tuo MIDI, i plugin effetto vanno nella catena di ogni traccia, le loro finestre si aprono dentro lo studio e le impostazioni si salvano con il progetto e finiscono nell'export WAV.
+- **Mixer** con misuratori di livello, fader, mute e solo, mandate e master.
+- **Tastiera musicale** (tasti A–' come un pianoforte, Z/X per l'ottava, C/V per la velocity) e **Web MIDI** per i controller esterni.
+- **Registrazione** dal vivo in nuove regioni, con metronomo.
+- **Registrazione dal microfono e canticchia→MIDI**: registra voce o strumento su una traccia audio dopo una battuta di conteggio (con compensazione della latenza), oppure *canticchia una melodia* e ritrovala come note MIDI, agganciate alla tonalità e quantizzate con delicatezza. Ogni clip audio monofonica si può convertire allo stesso modo. Quando è l'AI a chiedere di registrare, confermi sempre tu.
+- **Import ed export MIDI** (Standard MIDI File, programmi General MIDI, batteria sul canale 10).
+- **L'AI ascolta**: `analyze_mix` renderizza il brano e lo misura (loudness EBU R128 in LUFS, true peak, LRA, equilibrio in 7 bande, stereo/fase, mascheramento tra tracce, tonalità) e restituisce correzioni concrete (*“Basso e batteria si coprono a 60–250 Hz: taglia 2–3 dB intorno a 80 Hz…”*). `render_spectrogram` dà a Claude un'immagine del mix da guardare, e `analyze_harmony` legge gli accordi con i gradi nella tonalità (*Am7 i7 · Fmaj7 VImaj7 · V7/V…*) e le cadenze. Gli stessi rapporti sono nel pannello **Analisi** (N).
+- **Suonare insieme, con l'AI come terzo musicista**: apri una stanza dal pulsante delle persone, condividi il link (e la password) e tutti modificano lo stesso brano dal vivo: note diverse della stessa regione si uniscono da sole (CRDT Yjs). Vedi chi è su quale traccia, i suoni importati arrivano a chi non li ha, play/stop può seguire l'host e **l'undo annulla solo il tuo lavoro**. L'AI collegata al tuo browser agisce nella stanza come chiunque altro, e gli altri vedono cosa ha fatto e per chi. Anche le versioni salvate e i branch sono condivisi con la stanza, e i commenti diventano discussioni con il nome di ciascuno (*«AI · Marco»*, *«Giulia»*).
+- **Suona con l'AI (botta e risposta)**: attiva *Jam* nel pannello AI, suona una frase e l'AI risponde alla battuta successiva o all'inizio del loop: la latenza dell'LLM sparisce perché la risposta è quantizzata alla prossima finestra musicale (se arriva tardi passa alla successiva, mai a metà battuta, mai sopra la risposta precedente). Le risposte si sentono ma non si salvano: appaiono come note fantasma luminose nel piano roll finché non premi **Tieni**.
+- **Versioni e branch, come git per le canzoni**: salva versioni, apri un branch per provare un'altra direzione (*“e se il ritornello fosse più lento?”*), torna indietro quando vuoi (annullabile; il lavoro non salvato resta come versione WIP) e **unisci** i branch con un merge a tre vie: le modifiche su tracce, regioni o campi diversi si combinano da sole, i conflitti veri sono elencati con *tieni la nostra / prendi l'altra*. La **vista di confronto** colora la timeline (verde aggiunte, giallo modificate, rosso tratteggiato rimosse), mostra le note dell'altra versione come fantasmi nel piano roll e permette l'A/B sincronizzato fra le due. `export_project_json({canonical:true})` scrive JSON deterministico per git.
+- **Modalità Spiegami**: clic destro su una regione, una sezione o le note selezionate e scegli **Spiega**: l'AI risponde con un commento appuntato proprio lì (*“Do in primo rivolto: il Mi al basso ammorbidisce il passaggio da Fa maj7…”*). Attiva **Insegnami** e l'AI annota le scelte non ovvie mentre lavora. I commenti vivono nel brano (thread, risposte, risolti), sopravvivono a export e undo, e restano — segnati come *eliminato* — se il loro oggetto sparisce.
+- **Take, comping e A/B alla cieca**: ogni regione può avere più take alternative — registrate in cycle (una per giro, come in GarageBand) o scritte dall'AI (*“dammi 4 linee di basso”*). Componi il meglio trascinando sulle corsie delle take, oppure fai un **test alla cieca**: le take girano in loop come A/B/C/D in ordine casuale, le metti in classifica e solo allora vedi i nomi (e l'AI riceve la tua classifica).
+- **Registra come in studio**: scegli il dispositivo d'ingresso, arma più tracce audio con **R** (ingresso 1 sulla voce, ingresso 2 sulla chitarra) e registrano insieme; il **punch in/out** su un intervallo dopo un pre-roll sostituisce solo quelle battute, come take nuova con crossfade di 5 ms; con il ciclo attivo ogni giro diventa una take; il monitoraggio dell'ingresso, se lo accendi, ti dice la sua latenza.
+- **Un batterista e una libreria di loop**: *add_drummer* suona una parte umana in uno di 10 stili (rock, pop, funk, boom-bap, trap, lo-fi, house, bossa, ballad, shuffle) che segue la canzone — più semplice nelle strofe, più piena nei ritornelli, fill prima di ogni nuova sezione — e lo stesso seed suona sempre la stessa parte, così le alternative sono a un seed di distanza (come take, per un test alla cieca). La scheda *Loop* della libreria ha 16 loop CC0 (batteria, basso, tastiere, pad, lead) fatti con OpenBand: ascoltali al tuo tempo e nella tua tonalità, aggiungili al playhead e seguono la canzone.
+- **Time-stretch e intonazione delle clip audio**: un loop può *seguire il tempo* della canzone (il suo BPM si legge dal nome del file o dagli attacchi), essere allungato di un rapporto, o trasposto di semitoni senza cambiare durata — e cambiando tonalità OpenBand propone di trasporre anche le clip audio. WSOLA e phase vocoder scritti per OpenBand (niente codice GPL) girano in un worker; gli attacchi restano a pochi ms dalla battuta ([ADR](adr/0002-time-stretch.md)).
+- **Automatizza tutto**: oltre a volume, pan, tono e mandate, ogni parametro degli effetti integrati (frequenza dell'EQ, soglia del compressore, drive…) e di qualunque plugin può avere una curva — valori nelle unità del parametro, uguali dal vivo e nell'export. Disegnala, o registrala: imposta la corsia su *Touch* o *Latch* e muovi manopole e fader mentre la canzone suona.
+- **DAWproject: un ponte verso Bitwig, Studio One e Cubase**: apri un `.dawproject` (menu ⋯, trascinandolo, o con *Apri con* dopo l'installazione) e arrivano tracce, clip di note e audio, marker, automazioni di volume/pan, mixer, EQ e compressore integrati; i plugin diventano lo strumento OpenBand più vicino e tutto ciò che non può venire con sé è elencato in *Cosa non è stato importato*. L'export fa il percorso inverso, audio compreso; le parti tipiche di OpenBand (testi, take, commenti, plugin) viaggiano dentro il file, così OpenBand → DAWproject → OpenBand non perde nulla.
+- **Rete di sicurezza e macchina del tempo**: ogni passo (le tue modifiche, ogni richiesta all'AI, annulla, ripristina) finisce in un journal nel browser, così il lavoro non si perde mai — dopo un crash OpenBand ti ripropone le modifiche che l'autosalvataggio non aveva fatto in tempo a salvare — e la **macchina del tempo** nel pannello Versioni ricostruisce la canzone in qualsiasi momento degli ultimi 30 giorni: ascoltala, confrontala in A/B con adesso, ripristinala o aprila come branch, senza aver mai salvato una versione. Le operazioni distruttive (nuova canzone, import, checkout, merge, eliminare una traccia con regioni, richieste all'AI di più di 20 comandi, tornare indietro nel tempo) salvano prima una versione *«Before: …»*, ed esportare due volte un `.openband` non sovrascrive mai (`song v2.openband`).
+- **Monitoring essenziale**: **meter LUFS** live sul master (momentary, short-term, integrata, true peak sovracampionato 4× — un AudioWorklet che coincide con la misura offline entro 0,3 LU) rispetto a un obiettivo (Streaming −14, Apple −16, Broadcast −23, Club −8) con spia verde / gialla / rossa; pulsanti **Mono** e **Dim** (−20 dB) solo per l'ascolto, mai nell'export; **Ø** inversione di polarità per traccia (inclusa nel render). **A/B a volume pareggiato**: misura quanto una catena di effetti o un plugin alza il volume di una traccia, ascoltala bypassata allo stesso volume (*«Questa catena aggiunge +5,8 dB: senza compensazione ti stai facendo ingannare dal volume»*) e rendi permanente la compensazione con un clic.
+- **Marcatori di errore**: mentre registri premi **F** quando sbagli (**G** per una parte da tenere; Maiusc+F / Maiusc+G con la tastiera musicale aperta) o pigia un pedale MIDI (CC64 di base, o qualunque controller con *Impara*). Bandierine rosse e verdi compaiono sul righello, sulla regione e sulla take; il pannello **Da sistemare** le elenca, `]` / `[` portano all'errore successivo / precedente con un loop di 2 battute attorno, e **Take migliore** inserisce, sulle battute attorno all'errore, la take che lì non sbaglia e ha più segni di parte buona. L'AI viene avvisata mentre segni (eventi `flub`) e può proporti di sistemarli.
+- **Confronto con una reference**: carica un brano a cui vuoi somigliare (resta fuori dalla timeline), usa **A/B** nel mixer per ascoltarlo alla stessa loudness del tuo mix e nello stesso punto del brano, e confronta: loudness, dinamica, ampiezza stereo e bilanciamento per 1/3 d'ottava a loudness pareggiata, con suggerimenti come *“+2,5 dB sopra i 6 kHz sul master”* o *“taglia 2 dB a 250–500 Hz sul Pad, la traccia più energica lì”*.
+- **Struttura del brano**: segna intro, strofe, ritornelli… nella corsia *Struttura* sopra il righello (oppure lascia che *Suggerisci* li trovi dalle ripetizioni). Un clic su una sezione la mette in loop, trascinandola la sposti con tutto il contenuto (⌥ spinge il resto del brano), con il tasto destro la duplichi o la elimini. Anche l'AI lavora per sezioni: *“aggiungi un altro ritornello alla fine”*, *“rendi più pieno la seconda strofa”*.
+- **Testi**: scrivi le parole per sezione nel pannello **Testo**; i testi italiani vengono divisi in sillabe metriche (con sinalefe: *canto e ballo* = 4) e le sillabe accentate segnate, anche in inglese. Allineali alla traccia della melodia: le sillabe compaiono sotto la traccia e dentro le note del piano roll, e i problemi di prosodia (accenti sui tempi deboli, note lunghe su finali atone, parole spezzate da pause, sillabe e note che non tornano) vengono sottolineati ed elencati. Esporta uno spartito **ChordPro** o con gli accordi sopra il testo.
+- **Linter musicale**: il pannello **Problemi** (contatore nella toolbar) controlla il brano dopo ogni modifica (note fuori tonalità, note e regioni sovrapposte, note oltre la fine della regione, due bassi che si scontrano sotto il Mi2, registri affollati, velocity o tempi meccanici, tracce vuote, basso spostato nel pan) e quasi sempre offre una correzione con un clic. L'AI fa gli stessi controlli con `lint_project`, e può farli anche la tua CI.
+- **L'AI ti segue**: le frasi che suoni (separate dopo una battuta di silenzio), ciò che selezioni, play/stop, le tue modifiche e le domande scritte in *Chiedi all'AI* arrivano all'AI collegata come eventi. Un interruttore nel pannello AI disattiva la condivisione dell'attività (le domande vengono sempre inviate).
+- **Annulla per intento**: tutto ciò che l'AI fa per una richiesta è un solo passo di annullamento con etichetta (*“Annulla: Beat lo-fi (23 comandi)”*); trascinamenti e manopole contano un passo ciascuno. **Plugin compresi**: quello che cambi nella finestra di un plugin (preset, modalità, wavetable — non solo le manopole automatizzabili) e ogni `set_plugin_params` sono anch'essi passi di annullamento, e l'annulla rimette il plugin esattamente nello stato in cui era.
+- **Annulla/ripristina**, salvataggio automatico, **esportazione WAV** con rendering offline; i progetti con suoni importati si salvano in un unico file `.openband` che contiene i campioni.
+- **Controllo AI via MCP**: 129 strumenti per comporre, arrangiare, importare suoni, aggiungere plugin, mixare, automatizzare ed esportare: l'AI può aggiungere un plugin solo a partire da una descrizione come *“un overdrive valvolare caldo”*.
+- Interfaccia in **inglese e italiano**: l'inglese è predefinito, si cambia dalla schermata iniziale o dal menu ⋯.
+
+| Piano roll | Mixer |
+|---|---|
+| ![Piano roll](editor.png) | ![Mixer con effetti su due tracce](mixer.png) |
+| **Effetti** | **Traccia audio** |
+| ![Amp, EQ, compressore e un riverbero WAM sul basso](effects.png) | ![Clip audio con forma d'onda](audio.png) |
+| **Analisi (ciò che l'AI sente)** | **Spettrogramma (ciò che l'AI vede)** |
+| ![Pannello Analisi](analysis.png) | ![Spettrogramma della demo](spectrogram.png) |
+| **Problemi (linter musicale)** | **Testo e prosodia** |
+| ![Pannello Problemi](problems.png) | ![Pannello Testo](lyrics.png) |
+| **Finestra di un plugin WAM** | **Browser dei plugin** |
+| ![Plugin WAM Synth-101](plugins.png) | ![Ricerca dei plugin a parole](plugin-browser.png) |
+| **Suonare insieme: stanza, link, persone** | **Cosa vedono gli altri (avatar, attività dell'AI)** |
+| ![Menu della stanza con link e partecipanti](room.png) | ![Lo studio del secondo musicista con l'avatar dell'host e l'attività della stanza](multiplayer.png) |
+| **Jam: l'AI risponde a ciò che suoni** | **La risposta come note fantasma, finché non la tieni** |
+| ![Sezione Jam nel pannello AI](jam.png) | ![Risposta dell'AI come note fantasma nel piano roll](jam-ghosts.png) |
+| **Versioni: grafo dei branch e confronto** | **Note fantasma dell'altra versione** |
+| ![Pannello Versioni con branch e vista di confronto](versions.png) | ![Piano roll con note fantasma](version-ghosts.png) |
+| **Spiegami: commenti appuntati al brano** | **Le spiegazioni dell'AI, per richiesta** |
+| ![Pannello Commenti con segnaposto su regioni e sezioni](comments.png) | ![Pannello AI con le annotazioni](ai-notes.png) |
+| **Take e comping** | **Test A/B alla cieca** |
+| ![Finestra delle take con comping](takes.png) | ![Test alla cieca di tre take di basso](blind-test.png) |
+| **Confronto con la reference** | **A/B con la reference** |
+| ![Curve mix vs reference e suggerimenti](reference.png) | ![Striscia Reference nel mixer](reference-strip.png) |
+| **Microfono: registra o canticchia** | **L'AI chiede prima di registrare** |
+| ![Menu del microfono](recording.png) | ![Conferma della registrazione](record-confirm.png) |
+| **Punch-in con pre-roll, ingressi armati** | **Time-stretch: un loop che segue il tempo** |
+| ![Menu di registrazione con ingresso, traccia armata e intervallo di punch](punch.png) | ![Editor della clip audio con Segui il tempo (92 BPM) e intonazione](time-stretch.png) |
+| **La libreria di loop e il batterista** | **Commenti in una stanza, con i nomi** |
+| ![La scheda Loop con un'anteprima, una parte del batterista e loop nella canzone](loops.png) | ![Una discussione in una stanza: l'AI per conto di Marco e la risposta di Giulia](room-comments.png) |
+| **Report dell'import DAWproject** | **Automazione di un parametro di plugin** |
+| ![Cosa non è stato importato da un progetto Bitwig](dawproject-report.png) | ![La frequenza del filtro di un plugin automatizzata, con Lettura / Touch / Latch](automation-plugin.png) |
+| **Macchina del tempo** | **Recupero dopo un crash** |
+| ![Cursore della macchina del tempo nel pannello Versioni](time-machine.png) | ![Banner di recupero](recovery.png) |
+| **Meter di loudness, Mono, Dim, Ø** | **A/B a volume pareggiato** |
+| ![Mixer con il meter LUFS e i pulsanti di polarità](monitoring.png) | ![Confronto a volume pareggiato di una catena di effetti](level-match.png) |
+| **Marcatori di errore: il pannello Da sistemare** | **Bandierine sulle take** |
+| ![Pannello Da sistemare con un errore e una parte buona](flubs.png) | ![Finestra delle take con le bandierine](flub-takes.png) |
+
+## Come si usa
+
+- **I tuoi suoni**: usa *Importa suoni* in cima alla libreria. *Campionatore* trasforma file audio in uno strumento (chiamali per esempio `Piano_C4.wav` per indicare i tasti, altrimenti la nota viene riconosciuta); *Kit batteria* assegna i file chiamati kick, snare, hat, clap, tom… ai pezzi del kit; *SoundFont* apre una libreria `.sf2` e ti fa scegliere i preset; *Audio* mette i file sulla timeline. Puoi anche trascinare i file ovunque nello studio. SoundFont gratuiti da provare: FluidR3_GM (MIT) o GeneralUser GS.
+- **Salvataggio**: i progetti con suoni importati si salvano in un unico file `.openband` che contiene i campioni, così si aprono ovunque. I brani salvati con versioni precedenti si aprono normalmente e vengono aggiornati in automatico.
+- **Effetti**: seleziona una traccia e premi **F** (o clicca *FX* su un canale del mixer). Ogni unità ha il suo pulsante di accensione.
+- **Automazioni**: clicca **A** su una traccia per aprirne la corsia, scegli il parametro, clicca per aggiungere punti, trascinali per spostarli, doppio clic per eliminarli.
+- **MIDI**: *Importa MIDI…* / *Esporta MIDI* nel menu ⋯, oppure trascina un file `.mid` nello studio.
+- **Plugin**: clicca *Plugin* nella libreria e descrivi cosa ti serve (*“riverbero ampio e scuro”*, *“monophonic synth”*) o filtra per strumenti/effetti; gli strumenti hanno una loro traccia, gli effetti si aggiungono alla traccia selezionata (anche da *+ Plugin* nel pannello Effetti). *Modifica* apre la finestra del plugin. I plugin arrivano dalla [raccolta WAM della community](https://github.com/boourns/wam-community) e serve una connessione internet la prima volta che si caricano.
+
+## Controllare le canzoni in CI
+
+Se tieni le canzoni in un repository Git, controlla ogni pull request con il linter di OpenBand:
+
+```yaml
+# .github/workflows/songs.yml
+on: [push, pull_request]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: iltempe/openband/.github/actions/openband-lint@main
+        with:
+          files: songs/*.openband.json songs/*.openband
+          fail-on: error        # oppure warn / info / none
+```
+
+I problemi compaiono come annotazioni sulla pull request. In locale: `node scripts/openband-lint.mjs brano.openband.json [--format=text|json|github] [--fail-on=warn]`. Le regole si possono disattivare o cambiare di gravità per ogni brano in `project.lint` (`disabled`, `severity`, `ignored`).

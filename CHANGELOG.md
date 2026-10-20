@@ -2,9 +2,22 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
-## Unreleased — v0.3 "What no DAW has"
+## v0.3.0 "What no DAW has"
 
 The v0.3 work follows [docs/SPEC-v0.3.md](docs/SPEC-v0.3.md).
+
+**Install:** download [openband.mcpb](https://github.com/iltempe/openband/releases/latest/download/openband.mcpb) and double-click it (Claude Desktop), or run `npx -y --allow-remote=all https://github.com/iltempe/openband/releases/latest/download/openband.tgz setup` (Node 18+; Claude Code, Cursor, VS Code). Nothing to install at all: the [online demo](https://iltempe.github.io/openband/) with your own Anthropic key.
+
+### Install from the GitHub Release
+- The npm name `openband` belongs to someone else (a reserved 0.0.0 package), so `npx openband` would run code that is not OpenBand's. OpenBand now installs from its GitHub Releases: each release carries the built package (`openband.tgz`, also as `openband-X.Y.Z.tgz`) next to the Claude Desktop extension (`openband.mcpb`). The app, the CLI, `setup`, `doctor`, update notices and bug reports all show the same command (`server/package.mjs`, `src/install.ts`, a test keeps them equal). `--allow-remote=all` is needed by npm 12 (Node 26), which refuses tarball URLs by default; npm 10 and 11 ignore it.
+- `setup` writes the version-pinned release URL into MCP client configs; `doctor` flags entries that run the npm package `openband` and tells you to rerun setup. Update notices read the latest GitHub Release.
+- The release workflow attaches the package and the extension; publishing to npm and pushing the Docker image to GHCR are opt-in (repository variables `NPM_PUBLISH`, `PUBLISH_DOCKER`).
+- A new demo GIF (`scripts/record-demo.mjs` records it: the studio driven over MCP, from the welcome screen to a song built from one request and playing with the mixer) and fresh mixer and piano roll screenshots (`--shots`).
+- Fixed: a key written in words (`"D minor"`, `"Bb major"`, `"A# min"`) given to `new_project` or `set_key` was stored as is and showed as C; keys are now normalized to the studio's spelling (`Dm`, `Bb`, `Bbm`), and anything that is not a key is refused with an example.
+- README rewritten: three ways in (demo, Claude Desktop, one command), your first song in four steps; the full feature list, the MCP tool reference and the development guide moved to [docs/FEATURES.md](docs/FEATURES.md), [docs/MCP-TOOLS.md](docs/MCP-TOOLS.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
+### F26 · Desktop app with native plugins (exploration)
+- Not in this release: an ADR (Tauri shell, CLAP host in a sidecar process) and a spike that loads a CLAP plugin from C live on the `spike/desktop-clap` branch, in draft pull request #1.
 
 ### F16 delta · Versions and comment threads shared in rooms
 - Versions in the room: every peer's saved versions (metadata and the gzipped snapshot) and branch heads live in the Y.Doc (`src/collab/shared.ts`: `versions` and `branches` maps). On joining, your versions of the song go into the room and the room's are stored in your browser; from then on every version saved and every branch moved by anyone reaches everyone. Versions never change once saved, so concurrent saves simply all appear; when two people move the same branch head at once, the newest move wins everywhere (`BranchRef.at`; each peer writes its own entry and readers take the newest — Yjs alone settles concurrent writes of one key by client id, which a first version relied on and the test caught). The Versions panel, `list_versions`, checkout and merge work on the shared history.

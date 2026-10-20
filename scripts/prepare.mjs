@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// npm runs this on install from git (`npx -y github:iltempe/openband`): build the studio so the package
+// npm runs this on install from git (`npx -y github:iltempe/openband`, for contributors; releases ship openband.tgz already built): build the studio so the package
 // has its dist/. Skipped when dist/ is already there (a checkout that was built, the npm tarball) or when
 // the build tools are not installed (production installs such as the Docker image).
 import fs from 'node:fs';

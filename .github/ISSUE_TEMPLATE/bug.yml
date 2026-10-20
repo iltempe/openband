@@ -20,7 +20,7 @@ body:
       label: Where were you using OpenBand?
       options:
         - Online demo
-        - npx -y github:iltempe/openband
+        - npx -y --allow-remote=all https://github.com/iltempe/openband/releases/latest/download/openband.tgz
         - Claude Desktop extension (.mcpb)
         - Installed app (PWA)
         - From a checkout (npm run dev)
@@ -29,4 +29,4 @@ body:
     id: diagnostics
     attributes:
       label: Diagnostics
-      description: Filled in by ⋯ → Diagnostics → Report a problem (no song data, no keys). Or paste the output of `npx -y github:iltempe/openband doctor`.
+      description: Filled in by ⋯ → Diagnostics → Report a problem (no song data, no keys). Or paste the output of `npx -y --allow-remote=all https://github.com/iltempe/openband/releases/latest/download/openband.tgz doctor`.

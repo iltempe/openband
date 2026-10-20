@@ -1,8 +1,10 @@
 name: Release
 
-# Push a tag vX.Y.Z (matching package.json) to publish everything at the same version:
-# npm package (with provenance), Claude Desktop extension, GitHub Release with notes from the CHANGELOG,
-# and the online demo. Needs the NPM_TOKEN secret (an npm automation token).
+# Push a tag vX.Y.Z (matching package.json) to publish at the same version: a GitHub Release with the
+# built package (openband.tgz — what `npx -y <release url>` runs) and the Claude Desktop extension
+# (openband.mcpb), notes from the CHANGELOG, and the online demo.
+# Opt-in (repository variables): NPM_PUBLISH=true publishes to npm (needs NPM_TOKEN and a package name
+# OpenBand owns — "openband" is not), PUBLISH_DOCKER=true pushes the image to GHCR.
 on:
   push:
     tags: ['v*']
@@ -41,14 +43,17 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: node scripts/smoke-pack.mjs
-      - run: npm publish --provenance --access public
+      - if: vars.NPM_PUBLISH == 'true'
+        run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - run: node scripts/build-mcpb.mjs && node scripts/smoke-mcpb.mjs
-      # A stable name too, for the "latest" download link in the README.
-      - run: cp "build/openband-${GITHUB_REF_NAME#v}.mcpb" build/openband.mcpb
+      # The built package (build/openband-X.Y.Z.tgz), the one `npx -y --allow-remote=all <release>/openband.tgz` runs.
+      - run: mkdir -p build && npm pack --pack-destination build && test -f "build/openband-${GITHUB_REF_NAME#v}.tgz"
+      # Stable names too, for the "latest" links in the README.
+      - run: cp "build/openband-${GITHUB_REF_NAME#v}.mcpb" build/openband.mcpb && cp "build/openband-${GITHUB_REF_NAME#v}.tgz" build/openband.tgz
       - run: node scripts/release-notes.mjs "${GITHUB_REF_NAME}" > build/notes.md
-      - run: gh release create "${GITHUB_REF_NAME}" build/*.mcpb --title "OpenBand ${GITHUB_REF_NAME}" --notes-file build/notes.md
+      - run: gh release create "${GITHUB_REF_NAME}" build/*.mcpb build/*.tgz --title "OpenBand ${GITHUB_REF_NAME}" --notes-file build/notes.md
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -59,6 +64,7 @@ jobs:
   # The self-hosting image on GHCR, for amd64 and arm64 (NAS, Raspberry Pi).
   docker:
     needs: verify
+    if: vars.PUBLISH_DOCKER == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

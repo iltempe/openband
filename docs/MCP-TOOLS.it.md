@@ -1,0 +1,38 @@
+# Strumenti MCP di OpenBand
+
+🇬🇧 [English](MCP-TOOLS.md) · 🇮🇹 Italiano · [← README](../README.it.md)
+
+Gli stessi strumenti servono ai client MCP e alla chat dentro la pagina (sono definiti una volta sola, in `server/tools.mjs`).
+
+| Area | Strumenti |
+|---|---|
+| Progetto | `pair_studio` (solo MCP remoto), `open_studio` (solo locale), `get_project`, `get_status`, `list_instruments`, `new_project`, `rename_project`, `set_tempo`, `set_key`, `set_master_volume`, `export_project_json`, `import_project_json` |
+| Eventi dello studio | `get_events`, `wait_for_event` (frasi che suoni, selezione, trasporto, modifiche, domande da *Chiedi all'AI*); risorsa `openband://project` con notifiche delle modifiche |
+| Annulla | `begin_change` / `end_change` (un passo di annullamento per richiesta, con etichetta), `get_history` (con `plugins_changed` per passo), `undo` / `redo` (con `steps`; stato dei plugin compreso) |
+| Tracce | `add_track` (strumento, batteria o audio), `update_track` (strumento, volume, pan, mute, solo, riverbero, eco, tono), `delete_track` |
+| Suoni | `import_sample`, `list_samples`, `create_sampler_instrument`, `import_soundfont`, `add_audio_region`, `detect_tempo` (il BPM di un loop dal nome o dagli attacchi) — i file si leggono da un percorso locale o da un URL http(s) |
+| Struttura | `get_structure` (sezioni con profilo di energia), `add_section`, `update_section`, `delete_section`, `move_section`, `duplicate_section` (con ripple), `split_region`, `auto_sections` |
+| Testi | `set_lyrics`, `get_lyrics`, `align_lyrics`, `check_prosody`, `suggest_melody_rhythm`, `export_chord_sheet` (ChordPro o testo, `save_to` opzionale) |
+| Linter | `lint_project` (regole simboliche, opzionalmente audio), `apply_fix`, `ignore_issue`; `update_notes` modifica le note sul posto |
+| Ascolto | `analyze_mix` (battute o sezione, per traccia, summary/full), `render_spectrogram` (restituisce un'immagine), `detect_key` (MIDI, audio o entrambi), `analyze_harmony` (accordi, numeri romani, funzioni, cadenze) |
+| Multiplayer | `create_room` (LAN o peer to peer, password facoltativa), `join_room`, `leave_room`, `get_peers` |
+| Jam | `set_jam_mode` (traccia di risposta, finestra), `play_phrase` (note effimere a `next_bar`, `next_loop` o a una battuta; `commit` opzionale; restituisce un `phrase_id`), `keep_answer`, `keep_phrase({phrase_id})` (una qualunque delle ultime 20 risposte); le frasi dell'utente arrivano come eventi `phrase` |
+| Versioni | `save_version`, `list_versions`, `create_branch`, `checkout` (branch o versione, annullabile, salva il WIP), `diff_versions` (riepilogo leggibile + modifiche strutturate), `merge` (a tre vie; `strategy` e `pick` per entità); `export_project_json` con `canonical` |
+| Spiegami | `annotate` (progetto, traccia, regione, note, sezione o intervallo di battute; markdown fino a 500 caratteri), `list_annotations`, `resolve_annotation`, `delete_annotation`; `get_status` riporta `teach_mode` |
+| Take | `add_take`, `list_takes`, `set_active_take`, `delete_take`, `comp_takes` (segmenti, note tagliate ai confini), `start_ab_test` (test alla cieca; la classifica arriva come evento `ab_result`) |
+| Altre DAW | `import_dawproject` (percorso o URL del file; sostituisce la canzone, oppure `replace: false` ne aggiunge le tracce; restituisce cosa non si è potuto convertire), `export_dawproject` (`save_to` o download) |
+| Macchina del tempo | `get_timeline` (ogni passo nel journal), `preview_at({time})` (la canzone in un momento — ISO, ms o `"-20m"` — senza cambiare nulla), `restore_at({time, as_branch?})` |
+| Monitoring | `get_meters` (LUFS e true peak live del master e di ogni traccia, stato rispetto all'obiettivo), `set_monitoring` (mono, dim, obiettivo, azzeramento — solo ascolto), `level_match` (quanto una catena di effetti o un plugin cambia il volume; `apply` compensa), `update_track({polarity})` |
+| Errori | `add_flub` (playhead o battuta/beat; tipi flub / good / note), `list_flubs`, `resolve_flub`, `delete_flub`, `replace_with_best_take`; eventi `flub` mentre l'utente segna |
+| Reference | `import_reference` (percorso o URL, estratto opzionale), `compare_to_reference` (differenze a loudness pareggiata e suggerimenti), `clear_reference` |
+| Registrazione | `record_audio` (microfono o interfaccia, conteggio, modo `audio` o `hum`; tracce armate insieme, punch con pre-roll, giri del ciclo come take; l'utente conferma), `arm_track` (canale d'ingresso per traccia), `set_punch` (battute di in/out, pre-roll), `audio_to_midi` (audio monofonico → note, aggancio alla tonalità, quantizzazione con intensità) |
+| Mix | `set_track_effects` (amp, EQ, compressore), `set_automation` (parametro di mix, effetto o plugin), `clear_automation`, `list_automatable` |
+| Plugin | `add_plugin` (da una descrizione a parole), `search_plugins`, `list_plugins`, `add_plugin_instrument`, `add_plugin_effect`, `remove_plugin_effect`, `set_plugin_bypass`, `get_plugin_params`, `set_plugin_params`, `show_plugin` |
+| File | `export_wav`, `export_midi` (con `save_to` per salvarli in un percorso), `import_midi` |
+| Regioni | `add_region`, `update_region` (per le clip audio anche `stretch_mode` follow_tempo / fixed con `ratio`, e `pitch` in semitoni), `delete_region`, `duplicate_region`, `open_editor` |
+| Note | `get_region_notes`, `add_notes`, `remove_notes`, `transpose_region`, `quantize_region` |
+| Composizione | `add_drum_pattern` (stringhe di step tipo `"x...x...x...x..."`), `add_chord_progression` (`["Am7","Fmaj7","C","G"]`, stile block, arpeggio o stabs), `add_drummer` (stile, complessità, intensità, swing, fill, seed; segue le sezioni), `regenerate_drummer` (nuovo seed, anche come take) |
+| Loop | `search_loops` (parole, tempo, tonalità), `add_loop` (segue tempo e tonalità della canzone; `repeat`) — una libreria CC0 fatta con OpenBand |
+| Trasporto | `transport` (play, stop, toggle, rewind), `set_loop`, `set_metronome`, `open_studio` |
+
+Convenzioni: tempo in 4/4; le battute partono da 1; dentro una regione posizioni e durate sono in movimenti (0,25 = sedicesimo); le altezze si danno come numero MIDI, come nome (`"C4"`, `"F#3"`) o, sulla batteria, come nome del pezzo (`"kick"`, `"snare"`, `"hihat"`…).

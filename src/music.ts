@@ -110,6 +110,23 @@ export const KEYS = [
   'Cm', 'C#m', 'Dm', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'Bbm', 'Bm',
 ];
 
+/**
+ * A key as people (and AIs) write it — "D minor", "Bb major", "f#m", "A# min" — in the spelling of KEYS
+ * ("Dm", "Bb", "F#m", "Bbm"). Null when it is not a key.
+ */
+export function normalizeKey(input: string): string | null {
+  const m = /^\s*([A-Ga-g])\s*(#|♯|b|♭)?\s*([a-zA-Z-]*)\s*$/.exec(input);
+  if (!m) return null;
+  // "m" alone is minor and "M" major (chord-symbol style); words in any case.
+  const q = m[3];
+  const minor = q === 'm' || q === '-' || /^(min|minor)$/i.test(q);
+  if (!minor && !(q === '' || q === 'M' || /^(maj|major)$/i.test(q))) return null;
+  const pcOf: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const acc = m[2] === '#' || m[2] === '♯' ? 1 : m[2] ? -1 : 0;
+  const pc = (pcOf[m[1].toUpperCase()] + acc + 12) % 12;
+  return KEYS[pc + (minor ? 12 : 0)];
+}
+
 export const TRACK_COLORS = ['#34d399', '#60a5fa', '#a78bfa', '#f472b6', '#22d3ee', '#fb923c', '#a3e635', '#f87171'];
 export const DRUM_COLOR = '#fbbf24';
 export const AUDIO_COLOR = '#e879f9';

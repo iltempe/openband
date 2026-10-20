@@ -17,7 +17,7 @@ const IS_LOCAL_PAGE = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(loc.hostname);
 export const PROTOCOL = 1;
 
 /**
- * Local pages (served by `npx -y github:iltempe/openband`, the .mcpb or `npm run dev`) connect by themselves, as always.
+ * Local pages (served by `npx -y --allow-remote=all https://github.com/iltempe/openband/releases/latest/download/openband.tgz`, the .mcpb or `npm run dev`) connect by themselves, as always.
  * The online demo connects only when the user asks ("Connect AI"), and pairs with the code the server shows.
  */
 export const BRIDGE_ENABLED = IS_LOCAL_PAGE || params.has('mcp');
