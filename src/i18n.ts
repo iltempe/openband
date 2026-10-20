@@ -407,6 +407,8 @@ const en = {
   'drum.SN': 'Snare',
   'drum.KK': 'Kick',
 
+  'pwa.install': 'Install OpenBand',
+  'pwa.safari': 'In Safari: Share → Add to Dock (Mac) or Add to Home Screen (iPhone, iPad).',
   // Chat (own API key)
   'chat.keyIntro': 'Paste your Anthropic API key: Claude runs right here, in this page, and plays the studio. Nothing to install.',
   'chat.model': 'Model',
@@ -1022,6 +1024,8 @@ const it: Record<MessageKey, string> = {
   'drum.SN': 'Rullante',
   'drum.KK': 'Cassa',
 
+  'pwa.install': 'Installa OpenBand',
+  'pwa.safari': 'In Safari: Condividi → Aggiungi al Dock (Mac) o Aggiungi alla schermata Home (iPhone, iPad).',
   'chat.keyIntro': 'Incolla la tua API key Anthropic: Claude gira qui, in questa pagina, e suona lo studio. Niente da installare.',
   'chat.model': 'Modello',
   'chat.useKey': 'Usa questa chiave',

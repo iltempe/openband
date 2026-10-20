@@ -6,6 +6,12 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 The v0.3 work follows [docs/SPEC-v0.3.md](docs/SPEC-v0.3.md).
 
+### D5 · Installable and offline (PWA)
+- `manifest.webmanifest` (standalone window, theme colours, 192/512/maskable/SVG icons), File Handling for `.openband`, `.openband.json`, `.mid` and `.dawproject` (opened through `launchQueue` with the same commands as the import menu), Launch Handler reusing the open window.
+- A small hand-written service worker generated at build time (`scripts/sw.template.js` + a Vite plugin): every built file precached under a versioned cache, hashed assets cache-first, the page network-first with the cached copy offline, plugins/fonts cached at runtime after their first use, the bridge and server endpoints never cached. Registered only in production builds. The build also writes `version.json` and a `404.html` for deep links on static hosts.
+- *Install OpenBand* in the ⋯ menu when the browser offers it (`beforeinstallprompt`), with the Safari steps otherwise.
+- `scripts/e2e/run.mjs` (also in CI, real Chrome): Chrome reports no installability errors; offline after the first visit the app opens and plays; and D6's acceptance — *Surprise me* plays in < 3 s, the tour waits for its action.
+
 ### D4 · Claude in the browser with your own API key (zero install)
 - One definition of the tools: names, descriptions, zod schemas and hints moved from `server/mcp-server.mjs` to `server/tools.mjs` (no Node APIs), used by the MCP server and by the in-browser agent. The server's `tools/list` and instructions are byte-for-byte what they were before the move.
 - `src/ai/agent.ts`: the agent loop in the page — Claude's `tool_use` → `runCommand` → `tool_result` until it is done; each user turn is one undo step labelled with the request, at most 40 tool calls, *Stop* at any time (pending tool calls get an error result so the history stays valid), inputs validated against the tool's zod schema before running, refusals and cut-off tool inputs handled, images (spectrogram) returned as image blocks, file imports from http(s) URLs, exports downloaded. The history is append-only.

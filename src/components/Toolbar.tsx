@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { installApp, isSafari, usePwa } from '../pwa';
 import { useOverlays } from './Welcome';
 import { beginTour } from '../firstRun';
 import { ShareButton } from './Collab';
@@ -114,6 +115,7 @@ function Lcd() {
 
 function ProjectMenu() {
   const [open, setOpen] = useState(false);
+  const pwa = usePwa();
   const fileRef = useRef<HTMLInputElement>(null);
   const s = useStore();
   const t = useT();
@@ -168,6 +170,9 @@ function ProjectMenu() {
             <button onClick={() => (close(), commands.export_midi({}))}>{t('menu.exportMidi')}</button>
             <hr />
             <button onClick={() => (close(), useOverlays.setState({ shortcuts: true }))}>{t('sc.title')} (?)</button>
+            {!pwa.installed && (pwa.canInstall || isSafari()) && (
+              <button onClick={() => (close(), pwa.canInstall ? void installApp() : s.notify(t('pwa.safari')))}>{t('pwa.install')}</button>
+            )}
             <button onClick={() => (close(), beginTour(true))}>{t('tour.replay')}</button>
             <hr />
             <div className="menu-label">{t('menu.language')}</div>

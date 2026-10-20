@@ -81,6 +81,8 @@ npx openband
 
 That's it: the studio opens in your browser (Node 18+). No clone, no build. Prefer zero install? [Open the online demo](https://iltempe.github.io/openband/).
 
+**Install it as an app:** in Chrome or Edge, *⋯ → Install OpenBand* (or the install icon in the address bar); in Safari, *Share → Add to Dock*. It opens in its own window, works offline after the first visit (synths, editing, analysis, exports — plugins and fonts are kept once used) and, where the browser supports it, opens `.openband`, `.mid` and `.dawproject` files with a double-click.
+
 **Just a browser and an API key:** open the [online demo](https://iltempe.github.io/openband/) → **AI** panel → *Connect AI* → *API key*, paste your Anthropic key and chat: Claude runs inside the page and plays the studio with the same tools it gets over MCP (each request is one undo step, the cost of each answer is shown, *Stop* is always there). The key stays in your browser's storage, never in songs or exports, and requests go from your browser straight to Anthropic.
 
 <img src="docs/chat.png" alt="Chatting with Claude inside the studio" width="300">
@@ -234,6 +236,7 @@ npm run build       # production build in dist/
 node bin/openband.mjs mcp   # the MCP server from the checkout (or: claude mcp add openband -- node /path/to/openband/bin/openband.mjs mcp)
 node scripts/smoke-pack.mjs # pack the npm package, install it in an empty folder and test it
 npm run pack:mcpb           # build/openband-<version>.mcpb for Claude Desktop (then npm run smoke:mcpb)
+npm run e2e                 # the built studio in Chrome: first run under 3 s, offline PWA
 ```
 
 CI runs typecheck and tests on every push and pull request. The v0.2 roadmap is specified in [docs/SPEC.md](docs/SPEC.md); changes are listed in [CHANGELOG.md](CHANGELOG.md).

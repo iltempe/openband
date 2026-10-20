@@ -68,3 +68,16 @@ jobs:
         with:
           name: openband-mcpb
           path: build/*.mcpb
+
+  # The built studio in a real Chrome: first run (< 3 s to music, tour) and the offline PWA.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/e2e/run.mjs

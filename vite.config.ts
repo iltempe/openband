@@ -1,8 +1,43 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, type Plugin } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+
+/** Write dist/sw.js (precache of every built file) and dist/version.json after the build. */
+function openbandPwa(): Plugin {
+  let outDir = 'dist';
+  return {
+    name: 'openband-pwa',
+    apply: 'build',
+    configResolved(c) {
+      outDir = c.build.outDir;
+    },
+    closeBundle() {
+      const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      const files: string[] = [];
+      const walk = (dir: string) => {
+        for (const f of fs.readdirSync(dir)) {
+          const full = path.join(dir, f);
+          if (fs.statSync(full).isDirectory()) walk(full);
+          else files.push(path.relative(outDir, full).split(path.sep).join('/'));
+        }
+      };
+      walk(outDir);
+      const precache = ['./', ...files.filter((f) => f !== 'sw.js' && f !== 'version.json' && !f.endsWith('.map')).map((f) => `./${f}`)];
+      const hash = crypto.createHash('sha256').update(precache.join('\n')).digest('hex').slice(0, 10);
+      const version = `${pkg.version}-${hash}`;
+      const sw = fs.readFileSync('scripts/sw.template.js', 'utf8').replace('__VERSION__', version).replace('__PRECACHE__', JSON.stringify(precache, null, 1));
+      fs.writeFileSync(path.join(outDir, 'sw.js'), sw);
+      fs.writeFileSync(path.join(outDir, 'version.json'), JSON.stringify({ app: 'openband', version: pkg.version, build: version }) + '\n');
+      // Deep links on static hosts (GitHub Pages serves 404.html for unknown paths).
+      fs.copyFileSync(path.join(outDir, 'index.html'), path.join(outDir, '404.html'));
+    },
+  };
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), openbandPwa()],
   // Relative asset paths: the same build works from the MCP server (/) and GitHub Pages (/openband/).
   base: './',
   server: { port: 5173 },

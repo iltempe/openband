@@ -79,6 +79,8 @@ npx openband
 
 Fatto: lo studio si apre nel browser (serve Node 18+). Niente clone, niente build. Non vuoi installare nulla? [Apri la demo online](https://iltempe.github.io/openband/).
 
+**Installala come app:** in Chrome o Edge, *⋯ → Installa OpenBand* (o l'icona di installazione nella barra dell'indirizzo); in Safari, *Condividi → Aggiungi al Dock*. Si apre in una finestra sua, funziona offline dopo la prima visita (synth, editing, analisi, export; plugin e font restano disponibili dopo il primo uso) e, dove il browser lo permette, apre con un doppio clic i file `.openband`, `.mid` e `.dawproject`.
+
 **Solo un browser e una API key:** apri la [demo online](https://iltempe.github.io/openband/) → pannello **AI** → *Collega AI* → *API key*, incolla la tua chiave Anthropic e chatta: Claude gira dentro la pagina e suona lo studio con gli stessi strumenti che ha via MCP (ogni richiesta è un solo passo di annullamento, il costo di ogni risposta è indicato, *Stop* è sempre disponibile). La chiave resta nella memoria del tuo browser, mai nelle canzoni o negli export, e le richieste vanno dal tuo browser direttamente ad Anthropic.
 
 <img src="docs/chat.png" alt="Chat con Claude dentro lo studio" width="300">
@@ -232,6 +234,7 @@ npm run build       # build di produzione in dist/
 node bin/openband.mjs mcp   # il server MCP dal checkout (oppure: claude mcp add openband -- node /percorso/openband/bin/openband.mjs mcp)
 node scripts/smoke-pack.mjs # crea il pacchetto npm, lo installa in una cartella vuota e lo prova
 npm run pack:mcpb           # build/openband-<versione>.mcpb per Claude Desktop (poi npm run smoke:mcpb)
+npm run e2e                 # lo studio compilato in Chrome: primo avvio sotto i 3 s, PWA offline
 ```
 
 La CI esegue typecheck e test a ogni push e pull request. La roadmap v0.2 è descritta in [docs/SPEC.md](docs/SPEC.md); le modifiche sono elencate in [CHANGELOG.md](CHANGELOG.md).

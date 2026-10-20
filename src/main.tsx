@@ -14,6 +14,7 @@ import { initVersions } from './versioning';
 import { initJam } from './jamMode';
 import { initFirstRun } from './firstRun';
 import { loadKeyState } from './ai/keys';
+import { initPwa } from './pwa';
 
 // A song handed over from the online demo wins; otherwise the autosave, otherwise the demo song.
 if (!consumeHandoff() && !hasSavedProject()) loadDemo();
@@ -28,6 +29,7 @@ initVersions();
 initJam();
 initFirstRun();
 void loadKeyState();
+initPwa();
 connectBridge();
 initMidi();
 
