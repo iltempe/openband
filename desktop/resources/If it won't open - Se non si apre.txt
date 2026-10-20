@@ -1,0 +1,38 @@
+OPENBAND — IF MACOS WON'T OPEN IT
+=================================
+
+OpenBand is free and open source, but it is not signed with a paid Apple
+developer certificate yet, so the first time macOS says it "cannot verify"
+the app. You only need to allow it once:
+
+1. Drag OpenBand into Applications, then double-click it.
+   When macOS says "OpenBand.app was not opened", press "Done".
+2. Open System Settings -> Privacy & Security.
+   Scroll down: next to "OpenBand.app was blocked" press "Open Anyway",
+   then confirm with your password.
+
+From then on it opens normally. Or, in Terminal:
+
+   xattr -dr com.apple.quarantine /Applications/OpenBand.app
+
+The source code is at https://github.com/iltempe/openband
+
+
+OPENBAND — SE MACOS NON LA APRE
+===============================
+
+OpenBand è gratuito e open source, ma non è ancora firmato con un
+certificato sviluppatore Apple a pagamento, quindi la prima volta macOS dice
+che "non è in grado di verificare" l'app. Basta consentirla una volta:
+
+1. Trascina OpenBand in Applicazioni, poi fai doppio clic.
+   Quando macOS dice "OpenBand.app non è stata aperta", premi "Fine".
+2. Apri Impostazioni di Sistema -> Privacy e sicurezza.
+   Scorri in basso: accanto a "OpenBand.app è stata bloccata" premi
+   "Apri comunque" e conferma con la password.
+
+Da lì in poi si apre normalmente. Oppure, nel Terminale:
+
+   xattr -dr com.apple.quarantine /Applications/OpenBand.app
+
+Il codice sorgente è su https://github.com/iltempe/openband

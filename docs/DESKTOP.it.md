@@ -24,11 +24,14 @@ Tutti i file sono nella [pagina delle release](https://github.com/iltempe/openba
 L'app non è ancora firmata (la firma costa un abbonamento annuale ad Apple e un certificato per Windows),
 quindi il sistema ti chiede una conferma, una volta sola:
 
-- **macOS**: apri il `.dmg` e trascina OpenBand in *Applicazioni*. La prima volta, clic destro su
-  OpenBand → *Apri* → *Apri*. Da macOS 15 in poi: aprila una volta, poi *Impostazioni di Sistema →
-  Privacy e sicurezza* → *Apri comunque*. Se macOS dice che l'app è *danneggiata*, è stata messa in
-  quarantena durante il download: esegui `xattr -dr com.apple.quarantine /Applications/OpenBand.app`
-  nel Terminale.
+- **macOS**: apri il `.dmg` e trascina OpenBand in *Applicazioni* (l'immagine disco contiene anche
+  questi passaggi, in *Se non si apre*). Fai doppio clic su OpenBand: macOS dice *«OpenBand.app» non è
+  stata aperta… Apple non è in grado di verificare…* — premi *Fine*. Poi *Impostazioni di Sistema →
+  Privacy e sicurezza*, scorri fino a *«OpenBand.app» è stata bloccata* e premi **Apri comunque**,
+  confermando con la password. Da lì in poi si apre normalmente. (Da macOS 15 il clic destro → *Apri*
+  non basta più.) Lo stesso con un solo comando nel Terminale:
+  `xattr -dr com.apple.quarantine /Applications/OpenBand.app`. L'app non è rotta: macOS blocca ogni app
+  scaricata che non sia notarizzata da Apple, cosa che richiede un account sviluppatore a pagamento.
 - **Windows**: avvia l'installer; se SmartScreen dice *PC protetto da Windows*, fai clic su *Ulteriori
   informazioni* → *Esegui comunque*.
 - **Linux**: `sudo apt install ./OpenBand-linux-amd64.deb`, oppure rendi eseguibile l'AppImage

@@ -41,6 +41,9 @@ for (const f of fs.readdirSync(path.join(root, 'server'))) if (f.endsWith('.mjs'
 copy('desktop/main.mjs', 'main.mjs');
 copy('desktop/preload.cjs', 'preload.cjs');
 copy('LICENSE');
+// How to open an unsigned app on macOS: shown in the disk image, not part of the app itself.
+const OPEN_HELP = "If it won't open - Se non si apre.txt";
+copy(`desktop/resources/${OPEN_HELP}`, OPEN_HELP);
 fs.writeFileSync(
   path.join(stage, 'package.json'),
   JSON.stringify(
@@ -78,7 +81,7 @@ const config = {
   // Plain files, not an asar archive: AI clients run server/mcp-server.mjs with the app in Node mode.
   asar: false,
   directories: { app: stage, output: path.join(root, 'build', 'desktop'), buildResources: path.join(root, 'desktop', 'resources') },
-  files: ['**/*'],
+  files: ['**/*', `!${OPEN_HELP}`],
   icon: path.join(root, 'mcpb', 'icon.png'),
   fileAssociations: assoc,
   artifactName: '${productName}-${version}-${os}-${arch}.${ext}',
@@ -104,7 +107,16 @@ const config = {
     const app = path.join(ctx.appOutDir, `${ctx.packager.appInfo.productFilename}.app`);
     execSync(`codesign --force --deep --sign - "${app}"`, { stdio: 'inherit' });
   },
-  dmg: { title: 'OpenBand ${version}' },
+  // Unsigned, macOS blocks the first opening: the way through sits next to the app in the disk image.
+  dmg: {
+    title: 'OpenBand ${version}',
+    window: { width: 560, height: 420 },
+    contents: [
+      { x: 140, y: 150, type: 'file' },
+      { x: 420, y: 150, type: 'link', path: '/Applications' },
+      ...(process.env.CSC_LINK ? [] : [{ x: 280, y: 300, type: 'file', path: path.join(stage, OPEN_HELP) }]),
+    ],
+  },
   win: { target: dirOnly ? ['dir'] : ['nsis'] },
   nsis: { oneClick: false, perMachine: false, allowToChangeInstallationDirectory: true, createDesktopShortcut: true, artifactName: '${productName}-${version}-win-${arch}.${ext}' },
   linux: {

@@ -24,10 +24,13 @@ All files are on the [releases page](https://github.com/iltempe/openband/release
 The app is not signed yet (signing costs a yearly fee to Apple and a certificate for Windows), so the
 system asks you to confirm once:
 
-- **macOS**: open the `.dmg` and drag OpenBand to *Applications*. The first time, right-click OpenBand →
-  *Open* → *Open*. On macOS 15 and later: open it once, then *System Settings → Privacy & Security* →
-  *Open Anyway*. If macOS says the app is *damaged*, it was quarantined while downloading: run
-  `xattr -dr com.apple.quarantine /Applications/OpenBand.app` in Terminal.
+- **macOS**: open the `.dmg` and drag OpenBand to *Applications* (the disk image also holds these steps,
+  in *If it won't open*). Double-click OpenBand: macOS says *“OpenBand.app” was not opened… Apple could
+  not verify…* — press *Done*. Then *System Settings → Privacy & Security*, scroll down to *“OpenBand.app”
+  was blocked* and press **Open Anyway**, confirming with your password. From then on it opens normally.
+  (On macOS 15 and later right-click → *Open* no longer skips this.) The same in one Terminal command:
+  `xattr -dr com.apple.quarantine /Applications/OpenBand.app`. The app is not broken: macOS blocks any
+  downloaded app that isn't notarized by Apple, which needs a paid developer account.
 - **Windows**: run the installer; if SmartScreen says *Windows protected your PC*, click *More info* →
   *Run anyway*.
 - **Linux**: `sudo apt install ./OpenBand-linux-amd64.deb`, or make the AppImage executable

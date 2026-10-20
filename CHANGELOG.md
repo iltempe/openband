@@ -2,6 +2,10 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## Unreleased
+
+- macOS: the disk image now holds *If it won't open - Se non si apre.txt* next to the app, with the two ways through Gatekeeper's *“Apple could not verify…”* for an app that isn't notarized (System Settings → Privacy & Security → *Open Anyway*, or `xattr -dr com.apple.quarantine`); docs/DESKTOP.md leads with them (right-click → *Open* no longer works on macOS 15). The real fix is signing and notarization, which the release workflow does as soon as the Apple secrets are added.
+
 ## v0.5.0 "Any AI"
 
 **Pick your AI:** Claude, OpenAI's models, Gemini, or a free model on your computer with Ollama — in the page (AI panel → *AI model*), and as MCP clients Claude Desktop, Claude Code, Codex, Gemini CLI, Cursor, VS Code. Guide: [docs/AI-MODELS.md](docs/AI-MODELS.md). Desktop app: [macOS (Apple Silicon)](https://github.com/iltempe/openband/releases/latest/download/OpenBand-mac-arm64.dmg) · [macOS (Intel)](https://github.com/iltempe/openband/releases/latest/download/OpenBand-mac-x64.dmg) · [Windows](https://github.com/iltempe/openband/releases/latest/download/OpenBand-win-x64.exe) · [Linux .deb](https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-amd64.deb) · [AppImage](https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-x86_64.AppImage).
