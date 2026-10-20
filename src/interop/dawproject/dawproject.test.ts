@@ -45,6 +45,9 @@ describe('DAWproject import: Bitwig-style fixture', () => {
     expect(notes.notes[0].velocity).toBeCloseTo(0.787, 2);
     const audio = p.regions.find((r) => r.trackId === loop.id)!;
     expect(audio.audio).toMatchObject({ sampleId: 'dawp:0', offset: 0 });
+    // The warp map (2.82 s of audio over 8 beats at 149 BPM) becomes a fixed stretch.
+    expect(audio.audio!.stretch?.mode).toBe('fixed');
+    expect(audio.audio!.stretch!.ratio!).toBeCloseTo((8 * 60) / 149 / 2.823541666666667, 3);
     expect(samples).toHaveLength(1);
     expect(samples[0].name).toBe('Drumfunk3 170bpm.wav');
     expect(pointsOf(bass, mix('volume'))?.map((x) => x.beat)).toEqual([0, 8]);
@@ -55,9 +58,9 @@ describe('DAWproject import: Bitwig-style fixture', () => {
     ]);
     expect(p.sections![0].color).toBe('#ffcc00');
     // Not portable: the plugins, the stretched loop, the EQ+ automation, the scene.
-    expect(codes(report)).toEqual(expect.arrayContaining(['instrument_replaced', 'plugin', 'warp', 'automation', 'clip_launcher']));
+    expect(codes(report)).toEqual(expect.arrayContaining(['instrument_replaced', 'plugin', 'automation', 'clip_launcher']));
+    expect(codes(report)).not.toContain('warp'); // mapped to time-stretch since F23
     expect(report.items.find((i) => i.code === 'plugin')!.detail).toContain('EQ+ (VST3)');
-    expect(report.items.find((i) => i.code === 'warp')!.detail).toMatch(/×0\.88/);
     expect(reportLine(report.items.find((i) => i.code === 'instrument_replaced')!)).toMatch(/Surge XT \(CLAP\) → Sub Bass/);
   });
 });

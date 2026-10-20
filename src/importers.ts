@@ -1,11 +1,12 @@
 // Importing sounds from outside: sampler instruments, drum kits, SoundFont presets, audio clips,
 // and self-contained project bundles (.openband = zip of project.json + samples).
+import { bpmFromName, detectTempo } from './audio/stretch';
 import { exportName } from './journal';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import type { CustomInstrument, Project, Region, SampleZone } from './types';
 import { BEATS_PER_BAR, DRUM_PIECES, uid } from './music';
 import { getTrack, makeTrack, projectSampleIds, useStore } from './store';
-import { detectPitch, encodeMonoWav, ensureSamples, getStoredSample, importSample, pitchFromName, type SampleInfo } from './audio/samples';
+import { detectPitch, encodeMonoWav, ensureSamples, getBuffer, getStoredSample, importSample, pitchFromName, type SampleInfo } from './audio/samples';
 import { SoundFont } from './audio/soundfont';
 import { download } from './audio/render';
 import { captureWamStates } from './plugins';
@@ -153,7 +154,7 @@ export function addAudioRegion(info: SampleInfo, opts: { trackId?: string; start
     start: Math.max(0, opts.startBeat ?? 0),
     length: opts.lengthBeats ?? Math.max(0.25, ((info.duration - offset) * bpm) / 60),
     notes: [],
-    audio: { sampleId: info.id, offset, gain: opts.gain ?? 1 },
+    audio: { sampleId: info.id, offset, gain: opts.gain ?? 1, ...originalTempo(info) },
   };
   st().commit((d) => void d.regions.push(region));
   st().selectRegion(region);
@@ -176,6 +177,19 @@ export async function importAudioFiles(files: InputFile[], opts: { trackId?: str
 // ---------- project bundles ----------
 
 export const hasSamples = (p: Project) => projectSampleIds(p).length > 0;
+
+/**
+ * The tempo of a loop, estimated at import (F23) and kept on the clip (stretch off): follow_tempo
+ * uses it. Only for loop-length clips (up to 30 s), from the file name or the onsets.
+ */
+function originalTempo(info: SampleInfo): { stretch?: { mode: 'off'; originalBpm: number } } {
+  const named = bpmFromName(info.name);
+  if (named) return { stretch: { mode: 'off', originalBpm: named } };
+  const buf = getBuffer(info.id);
+  if (!buf || info.duration > 30 || info.duration < 1) return {};
+  const t = detectTempo(buf.getChannelData(0), buf.sampleRate);
+  return t.confidence >= 0.5 ? { stretch: { mode: 'off', originalBpm: t.bpm } } : {};
+}
 
 /** Save as plain JSON, or as a .openband zip when the project uses imported sounds. */
 export async function saveProject() {

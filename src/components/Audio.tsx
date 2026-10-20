@@ -1,5 +1,6 @@
 // Audio clips: waveform drawing and the clip editor shown in the bottom dock.
-import { useEffect, useRef, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { stretchFactor } from '../audio/stretch';
 import type { Region, Track } from '../types';
 import { useStore } from '../store';
 import { BEATS_PER_BAR } from '../music';
@@ -60,6 +61,19 @@ export function AudioClipEditor({ region, track }: { region: Region; track: Trac
   const info = useSamples((s) => s.info[clip.sampleId]);
   const t = useT();
   const seconds = (region.length * 60) / bpm;
+  const factor = stretchFactor(clip, bpm);
+  const [busy, setBusy] = useState(false);
+  const run = async (fn: () => unknown) => {
+    setBusy(true);
+    try {
+      await fn();
+    } catch (e) {
+      useStore.getState().notify((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const mode = clip.stretch?.mode ?? 'off';
   const update = (fn: (r: Region) => void, history = false) => commit((d) => fn(d.regions.find((r) => r.id === region.id)!), { history });
   const remaining = info ? Math.max(0, info.duration - clip.offset) : 0;
 
@@ -103,7 +117,35 @@ export function AudioClipEditor({ region, track }: { region: Region; track: Trac
           />
           <span className="eb-val">{clip.offset.toFixed(2)} s</span>
         </div>
-        <button className="mini" disabled={!info} onClick={() => update((r) => void (r.length = Math.max(0.25, (remaining * bpm) / 60)), true)} title={t('audio.fitHint')}>
+        <div className="eb-group">
+          <label>{t('audio.stretch')}</label>
+          <select
+            value={mode}
+            onChange={(e) => {
+              const m = e.target.value as 'off' | 'follow_tempo' | 'fixed';
+              void run(async () => {
+                if (m === 'follow_tempo' && !clip.stretch?.originalBpm) await commands.detect_tempo({ region_id: region.id });
+                await commands.update_region({ region_id: region.id, stretch_mode: m });
+              });
+            }}
+            title={t('audio.stretchHint')}
+          >
+            <option value="off">{t('audio.sOff')}</option>
+            <option value="follow_tempo">{clip.stretch?.originalBpm ? t('audio.sFollowBpm', { bpm: clip.stretch.originalBpm }) : t('audio.sFollow')}</option>
+            <option value="fixed">{t('audio.sFixed')}</option>
+          </select>
+          {mode === 'fixed' && (
+            <input className="eb-num" type="number" min={0.25} max={4} step={0.05} defaultValue={clip.stretch?.ratio ?? 1} key={`r${region.id}`} onChange={(e) => Number(e.target.value) > 0 && void run(() => commands.update_region({ region_id: region.id, ratio: Number(e.target.value) }))} title={t('audio.ratioHint')} />
+          )}
+          <button className="mini" disabled={busy} onClick={() => void run(() => commands.detect_tempo({ region_id: region.id }))} title={t('audio.detectHint')}>
+            {busy ? '…' : t('audio.detect')}
+          </button>
+        </div>
+        <div className="eb-group">
+          <label>{t('audio.pitch')}</label>
+          <input className="eb-num" type="number" min={-24} max={24} step={1} defaultValue={clip.pitch ?? 0} key={`p${region.id}${clip.pitch ?? 0}`} onChange={(e) => void run(() => commands.update_region({ region_id: region.id, pitch: Number(e.target.value) }))} title={t('audio.pitchHint')} />
+        </div>
+        <button className="mini" disabled={!info} onClick={() => update((r) => void (r.length = Math.max(0.25, (remaining * factor * bpm) / 60)), true)} title={t('audio.fitHint')}>
           {t('audio.fit')}
         </button>
         <div className="eb-spacer" />
@@ -115,9 +157,9 @@ export function AudioClipEditor({ region, track }: { region: Region; track: Trac
         </button>
       </div>
       <div className="audio-editor-body">
-        <Waveform sampleId={clip.sampleId} offset={clip.offset} seconds={seconds} gain={clip.gain} className="big" />
+        <Waveform sampleId={clip.sampleId} offset={clip.offset} seconds={seconds / factor} gain={clip.gain} className="big" />
         <div className="audio-editor-info">
-          {t('audio.clipInfo', { bars: (region.length / BEATS_PER_BAR).toFixed(2), seconds: seconds.toFixed(2), bpm: Math.round(bpm) })}
+          {t(mode === 'follow_tempo' ? 'audio.clipInfoFollow' : mode === 'fixed' ? 'audio.clipInfoFixed' : 'audio.clipInfo', { bars: (region.length / BEATS_PER_BAR).toFixed(2), seconds: seconds.toFixed(2), bpm: Math.round(bpm), ratio: factor.toFixed(2) })}
         </div>
       </div>
     </div>

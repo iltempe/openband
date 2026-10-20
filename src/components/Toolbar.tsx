@@ -7,7 +7,7 @@ import { beginTour } from '../firstRun';
 import { ShareButton } from './Collab';
 import { useStore } from '../store';
 import { engine } from '../audio/engine';
-import { BEATS_PER_BAR, KEYS, clamp } from '../music';
+import { BEATS_PER_BAR, KEYS, clamp, keyInterval } from '../music';
 import { usePosition } from '../hooks';
 import { startRecording, stopRecording } from '../input';
 import { commands } from '../commands';
@@ -48,6 +48,7 @@ function Lcd() {
   const project = useStore((s) => s.project);
   const commit = useStore((s) => s.commit);
   const [editingTempo, setEditingTempo] = useState(false);
+  const [offer, setOffer] = useState<{ shift: number; clips: number } | null>(null);
   const drag = useRef<{ y: number; bpm: number } | null>(null);
   const t = useT();
 
@@ -102,7 +103,18 @@ function Lcd() {
         <div className="lcd-label">{t('lcd.tempo')}</div>
       </div>
       <div className="lcd-cell lcd-key">
-        <select className="lcd-select" value={project.key} onChange={(e) => commit((d) => void (d.key = e.target.value))}>
+        <select
+          className="lcd-select"
+          value={project.key}
+          onChange={(e) => {
+            const from = project.key;
+            commit((d) => void (d.key = e.target.value));
+            // Audio clips don't follow a key change by themselves: offer it.
+            const shift = keyInterval(from, e.target.value);
+            const clips = project.regions.filter((r) => r.audio).length;
+            if (shift && clips) setOffer({ shift, clips });
+          }}
+        >
           {KEYS.map((k) => (
             <option key={k} value={k}>
               {k}
@@ -110,6 +122,32 @@ function Lcd() {
           ))}
         </select>
         <div className="lcd-label">{t('lcd.key')}</div>
+        {offer && (
+          <div className="key-offer">
+            <button
+              className="mini"
+              onClick={() => {
+                commit(
+                  (d) => {
+                    for (const r of d.regions)
+                      if (r.audio) {
+                        const v = +((r.audio.pitch ?? 0) + offer.shift).toFixed(2);
+                        if (v) r.audio.pitch = v;
+                        else delete r.audio.pitch;
+                      }
+                  },
+                  { label: t('audio.transposeLabel') },
+                );
+                setOffer(null);
+              }}
+            >
+              {t('audio.transposeClips', { n: offer.clips, s: (offer.shift > 0 ? '+' : '') + offer.shift })}
+            </button>
+            <button className="icon-btn" onClick={() => setOffer(null)}>
+              <I.Close width={12} height={12} />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

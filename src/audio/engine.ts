@@ -6,9 +6,10 @@ import { applyFxAutomation } from './automate';
 import type { WamInstance } from './wam';
 import { faderToDb, sendToDb } from '../music';
 import { createInstrument, customById, makeImpulse, type Instrument } from './instruments';
-import { getBuffer, onSamplesChanged } from './samples';
+import { onSamplesChanged } from './samples';
 import { FxChain } from './fx';
 import { attachMeter, detachMeter } from './meters';
+import { clipBuffer, ensureClipBuffer, needsProcessing, onProcessed, processingOf } from './processed';
 
 interface TrackNode {
   presetId: string;
@@ -93,6 +94,10 @@ class AudioEngine {
     transport().scheduleRepeat((time) => this.tickAutomation(time), '32n', 0);
     // Audio clips and sampler zones need their buffers: rebuild once a sample finishes loading.
     onSamplesChanged(() => {
+      this.samplesVersion++;
+      if (this.lastProject) this.syncParts(this.lastProject);
+    });
+    onProcessed(() => {
       this.samplesVersion++;
       if (this.lastProject) this.syncParts(this.lastProject);
     });
@@ -372,15 +377,22 @@ class AudioEngine {
   /** Audio clips are transport-synced players, so they also start correctly mid-region. */
   private addAudioClip(region: Project['regions'][number], bpm: number) {
     const clip = region.audio!;
-    const buffer = getBuffer(clip.sampleId);
     const node = this.nodes.get(region.trackId);
-    if (!buffer || !node) return;
-    const duration = Math.min((region.length * 60) / bpm, buffer.duration - clip.offset);
+    if (!node) return;
+    // Stretched / pitch-shifted clips play their processed buffer; until it's ready, nothing (it's
+    // computed in a worker and the parts are rebuilt when it arrives).
+    const buffer = clipBuffer(clip, bpm);
+    if (!buffer) {
+      if (needsProcessing(clip, bpm)) void ensureClipBuffer(clip, bpm);
+      return;
+    }
+    const offset = clip.offset * processingOf(clip, bpm).factor;
+    const duration = Math.min((region.length * 60) / bpm, buffer.duration - offset);
     if (duration <= 0) return;
     const player = new Tone.Player({ url: new Tone.ToneAudioBuffer(buffer), fadeIn: 0.004, fadeOut: 0.01 });
     player.volume.value = clip.gain > 0 ? 20 * Math.log10(clip.gain) : -Infinity;
     player.connect(node.instrument.output);
-    player.sync().start(`${Math.round(region.start * transport().PPQ)}i`, clip.offset, duration);
+    player.sync().start(`${Math.round(region.start * transport().PPQ)}i`, offset, duration);
     this.players.push(player);
   }
 

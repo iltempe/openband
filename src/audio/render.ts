@@ -3,7 +3,8 @@ import * as Tone from 'tone';
 import type { AutoPoint, Project, TrackFx } from '../types';
 import { faderToDb, sendToDb } from '../music';
 import { projectEnd, projectSampleIds } from '../store';
-import { ensureSamples, getBuffer } from './samples';
+import { ensureSamples } from './samples';
+import { clipBuffer, ensureClipBuffer, needsProcessing, processingOf } from './processed';
 import { createInstrument, makeImpulse, seeded } from './instruments';
 import { FxChain, normalizeFx } from './fx';
 import { effectiveValue, hasAutomation, isAutomated, mix, valueAt } from '../automation';
@@ -82,6 +83,8 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
   const anySolo = p.tracks.some((t) => t.solo);
   const included = (id: string, mute: boolean, solo: boolean) => (o.tracks ? o.tracks.includes(id) : !mute && !(anySolo && !solo));
   await ensureSamples(projectSampleIds(p));
+  // Stretched / pitch-shifted clips (F23) are processed first.
+  await Promise.all(p.regions.flatMap((r) => (r.audio && needsProcessing(r.audio, p.bpm) ? [ensureClipBuffer(r.audio, p.bpm)] : [])));
 
   // Like Tone.Offline, but on a native OfflineAudioContext (WAM plugins need one) and waiting for
   // plugins to load before rendering.
@@ -142,11 +145,11 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
         if (region.start >= toBeat || region.start + region.length <= fromBeat) continue;
         if (region.audio) {
           const clip = region.audio;
-          const buffer = getBuffer(clip.sampleId);
+          const buffer = clipBuffer(clip, p.bpm);
           if (!buffer) continue;
-          // A clip already playing at fromBeat starts from the right point inside the sample.
+          // A clip already playing at fromBeat starts from the right point inside the (processed) sample.
           const skip = Math.max(0, fromBeat - region.start);
-          const offset = clip.offset + secs(skip);
+          const offset = clip.offset * processingOf(clip, p.bpm).factor + secs(skip);
           const dur = Math.min(secs(region.length - skip), buffer.duration - offset);
           if (dur <= 0) continue;
           const player = new Tone.Player({ url: new Tone.ToneAudioBuffer(buffer), fadeIn: 0.004, fadeOut: 0.01 }).connect(inst.output);

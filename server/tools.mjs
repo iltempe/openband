@@ -76,7 +76,7 @@ tool('new_project', 'Start a new empty project (the previous one can be restored
 
 tool('rename_project', 'Rename the project.', { name: z.string() });
 tool('set_tempo', 'Set the tempo in BPM.', { bpm: z.number().min(40).max(240) });
-tool('set_key', 'Set the song key shown in the display (e.g. "Am", "Eb").', { key: z.string() });
+tool('set_key', 'Set the song key shown in the display (e.g. "Am", "Eb"). transpose_audio=true also pitch-shifts every audio clip by the interval between the two keys (the short way).', { key: z.string(), transpose_audio: z.boolean().optional() });
 tool('set_master_volume', 'Set the master output volume 0..1 (0.8 = unity).', { volume: z.number().min(0).max(1) });
 
 tool('add_track', 'Add a track. Give an instrument id (preset or imported, see list_instruments) or just a kind ("audio" for audio clips). Returns track_id.', {
@@ -150,7 +150,7 @@ tool('add_region', 'Create a region (MIDI clip) on a track, optionally with note
   notes: z.array(NoteSchema).optional(),
 });
 
-tool('update_region', 'Move, resize, rename a region or move it to another track of the same kind. For audio regions also gain (0..2, 1 = unchanged) and offset_seconds (where playback starts inside the sample).', {
+tool('update_region', 'Move, resize, rename a region or move it to another track of the same kind. For audio regions also gain (0..2, 1 = unchanged), offset_seconds (where playback starts inside the sample), time-stretch — stretch_mode "follow_tempo" (the clip follows the song tempo from original_bpm; detect_tempo finds it), "fixed" with ratio (played length / original, 0.25–4) or "off" — and pitch in semitones (decimals = cents), both without changing the other.', {
   region_id: z.string(),
   start_bar: z.number().min(1).optional(),
   length_bars: z.number().positive().optional(),
@@ -158,6 +158,16 @@ tool('update_region', 'Move, resize, rename a region or move it to another track
   track_id: z.string().optional(),
   gain: z.number().min(0).max(2).optional(),
   offset_seconds: z.number().min(0).optional(),
+  stretch_mode: z.enum(['off', 'follow_tempo', 'fixed']).optional(),
+  ratio: z.number().min(0.25).max(4).optional(),
+  original_bpm: z.number().min(40).max(240).optional(),
+  pitch: z.number().min(-24).max(24).optional(),
+});
+
+tool('detect_tempo', 'Estimate the tempo of an audio sample (a loop): from its file name ("loop_92bpm.wav") or its onsets. Stored on the clips of that sample as their original tempo; apply=true also makes them follow the song tempo.', {
+  sample_id: z.string().optional(),
+  region_id: z.string().optional(),
+  apply: z.boolean().optional(),
 });
 
 tool('delete_region', 'Delete a region.', { region_id: z.string() });

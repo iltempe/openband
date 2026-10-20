@@ -46,6 +46,13 @@ export interface AudioClip {
   offset: number;
   /** Linear gain 0..2 (1 = unchanged). */
   gain: number;
+  /**
+   * Time-stretch (F23): off; fixed (ratio = played length / original length); follow_tempo (the clip
+   * follows the song's tempo, from originalBpm, which is also kept, estimated, while off).
+   */
+  stretch?: { mode: 'off' | 'follow_tempo' | 'fixed'; ratio?: number; originalBpm?: number };
+  /** Pitch shift in semitones (decimals = cents). */
+  pitch?: number;
 }
 
 /** One sample mapped onto a key range of a sampler instrument. */

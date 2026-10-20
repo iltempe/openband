@@ -6,6 +6,16 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 The v0.3 work follows [docs/SPEC-v0.3.md](docs/SPEC-v0.3.md).
 
+### F23 · Time-stretch and pitch-shift of audio clips
+- `src/audio/stretch.ts` (pure, no dependency, no GPL code — Rubber Band is not used): **WSOLA** for stretching (≈23 ms frames, waveform-similarity search; frames containing an attack are placed so that the attack lands exactly on its stretched time) and a **phase vocoder with identity phase locking** plus cubic resampling for pitch. Runs in a worker (`workers/stretch.worker.ts`) with a cache of processed buffers by (sample, factor, semitones) (`audio/processed.ts`), used by the live engine and the offline render alike; 3 ms fades at both ends.
+- Model: `AudioClip.stretch?: {mode: off | follow_tempo | fixed, ratio?, originalBpm?}` and `pitch?` (semitones, decimals = cents). follow_tempo: the clip plays at the song tempo from its original BPM, keeping its length in beats when the tempo changes; fixed: played length / original length.
+- Tempo of a loop, estimated at import (kept on the clip, stretch off): from the file name (`loop_92bpm.wav`, `Funk 120 BPM.wav`) or from an onset envelope's autocorrelation, snapped to a whole number of bars when close. `detect_tempo({sample_id | region_id, apply?})`.
+- Clip editor: *Stretch* (Off / Follow tempo (92 BPM) / Fixed ratio), *Detect BPM*, *Pitch*; waveforms show the stretched clip. Changing the key in the display offers *Transpose N audio clips ±k* (one undo step); `set_key({key, transpose_audio})` does it for the AI (the short way, up to a tritone).
+- DAWproject: a warp map now becomes a fixed stretch (several markers are simplified to one ratio and reported); stretched clips export with the matching warp; pitch shifts are listed as not exportable.
+- Tools: `update_region` takes `stretch_mode`, `ratio`, `original_bpm`, `pitch`; new `detect_tempo`; `set_key` takes `transpose_audio`. 123 tools.
+- Decision record and comparison on three materials (voice-like vowel, drums, pad; transients kept, pitch error, edge jumps, speed): [docs/adr/0002-time-stretch.md](docs/adr/0002-time-stretch.md); `scripts/stretch-compare.mjs` regenerates it and writes WAVs for a listening test, which has **not** been done by people yet.
+- Tests: 0.8× / 1.25× with the right length and no clicks at the edges or inside; a 100 BPM loop at 120 BPM with every onset within 5 ms of the grid (the spec asks ±10 ms); ±3/−5 semitones within 1% of the target pitch with the length kept; stretch and pitch together; tempo from audio (92, 128, 75 BPM within 1) and from names; the commands (follow_tempo keeps 2 bars at any tempo, fixed ratio, pitch, errors, key transposition). In Chrome: a 92 BPM loop imported into a 120 BPM song, detect_tempo + follow_tempo → exactly 2 bars, exported onsets 1–4 ms from the grid, playback through the worker without errors.
+
 ### F15 delta · Answers with an id: `keep_phrase`
 - `play_phrase` returns a `phrase_id`; `keep_phrase({phrase_id})` keeps any of the last 20 answers — not only the last one — into the song where it was played (one undo step; an answer can't be kept twice). `keep_answer` still keeps the last one, and `commit:true` goes through the same path.
 - The Jam section of the AI panel lists the earlier answers with a *Keep* each.

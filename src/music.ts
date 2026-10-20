@@ -120,3 +120,17 @@ export const faderToDb = (v: number) => (v <= 0.001 ? -Infinity : 20 * Math.log1
 export const sendToDb = (v: number) => (v <= 0.001 ? -Infinity : 20 * Math.log10(v));
 /** Smart-control tone 0..1 -> low-pass frequency (80 Hz .. 20 kHz). */
 export const cutoffToHz = (v: number) => 80 * Math.pow(2, clamp(v, 0, 1) * 7.97);
+
+/** Semitones from one key's root to another's, the short way (−6…+5): "Am" → "Cm" = 3. */
+export function keyInterval(from: string, to: string): number {
+  const pc = (k: string) => {
+    const m = k.trim().match(/^([A-Ga-g])([#b♯♭]?)/);
+    if (!m) return null;
+    const base = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 }[m[1].toLowerCase() as 'c'];
+    return (base + (m[2] === '#' || m[2] === '♯' ? 1 : m[2] === 'b' || m[2] === '♭' ? -1 : 0) + 12) % 12;
+  };
+  const a = pc(from);
+  const b = pc(to);
+  if (a === null || b === null) return 0;
+  return ((b - a + 18) % 12) - 6;
+}

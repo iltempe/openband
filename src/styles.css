@@ -4773,3 +4773,26 @@ div.ca-steps {
   gap: 4px;
   margin-top: 6px;
 }
+
+/* ---------- time-stretch / pitch (F23) ---------- */
+.eb-num {
+  width: 58px;
+}
+.lcd-key {
+  position: relative;
+}
+.key-offer {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: var(--panel-2, #1b1d24);
+  border: 1px solid var(--line-2, rgba(255, 255, 255, 0.1));
+  white-space: nowrap;
+}

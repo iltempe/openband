@@ -312,6 +312,7 @@ export function dawprojectToProject(zip: Uint8Array): DawprojectImport {
       }
       // Offset into the file (seconds): from the warp map at playStart, or playStart itself.
       let offsetSec = contentUnit === 'seconds' ? num(clip, 'playStart', 0) : playStart * spb;
+      let stretch: { mode: 'fixed'; ratio: number } | undefined;
       if (warps) {
         const w = kids(warps, 'Warp').map((e) => ({ t: num(e, 'time', 0), c: num(e, 'contentTime', 0) }));
         const wUnit = attr(warps, 'contentTimeUnit');
@@ -321,11 +322,13 @@ export function dawprojectToProject(zip: Uint8Array): DawprojectImport {
         if (w.length >= 2) {
           const [a, b] = [w[0], w[w.length - 1]];
           const ratio = (toSec(b.c) - toSec(a.c)) / ((tToBeats(b.t) - tToBeats(a.t)) * spb);
-          if (Math.abs(ratio - 1) > 0.01) report.items.push({ code: 'warp', track: track.name, detail: `${name}: ×${ratio.toFixed(2)}` });
+          // A warp map → OpenBand's time-stretch (F23): played length / original = 1 / ratio.
+          if (Math.abs(ratio - 1) > 0.001) stretch = { mode: 'fixed', ratio: +(1 / ratio).toFixed(5) };
+          if (w.length > 2) report.items.push({ code: 'warp', track: track.name, detail: `${name}: ${w.length} warp markers simplified to one ratio (×${(1 / ratio).toFixed(2)})` });
           offsetSec = toSec(a.c) + (playStart - tToBeats(a.t)) * spb * ratio;
         }
       }
-      p.regions.push({ id: uid('rgn'), trackId: track.id, name, start: +start.toFixed(4), length: +Math.max(0.25, duration).toFixed(4), notes: [], audio: { sampleId: ref, offset: +Math.max(0, offsetSec).toFixed(4), gain: 1 } });
+      p.regions.push({ id: uid('rgn'), trackId: track.id, name, start: +start.toFixed(4), length: +Math.max(0.25, duration).toFixed(4), notes: [], audio: { sampleId: ref, offset: +Math.max(0, offsetSec).toFixed(4), gain: 1, ...(stretch ? { stretch } : {}) } });
       return;
     }
     if (kid(clip, 'Video')) report.items.push({ code: 'video', track: track.name });

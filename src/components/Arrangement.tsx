@@ -1,5 +1,6 @@
 import { RegionFlags, RulerFlags } from './Flubs';
 import { hasAutomation, targetKey } from '../automation';
+import { stretchFactor } from '../audio/stretch';
 import { memo, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { useOverlays } from './Welcome';
 import { PeerDots } from './Collab';
@@ -433,7 +434,7 @@ function RegionView({ region, track }: { region: Region; track: Track }) {
 function AudioPreview({ region }: { region: Region }) {
   const bpm = useStore((s) => s.project.bpm);
   const clip = region.audio!;
-  return <Waveform sampleId={clip.sampleId} offset={clip.offset} seconds={(region.length * 60) / bpm} gain={clip.gain} className="region-body" />;
+  return <Waveform sampleId={clip.sampleId} offset={clip.offset} seconds={(region.length * 60) / bpm / stretchFactor(clip, bpm)} gain={clip.gain} className="region-body" />;
 }
 
 const RegionPreview = memo(function RegionPreview({ region, drums }: { region: Region; drums: boolean }) {

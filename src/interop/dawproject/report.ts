@@ -7,7 +7,7 @@ export type ReportCode =
   | 'instrument_replaced' // instrument plugin replaced by the closest preset
   | 'automation' // automation of another parameter
   | 'group' // folder/group track flattened
-  | 'warp' // time-stretched audio imported at its original speed
+  | 'warp' // a warp map with several markers, simplified to one stretch ratio
   | 'send' // sends approximated
   | 'audio_missing' // audio file referenced but not in the archive
   | 'clip_launcher' // scenes / clip slots
@@ -49,7 +49,7 @@ export function reportLine(i: ReportItem): string {
     case 'group':
       return `Group track flattened: ${i.detail}`;
     case 'warp':
-      return `Time-stretched audio imported at its original speed${on}: ${i.detail}`;
+      return `Warp markers simplified${on}: ${i.detail}`;
     case 'send':
       return `Sends approximated${on}: ${i.detail}`;
     case 'audio_missing':

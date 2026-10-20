@@ -2,7 +2,7 @@
 // Bars are 1-based (bar 1 starts at beat 0); positions inside regions are in beats.
 import type { Note, Project, Region, Track, TrackKind } from './types';
 import { markFirstExport } from './firstRun';
-import { BEATS_PER_BAR, KEYS, clamp, drumByPitch, noteName, parseChord, parsePitch, uid } from './music';
+import { BEATS_PER_BAR, KEYS, clamp, keyInterval, drumByPitch, noteName, parseChord, parsePitch, uid } from './music';
 import { PRESETS, customInstruments, findInstrument } from './audio/instruments';
 import { getBuffer, importSample, useSamples } from './audio/samples';
 import { normalizeFx } from './audio/fx';
@@ -37,6 +37,8 @@ import { currentTarget, setMonitoring, useMonitoring } from './monitoring';
 import { levelMatch } from './levelMatch';
 import { projectAt, restoreAt, timeline } from './journal';
 import { exportDawproject, importDawproject } from './interop/dawproject';
+import { detectTempo, stretchFactor } from './audio/stretch';
+
 import { autoVersion } from './versioning';
 
 /** ISO date, ms since epoch, or a relative "-20m" / "-2h" / "-90s". */
@@ -315,9 +317,46 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { bpm: v };
   },
 
-  set_key: ({ key }) => {
-    st().commit((d) => void (d.key = String(key)));
-    return { key };
+  set_key: ({ key, transpose_audio }) => {
+    const from = st().project.key;
+    const shift = transpose_audio ? keyInterval(from, String(key)) : 0;
+    st().commit((d) => {
+      d.key = String(key);
+      // "Also transpose the audio clips" (F23): the nearest way (up to a tritone up or down).
+      if (shift)
+        for (const r of d.regions)
+          if (r.audio) {
+            const v = +((r.audio.pitch ?? 0) + shift).toFixed(2);
+            if (v) r.audio.pitch = v;
+            else delete r.audio.pitch;
+          }
+    });
+    return { key, ...(transpose_audio ? { audio_clips_transposed_by: shift, clips: st().project.regions.filter((r) => r.audio).length } : {}) };
+  },
+
+  detect_tempo: async ({ sample_id, region_id, apply }) => {
+    const p = st().project;
+    const r = region_id ? requireRegion(p, region_id) : undefined;
+    const id = String(sample_id ?? r?.audio?.sampleId ?? '');
+    const info = requireSample(id);
+    const buf = getBuffer(id)!;
+    const mono = new Float32Array(buf.length);
+    for (let c = 0; c < buf.numberOfChannels; c++) {
+      const ch = buf.getChannelData(c);
+      for (let i = 0; i < ch.length; i++) mono[i] += ch[i] / buf.numberOfChannels;
+    }
+    const t = detectTempo(mono, buf.sampleRate, info.name);
+    // Remember it on the clips of this sample (follow_tempo uses it), and switch them on if asked.
+    st().commit((d) => {
+      for (const x of d.regions)
+        if (x.audio?.sampleId === id && (!r || x.id === r.id)) {
+          const before = stretchFactor(x.audio, d.bpm);
+          x.audio.stretch = { ...(x.audio.stretch ?? { mode: 'off' }), originalBpm: t.bpm, ...(apply ? { mode: 'follow_tempo' as const } : {}) };
+          const after = stretchFactor(x.audio, d.bpm);
+          if (before !== after) x.length = +((x.length * after) / before).toFixed(4);
+        }
+    });
+    return { sample_id: id, bpm: t.bpm, confidence: t.confidence, from: t.source, beats: +((info.duration * t.bpm) / 60).toFixed(2), ...(apply ? { follow_tempo: true } : {}) };
   },
 
   set_master_volume: ({ volume }) => {
@@ -474,7 +513,7 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { region_id: region.id, start_bar: beatToBar(region.start), length_bars: region.length / BEATS_PER_BAR, note_count: parsed.length };
   },
 
-  update_region: ({ region_id, start_bar, length_bars, name, track_id, gain, offset_seconds }) => {
+  update_region: ({ region_id, start_bar, length_bars, name, track_id, gain, offset_seconds, stretch_mode, ratio, original_bpm, pitch }) => {
     const r = requireRegion(st().project, region_id);
     let target: Track | undefined;
     if (track_id) {
@@ -490,8 +529,27 @@ export const commands: Record<string, (args: P) => unknown> = {
       if (target) x.trackId = target.id;
       if (x.audio && gain !== undefined) x.audio.gain = clamp(Number(gain), 0, 2);
       if (x.audio && offset_seconds !== undefined) x.audio.offset = Math.max(0, Number(offset_seconds));
+      // Time-stretch and pitch (F23).
+      if (x.audio && (stretch_mode !== undefined || ratio !== undefined || original_bpm !== undefined)) {
+        const cur = x.audio.stretch ?? { mode: 'off' as const };
+        const mode = (stretch_mode ?? (ratio !== undefined ? 'fixed' : cur.mode)) as 'off' | 'fixed' | 'follow_tempo';
+        const next = { ...cur, mode, ...(ratio !== undefined ? { ratio: clamp(Number(ratio), 0.25, 4) } : {}), ...(original_bpm !== undefined ? { originalBpm: clamp(Number(original_bpm), 40, 240) } : {}) };
+        if (mode === 'follow_tempo' && !next.originalBpm) throw new Error('follow_tempo needs the clip\'s original tempo: pass original_bpm, or call detect_tempo first');
+        if (mode === 'fixed' && !next.ratio) next.ratio = 1;
+        // The clip keeps its musical length: in beats when it follows the tempo, in seconds × ratio when fixed.
+        const before = stretchFactor(x.audio, d.bpm);
+        x.audio.stretch = next;
+        const after = stretchFactor(x.audio, d.bpm);
+        if (length_bars === undefined && before !== after) x.length = +((x.length * after) / before).toFixed(4);
+      }
+      if (x.audio && pitch !== undefined) {
+        const v = clamp(Math.round(Number(pitch) * 100) / 100, -24, 24);
+        if (v) x.audio.pitch = v;
+        else delete x.audio.pitch;
+      }
     });
-    return { region_id: r.id };
+    const a = getRegion(st().project, r.id)!.audio;
+    return { region_id: r.id, ...(a?.stretch ? { stretch: a.stretch, factor: +stretchFactor(a, st().project.bpm).toFixed(4) } : {}), ...(a?.pitch ? { pitch: a.pitch } : {}) };
   },
 
   delete_region: ({ region_id }) => {

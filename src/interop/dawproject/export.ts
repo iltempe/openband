@@ -7,6 +7,7 @@ import type { Project, Track } from '../../types';
 import { normalizeFx } from '../../audio/fx';
 import { findInstrument } from '../../audio/instruments';
 import { lanesOf, mix, pointsOf, targetKey } from '../../automation';
+import { stretchFactor } from '../../audio/stretch';
 import { BEATS_PER_BAR } from '../../music';
 import { writeXml, x, type XNode } from './xml';
 import type { ReportItem } from './report';
@@ -118,11 +119,14 @@ export function projectToDawproject(p: Project, samples: Record<string, ExportSa
           const path = audioPath(r.audio.sampleId, s.name);
           files[path] = s.data;
           const startSec = r.audio.offset;
+          // A stretched clip (F23) covers less (or more) of its file than its length in seconds.
+          const factor = stretchFactor(r.audio, p.bpm);
+          if (r.audio.pitch) report.push({ code: 'export_skipped', track: t.name, detail: `pitch shift of ${r.name} (${r.audio.pitch > 0 ? '+' : ''}${r.audio.pitch} semitones)` });
           return x('Clip', { time: r.start, duration: r.length, playStart: 0, name: r.name }, [
             x('Warps', { contentTimeUnit: 'seconds', timeUnit: 'beats', id: `${xid(r.id)}_warps` }, [
               x('Audio', { algorithm: 'stretch', channels: s.channels, duration: s.duration, sampleRate: s.sampleRate, id: `${xid(r.id)}_audio` }, [x('File', { path })]),
               x('Warp', { time: 0, contentTime: startSec }),
-              x('Warp', { time: r.length, contentTime: startSec + r.length * spb }),
+              x('Warp', { time: r.length, contentTime: startSec + (r.length * spb) / factor }),
             ]),
           ]);
         }
