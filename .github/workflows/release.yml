@@ -120,8 +120,12 @@ jobs:
       - shell: bash
         run: |
           cd build/desktop
-          files=$(ls *.dmg *.zip *.exe *.AppImage *.deb 2>/dev/null)
-          for f in $files; do cp "$f" "${f/-${GITHUB_REF_NAME#v}/}"; done
-          gh release upload "${GITHUB_REF_NAME}" $files $(for f in $files; do echo "${f/-${GITHUB_REF_NAME#v}/}"; done) --clobber
+          # Each system makes only some of these: patterns that match nothing just vanish.
+          shopt -s nullglob
+          files=(*.dmg *.zip *.exe *.AppImage *.deb)
+          test ${#files[@]} -gt 0
+          stable=()
+          for f in "${files[@]}"; do cp "$f" "${f/-${GITHUB_REF_NAME#v}/}"; stable+=("${f/-${GITHUB_REF_NAME#v}/}"); done
+          gh release upload "${GITHUB_REF_NAME}" "${files[@]}" "${stable[@]}" --clobber
         env:
           GH_TOKEN: ${{ github.token }}
