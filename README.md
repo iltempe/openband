@@ -35,6 +35,7 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 - **Versions and branches, like git for songs**: save versions, branch off to try another direction (*“what if the chorus were slower?”*), go back at any time (undoable; unsaved work is kept as a WIP version), and **merge** branches three-way — changes on different tracks, regions or fields combine by themselves, real conflicts are listed with *keep ours / take theirs*. The **compare view** colours the timeline (green added, yellow changed, red dashed removed), shows the other version's notes as ghosts in the piano roll, and lets you A/B the two versions in sync. `export_project_json({canonical:true})` writes deterministic JSON for git.
 - **Explain mode**: right-click a region, a section or selected notes and choose **Explain** — the AI answers with a comment pinned right there (*“C in first inversion: E in the bass softens the move from Fmaj7…”*). Turn on **Teach me** and the AI annotates its non-obvious choices while it works. Comments live in the song (threads, replies, resolve), survive export and undo, and are kept — marked *deleted* — if their target goes away.
 - **Takes, comping and blind A/B**: every region can hold alternative takes — recorded in cycle mode (one per pass, as in GarageBand) or written by the AI (*“give me 4 bass lines”*). Comp the best parts by dragging across the take lanes, or run a **blind test**: the takes loop as A/B/C/D in random order, you rank them, and only then the names are revealed (and the AI gets your ranking).
+- **Record like a studio**: pick the input device, arm several audio tracks with **R** (input 1 on the vocal, input 2 on the guitar) and they record together; **punch in/out** over a range after a pre-roll replaces only those bars, as a new take with 5 ms crossfades; with the cycle on, every pass becomes a take; optional input monitoring tells you its latency.
 - **A drummer and a loop library**: *add_drummer* plays a human-like part in one of 10 styles (rock, pop, funk, boom-bap, trap, lo-fi, house, bossa, ballad, shuffle) that follows the song — simpler in verses, fuller in choruses, fills before each new section — and the same seed always plays the same part, so alternatives are a new seed away (as takes, for a blind test). The *Loops* tab of the library has 16 CC0 loops (drums, bass, keys, pad, lead) made with OpenBand: preview them at your tempo and key, add them at the playhead and they follow the song.
 - **Time-stretch and pitch for audio clips**: a loop can *follow the tempo* of the song (its own BPM is read from the file name or its onsets), be stretched by a ratio, or be transposed in semitones without changing its length — and changing the key offers to transpose the audio clips too. OpenBand's own WSOLA and phase vocoder (no GPL code) run in a worker; attacks stay within a few ms of the beat ([ADR](docs/adr/0002-time-stretch.md)).
 - **Automate anything**: besides volume, pan, tone and sends, every parameter of the built-in effects (EQ frequency, compressor threshold, drive…) and of any plugin can have a curve — values in the parameter's own units, the same live and in the export. Draw it, or record it: set the lane to *Touch* or *Latch* and move knobs and faders while the song plays.
@@ -49,7 +50,7 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 - **The AI follows along**: phrases you play (split after a bar of silence), what you select, play/stop, your edits and questions typed in *Ask the AI* reach the connected AI as events. A switch in the AI panel turns activity sharing off (questions are always sent).
 - **Undo by intent**: everything the AI does for one request is a single, labelled undo step (*“Undo: Lo-fi beat (23 commands)”*); drags and knob turns are one step each. **Plugins included**: whatever you change in a plugin's own window (presets, modes, wavetables — not just automatable knobs) and every `set_plugin_params` is an undo step too, and undo puts the plugin back in exactly the state it was in.
 - **Undo/redo**, autosave, **WAV export** with offline rendering; projects with imported sounds are saved as a single `.openband` file that bundles the samples.
-- **AI control via MCP**: 127 tools to compose, arrange, import sounds, add plugins, mix, automate and export — the AI can add a plugin just from a description such as *“a warm tube overdrive”*.
+- **AI control via MCP**: 129 tools to compose, arrange, import sounds, add plugins, mix, automate and export — the AI can add a plugin just from a description such as *“a warm tube overdrive”*.
 - **English and Italian** interface (switch from the start screen or the ⋯ menu).
 
 | Piano roll | Mixer |
@@ -77,8 +78,10 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 | ![Mix vs reference curves and suggestions](docs/reference.png) | ![Reference strip in the mixer](docs/reference-strip.png) |
 | **Microphone: record or hum** | **The AI asks before recording** |
 | ![Microphone menu](docs/recording.png) | ![Recording confirmation](docs/record-confirm.png) |
-| **Time-stretch: a loop following the tempo** | **The loop library and the drummer** |
-| ![Audio clip editor with Follow tempo (92 BPM) and pitch](docs/time-stretch.png) | ![Loops tab with a preview playing, a drummer part and loops in the song](docs/loops.png) |
+| **Punch-in with pre-roll, armed inputs** | **Time-stretch: a loop following the tempo** |
+| ![Recording menu with input, armed track and punch range](docs/punch.png) | ![Audio clip editor with Follow tempo (92 BPM) and pitch](docs/time-stretch.png) |
+| **The loop library and the drummer** | |
+| ![Loops tab with a preview playing, a drummer part and loops in the song](docs/loops.png) | |
 | **DAWproject import report** | **Automating a plugin parameter** |
 | ![What wasn't imported from a Bitwig project](docs/dawproject-report.png) | ![A plugin's filter frequency automated, with Read / Touch / Latch](docs/automation-plugin.png) |
 | **Time machine** | **Crash recovery** |
@@ -245,7 +248,7 @@ The server is only a relay and stores nothing: songs stay in the tab. Each MCP s
 | Monitoring | `get_meters` (live LUFS and true peak of the master and every track, target status), `set_monitoring` (mono, dim, target, reset — listening only), `level_match` (how much an FX chain or plugin changes the loudness; `apply` compensates), `update_track({polarity})` |
 | Flubs | `add_flub` (playhead or bar/beat; kinds flub / good / note), `list_flubs`, `resolve_flub`, `delete_flub`, `replace_with_best_take`; `flub` events as the user marks |
 | Reference | `import_reference` (path or URL, optional excerpt), `compare_to_reference` (loudness-matched differences and suggestions), `clear_reference` |
-| Recording | `record_audio` (microphone, count-in, mode `audio` or `hum`; the user confirms), `audio_to_midi` (monophonic audio → notes, snap to key, quantize with strength) |
+| Recording | `record_audio` (microphone or interface, count-in, mode `audio` or `hum`; armed tracks together, punch with pre-roll, cycle passes as takes; the user confirms), `arm_track` (input channel per track), `set_punch` (in/out bars, pre-roll), `audio_to_midi` (monophonic audio → notes, snap to key, quantize with strength) |
 | Mix | `set_track_effects` (amp, EQ, compressor), `set_automation` (mix, effect or plugin parameter), `clear_automation`, `list_automatable` |
 | Plugins | `add_plugin` (from a plain-language description), `search_plugins`, `list_plugins`, `add_plugin_instrument`, `add_plugin_effect`, `remove_plugin_effect`, `set_plugin_bypass`, `get_plugin_params`, `set_plugin_params`, `show_plugin` |
 | Files | `export_wav`, `export_midi` (optionally `save_to` a path), `import_midi` |

@@ -6,6 +6,16 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 The v0.3 work follows [docs/SPEC-v0.3.md](docs/SPEC-v0.3.md).
 
+### F25 · Multi-input recording, punch-in and pre-roll
+- Input device selection (`enumerateDevices`) in the microphone menu; the recording worklet now forwards every channel of the device (`getUserMedia({channelCount})`, discrete channels), and each armed track takes its own: e.g. input 1 → Vocal, input 2 → Guitar.
+- **Arm** per audio track (the **R** button in the track header): several armed tracks record together in one pass, each into its own clip.
+- **Punch in/out** on a bar range with a **pre-roll** of N bars (the song plays, the recording starts at the punch-in and stops at the punch-out; the song's loop is suspended meanwhile). Over an existing clip the result is a new take of that clip — the old audio with only the punched range replaced, joined by 5 ms equal-power crossfades (`src/punch.ts`, pure) — else a new clip. A red band shows the range on the ruler.
+- **Loop recording**: with the cycle on (and no punch), every pass becomes a take of one clip over the cycle, the last one active (F12).
+- Optional **input monitoring**, with a warning when the device's latency is noticeable (over 12 ms).
+- Arming, punch and device are session settings (not undo steps, like in other DAWs).
+- Tools: `arm_track({track_id, input_channel, armed?})`, `set_punch({in_bar, out_bar, pre_roll_bars, enabled?})`, `record_audio` uses them (`use_setup`, default true) and lists every recorded clip. 129 tools.
+- Tests: a 2-bar punch replaces only that range (outside the crossfades the original is bit-identical, inside only the new audio), crossfades of exactly 5 ms without a jump, pre-roll plans (also at the song start), loop passes, monitor latency. In Chrome with a fake 2-channel interface (220 Hz on input 1, 440 Hz on input 2): two armed tracks recorded together got 220 and 440 Hz; a punch on bars 2–3 with a 1-bar pre-roll (input 1 now at 660 Hz) produced Take 2 with 220 / 660 / 220 Hz in bars 1 / 2–3 / 4 and no larger sample step at the seams than inside; a 3-pass cycle recording produced 3 takes.
+
 ### F24 · Drummer and CC0 loop library
 - Drummer (`src/generate/drummer.ts`, pure and deterministic — no LLM): 10 styles (rock, pop, funk, boom-bap, trap, lo-fi, house, bossa, ballad, shuffle), each a grammar of 16-step lines with probabilities, extra lines that complexity unlocks, ghost notes, accents, humanized velocity and timing, swing (16ths, or 8ths for shuffle), fills at the end of sections or every 4 bars (toms, snare or hat rolls per style) and a crash after them. The section's energy (F8) scales complexity and loudness: simpler in verses, fuller in choruses. Hits of the same drum are never closer than a 32nd (a monophonic drum voice can't play them — found when the loop builder crashed on one).
 - Tools: `add_drummer({track_id?, section_id? | from_bar…to_bar, style, complexity, loudness, swing, fills, seed?})` — for a section, a range or the whole song, on the drum track or a new one with the kit for the style; the region remembers how it was made. `regenerate_drummer({region_id, seed?, as_take?, …})` — the next seed by default, optionally another style; as a take for a blind test (F12).

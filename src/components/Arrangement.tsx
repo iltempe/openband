@@ -1,4 +1,5 @@
 import { RegionFlags, RulerFlags } from './Flubs';
+import { armTrack, useRecSetup } from '../recording';
 import { hasAutomation, targetKey } from '../automation';
 import { stretchFactor } from '../audio/stretch';
 import { memo, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
@@ -183,6 +184,7 @@ function Ruler({ totalBeats }: { totalBeats: number }) {
         <div className="loop-range" style={{ left: loop.start * zoom, width: (loop.end - loop.start) * zoom }} />
       )}
       <RulerFlags zoom={zoom} />
+      <PunchBand zoom={zoom} />
       {Array.from({ length: bars }, (_, i) =>
         i % labelEvery === 0 ? (
           <div key={i} className="ruler-bar" style={{ left: i * BEATS_PER_BAR * zoom }}>
@@ -192,6 +194,24 @@ function Ruler({ totalBeats }: { totalBeats: number }) {
       )}
     </div>
   );
+}
+
+/** R: arm an audio track to record (F25); several armed tracks record together, each from its input. */
+function ArmButton({ trackId }: { trackId: string }) {
+  const ch = useRecSetup((s) => s.armed[trackId]);
+  const t = useT();
+  return (
+    <button className={`ms arm ${ch !== undefined ? 'on' : ''}`} onClick={() => armTrack(trackId, ch !== undefined ? null : 0)} title={ch !== undefined ? t('rec.armedOn', { n: ch + 1 }) : t('rec.arm')}>
+      R
+    </button>
+  );
+}
+
+/** The punch range on the ruler (F25). */
+function PunchBand({ zoom }: { zoom: number }) {
+  const punch = useRecSetup((s) => s.punch);
+  if (!punch.enabled) return null;
+  return <div className="punch-range" style={{ left: punch.inBeat * zoom, width: (punch.outBeat - punch.inBeat) * zoom }} />;
 }
 
 // ---------- Playhead ----------
@@ -339,6 +359,7 @@ function TrackHeader({ track, selected }: { track: Track; selected: boolean }) {
         >
           A
         </button>
+        {track.kind === 'audio' && <ArmButton trackId={track.id} />}
       </div>
       <button className="th-delete" onClick={() => commands.delete_track({ track_id: track.id })} title={t('arr.deleteTrack')}>
         <I.Trash width={14} height={14} />

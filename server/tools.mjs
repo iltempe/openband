@@ -572,12 +572,26 @@ tool('clear_reference', 'Remove the reference track from the project.', {});
 
 // ---- recording
 
-tool('record_audio', 'Record from the user\'s microphone, with a one-bar count-in, starting at start_bar. The user is always asked to confirm in the studio first (returns {recorded:false} if they decline). mode "audio" makes an audio region; mode "hum" also turns the hummed/sung melody into MIDI notes on a new instrument track (the audio is kept, muted). Without bars, recording runs until the user presses stop.', {
+tool('record_audio', 'Record from the user\'s microphone or audio interface, with a one-bar count-in, starting at start_bar. The user is always asked to confirm in the studio first (returns {recorded:false} if they decline). mode "audio" makes an audio region; mode "hum" also turns the hummed/sung melody into MIDI notes on a new instrument track (the audio is kept, muted). Without bars, recording runs until the user presses stop. With the setup (use_setup, default true for audio): armed tracks (arm_track) record together, each from its input; a punch range (set_punch) records only between in and out after a pre-roll, as a new take of the clip there; with the cycle on, every pass becomes a take.', {
   mode: z.enum(['audio', 'hum']).optional(),
-  track_id: z.string().optional().describe('Audio track to record onto (default: a new one)'),
+  track_id: z.string().optional().describe('Audio track to record onto (default: a new one; ignored when tracks are armed)'),
   start_bar: z.number().int().min(1).optional(),
   bars: z.number().int().min(1).max(64).optional(),
+  use_setup: z.boolean().optional(),
 }, { timeout: 600000 });
+
+tool('arm_track', 'Arm an audio track to record from an input channel of the audio interface (1-based; e.g. input 1 on Vocal, input 2 on Guitar): armed tracks record together with record_audio. armed=false disarms.', {
+  track_id: z.string(),
+  input_channel: z.number().int().min(1).max(32).optional(),
+  armed: z.boolean().optional(),
+});
+
+tool('set_punch', 'Punch-in/out for record_audio: only bars in_bar…out_bar (out_bar exclusive) are recorded, after pre_roll_bars of the song playing; over an existing clip the result is a new take with 5 ms crossfades. enabled=false turns it off.', {
+  enabled: z.boolean().optional(),
+  in_bar: z.number().min(1).optional(),
+  out_bar: z.number().min(1).optional(),
+  pre_roll_bars: z.number().int().min(0).max(8).optional(),
+});
 
 tool('audio_to_midi', 'Convert a monophonic audio region (voice, whistle, bass, lead) into MIDI notes: YIN pitch tracking, note segmentation, optional snap to the project key and quantize with strength. The MIDI region is placed at the same position as the audio. Returns the notes.', {
   region_id: z.string().optional(),

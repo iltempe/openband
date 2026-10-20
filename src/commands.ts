@@ -80,7 +80,7 @@ import { checkout, createBranch, diffVersions, listVersions, mergeBranch, saveVe
 import { MAX_ANNOTATION, checkTarget, matchesTarget } from './annotations';
 import { useTeachMode } from './events';
 import { clearReference, compareToReference, importReference } from './reference';
-import { audioRegionToMidi, audioToMidi, recordFromMic, requestRecording, useMic } from './recording';
+import { armTrack, audioRegionToMidi, audioToMidi, recordFromMic, requestRecording, setPunch, useMic, useRecSetup } from './recording';
 import { download, renderProject } from './audio/render';
 import { t as tr, useLang } from './i18n';
 
@@ -1551,7 +1551,25 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   // ---------- recording ----------
 
-  record_audio: async ({ track_id, start_bar, bars, mode }) => {
+  arm_track: ({ track_id, input_channel, armed }) => {
+    const t = requireTrack(st().project, track_id);
+    const a = armTrack(t.id, armed === false ? null : Number(input_channel ?? 1) - 1);
+    const tracks = st().project.tracks;
+    return { armed: Object.entries(a).map(([id, ch]) => ({ track_id: id, name: tracks.find((x) => x.id === id)?.name, input_channel: ch + 1 })) };
+  },
+
+  set_punch: ({ enabled, in_bar, out_bar, pre_roll_bars }) => {
+    const cur = useRecSetup.getState().punch;
+    const p = setPunch({
+      enabled: enabled ?? (in_bar !== undefined || out_bar !== undefined ? true : cur.enabled),
+      ...(in_bar !== undefined ? { inBeat: barToBeat(Number(in_bar)) } : {}),
+      ...(out_bar !== undefined ? { outBeat: barToBeat(Number(out_bar)) } : {}),
+      ...(pre_roll_bars !== undefined ? { preRollBars: clamp(Math.round(Number(pre_roll_bars)), 0, 8) } : {}),
+    });
+    return { enabled: p.enabled, in_bar: beatToBar(p.inBeat), out_bar: beatToBar(p.outBeat), pre_roll_bars: p.preRollBars, note: 'record_audio now records only between the punch points, after the pre-roll, as a new take of the clip there (5 ms crossfades).' };
+  },
+
+  record_audio: async ({ track_id, start_bar, bars, mode, use_setup }) => {
     const m = mode === 'hum' ? 'hum' : 'audio';
     if (useMic.getState().state !== 'idle') throw new Error('The microphone is busy');
     if (track_id) {
@@ -1564,7 +1582,7 @@ export const commands: Record<string, (args: P) => unknown> = {
     // The user always confirms: an AI must not switch the microphone on by itself.
     const ok = await requestRecording(m, startBar, n);
     if (!ok) return { recorded: false, reason: 'The user declined' };
-    const r = await recordFromMic({ mode: m, trackId: track_id, startBeat: (startBar - 1) * BEATS_PER_BAR, bars: n });
+    const r = await recordFromMic({ mode: m, trackId: track_id, startBeat: (startBar - 1) * BEATS_PER_BAR, bars: n, useSetup: use_setup !== false });
     return { recorded: true, ...r };
   },
 
@@ -1671,7 +1689,7 @@ const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi', 'export_dawproject',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);
