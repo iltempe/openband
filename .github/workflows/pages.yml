@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Called by the release workflow, so the demo matches the published version.
+  workflow_call:
 
 permissions:
   contents: read

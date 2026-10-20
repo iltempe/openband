@@ -38,7 +38,7 @@ export interface Diagnostics {
   browser: string;
   platform: string;
   audio: { state: string; sampleRate: number | null; baseLatencyMs: number | null; outputLatencyMs: number | null };
-  bridge: { status: string; port: number; remote: boolean; serverVersion: string | null; problem: string | null };
+  bridge: { status: string; port: number; remote: boolean; serverVersion: string | null; problem: string | null; latest: string | null };
   permissions: Record<string, string>;
   storage: { usedMb: number | null; quotaMb: number | null };
   plugins: { loaded: string[]; failed: string[] };
@@ -86,7 +86,7 @@ export async function collectDiagnostics(): Promise<Diagnostics> {
     browser: browserName(ua),
     platform: (typeof navigator !== 'undefined' && (navigator as { userAgentData?: { platform?: string } }).userAgentData?.platform) || (typeof navigator !== 'undefined' ? navigator.platform : process.platform),
     audio,
-    bridge: { status: useStore.getState().bridgeStatus, port: b.port, remote: b.remote, serverVersion: b.serverVersion, problem: b.problem?.kind ?? null },
+    bridge: { status: useStore.getState().bridgeStatus, port: b.port, remote: b.remote, serverVersion: b.serverVersion, problem: b.problem?.kind ?? null, latest: b.update?.update_available ? b.update.latest : null },
     permissions,
     storage,
     // Plugin names come from the plugins themselves (not from the song).
@@ -105,7 +105,7 @@ export function diagnosticsText(d: Diagnostics): string {
   const lines = [
     `OpenBand ${d.app} · ${d.browser} · ${d.platform}`,
     `Audio: ${d.audio.state}, ${d.audio.sampleRate ?? '?'} Hz, latency base ${d.audio.baseLatencyMs ?? '?'} ms / output ${d.audio.outputLatencyMs ?? '?'} ms`,
-    `Bridge: ${d.bridge.status} (port ${d.bridge.port}${d.bridge.remote ? ', online demo' : ''}${d.bridge.serverVersion ? `, server ${d.bridge.serverVersion}` : ''}${d.bridge.problem ? `, problem: ${d.bridge.problem}` : ''})`,
+    `Bridge: ${d.bridge.status} (port ${d.bridge.port}${d.bridge.remote ? ', online demo' : ''}${d.bridge.serverVersion ? `, server ${d.bridge.serverVersion}` : ''}${d.bridge.problem ? `, problem: ${d.bridge.problem}` : ''}${d.bridge.latest ? `, update ${d.bridge.latest} available` : ''})`,
     `Permissions: ${Object.entries(d.permissions).map(([k, v]) => `${k} ${v}`).join(', ')}`,
     `Storage: ${d.storage.usedMb ?? '?'} MB used of ${d.storage.quotaMb ?? '?'} MB`,
     `Plugins: ${d.plugins.loaded.length} loaded${d.plugins.loaded.length ? ` (${d.plugins.loaded.join(', ')})` : ''}, ${d.plugins.failed.length} failed${d.plugins.failed.length ? `: ${d.plugins.failed.join(' | ')}` : ''}`,

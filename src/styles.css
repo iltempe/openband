@@ -4459,3 +4459,12 @@ div.ca-steps {
 .crash-card .diag-text {
   margin: 12px 0;
 }
+.ai-update {
+  margin: 8px 12px 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(34, 197, 94, 0.1);
+  border-left: 3px solid #22c55e;
+  font-size: 12px;
+  line-height: 1.4;
+}

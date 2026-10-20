@@ -6,7 +6,7 @@ import type { BridgeLogEntry } from '../types';
 import { useState } from 'react';
 import { emitStudioEvent, setActivitySharing, useActivitySharing } from '../events';
 import { BRIDGE_ENABLED, useBridge } from '../bridge';
-import { ConnectAI } from './ConnectAI';
+import { ConnectAI, MCPB_URL } from './ConnectAI';
 import { AIChat } from './AIChat';
 import { useApiKey } from '../ai/keys';
 import * as I from './Icons';
@@ -38,6 +38,7 @@ export function AIPanel() {
   const t = useT();
   const pairing = useBridge((b) => b.pairing);
   const hasKey = useApiKey((k) => k.hasKey);
+  const update = useBridge((b) => b.update);
 
   return (
     <aside className="ai-panel">
@@ -56,6 +57,12 @@ export function AIPanel() {
         </button>
       </div>
 
+      {status === 'connected' && update?.update_available && (
+        <div className="ai-update">
+          {t('upd.available', { latest: update.latest, current: update.current })}{' '}
+          <a href={MCPB_URL}>{t('upd.extension')}</a>
+        </div>
+      )}
       {status !== 'connected' && (hasKey ? <AIChat /> : <ConnectAI />)}
 
       {status === 'connected' && (

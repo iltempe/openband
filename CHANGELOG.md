@@ -6,6 +6,13 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 The v0.3 work follows [docs/SPEC-v0.3.md](docs/SPEC-v0.3.md).
 
+### D8 · Releases, versioning and update notices
+- `release.yml`: pushing `vX.Y.Z` checks the tag against `package.json`, runs the tests, smoke-tests the npm tarball, publishes it with provenance (`NPM_TOKEN`), builds and tests the `.mcpb`, creates the GitHub Release with the notes of that version from the CHANGELOG (`scripts/release-notes.mjs`) and the extension attached (also as `openband.mcpb`, for the README's "latest" link), then deploys the demo of the same version (the Pages workflow is now reusable). Guide: [docs/RELEASING.md](docs/RELEASING.md).
+- CI `release-dry-run` on every push: npm tarball, `.mcpb` and the demo's `version.json` carry the same version, and there are notes for it.
+- Bridge protocol compatibility as a tested function (`src/protocol.ts`): which side is older, explained in the panel.
+- Update notice: the server asks the npm registry at most once a day (cached, `OPENBAND_NO_UPDATE_CHECK=1` turns it off, silent on failure) and reports a newer version in its log, in `get_status` (`server: {version, protocol, update}`) and in the AI panel.
+- The demo publishes its version in `version.json` (D5). PR previews were not set up.
+
 ### D7 · Diagnostics, doctor and one-click bug reports
 - `openband doctor` now also lists the versions of its packages (MCP SDK, ws, zod) and of the checkout a client config points to, flags missing packages, and treats "client installed but without OpenBand" as a warning (⚠) rather than a failure.
 - *⋯ → Diagnostics*: app and browser versions, AudioContext state, sample rate, base/output latency, bridge status (port, server version, last problem), permissions (microphone, MIDI, Local Network Access), IndexedDB usage, plugins loaded and failed, local metrics (time to first sound / export) and the last 50 JS errors (captured from `error` / `unhandledrejection`).

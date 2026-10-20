@@ -169,7 +169,7 @@ Poi chiedi, per esempio:
 
 > Importa ~/Samples/voce.wav come traccia audio alla battuta 5, metti un compressore sul basso, fai entrare il pad in dissolvenza in due battute e salva il brano come ~/Desktop/brano.wav e brano.mid.
 
-Variabili d'ambiente: `OPENBAND_PORT` (predefinita 7777; se è occupata si usa la prima porta libera e lo studio si apre con `?mcp=<porta>`), `OPENBAND_OPEN_BROWSER=0` (non aprire il browser), `OPENBAND_COLLAB=1` (stanze multiplayer nella tua rete) e `OPENBAND_DEV_URL` (predefinita `http://localhost:5173`, usata quando manca la build). Problemi? `npx openband doctor` controlla Node, la porta (e chi la usa), la build, i pacchetti e i tuoi client MCP, con una soluzione per ogni ✗. Nello studio, *⋯ → Diagnostica* mostra audio, bridge, permessi, spazio, plugin ed errori recenti, e *Segnala un problema* apre una segnalazione su GitHub già compilata, senza niente delle tue canzoni e mai le tue chiavi, da rileggere prima di pubblicare.
+Variabili d'ambiente: `OPENBAND_PORT` (predefinita 7777; se è occupata si usa la prima porta libera e lo studio si apre con `?mcp=<porta>`), `OPENBAND_OPEN_BROWSER=0` (non aprire il browser), `OPENBAND_COLLAB=1` (stanze multiplayer nella tua rete), `OPENBAND_NO_UPDATE_CHECK=1` (non chiedere a npm, una volta al giorno, se c'è un OpenBand più nuovo) e `OPENBAND_DEV_URL` (predefinita `http://localhost:5173`, usata quando manca la build). Problemi? `npx openband doctor` controlla Node, la porta (e chi la usa), la build, i pacchetti e i tuoi client MCP, con una soluzione per ogni ✗. Nello studio, *⋯ → Diagnostica* mostra audio, bridge, permessi, spazio, plugin ed errori recenti, e *Segnala un problema* apre una segnalazione su GitHub già compilata, senza niente delle tue canzoni e mai le tue chiavi, da rileggere prima di pubblicare.
 
 **Dalla demo online.** Anche la demo può comandare il server OpenBand sul tuo computer: apri il pannello **AI** → *Collega AI*, installa l'estensione (o esegui `npx openband mcp`) e scrivi il **codice di abbinamento** di 6 cifre che Claude ti dà quando gli chiedi di aprire lo studio (il server lo stampa anche all'avvio). La scheda riceve un token di sessione, quindi ricaricando non lo richiede; riavviare il server lo revoca. Il browser potrebbe chiederti di consentire al sito l'accesso alla rete locale: è così che la pagina raggiunge `127.0.0.1`, scegli *Consenti*. Se il browser rifiuta, *Apri lo studio locale* porta la canzone aperta nello studio servito dal tuo computer.
 
@@ -237,7 +237,7 @@ npm run pack:mcpb           # build/openband-<versione>.mcpb per Claude Desktop 
 npm run e2e                 # lo studio compilato in Chrome: primo avvio sotto i 3 s, PWA offline
 ```
 
-La CI esegue typecheck e test a ogni push e pull request. La roadmap v0.2 è descritta in [docs/SPEC.md](docs/SPEC.md); le modifiche sono elencate in [CHANGELOG.md](CHANGELOG.md).
+La CI esegue typecheck e test a ogni push e pull request, più le build dei pacchetti (tarball npm su 3 sistemi × Node 18/20/22, il `.mcpb`), i controlli e2e e una prova della release. Release: vedi [docs/RELEASING.md](docs/RELEASING.md); un tag pubblica pacchetto npm, estensione e demo alla stessa versione. La roadmap v0.2 è descritta in [docs/SPEC.md](docs/SPEC.md); le modifiche sono elencate in [CHANGELOG.md](CHANGELOG.md).
 
 ## Struttura del codice
 

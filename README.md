@@ -171,7 +171,7 @@ Then ask, for example:
 
 > Import ~/Samples/vocal.wav as an audio track at bar 5, put a compressor on the bass, fade the pad in over two bars and save the song as ~/Desktop/song.wav and song.mid.
 
-Environment variables: `OPENBAND_PORT` (default 7777; when it is taken the next free port is used and the studio opens with `?mcp=<port>`), `OPENBAND_OPEN_BROWSER=0` (don't open the browser), `OPENBAND_COLLAB=1` (multiplayer rooms on your network) and `OPENBAND_DEV_URL` (default `http://localhost:5173`, used when there is no build). Trouble? `npx openband doctor` checks Node, the port (and who is using it), the build, the packages and your MCP clients, with a fix for each ✗. In the studio, *⋯ → Diagnostics* shows audio, bridge, permissions, storage, plugins and recent errors, and *Report a problem* opens a pre-filled GitHub issue — without anything from your songs and never your keys — that you read before posting.
+Environment variables: `OPENBAND_PORT` (default 7777; when it is taken the next free port is used and the studio opens with `?mcp=<port>`), `OPENBAND_OPEN_BROWSER=0` (don't open the browser), `OPENBAND_COLLAB=1` (multiplayer rooms on your network), `OPENBAND_NO_UPDATE_CHECK=1` (don't ask npm once a day whether a newer OpenBand exists) and `OPENBAND_DEV_URL` (default `http://localhost:5173`, used when there is no build). Trouble? `npx openband doctor` checks Node, the port (and who is using it), the build, the packages and your MCP clients, with a fix for each ✗. In the studio, *⋯ → Diagnostics* shows audio, bridge, permissions, storage, plugins and recent errors, and *Report a problem* opens a pre-filled GitHub issue — without anything from your songs and never your keys — that you read before posting.
 
 **From the online demo.** The demo can drive the OpenBand server on your computer too: open the **AI** panel → *Connect AI*, install the extension (or run `npx openband mcp`), and type the 6-digit **pairing code** that Claude gives you when you ask it to open the studio (the server also prints it when it starts). The tab gets a session token, so reloading doesn't ask again; restarting the server revokes it. Your browser may ask to let the site access your local network — that is how the page reaches `127.0.0.1`: choose *Allow*. If your browser refuses, *Open the local studio* takes the song you have open to the studio served on your computer.
 
@@ -239,7 +239,7 @@ npm run pack:mcpb           # build/openband-<version>.mcpb for Claude Desktop (
 npm run e2e                 # the built studio in Chrome: first run under 3 s, offline PWA
 ```
 
-CI runs typecheck and tests on every push and pull request. The v0.2 roadmap is specified in [docs/SPEC.md](docs/SPEC.md); changes are listed in [CHANGELOG.md](CHANGELOG.md).
+CI runs typecheck and tests on every push and pull request, plus the packaged builds (npm tarball on 3 OSes × Node 18/20/22, the `.mcpb`), the e2e checks and a release dry run. Releases: see [docs/RELEASING.md](docs/RELEASING.md) — one tag publishes the npm package, the extension and the demo at the same version. The v0.2 roadmap is specified in [docs/SPEC.md](docs/SPEC.md); changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## Code structure
 

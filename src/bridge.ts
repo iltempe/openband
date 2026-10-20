@@ -6,6 +6,7 @@ import { runCommand } from './commands';
 import { engine } from './audio/engine';
 import { emitSelection, emitStudioEvent, setEventSink } from './events';
 import { setCollabServer } from './collab/session';
+import { protocolProblem } from './protocol';
 
 // (Guarded so the module can be imported in Node tests.)
 const loc = typeof location !== 'undefined' ? location : ({ search: '', hostname: 'localhost' } as Location);
@@ -30,7 +31,13 @@ export type BridgeProblem =
   | { kind: 'protocol'; server: number; app: number; version?: string };
 
 /** Connection details for the AI panel (the store keeps the plain status). */
-export const useBridge = create<{ port: number; remote: boolean; pairing: boolean; problem: BridgeProblem | null; serverVersion: string | null }>(() => ({
+export interface ServerUpdate {
+  current: string;
+  latest: string;
+  update_available: boolean;
+}
+
+export const useBridge = create<{ port: number; remote: boolean; pairing: boolean; problem: BridgeProblem | null; serverVersion: string | null; update: ServerUpdate | null }>(() => ({
   // A page served by the OpenBand server talks to that same server (whatever free port it got);
   // Vite's dev server (5173) and the online demo default to 7777.
   port: Number(params.get('mcp') ?? (IS_LOCAL_PAGE && loc.port && loc.port !== '5173' ? loc.port : null) ?? sessionGet(PORT_KEY) ?? 7777),
@@ -38,6 +45,7 @@ export const useBridge = create<{ port: number; remote: boolean; pairing: boolea
   pairing: false,
   problem: null,
   serverVersion: null,
+  update: null,
 }));
 
 function sessionGet(k: string) {
@@ -118,7 +126,7 @@ export function connectBridge() {
     send({ type: 'hello', app: 'openband', protocol: PROTOCOL, ...(remote ? { token: sessionGet(TOKEN_KEY) ?? undefined, pair: pendingCode ?? undefined } : {}) });
   };
   ws.onmessage = async (ev) => {
-    let msg: { type: string; id: string; method: string; params: Record<string, unknown>; collab?: { lan: string[]; port: number } | null; protocol?: number; version?: string; token?: string; reason?: 'wrong' | 'expired' | 'locked' | 'missing'; attempts_left?: number; retry_in_ms?: number };
+    let msg: { type: string; id: string; method: string; params: Record<string, unknown>; collab?: { lan: string[]; port: number } | null; protocol?: number; update?: ServerUpdate | null; version?: string; token?: string; reason?: 'wrong' | 'expired' | 'locked' | 'missing'; attempts_left?: number; retry_in_ms?: number };
     try {
       msg = JSON.parse(ev.data);
     } catch {
@@ -138,6 +146,7 @@ export function connectBridge() {
       set({ bridgeStatus: 'disconnected' });
       return;
     }
+    if (msg.type === 'update') return void useBridge.setState({ update: msg.update ?? null });
     if (msg.type === 'paired') {
       pendingCode = null;
       if (msg.token) sessionSet(TOKEN_KEY, msg.token);
@@ -145,8 +154,8 @@ export function connectBridge() {
     }
     if (msg.type === 'hello') {
       setCollabServer(msg.collab ?? null);
-      const mismatch = typeof msg.protocol === 'number' && msg.protocol !== PROTOCOL;
-      useBridge.setState({ pairing: false, problem: mismatch ? { kind: 'protocol', server: msg.protocol!, app: PROTOCOL, version: msg.version } : null, serverVersion: msg.version ?? null });
+      const mismatch = protocolProblem(msg.protocol, PROTOCOL);
+      useBridge.setState({ pairing: false, problem: mismatch ? { kind: 'protocol', server: msg.protocol!, app: PROTOCOL, version: msg.version } : null, serverVersion: msg.version ?? null, update: msg.update ?? null });
       set({ bridgeStatus: 'connected' });
       setEventSink({
         event: (event) => send({ type: 'event', event }),

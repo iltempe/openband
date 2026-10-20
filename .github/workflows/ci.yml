@@ -81,3 +81,16 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: node scripts/e2e/run.mjs
+
+  # What a release would produce, without publishing: npm tarball and .mcpb at the same version, notes present.
+  release-dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/release-dry-run.mjs

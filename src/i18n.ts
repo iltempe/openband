@@ -407,6 +407,8 @@ const en = {
   'drum.SN': 'Snare',
   'drum.KK': 'Kick',
 
+  'upd.available': 'OpenBand {latest} is available (your server is {current}): update with npx openband@latest, or get the new',
+  'upd.extension': 'Claude Desktop extension',
   // Diagnostics
   'diag.title': 'Diagnostics',
   'diag.sub': 'What OpenBand knows about this browser — nothing about your songs, never your keys.',
@@ -1037,6 +1039,8 @@ const it: Record<MessageKey, string> = {
   'drum.SN': 'Rullante',
   'drum.KK': 'Cassa',
 
+  'upd.available': 'È disponibile OpenBand {latest} (il tuo server è {current}): aggiorna con npx openband@latest, oppure scarica la nuova',
+  'upd.extension': 'estensione per Claude Desktop',
   'diag.title': 'Diagnostica',
   'diag.sub': 'Quello che OpenBand sa di questo browser: niente delle tue canzoni, mai le tue chiavi.',
   'diag.copy': 'Copia',

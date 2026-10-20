@@ -13,6 +13,7 @@ import { SubscribeRequestSchema, UnsubscribeRequestSchema } from '@modelcontextp
 import { EventBuffer } from './events.mjs';
 import { INSTRUCTIONS, TOOLS } from './tools.mjs';
 import { Pairing, classifyOrigin, parseAllowedOrigins } from './pairing.mjs';
+import { checkForUpdate } from './update.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -124,7 +125,7 @@ wss.on('connection', (ws, _req, kind = 'local') => {
   const welcome = () => {
     studio = ws; // the most recent tab wins
     log(kind === 'local' ? 'studio connected' : 'studio connected (paired online demo)');
-    send({ type: 'hello', protocol: PROTOCOL, version: PKG.version, collab: COLLAB ? { lan: lanUrls(), port: PORT } : null });
+    send({ type: 'hello', protocol: PROTOCOL, version: PKG.version, update: updateInfo, collab: COLLAB ? { lan: lanUrls(), port: PORT } : null });
   };
   let paired = kind === 'local';
   if (paired) welcome();
@@ -176,6 +177,16 @@ httpServer.on('error', (err) => {
   bridgeError = err.code === 'EADDRINUSE' ? `Port ${PORT} is already in use (another OpenBand MCP server is running?). Set OPENBAND_PORT and open the studio with ?mcp=<port>.` : err.message;
   log(bridgeError);
 });
+/** Newer OpenBand on npm? (checked at most once a day; OPENBAND_NO_UPDATE_CHECK=1 turns it off) */
+let updateInfo = null;
+void checkForUpdate({ current: PKG.version }).then((u) => {
+  updateInfo = u;
+  if (u?.update_available) {
+    log(`OpenBand ${u.latest} is available (you have ${u.current}): npx openband@latest, or download the new extension`);
+    if (studio?.readyState === 1) studio.send(JSON.stringify({ type: 'update', update: u }));
+  }
+});
+
 httpServer.listen(PORT, HOST, () => {
   log(`bridge on ws://127.0.0.1:${PORT}/bridge`);
   log(`using the online demo (${ALLOWED_ORIGINS.join(', ')})? Pairing code: ${pairing.pretty()} (valid 10 minutes; open_studio gives a fresh one)`);
@@ -333,7 +344,10 @@ const savePath = (save_to, filename) => {
   return file;
 };
 const HANDLERS = {
-  call: (t) => async (args) => text(await call(t.name, args ?? {}, t.timeout)),
+  call: (t) =>
+    t.name === 'get_status'
+      ? async (args) => text({ ...(await call(t.name, args ?? {}, t.timeout)), server: { version: PKG.version, protocol: PROTOCOL, update: updateInfo } })
+      : async (args) => text(await call(t.name, args ?? {}, t.timeout)),
   file: (t) => async ({ source, ...args }) => {
     const { data, filename } = await readSource(source);
     return text(await call(t.name, { ...args, filename, data_base64: data.toString('base64') }, t.timeout));

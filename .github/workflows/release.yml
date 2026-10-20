@@ -1,0 +1,56 @@
+name: Release
+
+# Push a tag vX.Y.Z (matching package.json) to publish everything at the same version:
+# npm package (with provenance), Claude Desktop extension, GitHub Release with notes from the CHANGELOG,
+# and the online demo. Needs the NPM_TOKEN secret (an npm automation token).
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  id-token: write
+  pages: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tag matches package.json
+        run: test "v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
+      - run: npm run typecheck
+      - run: npm test
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/smoke-pack.mjs
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: node scripts/build-mcpb.mjs && node scripts/smoke-mcpb.mjs
+      # A stable name too, for the "latest" download link in the README.
+      - run: cp "build/openband-${GITHUB_REF_NAME#v}.mcpb" build/openband.mcpb
+      - run: node scripts/release-notes.mjs "${GITHUB_REF_NAME}" > build/notes.md
+      - run: gh release create "${GITHUB_REF_NAME}" build/*.mcpb --title "OpenBand ${GITHUB_REF_NAME}" --notes-file build/notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  demo:
+    needs: publish
+    uses: ./.github/workflows/pages.yml
