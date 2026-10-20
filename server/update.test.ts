@@ -5,7 +5,7 @@ import path from 'node:path';
 // @ts-expect-error plain ESM module
 import { checkForUpdate, newer } from './update.mjs';
 
-const fakeFetch = (version: string, calls: string[]) => (async (url: string) => (calls.push(url), { ok: true, json: async () => ({ version }) })) as unknown as typeof fetch;
+const fakeFetch = (version: string, calls: string[]) => (async (url: string) => (calls.push(url), { ok: true, json: async () => ({ tag_name: `v${version}` }) })) as unknown as typeof fetch;
 
 describe('update check', () => {
   it('compares versions', () => {

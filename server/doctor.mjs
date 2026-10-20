@@ -1,4 +1,5 @@
 // openband doctor: is everything in place? ✓/✗ with a fix for each ✗. Returns the exit code.
+import { PACKAGE_SPEC, RUN } from './package.mjs';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
@@ -44,7 +45,7 @@ export async function runChecks({ port = Number(process.env.OPENBAND_PORT || 777
   const deps = ['@modelcontextprotocol/sdk', 'ws', 'zod'].map((d) => [d, depVersion(d)]);
   const missingDeps = deps.filter(([, v]) => !v).map(([d]) => d);
   add(true, `OpenBand ${pkg.version} (${deps.filter(([, v]) => v).map(([d, v]) => `${d} ${v}`).join(', ')})`);
-  if (missingDeps.length) add(false, `Missing packages: ${missingDeps.join(', ')}`, 'Reinstall: npx openband@latest (or npm install in a checkout).');
+  if (missingDeps.length) add(false, `Missing packages: ${missingDeps.join(', ')}`, `Reinstall: ${RUN} (or npm install in a checkout).`);
   add(fs.existsSync(path.join(root, 'dist', 'index.html')), 'Studio build (dist/)', 'Run "npm run build" (only needed in a git checkout; the npm package ships it).');
   if (await portInUse(port)) {
     const who = await whoIsOnPort(port);
@@ -62,7 +63,9 @@ export async function runChecks({ port = Number(process.env.OPENBAND_PORT || 777
       add(false, `${c.name}: config is not valid JSON`, `Fix ${c.file}`);
       continue;
     }
-    const usesNpx = entry && entry.command === 'npx' && (entry.args ?? []).includes('openband');
+    const usesNpx = entry && entry.command === 'npx' && (entry.args ?? []).includes(PACKAGE_SPEC);
+    // An entry from an older setup: `npx openband` now runs someone else's npm package.
+    const strangerPackage = entry && entry.command === 'npx' && (entry.args ?? []).some((a) => /^openband(@.*)?$/.test(a));
     const usesPath = entry && (entry.args ?? []).some((a) => /mcp-server\.mjs$/.test(a));
     const pathOk = usesPath && (entry.args ?? []).every((a) => !/mcp-server\.mjs$/.test(a) || fs.existsSync(a));
     // A local checkout: which version is it?
@@ -75,15 +78,19 @@ export async function runChecks({ port = Number(process.env.OPENBAND_PORT || 777
     }
     if (entry && (usesNpx || pathOk)) configured++;
     // Not configured is only a warning (you may not use that client); a broken entry is an error.
-    add(!!entry && (usesNpx || pathOk), `${c.name}: ${!entry ? 'OpenBand not configured' : usesNpx ? 'uses npx openband' : pathOk ? `uses a local checkout${checkoutVersion}` : 'points to a file that does not exist'}`, 'Run "npx openband setup".', !entry);
+    if (strangerPackage) {
+      add(false, `${c.name}: runs the npm package "openband", which is not OpenBand's`, `Run "${RUN} setup" to point it to OpenBand.`);
+      continue;
+    }
+    add(!!entry && (usesNpx || pathOk), `${c.name}: ${!entry ? 'OpenBand not configured' : usesNpx ? `uses ${RUN}` : pathOk ? `uses a local checkout${checkoutVersion}` : 'points to a file that does not exist'}`, `Run "${RUN} setup".`, !entry);
   }
   if (hasCommand('claude')) {
     anyClient = true;
     configured++;
     add(true, 'Claude Code CLI found (check with "claude mcp list")');
   }
-  if (!anyClient) add(false, 'No MCP client found', 'Install Claude Desktop, Claude Code, Cursor or VS Code, then run "npx openband setup".');
-  else if (!configured) add(false, 'No MCP client has OpenBand yet', 'Run "npx openband setup".');
+  if (!anyClient) add(false, 'No MCP client found', `Install Claude Desktop, Claude Code, Cursor or VS Code, then run "${RUN} setup".`);
+  else if (!configured) add(false, 'No MCP client has OpenBand yet', `Run "${RUN} setup".`);
   return checks;
 }
 

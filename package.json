@@ -44,6 +44,7 @@
     "test:watch": "vitest",
     "lint:song": "node scripts/openband-lint.mjs",
     "start": "node bin/openband.mjs",
+    "prepare": "node scripts/prepare.mjs",
     "prepublishOnly": "npm run typecheck && npm test && npm run build",
     "smoke:pack": "node scripts/smoke-pack.mjs",
     "pack:mcpb": "node scripts/build-mcpb.mjs",

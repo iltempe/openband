@@ -4,8 +4,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-/** The entry every client gets: no absolute paths, always the published package. */
-export const SERVER_ENTRY = { command: 'npx', args: ['-y', 'openband', 'mcp'] };
+import { SERVER_ENTRY } from './package.mjs';
+
+/** The entry every client gets (no absolute paths): see server/package.mjs. */
+export { SERVER_ENTRY };
 
 function appData() {
   if (process.platform === 'win32') return process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');

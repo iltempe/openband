@@ -14,6 +14,7 @@ import { EventBuffer } from './events.mjs';
 import { INSTRUCTIONS, TOOLS } from './tools.mjs';
 import { Pairing, classifyOrigin, parseAllowedOrigins } from './pairing.mjs';
 import { checkForUpdate } from './update.mjs';
+import { RUN } from './package.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -251,7 +252,7 @@ let updateInfo = null;
 void checkForUpdate({ current: PKG.version }).then((u) => {
   updateInfo = u;
   if (u?.update_available) {
-    log(`OpenBand ${u.latest} is available (you have ${u.current}): npx openband@latest, or download the new extension`);
+    log(`OpenBand ${u.latest} is available (you have ${u.current}): ${RUN} gets it, or download the new extension`);
     if (studio?.readyState === 1) studio.send(JSON.stringify({ type: 'update', update: u }));
   }
 });

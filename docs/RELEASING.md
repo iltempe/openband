@@ -1,6 +1,8 @@
 # Releasing OpenBand
 
-One tag publishes everything at the same version: the npm package (`npx openband`), the Claude Desktop
+> **npm name:** `openband` on npm belongs to someone else (a reserved 0.0.0 package), so the npm publish step cannot succeed under that name and OpenBand installs from GitHub instead (`npx -y github:iltempe/openband`, see `server/package.mjs`). Before publishing to npm, pick a name OpenBand owns (for example a scope such as `@iltempe/openband`), set it in `package.json` and `server/package.mjs` / `src/install.ts`, and update the docs.
+
+One tag publishes everything at the same version: the npm package, the Claude Desktop
 extension (`.mcpb`, attached to the GitHub Release, also as `openband.mcpb` for the README's "latest" link),
 the release notes and the online demo.
 

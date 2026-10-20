@@ -9,13 +9,8 @@ import * as I from './Icons';
 import { KeyForm } from './AIChat';
 import { connectTabs, useConfig, type ConnectTab } from '../config';
 
-export const MCPB_URL = 'https://github.com/iltempe/openband/releases/latest/download/openband.mcpb';
-const CLI = 'claude mcp add openband -- npx -y openband mcp';
-const JSON_CONFIG = `{
-  "mcpServers": {
-    "openband": { "command": "npx", "args": ["-y", "openband", "mcp"] }
-  }
-}`;
+import { CLAUDE_CODE_ADD as CLI, MCPB_URL, MCP_JSON as JSON_CONFIG, RUN } from '../install';
+export { MCPB_URL };
 
 type Tab = ConnectTab;
 
@@ -148,7 +143,7 @@ export function ConnectAI() {
           <p>{t('ca.cli1')}</p>
           <Copyable text={CLI} />
           <p>{t('ca.cli2')}</p>
-          <Copyable text="npx openband setup" />
+          <Copyable text={`${RUN} setup`} />
           <p>{t('ca.cli3')}</p>
           <Copyable text={JSON_CONFIG} />
           <p>{BRIDGE_ENABLED ? t('ca.cliLocal') : t('ca.cliDemo')}</p>
