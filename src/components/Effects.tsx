@@ -9,6 +9,7 @@ import { useT } from '../i18n';
 import { Knob } from './Knob';
 import * as I from './Icons';
 import { PluginSlots } from './Plugins';
+import { LevelMatchControl } from './LevelMatch';
 
 export function Effects() {
   const project = useStore((s) => s.project);
@@ -70,6 +71,7 @@ function TrackEffects({ track }: { track: Track }) {
         <div className="smart-kicker">{t('fx.title')}</div>
         <div className="fx-track-name">{track.name}</div>
         <div className="smart-desc">{t('fx.chainPlugins')}</div>
+        <LevelMatchControl track={track} />
       </div>
       <Unit title={t('fx.amp')} on={fx.amp.on} onToggle={() => update((f) => void (f.amp.on = !f.amp.on), true)}>
         <Knob {...k} label={t('fx.drive')} value={fx.amp.drive} defaultValue={0.45} color="#fb923c" onChange={(v) => update((f) => void (f.amp.drive = v))} format={(v) => `${Math.round(v * 100)}%`} />

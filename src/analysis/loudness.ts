@@ -23,33 +23,27 @@ export interface LoudnessStats {
 
 type Biquad = [b0: number, b1: number, b2: number, a1: number, a2: number];
 
-/** K-weighting for any sample rate (the BS.1770 filters re-derived from their analog prototypes). */
+/**
+ * K-weighting for any sample rate: the BS.1770 pre-filter (high shelf) and RLB high-pass, re-derived
+ * from their analog prototypes with the bilinear transform (as libebur128 does). At 48 kHz this gives
+ * the coefficients published in BS.1770; a 997 Hz sine at 0 dBFS in one channel reads −3.01 LUFS.
+ */
 export function kWeighting(fs: number): [Biquad, Biquad] {
   // Stage 1: high shelf (head acoustics).
+  let f0 = 1681.974450955533;
   const G = 3.999843853973347;
-  const Q = 0.7071752369554196;
-  const fc = 1681.974450955533;
-  const A = Math.pow(10, G / 40);
-  let w0 = (2 * Math.PI * fc) / fs;
-  let alpha = Math.sin(w0) / (2 * Q);
-  let cos = Math.cos(w0);
-  const sa = 2 * Math.sqrt(A) * alpha;
-  let a0 = A + 1 - (A - 1) * cos + sa;
-  const shelf: Biquad = [
-    (A * (A + 1 + (A - 1) * cos + sa)) / a0,
-    (-2 * A * (A - 1 + (A + 1) * cos)) / a0,
-    (A * (A + 1 + (A - 1) * cos - sa)) / a0,
-    (2 * (A - 1 - (A + 1) * cos)) / a0,
-    (A + 1 - (A - 1) * cos - sa) / a0,
-  ];
+  let Q = 0.7071752369554196;
+  let K = Math.tan((Math.PI * f0) / fs);
+  const Vh = Math.pow(10, G / 20);
+  const Vb = Math.pow(Vh, 0.4996667741545416);
+  let a0 = 1 + K / Q + K * K;
+  const shelf: Biquad = [(Vh + (Vb * K) / Q + K * K) / a0, (2 * (K * K - Vh)) / a0, (Vh - (Vb * K) / Q + K * K) / a0, (2 * (K * K - 1)) / a0, (1 - K / Q + K * K) / a0];
   // Stage 2: RLB high-pass.
-  const Qh = 0.5003270373238773;
-  const fh = 38.13547087602444;
-  w0 = (2 * Math.PI * fh) / fs;
-  alpha = Math.sin(w0) / (2 * Qh);
-  cos = Math.cos(w0);
-  a0 = 1 + alpha;
-  const hp: Biquad = [(1 + cos) / 2 / a0, -(1 + cos) / a0, (1 + cos) / 2 / a0, (-2 * cos) / a0, (1 - alpha) / a0];
+  f0 = 38.13547087602444;
+  Q = 0.5003270373238773;
+  K = Math.tan((Math.PI * f0) / fs);
+  a0 = 1 + K / Q + K * K;
+  const hp: Biquad = [1, -2, 1, (2 * (K * K - 1)) / a0, (1 - K / Q + K * K) / a0];
   return [shelf, hp];
 }
 

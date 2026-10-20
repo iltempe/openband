@@ -30,6 +30,10 @@ import { emptyProject, enterAiCommand, exitAiCommand, isAiCommand, getRegion, ge
 import { engine } from './audio/engine';
 import { checkSegments, compNotes, nextTakeName, withTakes, type CompSegment } from './takes';
 import { startABTest } from './abtest';
+import { readMeter, resetMeters } from './audio/meters';
+import { targetStatus } from './analysis/liveLoudness';
+import { currentTarget, setMonitoring, useMonitoring } from './monitoring';
+import { levelMatch } from './levelMatch';
 import { pluginsChanged } from './pluginHistory';
 import type { HistoryEntry } from './types';
 import { bestTakeAt, fixWindow, takeOf } from './flubs';
@@ -280,7 +284,7 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { track_id: track.id, name: track.name, kind: track.kind, instrument: track.instrument };
   },
 
-  update_track: ({ track_id, name, instrument, volume, pan, mute, solo, reverb, delay, tone }) => {
+  update_track: ({ track_id, name, instrument, volume, pan, mute, solo, reverb, delay, tone, polarity }) => {
     const t = requireTrack(st().project, track_id);
     if (instrument !== undefined) {
       const preset = findInstrument(instrument);
@@ -301,6 +305,10 @@ export const commands: Record<string, (args: P) => unknown> = {
       if (reverb !== undefined) tr.reverb = clamp(Number(reverb), 0, 1);
       if (delay !== undefined) tr.delay = clamp(Number(delay), 0, 1);
       if (tone !== undefined) tr.cutoff = clamp(Number(tone), 0, 1);
+      if (polarity !== undefined) {
+        if (polarity) tr.polarity = true;
+        else delete tr.polarity;
+      }
     });
     return summarize(st().project).tracks.find((x) => x.id === t.id);
   },
@@ -1173,6 +1181,33 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { region_id: r.id, take_id: comp.id, name: comp.name, notes: notes.length, segments: segs.map((s) => ({ ...s, take: takes.find((t) => t.id === s.take_id)!.name })) };
   },
 
+  // ---- monitoring (F20)
+  get_meters: () => {
+    const p = st().project;
+    const fin = (v: number) => (Number.isFinite(v) ? +v.toFixed(1) : null);
+    const read = (key: string) => {
+      const r = readMeter(key);
+      return { momentary_lufs: fin(r.momentary), short_term_lufs: fin(r.shortTerm), integrated_lufs: fin(r.integrated), true_peak_dbtp: fin(r.truePeak), true_peak_max_dbtp: fin(r.truePeakMax) };
+    };
+    const master = read('master');
+    const target = currentTarget();
+    return {
+      playing: engine.playing,
+      master: { ...master, target: { id: target.id, lufs: target.lufs, ceiling_dbtp: target.ceiling }, status: targetStatus(master.short_term_lufs ?? -Infinity, master.true_peak_max_dbtp ?? -Infinity, target) },
+      tracks: p.tracks.map((tr) => ({ track_id: tr.id, name: tr.name, ...read(tr.id) })),
+      monitoring: { mono: useMonitoring.getState().mono, dim: useMonitoring.getState().dim },
+      ...(engine.playing ? {} : { note: 'The meters read live audio: start playback (transport play) and wait at least 3 s for short-term values.' }),
+    };
+  },
+
+  set_monitoring: ({ mono, dim, target, reset_meters }) => {
+    setMonitoring({ ...(mono !== undefined ? { mono: !!mono } : {}), ...(dim !== undefined ? { dim: !!dim } : {}), ...(target ? { target } : {}) });
+    if (reset_meters) resetMeters();
+    return { ...useMonitoring.getState(), note: 'Monitoring only: mono and dim never affect exports.' };
+  },
+
+  level_match: async ({ track_id, slot_id, apply }) => levelMatch(requireTrack(st().project, track_id).id, slot_id ?? null, !!apply),
+
   // ---- flub markers (F18)
   add_flub: ({ beat, bar, kind, text, track_id }) => {
     const at = beat !== undefined ? Number(beat) : bar !== undefined ? barToBeat(Number(bar)) : undefined;
@@ -1382,7 +1417,7 @@ const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'get_meters', 'set_monitoring', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

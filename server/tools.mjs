@@ -27,6 +27,7 @@ In a multiplayer room (get_peers), say who you are acting for and avoid editing 
 To jam with the user: set_jam_mode({enabled:true, response_track_id}), then repeatedly wait_for_event({kinds:["phrase"]}) and answer with play_phrase (it is quantized to the next window, so latency is fine).
 Before a big rework, save_version; to try a different direction without losing the current one, create_branch + checkout (merge brings the good parts back).
 To offer alternatives, add them as takes (add_take) and let the user pick with a blind test (start_ab_test, then wait_for_event ab_result).
+Use get_meters for live loudness, level_match before judging whether an effect chain helps.
 Flubs: list_flubs shows where the user marked mistakes while recording; offer to fix them (comp from takes, re-record, or edit notes).
 Run lint_project before declaring a task done and fix errors (apply_fix).
 Before mixing decisions, LISTEN: call analyze_mix (and render_spectrogram if useful). After changes, analyze again and compare. If the user names a song they want to sound like, import_reference it and use compare_to_reference.
@@ -82,7 +83,7 @@ tool('add_track', 'Add a track. Give an instrument id (preset or imported, see l
   name: z.string().optional(),
 });
 
-tool('update_track', 'Change a track: name, instrument preset (same kind), volume 0..1, pan -1..1, mute, solo, reverb 0..1, delay 0..1, tone 0..1 (brightness / low-pass).', {
+tool('update_track', 'Change a track: name, instrument preset (same kind), volume 0..1, pan -1..1, mute, solo, reverb 0..1, delay 0..1, tone 0..1 (brightness / low-pass), polarity (true = inverted, rendered too).', {
   track_id: z.string(),
   name: z.string().optional(),
   instrument: z.string().optional(),
@@ -93,6 +94,7 @@ tool('update_track', 'Change a track: name, instrument preset (same kind), volum
   reverb: z.number().min(0).max(1).optional(),
   delay: z.number().min(0).max(1).optional(),
   tone: z.number().min(0).max(1).optional(),
+  polarity: z.boolean().optional().describe('Invert the polarity (phase) of the track'),
 });
 
 tool(
@@ -422,6 +424,23 @@ tool('start_ab_test', 'Open a blind A/B listening test of 2–4 takes of a regio
   take_ids: z.array(z.string()).min(2).max(4).optional(),
   loop: z.boolean().optional(),
 }, readOnly);
+
+// ---- monitoring
+
+tool('get_meters', 'Live loudness of the master and of each track while the song plays: momentary (400 ms), short-term (3 s) and integrated LUFS since the last reset, true peak (dBTP, last 400 ms and highest), the loudness target and whether the master meets it (green/yellow/red). Start playback first and wait 3 s for short-term values.', {}, readOnly);
+
+tool('set_monitoring', 'What the user hears, never what is exported: mono (L+R summed, to check mono compatibility), dim (speakers −20 dB), the loudness target of the meter (streaming −14, apple −16, broadcast −23, club −8 LUFS), reset_meters (integrated loudness and true-peak hold start again).', {
+  mono: z.boolean().optional(),
+  dim: z.boolean().optional(),
+  target: z.enum(['streaming', 'apple', 'broadcast', 'club']).optional(),
+  reset_meters: z.boolean().optional(),
+});
+
+tool('level_match', 'How much louder (+) or quieter (−) a track\'s effect chain — or one plugin slot — makes it, measured offline over 3 s from the playhead (or the track\'s first region). Louder always sounds "better": call this before judging whether an effect helps. apply=true makes the compensation permanent (the chain output trim). Returns gain_change_db.', {
+  track_id: z.string(),
+  slot_id: z.string().optional().describe('One plugin slot; omit for the whole chain (amp, EQ, compressor, plugins)'),
+  apply: z.boolean().optional(),
+}, { timeout: 120000 });
 
 // ---- flub markers
 

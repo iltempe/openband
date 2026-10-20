@@ -1,5 +1,6 @@
 // Web Audio Module plugins: browser (catalog + URL), floating plugin window, effect slots.
 import { usePluginSync } from '../pluginHistory';
+import { LevelMatchControl } from './LevelMatch';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { create } from 'zustand';
 import type { Track } from '../types';
@@ -232,6 +233,7 @@ export function PluginSlots({ track }: { track: Track }) {
             <button className="mini" onClick={() => set({ pluginWindow: { trackId: track.id, slotId: s.id } })}>
               {tr('plug.edit')}
             </button>
+            <LevelMatchControl track={track} slotId={s.id} compact />
             <button className="mini danger" onClick={() => removePluginEffect(track.id, s.id)}>
               <I.Close width={12} height={12} />
             </button>

@@ -13,7 +13,7 @@ export const defaultFx = (): TrackFx => ({
 /** Fill in any missing section, e.g. for projects saved before a parameter existed. */
 export function normalizeFx(fx?: Partial<TrackFx>): TrackFx {
   const d = defaultFx();
-  return { amp: { ...d.amp, ...fx?.amp }, eq: { ...d.eq, ...fx?.eq }, comp: { ...d.comp, ...fx?.comp }, plugins: fx?.plugins ?? [] };
+  return { amp: { ...d.amp, ...fx?.amp }, eq: { ...d.eq, ...fx?.eq }, comp: { ...d.comp, ...fx?.comp }, plugins: fx?.plugins ?? [], ...(fx?.trim ? { trim: fx.trim } : {}) };
 }
 
 const dbToGain = (db: number) => Math.pow(10, db / 20);
@@ -55,6 +55,10 @@ export class FxChain {
   private makeup = new Tone.Gain(1);
   private routing = '';
   private plugins = new Map<string, WamEffect>();
+  /** Level-matched A/B (F20): the whole chain (slotId null) or one plugin bypassed, with this gain in its place. */
+  private compare: { slotId: string | null; gainDb: number } | null = null;
+  private compareGain = new Tone.Gain(1);
+  private last?: TrackFx;
 
   /** keyPrefix (the track id) registers live plugin instances for their GUI and MCP. */
   constructor(private keyPrefix?: string) {
@@ -80,7 +84,9 @@ export class FxChain {
       if (!this.plugins.has(s.id)) this.plugins.set(s.id, new WamEffect(s.url, s.state, this.keyPrefix && `${this.keyPrefix}:${s.id}`));
       this.plugins.get(s.id)!.setBypass(!s.on);
     }
-    const routing = `${fx.amp.on}${fx.eq.on}${fx.comp.on}|${slots.map((s) => s.id).join(',')}`;
+    this.last = raw;
+    const cmp = this.compare;
+    const routing = `${fx.amp.on}${fx.eq.on}${fx.comp.on}|${slots.map((s) => s.id).join(',')}|${cmp ? `${cmp.slotId}` : ''}`;
     if (routing !== this.routing) {
       this.routing = routing;
       this.input.disconnect();
@@ -88,13 +94,21 @@ export class FxChain {
       this.eq.disconnect();
       this.makeup.disconnect();
       this.plugins.forEach((p) => p.output.disconnect());
+      this.compareGain.disconnect();
       const stages: { in: Tone.InputNode; out: Tone.ToneAudioNode }[] = [];
-      if (fx.amp.on) stages.push({ in: this.amp.input, out: this.amp.output });
-      if (fx.eq.on) stages.push({ in: this.eq, out: this.eq });
-      if (fx.comp.on) stages.push({ in: this.comp, out: this.makeup });
-      for (const s of slots) {
-        const p = this.plugins.get(s.id)!;
-        stages.push({ in: p.input, out: p.output });
+      if (cmp && cmp.slotId === null) stages.push({ in: this.compareGain, out: this.compareGain });
+      else {
+        if (fx.amp.on) stages.push({ in: this.amp.input, out: this.amp.output });
+        if (fx.eq.on) stages.push({ in: this.eq, out: this.eq });
+        if (fx.comp.on) stages.push({ in: this.comp, out: this.makeup });
+        for (const s of slots) {
+          if (cmp?.slotId === s.id) {
+            stages.push({ in: this.compareGain, out: this.compareGain });
+            continue;
+          }
+          const p = this.plugins.get(s.id)!;
+          stages.push({ in: p.input, out: p.output });
+        }
       }
       let from: Tone.ToneAudioNode = this.input;
       for (const st of stages) {
@@ -116,6 +130,15 @@ export class FxChain {
     this.comp.attack.rampTo(fx.comp.attack, 0.03);
     this.comp.release.rampTo(fx.comp.release, 0.03);
     this.makeup.gain.rampTo(dbToGain(fx.comp.makeup), 0.03);
+    // Output trim: a level-match compensation made permanent (rendered too).
+    this.output.gain.rampTo(dbToGain(fx.trim ?? 0), 0.03);
+    this.compareGain.gain.rampTo(dbToGain(cmp?.gainDb ?? 0), 0.03);
+  }
+
+  /** Hear the chain (or one plugin) bypassed at matched loudness; null goes back to normal. Live only. */
+  setCompare(c: { slotId: string | null; gainDb: number } | null) {
+    this.compare = c;
+    this.update(this.last);
   }
 
   /** Gain reduction of the compressor in dB (≤ 0), for the meter in the UI. */
@@ -126,6 +149,6 @@ export class FxChain {
   dispose() {
     this.plugins.forEach((p) => p.dispose());
     this.amp.dispose();
-    [this.input, this.output, this.eq, this.comp, this.makeup].forEach((n) => n.dispose());
+    [this.input, this.output, this.eq, this.comp, this.makeup, this.compareGain].forEach((n) => n.dispose());
   }
 }

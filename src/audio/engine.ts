@@ -6,6 +6,7 @@ import { faderToDb, sendToDb } from '../music';
 import { createInstrument, customById, makeImpulse, type Instrument } from './instruments';
 import { getBuffer, onSamplesChanged } from './samples';
 import { FxChain } from './fx';
+import { attachMeter, detachMeter } from './meters';
 
 interface TrackNode {
   presetId: string;
@@ -16,6 +17,8 @@ interface TrackNode {
   meter: Tone.Meter;
   reverbSend: Tone.Gain;
   delaySend: Tone.Gain;
+  /** ×1 or ×−1 (polarity). */
+  polarity: Tone.Gain;
 }
 
 interface NoteEvent {
@@ -45,6 +48,10 @@ class AudioEngine {
   metronomeForced = false;
   private ready = false;
   private monitor!: Tone.Gain;
+  /** Monitoring only (never in exports): mono sum and the −20 dB dim, after the monitor. */
+  private monoSum!: Tone.Mono;
+  private dimGain!: Tone.Gain;
+  monitoring = { mono: false, dim: false };
   private refPlayer: Tone.Player | null = null;
   private refGain = 1;
   /** Ephemeral notes (the AI's live answers): played at absolute times, never stored in the song. */
@@ -59,8 +66,12 @@ class AudioEngine {
     if (this.ready) return;
     this.ready = true;
     // master → monitor → speakers; the monitor is what the reference A/B switch fades out.
-    this.monitor = new Tone.Gain(1).toDestination();
+    this.dimGain = new Tone.Gain(1).toDestination();
+    this.monoSum = new Tone.Mono();
+    this.monitor = new Tone.Gain(1).connect(this.dimGain);
     this.master = new Tone.Gain(1).connect(this.monitor);
+    void attachMeter('master', this.master);
+    this.applyMonitoring();
     this.masterMeter = new Tone.Meter({ smoothing: 0.85 });
     this.master.connect(this.masterMeter);
     this.reverb = new Tone.Convolver(makeImpulse(2.8, 3.2)).connect(this.master);
@@ -244,6 +255,7 @@ class AudioEngine {
       if (!alive.has(id)) {
         this.disposeNode(node);
         this.nodes.delete(id);
+        detachMeter(id);
       }
     }
     for (const track of p.tracks) this.syncTrack(track);
@@ -265,10 +277,12 @@ class AudioEngine {
       channel.connect(reverbSend);
       channel.connect(delaySend);
       const fx = new FxChain(track.id);
-      fx.output.connect(channel);
+      const polarity = new Tone.Gain(1).connect(channel);
+      fx.output.connect(polarity);
+      void attachMeter(track.id, channel);
       const instrument = createInstrument(track.instrument, undefined, `${track.id}:instrument`);
       instrument.output.connect(fx.input);
-      node = { presetId: signature, instrument, fx, fxSignature: '', channel, meter, reverbSend, delaySend };
+      node = { presetId: signature, instrument, fx, fxSignature: '', channel, meter, reverbSend, delaySend, polarity };
       this.nodes.set(track.id, node);
     } else if (node.presetId !== signature) {
       node.instrument.releaseAll();
@@ -279,6 +293,7 @@ class AudioEngine {
       node.presetId = signature;
     }
     const ch = node.channel;
+    node.polarity.gain.value = track.polarity ? -1 : 1;
     if (ch.mute !== track.mute) ch.mute = track.mute;
     if (ch.solo !== track.solo) ch.solo = track.solo;
     this.applyMix(node, track, this.position);
@@ -365,6 +380,26 @@ class AudioEngine {
     this.players.push(player);
   }
 
+  /** Mono sum and dim: what you hear only — exports render their own graph without them. */
+  setMonitoring(m: Partial<{ mono: boolean; dim: boolean }>) {
+    this.monitoring = { ...this.monitoring, ...m };
+    if (this.ready) this.applyMonitoring();
+  }
+  private applyMonitoring() {
+    this.monitor.disconnect();
+    this.monoSum.disconnect();
+    if (this.monitoring.mono) {
+      this.monitor.connect(this.monoSum);
+      this.monoSum.connect(this.dimGain);
+    } else this.monitor.connect(this.dimGain);
+    this.dimGain.gain.rampTo(this.monitoring.dim ? 0.1 : 1, 0.03);
+  }
+
+  /** The FX chain of a track (level-matched A/B). */
+  fxChain(trackId: string) {
+    return this.nodes.get(trackId)?.fx;
+  }
+
   private disposeNode(n: TrackNode) {
     n.instrument.releaseAll();
     n.instrument.dispose();
@@ -373,6 +408,7 @@ class AudioEngine {
     n.meter.dispose();
     n.reverbSend.dispose();
     n.delaySend.dispose();
+    n.polarity.dispose();
   }
 }
 

@@ -98,6 +98,8 @@ export interface Track {
   cutoff: number;
   /** Insert effects, applied in this order: amp → EQ → compressor. Missing = all off. */
   fx?: TrackFx;
+  /** Polarity inverted (F20): monitoring and render. */
+  polarity?: boolean;
   /** Automation curves; a parameter with points follows its curve instead of the static value. */
   automation?: Partial<Record<AutoParam, AutoPoint[]>>;
 }
@@ -117,6 +119,8 @@ export interface TrackFx {
   comp: { on: boolean; /** dB −60..0 */ threshold: number; /** 1..20 */ ratio: number; /** seconds */ attack: number; release: number; /** dB 0..24 */ makeup: number };
   /** Web Audio Module effect plugins, after the built-in units, in order. */
   plugins?: PluginSlot[];
+  /** Output trim of the chain in dB (a level-match compensation made permanent, F20). */
+  trim?: number;
 }
 
 export interface PluginSlot {

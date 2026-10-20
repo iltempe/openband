@@ -1,11 +1,11 @@
 // Offline rendering: the whole song, a range, or single tracks (stems), as AudioBuffers or a WAV.
 import * as Tone from 'tone';
-import type { Project } from '../types';
+import type { Project, TrackFx } from '../types';
 import { faderToDb, sendToDb } from '../music';
 import { projectEnd, projectSampleIds } from '../store';
 import { ensureSamples, getBuffer } from './samples';
 import { createInstrument, makeImpulse, seeded } from './instruments';
-import { FxChain } from './fx';
+import { FxChain, normalizeFx } from './fx';
 import { effectiveValue, hasAutomation } from '../automation';
 
 const dbToGain = (db: number) => (db === -Infinity ? 0 : Math.pow(10, db / 20));
@@ -21,6 +21,18 @@ export interface RenderOptions {
   sampleRate?: number;
   /** Extra seconds after toBeat for reverb/delay tails (default 3; 0 for section analysis). */
   tailSeconds?: number;
+  /** Render one track with its FX chain (slotId null) or one plugin bypassed (level match, F20). */
+  bypass?: { trackId: string; slotId: string | null };
+}
+
+/** A chain with everything off (slotId null) or without one plugin, and without the output trim. */
+export function bypassed(fx: TrackFx | undefined, slotId: string | null): TrackFx | undefined {
+  if (!fx) return fx;
+  if (slotId === null) {
+    const n = normalizeFx(fx);
+    return { amp: { ...n.amp, on: false }, eq: { ...n.eq, on: false }, comp: { ...n.comp, on: false }, plugins: [] };
+  }
+  return { ...fx, plugins: (fx.plugins ?? []).filter((s) => s.id !== slotId) };
 }
 
 // Small LRU of recent renders: analysis tools often render the same song several times in a row.
@@ -58,6 +70,7 @@ export async function renderProject(p: Project): Promise<Blob> {
 }
 
 async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer> {
+  const bypass = o.bypass;
   const fromBeat = Math.max(0, o.fromBeat ?? 0);
   const toBeat = Math.max(fromBeat + 0.25, o.toBeat ?? Math.max(projectEnd(p), 4));
   const sampleRate = o.sampleRate ?? 44100;
@@ -89,10 +102,11 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
       const ch = new Tone.Channel({ volume: faderToDb(track.volume), pan: track.pan }).connect(master);
       if ('ready' in inst) loading.push((inst as { ready: Promise<void> }).ready);
       const fx = new FxChain();
-      fx.update(track.fx);
+      fx.update(bypass?.trackId === track.id ? bypassed(track.fx, bypass.slotId) : track.fx);
       loading.push(fx.ready);
       inst.output.connect(fx.input);
-      fx.output.connect(ch);
+      // Polarity is part of the mix (exported); mono and dim are monitoring only and never get here.
+      fx.output.connect(new Tone.Gain(track.polarity ? -1 : 1).connect(ch));
       const revSend = new Tone.Gain(dbToGain(sendToDb(track.reverb))).connect(reverb);
       const delSend = new Tone.Gain(dbToGain(sendToDb(track.delay)) * 0.7).connect(delay);
       ch.connect(revSend);
