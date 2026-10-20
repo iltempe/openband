@@ -1,5 +1,6 @@
 // Importing sounds from outside: sampler instruments, drum kits, SoundFont presets, audio clips,
 // and self-contained project bundles (.openband = zip of project.json + samples).
+import { exportName } from './journal';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import type { CustomInstrument, Project, Region, SampleZone } from './types';
 import { BEATS_PER_BAR, DRUM_PIECES, uid } from './music';
@@ -183,7 +184,7 @@ export async function saveProject() {
   const p = useStore.getState().project;
   const safe = p.name.replace(/[^\w\- ]+/g, '').trim() || 'openband';
   if (!hasSamples(p)) {
-    download(new Blob([JSON.stringify(p, null, 2)], { type: 'application/json' }), `${safe}.openband.json`);
+    download(new Blob([JSON.stringify(p, null, 2)], { type: 'application/json' }), exportName(safe, '.openband.json'));
     return;
   }
   const ids = [...new Set(projectSampleIds(p))];
@@ -198,7 +199,7 @@ export async function saveProject() {
   }
   files['samples.json'] = strToU8(JSON.stringify(manifest, null, 2));
   const zip = zipSync(files, { level: 0 });
-  download(new Blob([zip], { type: 'application/zip' }), `${safe}.openband`);
+  download(new Blob([zip], { type: 'application/zip' }), exportName(safe, '.openband'));
 }
 
 /** Parse a project file (.json or .openband bundle), restoring bundled samples first. */

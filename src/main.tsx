@@ -1,4 +1,5 @@
 import './audio/context';
+import { initJournal } from './journal';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import { App } from './App';
@@ -30,6 +31,7 @@ useStore.subscribe((s, prev) => {
 
 initReference();
 initVersions();
+void initJournal();
 initJam();
 initFirstRun();
 void loadKeyState();

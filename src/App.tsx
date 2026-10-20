@@ -20,7 +20,7 @@ import { SoundFontDialog, handleDroppedFiles } from './components/ImportUI';
 import { MicOverlay } from './components/Mic';
 import { ABOverlay, TakesDialog } from './components/Takes';
 import { CommentsPanel, ExplainMenu } from './components/Comments';
-import { CompareBanner, VersionsPanel } from './components/Versions';
+import { CompareBanner, RecoveryBanner, VersionsPanel } from './components/Versions';
 import { JoinDialog } from './components/Collab';
 import { DiagnosticsPage } from './components/Diagnostics';
 import { ShortcutsSheet, TemplateGallery, TourCard, Welcome, useOverlays } from './components/Welcome';
@@ -260,6 +260,7 @@ export function App() {
       </div>
       {s.keyboardOpen && <MusicalTyping />}
       <SoundFontDialog />
+      <RecoveryBanner />
       <PluginRestoreOverlay />
       <MicOverlay />
       <TakesDialog />

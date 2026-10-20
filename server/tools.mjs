@@ -27,6 +27,7 @@ In a multiplayer room (get_peers), say who you are acting for and avoid editing 
 To jam with the user: set_jam_mode({enabled:true, response_track_id}), then repeatedly wait_for_event({kinds:["phrase"]}) and answer with play_phrase (it is quantized to the next window, so latency is fine).
 Before a big rework, save_version; to try a different direction without losing the current one, create_branch + checkout (merge brings the good parts back).
 To offer alternatives, add them as takes (add_take) and let the user pick with a blind test (start_ab_test, then wait_for_event ab_result).
+Before destructive operations a version is saved automatically; preview_at/restore_at can bring back any earlier moment.
 Use get_meters for live loudness, level_match before judging whether an effect chain helps.
 Flubs: list_flubs shows where the user marked mistakes while recording; offer to fix them (comp from takes, re-record, or edit notes).
 Run lint_project before declaring a task done and fix errors (apply_fix).
@@ -424,6 +425,22 @@ tool('start_ab_test', 'Open a blind A/B listening test of 2–4 takes of a regio
   take_ids: z.array(z.string()).min(2).max(4).optional(),
   loop: z.boolean().optional(),
 }, readOnly);
+
+// ---- safety net: journal and time machine
+
+const Time = z.union([z.string(), z.number()]).describe('ISO date-time ("2026-10-20T14:32:00"), ms since epoch, or relative: "-20m", "-2h", "-90s"');
+
+tool('get_timeline', 'Every step journaled for this song (edits, AI requests, undo/redo, loads) with its time, plus checkpoints — the time machine works without saved versions. Optional from/to.', {
+  from: Time.optional(),
+  to: Time.optional(),
+}, readOnly);
+
+tool('preview_at', 'The song as it was at a moment (summary like get_project), without changing anything. E.g. time "-20m" for twenty minutes ago.', { time: Time }, readOnly);
+
+tool('restore_at', 'Go back to how the song was at a moment: replaces the song (one undo step; a version of the current state is saved first), or with as_branch (true or a name) opens it as a new branch instead.', {
+  time: Time,
+  as_branch: z.union([z.boolean(), z.string()]).optional(),
+});
 
 // ---- monitoring
 

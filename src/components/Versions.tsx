@@ -1,4 +1,5 @@
 // Versions panel: branch graph, save/branch/checkout, compare view, A/B listening and merge.
+import { applyRecovery, dismissRecovery, previewInCompare, restoreAt, useJournal } from '../journal';
 import { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import { runCommand } from '../commands';
@@ -203,6 +204,14 @@ export function VersionsPanel() {
           ) : (
             <div className="ver-meta">{t('ver.pick')}</div>
           )}
+          <TimeMachine
+            listening={listening}
+            onListen={listen}
+            onStop={() => {
+              stopListening();
+              stopCompare();
+            }}
+          />
           {others.length > 0 && (
             <>
               <div className="an-title">{t('ver.merge')}</div>
@@ -236,6 +245,74 @@ export function VersionsPanel() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ago(ms: number, t: ReturnType<typeof useT>) {
+  const s = Math.round((Date.now() - ms) / 1000);
+  if (s < 30) return t('jr.now');
+  const txt = s < 3600 ? `${Math.round(s / 60)} min` : s < 86400 ? `${(s / 3600).toFixed(1)} h` : `${Math.round(s / 86400)} d`;
+  return t('jr.ago', { t: txt });
+}
+
+/** F21: a slider over everything journaled for this song; preview a moment, listen A/B, restore it or branch from it. */
+function TimeMachine({ listening, onListen, onStop }: { listening: string; onListen: (w: 'a' | 'b') => void; onStop: () => void }) {
+  const t = useT();
+  const { first, last } = useJournal();
+  const compare = useVersions((v) => v.compare);
+  const [at, setAt] = useState<number | null>(null);
+  const previewing = compare?.versionId.startsWith('time:');
+  if (!first || !last) return <div className="ver-meta">{t('jr.empty')}</div>;
+  const value = at ?? last;
+  return (
+    <div className="time-machine">
+      <div className="an-title">{t('jr.machine')}</div>
+      <div className="ver-meta">{t('jr.machineSub')}</div>
+      <input type="range" min={first} max={last} step={1000} value={value} onChange={(e) => setAt(Number(e.target.value))} aria-label={t('jr.machine')} />
+      <div className="tm-when">
+        {new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })} · {ago(value, t)}
+      </div>
+      <div className="ver-actions">
+        <button className={`btn ${previewing ? 'primary' : ''}`} onClick={() => (previewing ? onStop() : void previewInCompare(value).catch(notify))}>
+          {previewing ? t('ver.stopCompare') : t('jr.preview')}
+        </button>
+        <button className="btn" onClick={() => (onStop(), void restoreAt(value).catch(notify))}>
+          {t('jr.restoreHere')}
+        </button>
+        <button className="btn" onClick={() => (onStop(), void restoreAt(value, true).catch(notify))}>
+          {t('jr.branchHere')}
+        </button>
+      </div>
+      {previewing && (
+        <div className="ref-ab" title={t('ver.listenHint')}>
+          <button className={listening === 'a' ? 'on' : ''} onClick={() => onListen('a')}>
+            A
+          </button>
+          <button className={listening === 'b' ? 'on' : ''} onClick={() => onListen('b')} disabled={listening === 'loading'}>
+            {listening === 'loading' ? '…' : 'B'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The journal holds work the autosave missed (a crash, a full disk): offer it back. */
+export function RecoveryBanner() {
+  const r = useJournal((s) => s.recovery);
+  const t = useT();
+  if (!r) return null;
+  return (
+    <div className="mic-overlay ver-banner recovery-banner" role="alert">
+      <span className="mic-dot" style={{ background: '#22c55e' }} />
+      <span className="mic-status">{r.count === 1 ? t('jr.banner1') : t('jr.banner', { n: r.count })}</span>
+      <button className="btn primary" onClick={applyRecovery}>
+        {t('jr.restore')}
+      </button>
+      <button className="btn" onClick={dismissRecovery}>
+        {t('jr.ignore')}
+      </button>
     </div>
   );
 }

@@ -124,11 +124,11 @@ export async function isDirty(): Promise<boolean> {
   return canonicalJSON(await getSnapshot(h)) !== canonicalJSON(st().project);
 }
 
-export async function saveVersion(label: string, author: 'user' | 'ai', extra: { parentIds?: string[]; branch?: string } = {}) {
+export async function saveVersion(label: string, author: 'user' | 'ai', extra: { parentIds?: string[]; branch?: string; project?: Project } = {}) {
   await ensureLoaded();
   const s = vs();
   const branch = extra.branch ?? s.branch;
-  const project = structuredClone(st().project);
+  const project = structuredClone(extra.project ?? st().project);
   const v: StoredVersion = {
     id: uid('ver'),
     projectId: s.projectId!,
@@ -175,8 +175,51 @@ export async function createBranch(name: string, fromVersionId?: string) {
   return { branch: clean, head_id: from };
 }
 
+/**
+ * A version saved by itself before a destructive operation (F21): "Before: <what>". The state is taken
+ * now (synchronously); nothing is saved for an empty song or one that equals the current version.
+ */
+export function autoVersion(what: string, project: Project = st().project, author: 'user' | 'ai' = 'user'): Promise<string | null> {
+  const snap = structuredClone(project);
+  if (!snap.tracks.length) return Promise.resolve(null);
+  const label = `Before: ${what}`.slice(0, 80);
+  return (async () => {
+    // Let the operation that asked for it finish (it may replace the song: new_project, import).
+    await new Promise((r) => setTimeout(r, 0));
+    if (projectIdOf(snap) !== projectIdOf(st().project)) return await saveVersionOf(snap, label, author);
+    await ensureLoaded();
+    const h = vs().headId;
+    if (h && canonicalJSON(await getSnapshot(h)) === canonicalJSON(snap)) return null;
+    return (await saveVersion(label, author, { project: snap })).id;
+  })().catch(() => null);
+}
+
+/** Save a version of a song that is not the open one, on its current branch (its HEAD moves to it). */
+async function saveVersionOf(p: Project, label: string, author: 'user' | 'ai'): Promise<string | null> {
+  const pid = projectIdOf(p);
+  let head: { branch: string; headId: string | null } = { branch: 'main', headId: null };
+  try {
+    head = JSON.parse(localStorage.getItem(headKey(pid)) ?? 'null') ?? head;
+  } catch {
+    // main
+  }
+  if (head.headId) {
+    const prev = await tx<StoredVersion | undefined>('versions', 'readonly', (s) => s.get(head.headId!));
+    if (prev && canonicalJSON(unpack(prev.snapshot)) === canonicalJSON(p)) return null;
+  }
+  const v: StoredVersion = { id: uid('ver'), projectId: pid, parentIds: head.headId ? [head.headId] : [], branch: head.branch, label, createdAt: Date.now(), author, snapshot: pack(p) };
+  await tx('versions', 'readwrite', (x) => x.put(v));
+  await tx('branches', 'readwrite', (x) => x.put({ id: `${pid}:${head.branch}`, projectId: pid, name: head.branch, headId: v.id } satisfies BranchRef));
+  try {
+    localStorage.setItem(headKey(pid), JSON.stringify({ branch: head.branch, headId: v.id }));
+  } catch {
+    // not kept
+  }
+  return v.id;
+}
+
 /** Replace the song with a snapshot as one undoable step. */
-function replaceProject(next: Project, label: string) {
+export function replaceProject(next: Project, label: string) {
   const keepId = st().project.meta?.projectId;
   st().commit((d) => {
     for (const k of Object.keys(d)) delete (d as unknown as Record<string, unknown>)[k];
@@ -188,9 +231,7 @@ function replaceProject(next: Project, label: string) {
 export async function checkout(ref: { branch?: string; version_id?: string }, author: 'user' | 'ai') {
   await ensureLoaded();
   if (!ref.branch && !ref.version_id) throw new Error('Give a branch or a version_id');
-  let wip: string | null = null;
-  if (vs().headId && (await isDirty())) wip = (await saveVersion('WIP', author)).id;
-  else if (!vs().headId && st().project.tracks.length) wip = (await saveVersion('WIP', author)).id;
+  const wip = await autoVersion(`checkout ${ref.branch ?? ref.version_id}`, st().project, author);
   const branch = ref.branch ? vs().branches.find((b) => b.name === ref.branch) : undefined;
   if (ref.branch && !branch) throw new Error(`Branch "${ref.branch}" not found`);
   const id = branch ? branch.headId : resolveRef(ref.version_id!);
@@ -215,14 +256,17 @@ export async function mergeBranch(fromBranch: string, strategy: MergeStrategy = 
   if (!from) throw new Error(`Branch "${fromBranch}" not found`);
   if (fromBranch === s.branch) throw new Error('Cannot merge a branch into itself');
   if (!s.headId) throw new Error('Save a version on this branch first');
-  const parents = new Map(s.versions.map((v) => [v.id, v.parentIds]));
-  const baseId = commonAncestor(parents, s.headId, from.headId);
+  await autoVersion(`merge ${fromBranch}`, st().project, author);
+  // The automatic version (if any) is the new HEAD of this branch.
+  const headId = vs().headId!;
+  const parents = new Map(vs().versions.map((v) => [v.id, v.parentIds]));
+  const baseId = commonAncestor(parents, headId, from.headId);
   const theirs = await getSnapshot(from.headId);
   const base = baseId ? await getSnapshot(baseId) : theirs;
   const res = mergeProjects(base, st().project, theirs, strategy, picks);
   replaceProject(res.project, `Merge ${fromBranch}`);
   let version: string | undefined;
-  if (!res.conflicts.length) version = (await saveVersion(`Merge ${fromBranch} into ${s.branch}`, author, { parentIds: [s.headId, from.headId] })).id;
+  if (!res.conflicts.length) version = (await saveVersion(`Merge ${fromBranch} into ${s.branch}`, author, { parentIds: [headId, from.headId] })).id;
   return { merged: fromBranch, into: s.branch, base_id: baseId, taken_from_branch: res.taken, conflicts: res.conflicts, ...(version ? { version_id: version } : {}) };
 }
 

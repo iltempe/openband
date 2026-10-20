@@ -34,6 +34,19 @@ import { readMeter, resetMeters } from './audio/meters';
 import { targetStatus } from './analysis/liveLoudness';
 import { currentTarget, setMonitoring, useMonitoring } from './monitoring';
 import { levelMatch } from './levelMatch';
+import { projectAt, restoreAt, timeline } from './journal';
+import { autoVersion } from './versioning';
+
+/** ISO date, ms since epoch, or a relative "-20m" / "-2h" / "-90s". */
+function toTime(v: unknown): number {
+  if (typeof v === 'number') return v;
+  const s = String(v ?? '').trim();
+  const rel = s.match(/^-(\d+(?:\.\d+)?)\s*(s|m|min|h|d)$/i);
+  if (rel) return Date.now() - Number(rel[1]) * ({ s: 1e3, m: 6e4, min: 6e4, h: 3.6e6, d: 8.64e7 } as Record<string, number>)[rel[2].toLowerCase()];
+  const ms = Date.parse(s);
+  if (Number.isNaN(ms)) throw new Error('time: an ISO date ("2026-10-20T14:32:00"), ms since epoch, or relative like "-20m"');
+  return ms;
+}
 import { pluginsChanged } from './pluginHistory';
 import type { HistoryEntry } from './types';
 import { bestTakeAt, fixWindow, takeOf } from './flubs';
@@ -245,6 +258,7 @@ export const commands: Record<string, (args: P) => unknown> = {
   }),
 
   new_project: ({ name, bpm, key }) => {
+    void autoVersion(tr('jr.newSong'), st().project, isAiCommand() ? 'ai' : 'user');
     const p = emptyProject(name ?? tr('name.newSong'), clamp(Number(bpm ?? 110), 40, 240));
     if (key) p.key = key;
     engine.stop();
@@ -379,6 +393,7 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   delete_track: ({ track_id }) => {
     const t = requireTrack(st().project, track_id);
+    if (st().project.regions.some((r) => r.trackId === t.id)) void autoVersion(`delete ${t.name}`, st().project, isAiCommand() ? 'ai' : 'user');
     st().commit((d) => {
       d.tracks = d.tracks.filter((x) => x.id !== t.id);
       d.regions = d.regions.filter((r) => r.trackId !== t.id);
@@ -755,6 +770,7 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   import_project_json: ({ project }) => {
     const p = migrate(project);
+    void autoVersion(tr('jr.import'), st().project, isAiCommand() ? 'ai' : 'user');
     st().loadProject(p);
     return summarize(p);
   },
@@ -1181,6 +1197,20 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { region_id: r.id, take_id: comp.id, name: comp.name, notes: notes.length, segments: segs.map((s) => ({ ...s, take: takes.find((t) => t.id === s.take_id)!.name })) };
   },
 
+  // ---- safety net (F21)
+  get_timeline: async ({ from, to }) => {
+    const r = await timeline(from !== undefined ? toTime(from) : undefined, to !== undefined ? toTime(to) : undefined);
+    const iso = (ms: number | null) => (ms ? new Date(ms).toISOString() : null);
+    return { first: iso(r.first), last: iso(r.last), entries: r.entries.slice(-300).map((e) => ({ at: iso(e.at), seq: e.seq, kind: e.kind, label: e.label, source: e.source })) };
+  },
+
+  preview_at: async ({ time }) => {
+    const { project, entry } = await projectAt(toTime(time));
+    return { at: new Date(entry.at).toISOString(), after: entry.label, project: summarize(project) };
+  },
+
+  restore_at: async ({ time, as_branch }) => restoreAt(toTime(time), as_branch, isAiCommand() ? 'ai' : 'user'),
+
   // ---- monitoring (F20)
   get_meters: () => {
     const p = st().project;
@@ -1417,7 +1447,7 @@ const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'get_meters', 'set_monitoring', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);
@@ -1446,6 +1476,9 @@ export async function runCommand(method: string, params: P, source: 'ai' | 'ui' 
   if (ai && !CONTROL.has(method) && !READ_ONLY.has(method)) {
     if (!st().activeTransaction) st().beginTransaction(shortSummary(method, params ?? {}), 'ai', { auto: true });
     st().countCommand();
+    // A big AI request (over 20 commands): keep the song as it was before it, as a version.
+    const open = st().activeTransaction;
+    if (open?.source === 'ai' && open.commands === 21) void autoVersion(open.label, open.snapshot, 'ai');
     txId = st().activeTransaction?.id;
   }
   if (ai && method === 'end_change') txId = st().activeTransaction?.id;

@@ -4709,3 +4709,20 @@ div.ca-steps {
   font-size: 11px;
   line-height: 1.35;
 }
+
+/* ---------- time machine (F21) ---------- */
+.time-machine {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+}
+.time-machine input[type='range'] {
+  width: 100%;
+}
+.tm-when {
+  font: 600 12px var(--mono, ui-monospace, monospace);
+}
+.recovery-banner {
+  z-index: 120;
+}
