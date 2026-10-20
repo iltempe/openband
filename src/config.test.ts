@@ -11,6 +11,9 @@ describe('instance config', () => {
     const c = parseConfig({ instanceName: 'Liceo Musicale', defaultLanguage: 'it', features: { byoKey: false }, collabServer: { relay: 'wss://music.school/collab', signaling: ['wss://music.school/signal', 3] } });
     expect(connectTabs(c.features)).toEqual(['desktop', 'cli']);
     expect(connectTabs(DEFAULT_CONFIG.features)).toEqual(['desktop', 'cli', 'key']);
+    expect(connectTabs(DEFAULT_CONFIG.features, true)).toEqual(['remote', 'desktop', 'cli', 'key']);
+    expect(parseConfig({ remoteMcp: true }).remoteMcp).toBe(true);
+    expect(parseConfig({ remoteMcp: 'yes' }).remoteMcp).toBe(false);
     expect(c).toMatchObject({ instanceName: 'Liceo Musicale', defaultLanguage: 'it', collabServer: { relay: 'wss://music.school/collab', signaling: ['wss://music.school/signal'] } });
   });
 });

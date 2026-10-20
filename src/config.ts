@@ -18,6 +18,8 @@ export interface InstanceConfig {
   pluginCatalogUrl: string | null;
   /** y-websocket relay (ws(s)://host) for rooms "on this network", and WebRTC signaling servers. */
   collabServer: { relay?: string; signaling?: string[] } | null;
+  /** The server has a remote MCP endpoint (/mcp, OPENBAND_REMOTE_MCP=1): offer "Claude (remote)". */
+  remoteMcp: boolean;
 }
 
 export const DEFAULT_CONFIG: InstanceConfig = {
@@ -26,6 +28,7 @@ export const DEFAULT_CONFIG: InstanceConfig = {
   features: { byoKey: true, plugins: true, collab: true },
   pluginCatalogUrl: null,
   collabServer: null,
+  remoteMcp: false,
 };
 
 /** Merge a config file over the defaults, ignoring anything malformed. */
@@ -41,6 +44,7 @@ export function parseConfig(raw: unknown): InstanceConfig {
     features: { byoKey: bool(f.byoKey, true), plugins: bool(f.plugins, true), collab: bool(f.collab, true) },
     pluginCatalogUrl: str(c.pluginCatalogUrl),
     collabServer: cs ? { relay: str(cs.relay) ?? undefined, signaling: Array.isArray(cs.signaling) ? cs.signaling.filter((x): x is string => typeof x === 'string') : undefined } : null,
+    remoteMcp: c.remoteMcp === true,
   };
 }
 
@@ -48,7 +52,8 @@ export const useConfig = create<InstanceConfig>(() => DEFAULT_CONFIG);
 export const getConfig = () => useConfig.getState();
 
 /** The "Connect AI" tabs this instance offers. */
-export const connectTabs = (f: Features): ('desktop' | 'cli' | 'key')[] => (f.byoKey ? ['desktop', 'cli', 'key'] : ['desktop', 'cli']);
+export type ConnectTab = 'remote' | 'desktop' | 'cli' | 'key';
+export const connectTabs = (f: Features, remoteMcp = false): ConnectTab[] => [...(remoteMcp ? (['remote'] as const) : []), 'desktop', 'cli', ...(f.byoKey ? (['key'] as const) : [])];
 
 /** Fetch ./config.json (no file = defaults). Never blocks the start for long. */
 export async function loadConfig() {

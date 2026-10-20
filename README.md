@@ -71,7 +71,7 @@ OpenBand is a *clean-room* implementation: it reproduces the workflow of a consu
 | **Microphone: record or hum** | **The AI asks before recording** |
 | ![Microphone menu](docs/recording.png) | ![Recording confirmation](docs/record-confirm.png) |
 
-> The online demo can't talk to your AI: for security, the MCP server only accepts pages served from localhost. To let your AI play, run OpenBand locally as shown below.
+> The online demo works with your AI three ways: paired with the OpenBand server on your computer (a 6-digit code), with your own Anthropic API key right in the page, or — on a self-hosted OpenBand — as a claude.ai connector. See [Connect an AI](#connect-an-ai-mcp).
 
 ## Quick start
 
@@ -183,7 +183,7 @@ Then ask, for example:
 
 > Import ~/Samples/vocal.wav as an audio track at bar 5, put a compressor on the bass, fade the pad in over two bars and save the song as ~/Desktop/song.wav and song.mid.
 
-Environment variables: `OPENBAND_PORT` (default 7777; when it is taken the next free port is used and the studio opens with `?mcp=<port>`), `OPENBAND_OPEN_BROWSER=0` (don't open the browser), `OPENBAND_COLLAB=1` (multiplayer rooms on your network), `OPENBAND_NO_UPDATE_CHECK=1` (don't ask npm once a day whether a newer OpenBand exists) and `OPENBAND_DEV_URL` (default `http://localhost:5173`, used when there is no build). Trouble? `npx openband doctor` checks Node, the port (and who is using it), the build, the packages and your MCP clients, with a fix for each ✗. In the studio, *⋯ → Diagnostics* shows audio, bridge, permissions, storage, plugins and recent errors, and *Report a problem* opens a pre-filled GitHub issue — without anything from your songs and never your keys — that you read before posting.
+Environment variables: `OPENBAND_REMOTE_MCP=1` and `OPENBAND_REMOTE_TOKEN` (remote MCP at `/mcp`, see below), `OPENBAND_PORT` (default 7777; when it is taken the next free port is used and the studio opens with `?mcp=<port>`), `OPENBAND_OPEN_BROWSER=0` (don't open the browser), `OPENBAND_COLLAB=1` (multiplayer rooms on your network), `OPENBAND_NO_UPDATE_CHECK=1` (don't ask npm once a day whether a newer OpenBand exists) and `OPENBAND_DEV_URL` (default `http://localhost:5173`, used when there is no build). Trouble? `npx openband doctor` checks Node, the port (and who is using it), the build, the packages and your MCP clients, with a fix for each ✗. In the studio, *⋯ → Diagnostics* shows audio, bridge, permissions, storage, plugins and recent errors, and *Report a problem* opens a pre-filled GitHub issue — without anything from your songs and never your keys — that you read before posting.
 
 **From the online demo.** The demo can drive the OpenBand server on your computer too: open the **AI** panel → *Connect AI*, install the extension (or run `npx openband mcp`), and type the 6-digit **pairing code** that Claude gives you when you ask it to open the studio (the server also prints it when it starts). The tab gets a session token, so reloading doesn't ask again; restarting the server revokes it. Your browser may ask to let the site access your local network — that is how the page reaches `127.0.0.1`: choose *Allow*. If your browser refuses, *Open the local studio* takes the song you have open to the studio served on your computer.
 
@@ -191,11 +191,25 @@ Environment variables: `OPENBAND_PORT` (default 7777; when it is taken the next 
 
 The bridge only accepts connections over loopback: from pages served on localhost (no code needed) and from the sites in `OPENBAND_ALLOWED_ORIGINS` (default `https://iltempe.github.io`), which must pair first — 5 wrong codes in a minute lock pairing for 5 minutes, codes expire after 10 minutes.
 
+**From claude.ai, web and mobile (remote MCP).** A self-hosted OpenBand started with `OPENBAND_REMOTE_MCP=1` also speaks MCP over Streamable HTTP at `/mcp`, so it can be added in claude.ai under *Settings → Connectors → Add custom connector* (also from a phone):
+
+```
+claude.ai ──HTTPS · MCP──▶ https://music.example/mcp ──WebSocket──▶ the user's OpenBand tab
+```
+
+1. Run it: `docker run -p 8080:7777 -e OPENBAND_REMOTE_MCP=1 -e OPENBAND_REMOTE_TOKEN=<a long random string> ghcr.io/iltempe/openband`, behind HTTPS (Caddy, nginx… forwarding the `Host` header).
+2. In claude.ai add the connector `https://music.example/mcp?token=<the token>`.
+3. Open the studio → **AI** → *Connect AI* → *Claude (remote)*: the tab shows a 6-digit code. Tell Claude “pair with OpenBand, code 395 337” (or add `&pair=<code>` to the connector URL).
+
+<img src="docs/remote-mcp.png" alt="The Claude (remote) tab with the connector URL and the pairing code" width="300">
+
+The server is only a relay and stores nothing: songs stay in the tab. Each MCP session drives the one tab it paired with — other tabs, even on the same server, are invisible to it — and no tool works before pairing (`pair_studio`). Codes change every 10 minutes and are spent once used; 5 wrong codes per session per minute (30 across all sessions) block pairing for a minute; tool calls are rate-limited per session (60 every 10 s) and idle sessions end after 30 minutes. In this mode files are imported only from public http(s) URLs (never local paths, and never addresses of the server's own network), and exports have no `save_to`: the file downloads in the tab. Closing or reloading the tab ends the pairing. `OPENBAND_REMOTE_TOKEN` is optional but strongly advised on a public address: without it, anyone who knows the URL can open sessions (they still need a code from a tab).
+
 ### MCP tools
 
 | Area | Tools |
 |---|---|
-| Project | `get_project`, `get_status`, `list_instruments`, `new_project`, `rename_project`, `set_tempo`, `set_key`, `set_master_volume`, `export_project_json`, `import_project_json` |
+| Project | `pair_studio` (remote MCP only), `open_studio` (local only), `get_project`, `get_status`, `list_instruments`, `new_project`, `rename_project`, `set_tempo`, `set_key`, `set_master_volume`, `export_project_json`, `import_project_json` |
 | Studio events | `get_events`, `wait_for_event` (phrases you play, selection, transport, edits, questions from *Ask the AI*); resource `openband://project` with change notifications |
 | Undo | `begin_change` / `end_change` (one undo step per request, with a label), `get_history`, `undo` / `redo` (with `steps`) |
 | Tracks | `add_track` (instrument, drums or audio), `update_track` (instrument, volume, pan, mute, solo, reverb, echo, tone), `delete_track` |

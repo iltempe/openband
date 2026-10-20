@@ -9,7 +9,7 @@ import { setCollabServer } from './collab/session';
 import { protocolProblem } from './protocol';
 
 // (Guarded so the module can be imported in Node tests.)
-const loc = typeof location !== 'undefined' ? location : ({ search: '', hostname: 'localhost' } as Location);
+const loc = typeof location !== 'undefined' ? location : ({ search: '', hostname: 'localhost', host: 'localhost', protocol: 'http:' } as Location);
 const params = new URLSearchParams(loc.search);
 const IS_LOCAL_PAGE = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(loc.hostname);
 
@@ -37,7 +37,14 @@ export interface ServerUpdate {
   update_available: boolean;
 }
 
-export const useBridge = create<{ port: number; remote: boolean; pairing: boolean; problem: BridgeProblem | null; serverVersion: string | null; update: ServerUpdate | null }>(() => ({
+/** Remote MCP (a self-hosted OpenBand with /mcp): the code the AI pairs with, and whether it did. */
+export interface RemoteMcpState {
+  code: string | null;
+  expiresAt: number | null;
+  paired: boolean;
+}
+
+export const useBridge = create<{ port: number; remote: boolean; pairing: boolean; problem: BridgeProblem | null; serverVersion: string | null; update: ServerUpdate | null; remoteMcp: RemoteMcpState | null }>(() => ({
   // A page served by the OpenBand server talks to that same server (whatever free port it got);
   // Vite's dev server (5173) and the online demo default to 7777.
   port: Number(params.get('mcp') ?? (IS_LOCAL_PAGE && loc.port && loc.port !== '5173' ? loc.port : null) ?? sessionGet(PORT_KEY) ?? 7777),
@@ -46,6 +53,7 @@ export const useBridge = create<{ port: number; remote: boolean; pairing: boolea
   problem: null,
   serverVersion: null,
   update: null,
+  remoteMcp: null,
 }));
 
 function sessionGet(k: string) {
@@ -64,7 +72,13 @@ function sessionSet(k: string, v: string | null) {
   }
 }
 
-export const bridgeUrl = (port = useBridge.getState().port) => `ws://127.0.0.1:${port}/bridge`;
+/** Set by startRemoteMcp(): talk to the server that served this page and pair with an MCP session. */
+let remoteMcpMode = false;
+export const bridgeUrl = (port = useBridge.getState().port) => (remoteMcpMode ? sameOriginBridgeUrl() : `ws://127.0.0.1:${port}/bridge`);
+/** The server that served this page (remote MCP mode). */
+export const sameOriginBridgeUrl = (l: Pick<Location, 'protocol' | 'host'> = loc) => `${l.protocol === 'https:' ? 'wss' : 'ws'}://${l.host}/bridge`;
+/** The connector URL to paste into claude.ai (the server's /mcp next to this page). */
+export const remoteMcpUrl = (l: Pick<Location, 'protocol' | 'host'> = loc) => `${l.protocol}//${l.host}/mcp`;
 /** Kept for the setup text in the AI panel. */
 export const BRIDGE_URL = bridgeUrl();
 
@@ -93,15 +107,33 @@ export function connectRemote(port: number, code?: string) {
   connectBridge();
 }
 
+/**
+ * Remote MCP: connect this tab to the server it came from and get a 6-digit code; the AI (claude.ai,
+ * through the /mcp connector) pairs with it and from then on drives only this tab.
+ */
+export function startRemoteMcp() {
+  if (remoteMcpMode && socket && socket.readyState <= 1) return;
+  remoteMcpMode = true;
+  wanted = true;
+  useBridge.setState({ remoteMcp: { code: null, expiresAt: null, paired: false }, problem: null });
+  socket?.close();
+  connectBridge();
+}
+
 export function disconnectBridge() {
   wanted = false;
+  if (remoteMcpMode) {
+    remoteMcpMode = false;
+    useBridge.setState({ remoteMcp: null });
+  }
   sessionSet(TOKEN_KEY, null);
   socket?.close();
 }
 
 export function connectBridge() {
   const set = useStore.getState().set;
-  const remote = !BRIDGE_ENABLED;
+  const remote = !BRIDGE_ENABLED && !remoteMcpMode;
+  const viaMcp = remoteMcpMode;
   // The demo stays offline until the user asks — unless this tab already paired.
   if (remote && !wanted && !sessionGet(TOKEN_KEY)) {
     set({ bridgeStatus: 'disconnected' });
@@ -118,20 +150,25 @@ export function connectBridge() {
     scheduleReconnect();
     return;
   }
+  if (viaMcp) set({ bridgeStatus: 'disconnected' });
   const ws = socket;
   const send = (m: unknown) => ws.readyState === 1 && ws.send(JSON.stringify(m));
   ws.onopen = () => {
     opened = true;
     retry = 1000;
-    send({ type: 'hello', app: 'openband', protocol: PROTOCOL, ...(remote ? { token: sessionGet(TOKEN_KEY) ?? undefined, pair: pendingCode ?? undefined } : {}) });
+    send({ type: 'hello', app: 'openband', protocol: PROTOCOL, ...(viaMcp ? { remote: true } : {}), ...(remote ? { token: sessionGet(TOKEN_KEY) ?? undefined, pair: pendingCode ?? undefined } : {}) });
   };
   ws.onmessage = async (ev) => {
-    let msg: { type: string; id: string; method: string; params: Record<string, unknown>; collab?: { lan: string[]; port: number } | null; protocol?: number; update?: ServerUpdate | null; version?: string; token?: string; reason?: 'wrong' | 'expired' | 'locked' | 'missing'; attempts_left?: number; retry_in_ms?: number };
+    let msg: { type: string; id: string; method: string; params: Record<string, unknown>; collab?: { lan: string[]; port: number } | null; protocol?: number; update?: ServerUpdate | null; version?: string; token?: string; reason?: 'wrong' | 'expired' | 'locked' | 'missing'; attempts_left?: number; retry_in_ms?: number; remote?: boolean; code?: string; expires_in_ms?: number };
     try {
       msg = JSON.parse(ev.data);
     } catch {
       return;
     }
+    if (msg.type === 'remote_code') return void useBridge.setState({ remoteMcp: { code: msg.code ?? null, expiresAt: Date.now() + (msg.expires_in_ms ?? 600000), paired: false } });
+    if (msg.type === 'remote_paired') return void useBridge.setState({ remoteMcp: { code: null, expiresAt: null, paired: true } });
+    // A local page switching to remote MCP gets the usual hello first: only the remote one counts.
+    if (viaMcp && msg.type === 'hello' && !msg.remote) return;
     if (msg.type === 'pair_required') {
       // The token was refused (server restarted) or no code yet: ask for one.
       sessionSet(TOKEN_KEY, null);
@@ -175,6 +212,12 @@ export function connectBridge() {
     if (socket !== ws) return;
     setEventSink(null);
     set({ bridgeStatus: 'disconnected' });
+    if (viaMcp) {
+      // A new connection means a new code: the AI has to pair again.
+      if (remoteMcpMode) useBridge.setState({ remoteMcp: { code: null, expiresAt: null, paired: false } });
+      if (remoteMcpMode && wanted) scheduleReconnect();
+      return;
+    }
     if (!remote) return void scheduleReconnect();
     // The demo: say why, instead of retrying blindly.
     if (!opened) void lnaDenied().then((denied) => fail({ kind: 'unreachable', port, permission: denied }));

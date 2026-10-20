@@ -8,6 +8,9 @@ services:
     environment:
       # Multiplayer rooms "on this network" (relay and signaling in the same container).
       OPENBAND_COLLAB: "1"
+      # claude.ai connector at https://<host>/mcp (see the README, "From claude.ai"): set a long random token.
+      # OPENBAND_REMOTE_MCP: "1"
+      # OPENBAND_REMOTE_TOKEN: "change-me"
       # Instance settings (name, language, features…): see config.example.json.
       # OPENBAND_CONFIG: /config/config.json
     # volumes:

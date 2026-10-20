@@ -2,6 +2,8 @@
 // End-to-end checks in a real Chrome, against the built studio served by `openband start`:
 //   first-run  — from a fresh profile, "Surprise me" is playing in under 3 s; the tour ignores wrong actions
 //   pwa        — installable (no installability errors), and offline after the first visit the app opens and plays
+//   selfhost   — under the Docker CSP with a config.json: audio, features, no violations
+//   remote     — OPENBAND_REMOTE_MCP=1: an MCP client over HTTP pairs with the tab's code and drives it
 //
 //   node scripts/e2e/run.mjs [first-run|pwa ...]   (CHROME=/path/to/chrome, default: the system Chrome)
 import { spawn } from 'node:child_process';
@@ -108,6 +110,42 @@ tests.selfhost = async () => {
     const catalog = await p.evaluate(async () => (await fetch('https://www.webaudiomodules.com/community/plugins.json')).ok).catch(() => false);
     check(catalog, 'the plugin catalog is reachable under the CSP');
     check(violations.length === 0, `no CSP violations${violations.length ? `: ${violations.join(' | ')}` : ''}`);
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
+tests.remote = async () => {
+  // OPENBAND_REMOTE_MCP=1: the tab shows a code, an MCP client over Streamable HTTP pairs and drives that tab.
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js');
+  // Under the Docker CSP, as it would run in production.
+  const srv = await server({ OPENBAND_REMOTE_MCP: '1', OPENBAND_HOST: '127.0.0.1', OPENBAND_CSP: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.setViewport({ width: 1440, height: 900 });
+    await p.goto(`${URL}?mcp=7798`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.evaluate(() => document.querySelector('.ai-pill').click());
+    const code = await p.waitForFunction(() => /^\d{3} \d{3}$/.test(document.querySelector('.ca-code')?.textContent ?? '') && document.querySelector('.ca-code').textContent, { timeout: 5000 }).then((h) => h.jsonValue(), () => null);
+    check(!!code, `the "Claude (remote)" tab shows a code (${code})`);
+    if (process.env.E2E_SHOTS) await p.screenshot({ path: path.join(process.env.E2E_SHOTS, 'remote-mcp.png') });
+    const name = await p.evaluate(() => document.querySelector('.project-name, .t-name')?.textContent ?? null);
+    const c = new Client({ name: 'e2e', version: '1' });
+    await c.connect(new StreamableHTTPClientTransport(new globalThis.URL(`${URL}mcp`)));
+    const before = await c.callTool({ name: 'get_project', arguments: {} });
+    check(before.isError === true, 'no tool works before pairing');
+    const r = await c.callTool({ name: 'pair_studio', arguments: { code } });
+    check(!r.isError, 'pair_studio with the code from the tab');
+    const proj = JSON.parse((await c.callTool({ name: 'get_project', arguments: {} })).content[0].text);
+    check(Array.isArray(proj.tracks) && proj.tracks.length > 0 && (!name || proj.name === name), `get_project returns this tab's song ("${proj.name}", ${proj.tracks?.length} tracks)`);
+    await c.callTool({ name: 'set_tempo', arguments: { bpm: 133 } });
+    check((await p.evaluate(() => document.body.innerText.includes('133'))) === true, 'set_tempo from the remote client changes the tab');
+    check(await p.evaluate(() => !!document.querySelector('.ca-paired') || !document.querySelector('.ca-code')), 'the tab says it is paired');
+    await c.close();
   } finally {
     await b.close();
     srv.kill();

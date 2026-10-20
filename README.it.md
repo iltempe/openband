@@ -69,7 +69,7 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 | **Microfono: registra o canticchia** | **L'AI chiede prima di registrare** |
 | ![Menu del microfono](docs/recording.png) | ![Conferma della registrazione](docs/record-confirm.png) |
 
-> Nella demo online l'AI non può collegarsi: per motivi di sicurezza il server MCP accetta solo pagine servite da localhost. Per farla suonare alla tua AI, avvia OpenBand in locale come spiegato qui sotto.
+> La demo online funziona con la tua AI in tre modi: abbinata al server OpenBand sul tuo computer (un codice di 6 cifre), con la tua API key Anthropic direttamente nella pagina, oppure — su un OpenBand self-hosted — come connettore di claude.ai. Vedi [Collega un'AI](#collegare-unai-mcp).
 
 ## Avvio rapido
 
@@ -181,7 +181,7 @@ Poi chiedi, per esempio:
 
 > Importa ~/Samples/voce.wav come traccia audio alla battuta 5, metti un compressore sul basso, fai entrare il pad in dissolvenza in due battute e salva il brano come ~/Desktop/brano.wav e brano.mid.
 
-Variabili d'ambiente: `OPENBAND_PORT` (predefinita 7777; se è occupata si usa la prima porta libera e lo studio si apre con `?mcp=<porta>`), `OPENBAND_OPEN_BROWSER=0` (non aprire il browser), `OPENBAND_COLLAB=1` (stanze multiplayer nella tua rete), `OPENBAND_NO_UPDATE_CHECK=1` (non chiedere a npm, una volta al giorno, se c'è un OpenBand più nuovo) e `OPENBAND_DEV_URL` (predefinita `http://localhost:5173`, usata quando manca la build). Problemi? `npx openband doctor` controlla Node, la porta (e chi la usa), la build, i pacchetti e i tuoi client MCP, con una soluzione per ogni ✗. Nello studio, *⋯ → Diagnostica* mostra audio, bridge, permessi, spazio, plugin ed errori recenti, e *Segnala un problema* apre una segnalazione su GitHub già compilata, senza niente delle tue canzoni e mai le tue chiavi, da rileggere prima di pubblicare.
+Variabili d'ambiente: `OPENBAND_REMOTE_MCP=1` e `OPENBAND_REMOTE_TOKEN` (MCP remoto su `/mcp`, vedi sotto), `OPENBAND_PORT` (predefinita 7777; se è occupata si usa la prima porta libera e lo studio si apre con `?mcp=<porta>`), `OPENBAND_OPEN_BROWSER=0` (non aprire il browser), `OPENBAND_COLLAB=1` (stanze multiplayer nella tua rete), `OPENBAND_NO_UPDATE_CHECK=1` (non chiedere a npm, una volta al giorno, se c'è un OpenBand più nuovo) e `OPENBAND_DEV_URL` (predefinita `http://localhost:5173`, usata quando manca la build). Problemi? `npx openband doctor` controlla Node, la porta (e chi la usa), la build, i pacchetti e i tuoi client MCP, con una soluzione per ogni ✗. Nello studio, *⋯ → Diagnostica* mostra audio, bridge, permessi, spazio, plugin ed errori recenti, e *Segnala un problema* apre una segnalazione su GitHub già compilata, senza niente delle tue canzoni e mai le tue chiavi, da rileggere prima di pubblicare.
 
 **Dalla demo online.** Anche la demo può comandare il server OpenBand sul tuo computer: apri il pannello **AI** → *Collega AI*, installa l'estensione (o esegui `npx openband mcp`) e scrivi il **codice di abbinamento** di 6 cifre che Claude ti dà quando gli chiedi di aprire lo studio (il server lo stampa anche all'avvio). La scheda riceve un token di sessione, quindi ricaricando non lo richiede; riavviare il server lo revoca. Il browser potrebbe chiederti di consentire al sito l'accesso alla rete locale: è così che la pagina raggiunge `127.0.0.1`, scegli *Consenti*. Se il browser rifiuta, *Apri lo studio locale* porta la canzone aperta nello studio servito dal tuo computer.
 
@@ -189,11 +189,25 @@ Variabili d'ambiente: `OPENBAND_PORT` (predefinita 7777; se è occupata si usa l
 
 Il bridge accetta solo connessioni in loopback: da pagine servite su localhost (senza codice) e dai siti in `OPENBAND_ALLOWED_ORIGINS` (predefinito `https://iltempe.github.io`), che devono prima abbinarsi: 5 codici sbagliati in un minuto bloccano l'abbinamento per 5 minuti, e i codici scadono dopo 10 minuti.
 
+**Da claude.ai, web e mobile (MCP remoto).** Un OpenBand self-hosted avviato con `OPENBAND_REMOTE_MCP=1` parla MCP anche via Streamable HTTP su `/mcp`, quindi si può aggiungere in claude.ai da *Impostazioni → Connettori → Aggiungi connettore personalizzato* (anche dal telefono):
+
+```
+claude.ai ──HTTPS · MCP──▶ https://music.example/mcp ──WebSocket──▶ la scheda OpenBand dell'utente
+```
+
+1. Avvialo: `docker run -p 8080:7777 -e OPENBAND_REMOTE_MCP=1 -e OPENBAND_REMOTE_TOKEN=<una stringa casuale lunga> ghcr.io/iltempe/openband`, dietro HTTPS (Caddy, nginx… che inoltrano l'header `Host`).
+2. In claude.ai aggiungi il connettore `https://music.example/mcp?token=<il token>`.
+3. Apri lo studio → **AI** → *Collega AI* → *Claude (remoto)*: la scheda mostra un codice di 6 cifre. Di' a Claude «abbinati a OpenBand, codice 395 337» (oppure aggiungi `&pair=<codice>` all'URL del connettore).
+
+<img src="docs/remote-mcp.png" alt="La scheda Claude (remoto) con l'URL del connettore e il codice di abbinamento" width="300">
+
+Il server fa solo da ponte e non conserva nulla: le canzoni restano nella scheda. Ogni sessione MCP comanda solo la scheda con cui si è abbinata — le altre schede, anche sullo stesso server, per lei non esistono — e nessuno strumento funziona prima dell'abbinamento (`pair_studio`). I codici cambiano ogni 10 minuti e valgono una volta sola; 5 codici sbagliati per sessione in un minuto (30 fra tutte le sessioni) bloccano l'abbinamento per un minuto; le chiamate sono limitate per sessione (60 ogni 10 s) e le sessioni inattive finiscono dopo 30 minuti. In questa modalità i file si importano solo da URL http(s) pubblici (mai percorsi locali, mai indirizzi della rete del server) e gli export non hanno `save_to`: il file si scarica nella scheda. Chiudere o ricaricare la scheda chiude l'abbinamento. `OPENBAND_REMOTE_TOKEN` è facoltativo ma caldamente consigliato su un indirizzo pubblico: senza, chiunque conosca l'URL può aprire sessioni (gli serve comunque un codice da una scheda).
+
 ### Strumenti MCP
 
 | Area | Strumenti |
 |---|---|
-| Progetto | `get_project`, `get_status`, `list_instruments`, `new_project`, `rename_project`, `set_tempo`, `set_key`, `set_master_volume`, `export_project_json`, `import_project_json` |
+| Progetto | `pair_studio` (solo MCP remoto), `open_studio` (solo locale), `get_project`, `get_status`, `list_instruments`, `new_project`, `rename_project`, `set_tempo`, `set_key`, `set_master_volume`, `export_project_json`, `import_project_json` |
 | Eventi dello studio | `get_events`, `wait_for_event` (frasi che suoni, selezione, trasporto, modifiche, domande da *Chiedi all'AI*); risorsa `openband://project` con notifiche delle modifiche |
 | Annulla | `begin_change` / `end_change` (un passo di annullamento per richiesta, con etichetta), `get_history`, `undo` / `redo` (con `steps`) |
 | Tracce | `add_track` (strumento, batteria o audio), `update_track` (strumento, volume, pan, mute, solo, riverbero, eco, tono), `delete_track` |

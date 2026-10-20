@@ -1,13 +1,13 @@
 // "Connect AI" wizard in the AI panel: Claude Desktop (.mcpb), Claude Code / Cursor (npx), or an API key.
 // On the online demo it also pairs with the server on this computer through a code.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../store';
-import { BRIDGE_ENABLED, connectRemote, useBridge, type BridgeProblem } from '../bridge';
+import { BRIDGE_ENABLED, connectRemote, remoteMcpUrl, startRemoteMcp, useBridge, type BridgeProblem } from '../bridge';
 import { openLocalStudio } from '../handoff';
 import { useT, type MessageKey } from '../i18n';
 import * as I from './Icons';
 import { KeyForm } from './AIChat';
-import { connectTabs, useConfig } from '../config';
+import { connectTabs, useConfig, type ConnectTab } from '../config';
 
 export const MCPB_URL = 'https://github.com/iltempe/openband/releases/latest/download/openband.mcpb';
 const CLI = 'claude mcp add openband -- npx -y openband mcp';
@@ -17,7 +17,7 @@ const JSON_CONFIG = `{
   }
 }`;
 
-type Tab = 'desktop' | 'cli' | 'key';
+type Tab = ConnectTab;
 
 function Copyable({ text }: { text: string }) {
   const t = useT();
@@ -89,13 +89,39 @@ function PairForm() {
   );
 }
 
+/** A self-hosted OpenBand with /mcp: claude.ai connects to the server, this tab pairs with a code. */
+function RemoteMcp() {
+  const t = useT();
+  const r = useBridge((s) => s.remoteMcp);
+  useEffect(() => {
+    startRemoteMcp();
+  }, []);
+  if (r?.paired) return <div className="ca-steps ca-paired">✓ {t('ca.remotePaired')}</div>;
+  return (
+    <div className="ca-steps">
+      <p>{t('ca.remote1')}</p>
+      <Copyable text={remoteMcpUrl()} />
+      <p>{t('ca.remote2')}</p>
+      <div className="ca-code" aria-live="polite">
+        {r?.code ? `${r.code.slice(0, 3)} ${r.code.slice(3)}` : t('ca.remoteWaiting')}
+      </div>
+      <p className="ca-note">{t('ca.remoteExpires')}</p>
+    </div>
+  );
+}
+
 export function ConnectAI() {
-  const [tab, setTab] = useState<Tab>('desktop');
+  const features = useConfig((c) => c.features);
+  const remoteMcp = useConfig((c) => c.remoteMcp);
+  const [tab, setTab] = useState<Tab>(remoteMcp ? 'remote' : 'desktop');
   const b = useBridge();
   const t = useT();
-  const features = useConfig((c) => c.features);
-  const LABEL: Record<Tab, MessageKey> = { desktop: 'ca.tabDesktop', cli: 'ca.tabCli', key: 'ca.tabKey' };
-  const tabs: [Tab, MessageKey][] = connectTabs(features).map((id) => [id, LABEL[id]]);
+  // config.json arrives after the first render.
+  useEffect(() => {
+    if (remoteMcp) setTab('remote');
+  }, [remoteMcp]);
+  const LABEL: Record<Tab, MessageKey> = { remote: 'ca.tabRemote', desktop: 'ca.tabDesktop', cli: 'ca.tabCli', key: 'ca.tabKey' };
+  const tabs: [Tab, MessageKey][] = connectTabs(features, remoteMcp).map((id) => [id, LABEL[id]]);
   return (
     <div className="ai-setup connect-ai">
       <div className="ca-tabs" role="tablist">
@@ -105,6 +131,7 @@ export function ConnectAI() {
           </button>
         ))}
       </div>
+      {tab === 'remote' && <RemoteMcp />}
       {tab === 'desktop' && (
         <ol className="ca-steps">
           <li>
@@ -128,7 +155,7 @@ export function ConnectAI() {
         </div>
       )}
       {tab === 'key' && features.byoKey && <KeyForm />}
-      {!BRIDGE_ENABLED && tab !== 'key' && <PairForm />}
+      {!BRIDGE_ENABLED && tab !== 'key' && tab !== 'remote' && <PairForm />}
       {BRIDGE_ENABLED && b.problem?.kind === 'protocol' && <div className="ca-problem">{problemText(b.problem, t)}</div>}
     </div>
   );
