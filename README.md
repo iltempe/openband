@@ -15,6 +15,7 @@ Pick the way that suits you. None of them needs a clone or a build.
 | | You have | Do this |
 |---|---|---|
 | 🎹 **Just try it** | a browser | Open the **[live demo](https://iltempe.github.io/openband/)** and press **🎲 Surprise me** |
+| 🖥 **Desktop app** | macOS, Windows or Linux | **[Download it](docs/DESKTOP.md#download)**: the studio in its own window, connected to Claude in one click |
 | 🤖 **Claude Desktop** | Claude Desktop | **[⬇ Download openband.mcpb](https://github.com/iltempe/openband/releases/latest/download/openband.mcpb)**, double-click it, choose *Install* |
 | 💻 **Claude Code, Cursor, VS Code** | [Node 18+](https://nodejs.org) | Run the command below |
 | 🔑 **An Anthropic API key** | a browser | [Demo](https://iltempe.github.io/openband/) → **AI** panel → *API key* tab |
@@ -76,6 +77,7 @@ Then restart your AI client and ask it for a song: the studio opens in your brow
 
 ## More
 
+- **[Desktop app](docs/DESKTOP.md)**: downloads, first opening, connecting your AI apps, building it.
 - **[Connect an AI](docs/CONNECT.md)**: how it works, every client, pairing the online demo with your computer, environment variables, troubleshooting.
 - **[Host your own](docs/SELF-HOSTING.md)**: Netlify, Vercel, Cloudflare, GitHub Pages, Docker; rooms on your network; OpenBand as a claude.ai connector (also from your phone).
 - **[Development](docs/DEVELOPMENT.md)**: build from source, tests, code structure. Changes: [CHANGELOG.md](CHANGELOG.md).

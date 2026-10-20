@@ -69,6 +69,34 @@ jobs:
           name: openband-mcpb
           path: build/*.mcpb
 
+  # The desktop app (Electron), unpacked, on the three systems: it starts and plays, and an MCP client
+  # launching its executable opens it and drives it (scripts/smoke-desktop.mjs).
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && (sudo apt-get install -y xvfb libgbm1 libasound2t64 || sudo apt-get install -y xvfb libgbm1 libasound2)
+      - run: npm ci
+      - run: npm ci --prefix desktop
+      - run: npm run build
+      - run: node scripts/build-desktop.mjs --dir --arch=${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/smoke-desktop.mjs
+      - if: runner.os != 'Linux'
+        run: node scripts/smoke-desktop.mjs
+
   # The built studio in a real Chrome: first run (< 3 s to music, tour) and the offline PWA.
   e2e:
     runs-on: ubuntu-latest

@@ -7,6 +7,8 @@ describe('origins', () => {
     expect(classifyOrigin('http://localhost:5173')).toBe('local');
     expect(classifyOrigin('http://127.0.0.1:7777')).toBe('local');
     expect(classifyOrigin(undefined)).toBe('local');
+    expect(classifyOrigin('openband://app')).toBe('local');
+    expect(classifyOrigin('openband://app.evil.com')).toBe('reject');
     expect(classifyOrigin('https://iltempe.github.io')).toBe('pair');
     expect(classifyOrigin('https://evil.example')).toBe('reject');
     expect(classifyOrigin('https://iltempe.github.io.evil.example')).toBe('reject');

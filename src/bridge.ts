@@ -11,7 +11,9 @@ import { protocolProblem } from './protocol';
 // (Guarded so the module can be imported in Node tests.)
 const loc = typeof location !== 'undefined' ? location : ({ search: '', hostname: 'localhost', host: 'localhost', protocol: 'http:' } as Location);
 const params = new URLSearchParams(loc.search);
-const IS_LOCAL_PAGE = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(loc.hostname);
+/** The desktop app serves the studio from its own openband:// scheme: as local as localhost. */
+export const IS_DESKTOP = loc.protocol === 'openband:';
+const IS_LOCAL_PAGE = IS_DESKTOP || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(loc.hostname);
 
 /** The bridge protocol this app speaks (the server says its own in hello). */
 export const PROTOCOL = 1;
@@ -119,6 +121,17 @@ export function startRemoteMcp() {
   // (remote) connection later, which would get a new code while this one is paired.
   clearTimeout(reconnectTimer);
   useBridge.setState({ remoteMcp: { code: null, expiresAt: null, paired: false }, problem: null });
+  socket?.close();
+  connectBridge();
+}
+
+/** Talk to the server on another local port (the desktop app, when an MCP server started on a different one). */
+export function switchBridgePort(port: number) {
+  if (!BRIDGE_ENABLED || remoteMcpMode || port === useBridge.getState().port) return;
+  useBridge.setState({ port, problem: null });
+  sessionSet(PORT_KEY, String(port));
+  clearTimeout(reconnectTimer);
+  retry = 500;
   socket?.close();
   connectBridge();
 }

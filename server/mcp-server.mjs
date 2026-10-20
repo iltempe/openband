@@ -274,8 +274,14 @@ function waitForStudio(ms) {
 }
 
 let lastAutoOpen = 0;
-/** Open the studio in the default browser. */
+/** Open the studio: in the desktop app when it launched this server (OPENBAND_APP), else in the default browser. */
 function openBrowser(url = studioUrl()) {
+  if (process.env.OPENBAND_APP) {
+    // This process runs as Node inside the app (ELECTRON_RUN_AS_NODE); the app itself must not.
+    const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env;
+    spawn(process.env.OPENBAND_APP, [`--studio=${url}`], { stdio: 'ignore', detached: true, env }).on('error', () => {}).unref();
+    return;
+  }
   const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'cmd' : 'xdg-open';
   const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url];
   spawn(cmd, args, { stdio: 'ignore', detached: true }).on('error', () => {}).unref();

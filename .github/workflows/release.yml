@@ -2,7 +2,7 @@ name: Release
 
 # Push a tag vX.Y.Z (matching package.json) to publish at the same version: a GitHub Release with the
 # built package (openband.tgz — what `npx -y <release url>` runs) and the Claude Desktop extension
-# (openband.mcpb) and notes from the CHANGELOG. The online demo deploys from main (pages.yml): the
+# (openband.mcpb), the desktop app for macOS, Windows and Linux (unsigned), and notes from the CHANGELOG. The online demo deploys from main (pages.yml): the
 # github-pages environment only accepts main, and the release commit is already there.
 # Opt-in (repository variables): NPM_PUBLISH=true publishes to npm (needs NPM_TOKEN and a package name
 # OpenBand owns — "openband" is not), PUBLISH_DOCKER=true pushes the image to GHCR.
@@ -80,3 +80,48 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:${{ github.ref_name }}
             ghcr.io/${{ github.repository }}:latest
+
+  # The desktop app: installers for each system, added to the release created above. Unsigned unless the
+  # signing secrets exist (CSC_LINK / CSC_KEY_PASSWORD for macOS and Windows: see docs/DESKTOP.md).
+  desktop:
+    needs: publish
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && (sudo apt-get install -y xvfb libgbm1 libasound2t64 || sudo apt-get install -y xvfb libgbm1 libasound2)
+      - run: npm ci
+      - run: npm ci --prefix desktop
+      - run: npm run build
+      - run: node scripts/build-desktop.mjs
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      # The unpacked app of this machine's architecture, tested before anything is uploaded.
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/smoke-desktop.mjs
+      - if: runner.os != 'Linux'
+        run: node scripts/smoke-desktop.mjs
+      # Each file also without its version (OpenBand-mac-arm64.dmg…), for the README's "latest" links.
+      - shell: bash
+        run: |
+          cd build/desktop
+          files=$(ls *.dmg *.zip *.exe *.AppImage *.deb 2>/dev/null)
+          for f in $files; do cp "$f" "${f/-${GITHUB_REF_NAME#v}/}"; done
+          gh release upload "${GITHUB_REF_NAME}" $files $(for f in $files; do echo "${f/-${GITHUB_REF_NAME#v}/}"; done) --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

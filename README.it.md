@@ -15,6 +15,7 @@ Scegli il modo che fa per te. Nessuno richiede di clonare o compilare.
 | | Hai | Fai così |
 |---|---|---|
 | 🎹 **Solo provare** | un browser | Apri la **[demo online](https://iltempe.github.io/openband/)** e premi **🎲 Sorprendimi** |
+| 🖥 **App desktop** | macOS, Windows o Linux | **[Scaricala](docs/DESKTOP.it.md#scaricala)**: lo studio in una finestra sua, collegato a Claude con un clic |
 | 🤖 **Claude Desktop** | Claude Desktop | **[⬇ Scarica openband.mcpb](https://github.com/iltempe/openband/releases/latest/download/openband.mcpb)**, fai doppio clic, scegli *Installa* |
 | 💻 **Claude Code, Cursor, VS Code** | [Node 18+](https://nodejs.org) | Esegui il comando qui sotto |
 | 🔑 **Una API key Anthropic** | un browser | [Demo](https://iltempe.github.io/openband/) → pannello **AI** → scheda *API key* |
@@ -76,6 +77,7 @@ Poi riavvia il client AI e chiedigli una canzone: lo studio si apre da solo nel 
 
 ## Altro
 
+- **[App desktop](docs/DESKTOP.it.md)**: download, prima apertura, collegare le app AI, compilarla.
 - **[Collegare un'AI](docs/CONNECT.it.md)**: come funziona, ogni client, abbinare la demo online al tuo computer, variabili d'ambiente, problemi.
 - **[Ospitare il proprio OpenBand](docs/SELF-HOSTING.it.md)**: Netlify, Vercel, Cloudflare, GitHub Pages, Docker; stanze nella tua rete; OpenBand come connettore di claude.ai (anche dal telefono).
 - **[Sviluppo](docs/DEVELOPMENT.it.md)**: compilare dai sorgenti, test, struttura del codice. Modifiche: [CHANGELOG.md](CHANGELOG.md).

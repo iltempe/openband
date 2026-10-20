@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { useStore } from './store';
 import { runCommand } from './commands';
+import { desktop, initDesktop } from './desktop';
 
 interface InstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -11,7 +12,8 @@ interface InstallPromptEvent extends Event {
 
 export const usePwa = create<{ canInstall: boolean; installed: boolean; offlineReady: boolean }>(() => ({
   canInstall: false,
-  installed: typeof matchMedia !== 'undefined' && matchMedia('(display-mode: standalone)').matches,
+  // The desktop app is installed by definition (and has no install prompt).
+  installed: !!desktop || (typeof matchMedia !== 'undefined' && matchMedia('(display-mode: standalone)').matches),
   offlineReady: false,
 }));
 
@@ -44,6 +46,8 @@ async function openLaunched(file: File) {
 }
 
 export function initPwa() {
+  // In the desktop app files come from the operating system through the app, and there is nothing to cache.
+  if (desktop) return initDesktop(openLaunched);
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferred = e as InstallPromptEvent;

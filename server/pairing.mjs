@@ -4,7 +4,8 @@
 import crypto from 'node:crypto';
 
 export const DEFAULT_ALLOWED_ORIGINS = ['https://iltempe.github.io'];
-const LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+// openband://app is the desktop app's own scheme: no web page can send it.
+const LOCAL = /^(https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?|openband:\/\/app)$/;
 
 /** 'local' (no pairing), 'pair' (allowed with a code) or 'reject'. A missing Origin is a non-browser client. */
 export function classifyOrigin(origin, allowed = DEFAULT_ALLOWED_ORIGINS) {

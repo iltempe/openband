@@ -1,0 +1,76 @@
+# OpenBand desktop app
+
+🇬🇧 English · 🇮🇹 [Italiano](DESKTOP.it.md) · [← README](../README.md)
+
+The same studio as the [online demo](https://iltempe.github.io/openband/), in its own window, for macOS,
+Windows and Linux, with the MCP server built in: no browser, no Node, no commands.
+
+<img src="desktop.png" alt="The desktop app with the AI apps tab" width="720">
+
+## Download
+
+| System | File |
+|---|---|
+| macOS, Apple Silicon (M1 and later) | [OpenBand-mac-arm64.dmg](https://github.com/iltempe/openband/releases/latest/download/OpenBand-mac-arm64.dmg) |
+| macOS, Intel | [OpenBand-mac-x64.dmg](https://github.com/iltempe/openband/releases/latest/download/OpenBand-mac-x64.dmg) |
+| Windows 10 and 11 (x64) | [OpenBand-win-x64.exe](https://github.com/iltempe/openband/releases/latest/download/OpenBand-win-x64.exe) |
+| Windows on ARM | [OpenBand-win-arm64.exe](https://github.com/iltempe/openband/releases/latest/download/OpenBand-win-arm64.exe) |
+| Linux (Ubuntu, Debian…) | [OpenBand-linux-amd64.deb](https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-amd64.deb) · [AppImage](https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-x86_64.AppImage) (also `arm64`) |
+
+All files are on the [releases page](https://github.com/iltempe/openband/releases/latest).
+
+## Opening it the first time
+
+The app is not signed yet (signing costs a yearly fee to Apple and a certificate for Windows), so the
+system asks you to confirm once:
+
+- **macOS**: open the `.dmg` and drag OpenBand to *Applications*. The first time, right-click OpenBand →
+  *Open* → *Open*. On macOS 15 and later: open it once, then *System Settings → Privacy & Security* →
+  *Open Anyway*. If macOS says the app is *damaged*, it was quarantined while downloading: run
+  `xattr -dr com.apple.quarantine /Applications/OpenBand.app` in Terminal.
+- **Windows**: run the installer; if SmartScreen says *Windows protected your PC*, click *More info* →
+  *Run anyway*.
+- **Linux**: `sudo apt install ./OpenBand-linux-amd64.deb`, or make the AppImage executable
+  (`chmod +x OpenBand-*.AppImage`) and run it. On Ubuntu 24.04 and later the AppImage may not start
+  because of AppArmor's sandbox rules: use the `.deb`, or start it with `OPENBAND_NO_SANDBOX=1`.
+
+## Connect your AI
+
+Open the **AI** panel → **AI apps** → *Add OpenBand to my AI apps* (or *File → Connect to Claude and
+other AI apps…*). The app adds itself to Claude Desktop, Claude Code, Cursor and VS Code where it finds
+them, keeping a backup of each file it changes. Restart Claude Desktop and ask for a song: the studio
+opens in the app.
+
+How it works: the AI app starts OpenBand's executable in Node mode on the MCP server inside the app
+(`server/mcp-server.mjs`, the same one as `npx` and the `.mcpb`), and when that server needs the studio
+it opens the app instead of a browser. On macOS, move the app to *Applications* before connecting: AI
+apps remember where it is. Use either the app or the Claude Desktop extension (`.mcpb`), not both: they
+would both add the OpenBand tools.
+
+## What's different from the browser
+
+- **Files**: `.openband`, `.mid` and `.dawproject` files open with a double-click, from *File → Open*
+  (⌘O / Ctrl+O) and from *Open Recent*; saving and exporting ask where to put the file.
+- **Menus**: *File* (new song, open, save, export WAV / MIDI / DAWproject, connect AI apps), *Edit*,
+  *View*, *Window*, *Help*. The studio's shortcuts work as in the browser.
+- **Songs** are kept in the app's own storage, separate from the browser's: to move a song between the
+  two, save it as `.openband` and open it on the other side.
+- **Updates**: the app checks GitHub for a new version once a day and offers the download (*Check for
+  Updates…* in the menu). Installing over the old version keeps your songs.
+- **Plugins**: the web plugins (WAM) work as in the browser. Native VST3 / CLAP plugins are the next
+  step ([ADR 0001](adr/0001-desktop.md)).
+
+## Building it
+
+```bash
+npm ci && npm ci --prefix desktop   # the app's build tools (Electron) live in desktop/
+npm run build                       # the studio
+npm run desktop:dev                 # run the app from the checkout ("OpenBand (dev)" profile)
+npm run desktop:build               # installers for this system in build/desktop/ (--dir: unpacked only)
+npm run desktop:smoke               # test the unpacked app: it plays, and an MCP client drives it
+```
+
+The *Release* workflow builds the installers on macOS, Windows and Linux and adds them to the GitHub
+Release. To sign them later, add the repository secrets `CSC_LINK` (the certificate, base64) and
+`CSC_KEY_PASSWORD`; on macOS notarization also needs `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and
+`APPLE_TEAM_ID` (see electron-builder's code-signing guide).

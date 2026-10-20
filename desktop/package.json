@@ -1,0 +1,12 @@
+{
+  "name": "openband-desktop-build",
+  "private": true,
+  "description": "Build tools for the OpenBand desktop app (kept apart so the main package doesn't download Electron).",
+  "devDependencies": {
+    "electron": "44.9.2",
+    "electron-builder": "26.15.3"
+  },
+  "allowScripts": {
+    "electron@44.9.2": true
+  }
+}

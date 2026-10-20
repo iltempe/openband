@@ -85,7 +85,7 @@ export async function runChecks({ port = Number(process.env.OPENBAND_PORT || 777
       add(false, `${c.name}: runs the npm package "openband", which is not OpenBand's`, `Run "${RUN} setup" to point it to OpenBand.`);
       continue;
     }
-    add(!!entry && (usesNpx || pathOk), `${c.name}: ${!entry ? 'OpenBand not configured' : usesNpx ? `uses ${RUN}` : pathOk ? `uses a local checkout${checkoutVersion}` : 'points to a file that does not exist'}`, `Run "${RUN} setup".`, !entry);
+    add(!!entry && (usesNpx || pathOk), `${c.name}: ${!entry ? 'OpenBand not configured' : usesNpx ? `uses ${RUN}` : pathOk && entry.env?.OPENBAND_APP ? `uses the OpenBand app${checkoutVersion}` : pathOk ? `uses a local checkout${checkoutVersion}` : 'points to a file that does not exist'}`, `Run "${RUN} setup".`, !entry);
   }
   if (hasCommand('claude')) {
     anyClient = true;

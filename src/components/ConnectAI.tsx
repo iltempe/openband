@@ -8,11 +8,13 @@ import { useT, type MessageKey } from '../i18n';
 import * as I from './Icons';
 import { KeyForm } from './AIChat';
 import { connectTabs, useConfig, type ConnectTab } from '../config';
+import { desktop, type DesktopClientResult } from '../desktop';
 
 import { CLAUDE_CODE_ADD as CLI, MCPB_URL, MCP_JSON as JSON_CONFIG, RUN } from '../install';
 export { MCPB_URL };
 
-type Tab = ConnectTab;
+// 'apps': the desktop app adds itself to the AI apps on this computer, in one click.
+type Tab = ConnectTab | 'apps';
 
 function Copyable({ text }: { text: string }) {
   const t = useT();
@@ -105,18 +107,58 @@ function RemoteMcp() {
   );
 }
 
+/** In the desktop app: one button instead of downloads and commands. */
+function DesktopApps() {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  const [results, setResults] = useState<DesktopClientResult[] | null>(null);
+  const STATUS: Record<DesktopClientResult['status'], MessageKey> = { added: 'dk.added', already: 'dk.already', failed: 'dk.failed', missing: 'dk.missing' };
+  return (
+    <div className="ca-steps">
+      <p>{t('dk.intro')}</p>
+      <button
+        className="btn primary"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            setResults(await desktop!.connectClients());
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? t('ai.connecting') : t('dk.connect')}
+      </button>
+      {results && (
+        <ul className="dk-results">
+          {results.map((r) => (
+            <li key={r.name} className={r.status}>
+              {r.status === 'added' || r.status === 'already' ? '✓' : r.status === 'failed' ? '✗' : '–'} {r.name}: {t(STATUS[r.status])}
+              {r.detail && r.detail !== 'restart' ? ` (${r.detail})` : ''}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="ca-note">{results?.some((r) => r.status === 'added') ? t('dk.restart') : t('dk.how')}</p>
+    </div>
+  );
+}
+
 export function ConnectAI() {
   const features = useConfig((c) => c.features);
   const remoteMcp = useConfig((c) => c.remoteMcp);
-  const [tab, setTab] = useState<Tab>(remoteMcp ? 'remote' : 'desktop');
+  const [tab, setTab] = useState<Tab>(desktop ? 'apps' : remoteMcp ? 'remote' : 'desktop');
   const b = useBridge();
   const t = useT();
   // config.json arrives after the first render.
   useEffect(() => {
     if (remoteMcp) setTab('remote');
   }, [remoteMcp]);
-  const LABEL: Record<Tab, MessageKey> = { remote: 'ca.tabRemote', desktop: 'ca.tabDesktop', cli: 'ca.tabCli', key: 'ca.tabKey' };
-  const tabs: [Tab, MessageKey][] = connectTabs(features, remoteMcp).map((id) => [id, LABEL[id]]);
+  const LABEL: Record<Tab, MessageKey> = { remote: 'ca.tabRemote', desktop: 'ca.tabDesktop', cli: 'ca.tabCli', key: 'ca.tabKey', apps: 'dk.tab' };
+  const tabs: [Tab, MessageKey][] = desktop
+    ? [['apps', 'dk.tab'], ...(features.byoKey ? [['key', 'ca.tabKey'] as [Tab, MessageKey]] : [])]
+    : connectTabs(features, remoteMcp).map((id) => [id, LABEL[id]]);
   return (
     <div className="ai-setup connect-ai">
       <div className="ca-tabs" role="tablist">
@@ -126,6 +168,7 @@ export function ConnectAI() {
           </button>
         ))}
       </div>
+      {tab === 'apps' && <DesktopApps />}
       {tab === 'remote' && <RemoteMcp />}
       {tab === 'desktop' && (
         <ol className="ca-steps">

@@ -40,10 +40,10 @@ export function readConfig(file) {
 export const openbandEntry = (config, key) => config?.[key]?.openband ?? null;
 
 /** Add OpenBand to a client config, keeping a .bak of the original. Returns what changed. */
-export function writeEntry(client) {
+export function writeEntry(client, entry = SERVER_ENTRY) {
   const config = readConfig(client.file);
   const before = JSON.stringify(openbandEntry(config, client.key));
-  config[client.key] = { ...(config[client.key] ?? {}), openband: client.id === 'vscode' ? { type: 'stdio', ...SERVER_ENTRY } : SERVER_ENTRY };
+  config[client.key] = { ...(config[client.key] ?? {}), openband: client.id === 'vscode' ? { type: 'stdio', ...entry } : entry };
   if (before === JSON.stringify(config[client.key].openband)) return { changed: false };
   fs.mkdirSync(path.dirname(client.file), { recursive: true });
   let backup = null;
