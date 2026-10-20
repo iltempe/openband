@@ -2,7 +2,8 @@ name: Release
 
 # Push a tag vX.Y.Z (matching package.json) to publish at the same version: a GitHub Release with the
 # built package (openband.tgz — what `npx -y <release url>` runs) and the Claude Desktop extension
-# (openband.mcpb), notes from the CHANGELOG, and the online demo.
+# (openband.mcpb) and notes from the CHANGELOG. The online demo deploys from main (pages.yml): the
+# github-pages environment only accepts main, and the release commit is already there.
 # Opt-in (repository variables): NPM_PUBLISH=true publishes to npm (needs NPM_TOKEN and a package name
 # OpenBand owns — "openband" is not), PUBLISH_DOCKER=true pushes the image to GHCR.
 on:
@@ -56,10 +57,6 @@ jobs:
       - run: gh release create "${GITHUB_REF_NAME}" build/*.mcpb build/*.tgz --title "OpenBand ${GITHUB_REF_NAME}" --notes-file build/notes.md
         env:
           GH_TOKEN: ${{ github.token }}
-
-  demo:
-    needs: publish
-    uses: ./.github/workflows/pages.yml
 
   # The self-hosting image on GHCR, for amd64 and arm64 (NAS, Raspberry Pi).
   docker:

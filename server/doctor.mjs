@@ -35,11 +35,14 @@ export async function runChecks({ port = Number(process.env.OPENBAND_PORT || 777
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const major = Number(process.versions.node.split('.')[0]);
   add(major >= 18, `Node ${process.versions.node}`, 'Install Node 18 or newer from https://nodejs.org (or use the .mcpb extension for Claude Desktop).');
+  // Looked up the way Node resolves imports: npx installs the dependencies next to OpenBand, not inside it.
   const depVersion = (name) => {
-    try {
-      return JSON.parse(fs.readFileSync(path.join(root, 'node_modules', ...name.split('/'), 'package.json'), 'utf8')).version;
-    } catch {
-      return null;
+    for (let dir = root; ; dir = path.dirname(dir)) {
+      try {
+        return JSON.parse(fs.readFileSync(path.join(dir, 'node_modules', ...name.split('/'), 'package.json'), 'utf8')).version;
+      } catch {
+        if (path.dirname(dir) === dir) return null;
+      }
     }
   };
   const deps = ['@modelcontextprotocol/sdk', 'ws', 'zod'].map((d) => [d, depVersion(d)]);

@@ -2,6 +2,11 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## Unreleased
+
+- Fixed: `doctor` reported the MCP SDK, ws and zod as missing when OpenBand runs through npx (npx installs them next to the package, not inside it); they are now looked up the way Node resolves imports.
+- The *Release* workflow no longer tries to deploy the demo from the tag (the `github-pages` environment accepts only `main`, where the demo is already deployed on every push).
+
 ## v0.3.0 "What no DAW has"
 
 The v0.3 work follows [docs/SPEC-v0.3.md](docs/SPEC-v0.3.md).

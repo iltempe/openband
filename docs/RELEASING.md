@@ -6,7 +6,9 @@ One tag publishes everything at the same version, as a GitHub Release:
   `npx -y --allow-remote=all https://github.com/iltempe/openband/releases/latest/download/openband.tgz`;
   `setup` writes the version-pinned URL into MCP client configs;
 - `openband.mcpb` (and `openband-X.Y.Z.mcpb`): the Claude Desktop extension, for the README's "latest" link;
-- the release notes (the version's section of `CHANGELOG.md`) and the online demo.
+- the release notes (the version's section of `CHANGELOG.md`).
+
+The online demo deploys on every push to `main` (`pages.yml`), so it is already at the release version when you tag.
 
 > **npm name:** `openband` on npm belongs to someone else (a reserved 0.0.0 package), so OpenBand is not
 > published to npm and `npx openband` must never be suggested (`server/package.mjs` explains it; `doctor`
@@ -25,7 +27,7 @@ Opt-in steps of the *Release* workflow (repository variables, Settings → Secre
 2. `npm version 0.3.0 --no-git-tag-version` (semver: breaking → major, features → minor, fixes → patch).
 3. `npm run build && node scripts/release-dry-run.mjs`: the package, the `.mcpb` and the demo carry the same version and there are notes for it (CI runs this on every push too).
 4. Run the [manual .mcpb checklist](checklists/mcpb.md) on macOS and Windows with the bundle from the dry run.
-5. Commit, then `git tag v0.3.0 && git push origin main v0.3.0`. The *Release* workflow verifies that the tag matches `package.json`, runs the tests, smoke-tests the package, builds and tests the `.mcpb`, creates the GitHub Release with both attached and deploys the demo.
+5. Commit, then `git tag v0.3.0 && git push origin main v0.3.0`. The *Release* workflow verifies that the tag matches `package.json`, runs the tests, smoke-tests the package, builds and tests the `.mcpb`, and creates the GitHub Release with both attached.
 6. From an empty folder: `npx -y --allow-remote=all https://github.com/iltempe/openband/releases/latest/download/openband.tgz --version` prints the new version.
 
 ## Compatibility between versions
