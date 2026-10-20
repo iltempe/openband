@@ -4796,3 +4796,78 @@ div.ca-steps {
   border: 1px solid var(--line-2, rgba(255, 255, 255, 0.1));
   white-space: nowrap;
 }
+
+/* ---------- loop library (F24) ---------- */
+.lib-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+.lib-tabs button {
+  flex: 1;
+  padding: 5px 8px;
+  border-radius: 7px;
+  border: 1px solid var(--line-2, rgba(255, 255, 255, 0.1));
+  background: none;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.lib-tabs button.on {
+  background: var(--panel-3);
+  font-weight: 600;
+}
+.loops {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 10px 12px;
+}
+.loops-search {
+  width: 100%;
+}
+.loops-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+}
+.loops-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.loops-tags .mini.on {
+  background: var(--accent, #a78bfa);
+  color: #111;
+}
+.loop-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: 8px;
+}
+.loop-row:hover {
+  background: var(--panel-3);
+}
+.loop-play.on {
+  color: #22c55e;
+}
+.loop-info {
+  flex: 1;
+  min-width: 0;
+}
+.loop-name {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.loop-meta {
+  font-size: 11px;
+  opacity: 0.65;
+}
+.loops-license {
+  margin-top: 6px;
+}

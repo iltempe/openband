@@ -115,6 +115,9 @@ export function startRemoteMcp() {
   if (remoteMcpMode && socket && socket.readyState <= 1) return;
   remoteMcpMode = true;
   wanted = true;
+  // A local page may have a reconnect pending for its normal bridge: it must not open a second
+  // (remote) connection later, which would get a new code while this one is paired.
+  clearTimeout(reconnectTimer);
   useBridge.setState({ remoteMcp: { code: null, expiresAt: null, paired: false }, problem: null });
   socket?.close();
   connectBridge();
@@ -132,6 +135,8 @@ export function disconnectBridge() {
 
 export function connectBridge() {
   const set = useStore.getState().set;
+  // One connection at a time in remote MCP mode (a stray retry must not replace the paired one).
+  if (remoteMcpMode && socket && socket.readyState <= 1 && socket.url === sameOriginBridgeUrl()) return;
   const remote = !BRIDGE_ENABLED && !remoteMcpMode;
   const viaMcp = remoteMcpMode;
   // The demo stays offline until the user asks — unless this tab already paired.
@@ -246,7 +251,9 @@ useStore.subscribe((s, prev) => {
   }
 });
 
+let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 function scheduleReconnect() {
-  setTimeout(connectBridge, retry);
+  clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(connectBridge, retry);
   retry = Math.min(retry * 1.6, 8000);
 }

@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { getTrack, useStore } from '../store';
+import { LoopBrowser } from './Loops';
 import { useConfig } from '../config';
 import { PRESETS, findInstrument, type InstrumentPreset } from '../audio/instruments';
 import { commands } from '../commands';
@@ -23,6 +25,7 @@ export function Library() {
   const pluginsOn = useConfig((c) => c.features.plugins);
   const selected = getTrack(project, useStore((s) => s.selectedTrackId));
   const t = useT();
+  const [view, setView] = useState<'sounds' | 'loops'>('sounds');
   const imported: InstrumentPreset[] = (project.instruments ?? []).map((c) => findInstrument(c.id)!).filter(Boolean);
   const all = [...imported, ...PRESETS];
   const categories = [...new Set(all.map((p) => p.category))];
@@ -43,7 +46,21 @@ export function Library() {
       <div className="lib-head">
         <div className="lib-title">{t('lib.title')}</div>
         <div className="lib-sub">{selected ? t('lib.track', { name: selected.name }) : t('lib.clickToCreate')}</div>
+        <div className="lib-tabs" role="tablist">
+          <button role="tab" aria-selected={view === 'sounds'} className={view === 'sounds' ? 'on' : ''} onClick={() => setView('sounds')}>
+            {t('loops.tabSounds')}
+          </button>
+          <button role="tab" aria-selected={view === 'loops'} className={view === 'loops' ? 'on' : ''} onClick={() => setView('loops')}>
+            {t('loops.tab')}
+          </button>
+        </div>
       </div>
+      {view === 'loops' ? (
+        <div className="lib-scroll">
+          <LoopBrowser />
+        </div>
+      ) : (
+        <>
       <div className="lib-import">
         <div className="lib-cat-name">{t('imp.title')}</div>
         <div className="lib-import-grid">
@@ -89,6 +106,8 @@ export function Library() {
         ))}
       </div>
       {selected && <div className="lib-foot">{findInstrument(selected.instrument)?.name}</div>}
+        </>
+      )}
     </aside>
   );
 }

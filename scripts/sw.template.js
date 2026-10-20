@@ -1,6 +1,6 @@
 // OpenBand service worker (generated at build time: the precache list and version are filled in).
 // Hashed assets: cache-first. The page: network-first, falling back to the cache when offline.
-// Plugins (WAM), fonts and loops: cached at runtime after their first use.
+// Plugins (WAM), fonts and loops (same-origin loops/*.wav are left out of the precache): cached at runtime after their first use.
 const VERSION = '__VERSION__';
 const PRECACHE = __PRECACHE__;
 const SHELL = `openband-shell-${VERSION}`;

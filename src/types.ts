@@ -29,6 +29,8 @@ export interface Region {
   /** Alternative versions of the content (F12); notes/audio above always hold the active one. */
   takes?: Take[];
   activeTakeId?: string;
+  /** Made by the drummer (F24): how, so it can be regenerated with another seed. */
+  drummer?: { style: string; complexity: number; loudness: number; swing: number; fills: 'none' | 'end_of_section' | 'every_4'; seed: number };
 }
 
 export interface Take {

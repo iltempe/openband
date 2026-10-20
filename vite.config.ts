@@ -24,7 +24,8 @@ function openbandPwa(): Plugin {
         }
       };
       walk(outDir);
-      const precache = ['./', ...files.filter((f) => f !== 'sw.js' && f !== 'version.json' && !f.endsWith('.map')).map((f) => `./${f}`)];
+      // Loop audio (F24) is cached when first used, not up front.
+      const precache = ['./', ...files.filter((f) => f !== 'sw.js' && f !== 'version.json' && !f.endsWith('.map') && !(f.startsWith('loops/') && f.endsWith('.wav'))).map((f) => `./${f}`)];
       const hash = crypto.createHash('sha256').update(precache.join('\n')).digest('hex').slice(0, 10);
       const version = `${pkg.version}-${hash}`;
       const sw = fs.readFileSync('scripts/sw.template.js', 'utf8').replace('__VERSION__', version).replace('__PRECACHE__', JSON.stringify(precache, null, 1));

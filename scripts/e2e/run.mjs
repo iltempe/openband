@@ -145,7 +145,9 @@ tests.remote = async () => {
     check(Array.isArray(proj.tracks) && proj.tracks.length > 0 && (!name || proj.name === name), `get_project returns this tab's song ("${proj.name}", ${proj.tracks?.length} tracks)`);
     await c.callTool({ name: 'set_tempo', arguments: { bpm: 133 } });
     check((await p.evaluate(() => document.body.innerText.includes('133'))) === true, 'set_tempo from the remote client changes the tab');
-    check(await p.evaluate(() => !!document.querySelector('.ca-paired') || !document.querySelector('.ca-code')), 'the tab says it is paired');
+    const paired = await p.waitForFunction(() => !!document.querySelector('.ca-paired') || !document.querySelector('.ca-code'), { timeout: 3000 }).then(() => true, () => false);
+    const state = paired ? '' : ` — ${await p.evaluate(() => document.querySelector('.connect-ai')?.textContent?.slice(0, 160) ?? 'no wizard')}`;
+    check(paired, `the tab says it is paired${state}`);
     await c.close();
   } finally {
     await b.close();

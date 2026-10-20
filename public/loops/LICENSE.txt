@@ -1,0 +1,5 @@
+The audio files in this folder were made by the OpenBand contributors with OpenBand (scripts/build-loops.mjs)
+and are dedicated to the public domain under CC0 1.0 Universal:
+https://creativecommons.org/publicdomain/zero/1.0/
+
+You can copy, modify and use them, also commercially, without asking permission or giving credit.

@@ -28,6 +28,7 @@ In jam mode loop: wait_for_event({kinds:['phrase']}) → answer with play_phrase
 Before a big rework, save_version; to try a different direction without losing the current one, create_branch + checkout (merge brings the good parts back).
 To offer alternatives, add them as takes (add_take) and let the user pick with a blind test (start_ab_test, then wait_for_event ab_result).
 Before destructive operations a version is saved automatically; preview_at/restore_at can bring back any earlier moment.
+add_drummer creates human-like drums that follow the song sections; regenerate with a new seed for alternatives.
 Use get_meters for live loudness, level_match before judging whether an effect chain helps.
 Flubs: list_flubs shows where the user marked mistakes while recording; offer to fix them (comp from takes, re-record, or edit notes).
 Run lint_project before declaring a task done and fix errors (apply_fix).
@@ -472,6 +473,52 @@ tool('restore_at', 'Go back to how the song was at a moment: replaces the song (
   time: Time,
   as_branch: z.union([z.boolean(), z.string()]).optional(),
 });
+
+// ---- drummer
+
+const DrumStyleArg = z.enum(['rock', 'pop', 'funk', 'boom-bap', 'trap', 'lo-fi', 'house', 'bossa', 'ballad', 'shuffle']);
+
+tool('add_drummer', 'A human-like drum part, generated (not by you: a fast, repeatable drummer): a style, complexity 0..1 (bare groove → every variation), loudness 0..1, swing 0..1, fills ("end_of_section" default, "every_4" bars, "none") and a seed. It follows the song: simpler in verses, fuller in choruses, with fills before each new section and a crash after. For one section (section_id), a range (from_bar…to_bar) or the whole song. Uses the drum track (or creates one with a kit for the style). For alternatives use regenerate_drummer with as_take.', {
+  track_id: z.string().optional(),
+  section_id: z.string().optional(),
+  from_bar: z.number().int().min(1).optional(),
+  to_bar: z.number().int().min(1).optional().describe('Last bar played (inclusive)'),
+  style: DrumStyleArg,
+  complexity: z.number().min(0).max(1).optional(),
+  loudness: z.number().min(0).max(1).optional(),
+  swing: z.number().min(0).max(1).optional(),
+  fills: z.enum(['none', 'end_of_section', 'every_4']).optional(),
+  seed: z.number().int().optional(),
+});
+
+tool('regenerate_drummer', 'Play a drummer region again with a new seed (default: the next one) and optionally another style/complexity/loudness/swing/fills; as_take=true keeps the old version as a take (compare them with start_ab_test).', {
+  region_id: z.string(),
+  seed: z.number().int().optional(),
+  as_take: z.boolean().optional(),
+  style: DrumStyleArg.optional(),
+  complexity: z.number().min(0).max(1).optional(),
+  loudness: z.number().min(0).max(1).optional(),
+  swing: z.number().min(0).max(1).optional(),
+  fills: z.enum(['none', 'end_of_section', 'every_4']).optional(),
+});
+
+// ---- loop library
+
+tool('search_loops', 'Search the CC0 loop library (drums, bass, keys, pads… made for OpenBand, free to use): words matched on name and tags (e.g. "funk drums", "lo-fi keys"), bpm keeps loops within 15% of it, key prefers that key. Loops follow the song tempo when added, so any tempo works.', {
+  query: z.string().optional(),
+  bpm: z.number().min(40).max(240).optional(),
+  key: z.string().optional(),
+  limit: z.number().int().min(1).max(50).optional(),
+}, readOnly);
+
+tool('add_loop', 'Add a loop from the library as an audio clip at start_bar (default: the playhead\'s bar): it follows the song tempo (follow_tempo, default true) and, when it has a key, is transposed to the song key (match_key, default true; same mode only). repeat places it several times in a row. Creates an audio track unless track_id is given.', {
+  loop_id: z.string(),
+  track_id: z.string().optional(),
+  start_bar: z.number().int().min(1).optional(),
+  repeat: z.number().int().min(1).max(16).optional(),
+  follow_tempo: z.boolean().optional(),
+  match_key: z.boolean().optional(),
+}, { timeout: 60000 });
 
 // ---- monitoring
 

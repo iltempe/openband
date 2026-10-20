@@ -37,7 +37,25 @@ import { currentTarget, setMonitoring, useMonitoring } from './monitoring';
 import { levelMatch } from './levelMatch';
 import { projectAt, restoreAt, timeline } from './journal';
 import { exportDawproject, importDawproject } from './interop/dawproject';
+import { addLoop, findLoops } from './loopsLive';
 import { detectTempo, stretchFactor } from './audio/stretch';
+import { DRUM_STYLES, generateDrums, spansFor, type DrumStyle, type DrummerOptions } from './generate/drummer';
+
+function drummerOptions(o: P): DrummerOptions {
+  const style = String(o.style ?? 'pop') as DrumStyle;
+  if (!DRUM_STYLES.includes(style)) throw new Error(`Unknown style "${o.style}". Styles: ${DRUM_STYLES.join(', ')}`);
+  const fills = (o.fills ?? 'end_of_section') as DrummerOptions['fills'];
+  if (!['none', 'end_of_section', 'every_4'].includes(fills)) throw new Error('fills: none, end_of_section or every_4');
+  const num = (v: unknown, d: number) => (v === undefined || v === null ? d : clamp(Number(v), 0, 1));
+  return { style, complexity: num(o.complexity, 0.5), loudness: num(o.loudness, 0.7), swing: num(o.swing, style === 'shuffle' || style === 'boom-bap' || style === 'lo-fi' ? 0.5 : 0), fills, seed: Number.isFinite(Number(o.seed)) && o.seed !== undefined ? Math.floor(Number(o.seed)) : Math.floor(Math.random() * 1e6) };
+}
+
+/** The drummer's notes for [from, to) as region notes (beats from `from`). */
+function drummerNotes(sections: Section[], from: number, to: number, o: DrummerOptions): Note[] {
+  return generateDrums(spansFor(sections, from, to), o)
+    .filter((n) => n.start >= from - 0.05 && n.start < to)
+    .map((n) => ({ ...n, id: uid('n'), start: +Math.max(0, n.start - from).toFixed(4) }));
+}
 
 import { autoVersion } from './versioning';
 
@@ -1320,6 +1338,76 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { region_id: r.id, take_id: comp.id, name: comp.name, notes: notes.length, segments: segs.map((s) => ({ ...s, take: takes.find((t) => t.id === s.take_id)!.name })) };
   },
 
+  // ---- drummer (F24)
+  add_drummer: ({ track_id, section_id, from_bar, to_bar, style, complexity, loudness, swing, fills, seed }) => {
+    const p = st().project;
+    const opts = drummerOptions({ style, complexity, loudness, swing, fills, seed });
+    let from: number;
+    let to: number;
+    if (section_id) {
+      const sec = p.sections?.find((s) => s.id === section_id || s.name.toLowerCase() === String(section_id).toLowerCase());
+      if (!sec) throw new Error(`Section "${section_id}" not found. Call get_structure.`);
+      from = sec.start;
+      to = sec.start + sec.length;
+    } else if (from_bar !== undefined) {
+      from = barToBeat(Number(from_bar));
+      to = to_bar !== undefined ? barToBeat(Number(to_bar) + 1) : from + 4 * BEATS_PER_BAR;
+    } else {
+      const secs = p.sections ?? [];
+      from = secs.length ? Math.min(...secs.map((s) => s.start)) : 0;
+      to = secs.length ? Math.max(...secs.map((s) => s.start + s.length)) : Math.max(8 * BEATS_PER_BAR, Math.ceil(projectEnd(p) / BEATS_PER_BAR) * BEATS_PER_BAR);
+    }
+    if (!(to > from)) throw new Error('to_bar must be after from_bar');
+    let track = track_id ? requireTrack(p, track_id) : p.tracks.find((t) => t.kind === 'drums');
+    if (track && track.kind !== 'drums') throw new Error('The drummer plays on a drum track');
+    if (!track) {
+      track = makeTrack(p, 'drums', opts.style === 'trap' ? 'kit-808' : opts.style === 'lo-fi' || opts.style === 'boom-bap' ? 'kit-lofi' : 'kit-studio', 'Drummer');
+      const tr = track;
+      st().commit((d) => void d.tracks.push(tr));
+    }
+    const notes = drummerNotes(p.sections ?? [], from, to, opts);
+    const region: Region = { id: uid('rgn'), trackId: track.id, name: `Drummer · ${opts.style}`, start: from, length: to - from, notes, drummer: opts };
+    st().commit((d) => void d.regions.push(region));
+    return { region_id: region.id, track_id: track.id, from_bar: beatToBar(from), bars: (to - from) / BEATS_PER_BAR, notes: notes.length, ...opts };
+  },
+
+  regenerate_drummer: ({ region_id, seed, as_take, style, complexity, loudness, swing, fills }) => {
+    const p = st().project;
+    const r = requireRegion(p, region_id);
+    if (!r.drummer) throw new Error('This region was not made by the drummer (add_drummer)');
+    const opts = drummerOptions({ ...r.drummer, ...(style !== undefined ? { style } : {}), ...(complexity !== undefined ? { complexity } : {}), ...(loudness !== undefined ? { loudness } : {}), ...(swing !== undefined ? { swing } : {}), ...(fills !== undefined ? { fills } : {}), seed: seed ?? r.drummer.seed + 1 });
+    const notes = drummerNotes(p.sections ?? [], r.start, r.start + r.length, opts);
+    if (as_take) {
+      const base = withTakes(r, Date.now(), () => uid('take'));
+      const take = { id: uid('take'), name: `${nextTakeName(base.takes)} · seed ${opts.seed}`, notes, createdAt: Date.now(), author: (isAiCommand() ? 'ai' : 'user') as 'ai' | 'user' };
+      st().commit((d) => {
+        const x = d.regions.find((y) => y.id === r.id)!;
+        x.takes = [...base.takes, take];
+        x.activeTakeId = take.id;
+        x.notes = notes.map((n) => ({ ...n }));
+        x.drummer = opts;
+      });
+      return { region_id: r.id, take_id: take.id, notes: notes.length, ...opts };
+    }
+    st().commit((d) => {
+      const x = d.regions.find((y) => y.id === r.id)!;
+      x.notes = notes;
+      x.drummer = opts;
+      x.name = `Drummer · ${opts.style}`;
+    });
+    return { region_id: r.id, notes: notes.length, ...opts };
+  },
+
+  // ---- loop library (F24)
+  search_loops: async ({ query, bpm, key, limit }) => {
+    const p = st().project;
+    const res = await findLoops({ query, bpm: bpm ?? undefined, key: key ?? undefined, limit: limit ?? 12 });
+    return { song: { bpm: p.bpm, key: p.key }, loops: res.map((l) => ({ id: l.id, name: l.name, bpm: l.bpm, ...(l.key ? { key: l.key } : {}), bars: l.bars, tags: l.tags, license: l.license, author: l.author })) };
+  },
+
+  add_loop: async ({ loop_id, track_id, start_bar, repeat, follow_tempo, match_key }) =>
+    addLoop(String(loop_id ?? ''), { trackId: track_id ? requireTrack(st().project, track_id).id : undefined, startBar: start_bar, repeat, followTempo: follow_tempo, matchKey: match_key }),
+
   // ---- safety net (F21)
   get_timeline: async ({ from, to }) => {
     const r = await timeline(from !== undefined ? toTime(from) : undefined, to !== undefined ? toTime(to) : undefined);
@@ -1583,7 +1671,7 @@ const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi', 'export_dawproject',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

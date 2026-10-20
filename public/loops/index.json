@@ -1,0 +1,249 @@
+{
+  "version": 1,
+  "loops": [
+    {
+      "id": "drums-rock-120",
+      "name": "Rock beat",
+      "bpm": 120,
+      "bars": 2,
+      "tags": [
+        "drums",
+        "rock"
+      ],
+      "license": "CC0",
+      "author": "OpenBand contributors",
+      "url": "loops/drums-rock-120.wav",
+      "source": "Made with OpenBand's own instruments by scripts/build-loops.mjs (recipe \"drums-rock-120\")"
+    },
+    {
+      "id": "drums-pop-110",
+      "name": "Pop beat",
+      "bpm": 110,
+      "bars": 2,
+      "tags": [
+        "drums",
+        "pop"
+      ],
+      "license": "CC0",
+      "author": "OpenBand contributors",
+      "url": "loops/drums-pop-110.wav",
+      "source": "Made with OpenBand's own instruments by scripts/build-loops.mjs (recipe \"drums-pop-110\")"
+    },
+    {
+      "id": "drums-funk-100",
+      "name": "Funk groove",
+      "bpm": 100,
+      "bars": 2,
+      "tags": [
+        "drums",
+        "funk"
+      ],
+      "license": "CC0",
+      "author": "OpenBand contributors",
+      "url": "loops/drums-funk-100.wav",
+      "source": "Made with OpenBand's own instruments by scripts/build-loops.mjs (recipe \"drums-funk-100\")"
+    },
+    {
+      "id": "drums-boombap-90",
+      "name": "Boom-bap beat",
+      "bpm": 90,
+      "bars": 2,
+      "tags": [
+        "drums",
+        "boom-bap",
+        "hip-hop"
+      ],
+      "license": "CC0",
+      "author": "OpenBand contributors",
+      "url": "loops/drums-boombap-90.wav",
+      "source": "Made with OpenBand's own instruments by scripts/build-loops.mjs (recipe \"drums-boombap-90\")"
+    },
+    {
+      "id": "drums-trap-140",
+      "name": "Trap hats and 808 kick",
+      "bpm": 140,
+      "bars": 2,
+      "tags": [
+        "drums",
+        "trap"
+      ],
+      "license": "CC0",
+      "author": "OpenBand contributors",
+      "url": "loops/drums-trap-140.wav",
+      "source": "Made with OpenBand's own instruments by scripts/build-loops.mjs (recipe \"drums-trap-140\")"
+    },
+    {
+      "id": "drums-lofi-82",
+      "name": "Lo-fi dusty beat",
+      "bpm": 82,
+      "bars": 2,
+      "tags": [
+        "drums",
+        "lo-fi",
+        "chill"
+      ],
+      "license": "CC0",
+      "author": "OpenBand contributors",
+      "url": "loops/drums-lofi-82.wav",
+      "source": "Made with OpenBand's own instruments by scripts/build-loops.mjs (recipe \"drums-lofi-82\")"
+    },
+    {
+      "id": "drums-house-124",
+      "name": "House four on the floor",
+      "bpm": 124,
+      "bars": 2,
+      "tags": [
+        "drums",
+        "house",
+        "dance"
+      ],
+      "license": "CC0",
+      "author": "OpenBand contributors",
+      "url": "loops/drums-house-124.wav",
+      "source": "Made with OpenBand's own instruments by scripts/build-loops.mjs (recipe \"drums-house-124\")"
+    },
+    {
+      "id": "drums-bossa-130",
+      "name": "Bossa nova groove",
+      "bpm": 130,
+      "bars": 2,
+      "tags": [
+        "drums",
+        "bossa",
+        "latin"
+      ],
+      "license": "CC0",
+      "author": "OpenBand contributors",
+      "url": "loops/drums-bossa-130.wav",
+      "source": "Made with OpenBand's own instruments by scripts/build-loops.mjs (recipe \"drums-bossa-130\")"
+    },
+    {
+      "id": "bass-lofi-cm-82",
+      "name": "Lo-fi bass line",
+      "bpm": 82,
+      "key": "Cm",
+      "bars": 2,
+      "tags": [
+        "bass",
+        "lo-fi"
+      ],
+      "license": "CC0",
+      "author": "OpenBand contributors",
+      "url": "loops/bass-lofi-cm-82.wav",
+      "source": "Made with OpenBand's own instruments by scripts/build-loops.mjs (recipe \"bass-lofi-cm-82\")"
+    },
+    {
+      "id": "bass-house-am-124",
+      "name": "Acid house bass",
+      "bpm": 124,
+      "key": "Am",
+      "bars": 2,
+      "tags": [
+        "bass",
+        "house",
+        "acid"
+      ],
+      "license": "CC0",
+      "author": "OpenBand contributors",
+      "url": "loops/bass-house-am-124.wav",
+      "source": "Made with OpenBand's own instruments by scripts/build-loops.mjs (recipe \"bass-house-am-124\")"
+    },
+    {
+      "id": "bass-funk-em-100",
+      "name": "Funk slap-style bass",
+      "bpm": 100,
+      "key": "Em",
+      "bars": 2,
+      "tags": [
+        "bass",
+        "funk"
+      ],
+      "license": "CC0",
+      "author": "OpenBand contributors",
+      "url": "loops/bass-funk-em-100.wav",
+      "source": "Made with OpenBand's own instruments by scripts/build-loops.mjs (recipe \"bass-funk-em-100\")"
+    },
+    {
+      "id": "keys-lofi-cm-82",
+      "name": "Lo-fi electric piano chords",
+      "bpm": 82,
+      "key": "Cm",
+      "bars": 2,
+      "tags": [
+        "keys",
+        "lo-fi",
+        "chords"
+      ],
+      "license": "CC0",
+      "author": "OpenBand contributors",
+      "url": "loops/keys-lofi-cm-82.wav",
+      "source": "Made with OpenBand's own instruments by scripts/build-loops.mjs (recipe \"keys-lofi-cm-82\")"
+    },
+    {
+      "id": "keys-pop-c-110",
+      "name": "Pop piano chords",
+      "bpm": 110,
+      "key": "C",
+      "bars": 2,
+      "tags": [
+        "keys",
+        "pop",
+        "piano",
+        "chords"
+      ],
+      "license": "CC0",
+      "author": "OpenBand contributors",
+      "url": "loops/keys-pop-c-110.wav",
+      "source": "Made with OpenBand's own instruments by scripts/build-loops.mjs (recipe \"keys-pop-c-110\")"
+    },
+    {
+      "id": "keys-ballad-g-72",
+      "name": "Ballad piano",
+      "bpm": 72,
+      "key": "G",
+      "bars": 2,
+      "tags": [
+        "keys",
+        "ballad",
+        "piano",
+        "chords"
+      ],
+      "license": "CC0",
+      "author": "OpenBand contributors",
+      "url": "loops/keys-ballad-g-72.wav",
+      "source": "Made with OpenBand's own instruments by scripts/build-loops.mjs (recipe \"keys-ballad-g-72\")"
+    },
+    {
+      "id": "pad-ambient-dm-90",
+      "name": "Ambient pad",
+      "bpm": 90,
+      "key": "Dm",
+      "bars": 2,
+      "tags": [
+        "pad",
+        "ambient",
+        "chords"
+      ],
+      "license": "CC0",
+      "author": "OpenBand contributors",
+      "url": "loops/pad-ambient-dm-90.wav",
+      "source": "Made with OpenBand's own instruments by scripts/build-loops.mjs (recipe \"pad-ambient-dm-90\")"
+    },
+    {
+      "id": "lead-chip-am-120",
+      "name": "8-bit arpeggio",
+      "bpm": 120,
+      "key": "Am",
+      "bars": 2,
+      "tags": [
+        "lead",
+        "chiptune",
+        "arpeggio"
+      ],
+      "license": "CC0",
+      "author": "OpenBand contributors",
+      "url": "loops/lead-chip-am-120.wav",
+      "source": "Made with OpenBand's own instruments by scripts/build-loops.mjs (recipe \"lead-chip-am-120\")"
+    }
+  ]
+}
