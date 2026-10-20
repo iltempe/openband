@@ -12,7 +12,7 @@ function song(): Project {
   p.sections = [{ id: 'sec_v', name: 'Verse', kind: 'verse', start: 0, length: 16, color: '#fff' }];
   return p;
 }
-const ann = (id: string, target: Annotation['target'], at: number, extra: Partial<Annotation> = {}): Annotation => ({ id, target, text: id, author: 'ai', createdAt: at, ...extra });
+const ann = (id: string, target: Annotation['target'], at: number, extra: Partial<Annotation> = {}): Annotation => ({ id, target, text: id, author: { kind: 'ai', name: 'AI' }, createdAt: at, ...extra });
 
 describe('annotations', () => {
   it('validates targets', () => {
@@ -43,7 +43,7 @@ describe('annotations', () => {
     expect(anchorBeat(p, { type: 'notes', note_ids: ['n_b', 'n_a'] })).toBe(9);
     expect(anchorBeat(p, { type: 'region', id: 'rgn_1' })).toBe(8);
     expect(anchorBeat(p, { type: 'project' })).toBeNull();
-    const list = [ann('x', { type: 'region', id: 'rgn_1' }, 1), ann('y', { type: 'section', id: 'sec_v' }, 2), ann('z', { type: 'region', id: 'rgn_1' }, 3, { author: 'user', resolved: true })];
+    const list = [ann('x', { type: 'region', id: 'rgn_1' }, 1), ann('y', { type: 'section', id: 'sec_v' }, 2), ann('z', { type: 'region', id: 'rgn_1' }, 3, { author: { kind: 'user', name: 'You' }, resolved: true })];
     const th = threads(list);
     expect(th.map((t) => t.items.map((a) => a.id))).toEqual([['x', 'z'], ['y']]);
     expect(th[0].resolved).toBe(false);

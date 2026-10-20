@@ -7,7 +7,7 @@ import { PRESETS, customInstruments, findInstrument } from './audio/instruments'
 import { getBuffer, importSample, useSamples } from './audio/samples';
 import { normalizeFx } from './audio/fx';
 import { AUTO_PARAMS, FX_PARAMS, hasAutomation, isAutomated, lanesOf, mix, parseTargetKey, pointsOf, setPoints, targetKey, targetRange } from './automation';
-import type { AutoTarget } from './types';
+import type { Annotation, AutoTarget } from './types';
 import type { AutoParam } from './types';
 import { presetForProgram, readMidi, writeMidi, type MidiSong } from './midi';
 import { addPluginEffect, addPluginInstrument, captureWamStates, getPluginParams, removePluginEffect, searchPlugins, setPluginParams, updateSlot } from './plugins';
@@ -73,7 +73,7 @@ import { pluginsChanged } from './pluginHistory';
 import type { HistoryEntry } from './types';
 import { bestTakeAt, fixWindow, takeOf } from './flubs';
 import { markFlub, useFlubLive } from './flubLive';
-import { createRoom, getPeers, joinRoom, leaveRoom } from './collab/session';
+import { createRoom, getPeers, joinRoom, leaveRoom, useCollab } from './collab/session';
 import { jamStatus, keepAnswer, keepPhrase, playPhrase, setJamMode, useJam } from './jamMode';
 import { canonicalJSON } from './versions/canonical';
 import { checkout, createBranch, diffVersions, listVersions, mergeBranch, saveVersion } from './versioning';
@@ -144,6 +144,13 @@ function requireTrack(p: Project, id: string): Track {
   if (!t) throw new Error(`Track "${id}" not found. Call get_project to list track ids.`);
   return t;
 }
+/** Who is writing: the person (by their room name), or the AI acting for them. */
+function authorNow(ai: boolean): Annotation['author'] {
+  const c = useCollab.getState();
+  const me = c.status === 'connected' ? c.me.name : null;
+  return ai ? { kind: 'ai', name: me ? `AI · ${me}` : 'AI' } : { kind: 'user', name: me ?? 'You' };
+}
+
 function requireFlub(id: string) {
   const f = st().project.flubs?.find((x) => x.id === id);
   if (!f) throw new Error(`Flub "${id}" not found. Call list_flubs.`);
@@ -1219,21 +1226,23 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   // ---------- annotations ("Explain" mode) ----------
 
-  annotate: ({ target, text }) => {
+  annotate: ({ target, text, reply_to }) => {
     const body = String(text ?? '').trim();
     if (!body) throw new Error('text is empty');
     if (body.length > MAX_ANNOTATION) throw new Error(`Annotations are at most ${MAX_ANNOTATION} characters (got ${body.length}): keep them short`);
     const p = st().project;
-    const tgt = checkTarget(p, target);
+    const parent = reply_to ? p.annotations?.find((x) => x.id === reply_to) : undefined;
+    if (reply_to && !parent) throw new Error(`Annotation "${reply_to}" not found. Call list_annotations.`);
+    const tgt = parent ? parent.target : checkTarget(p, target);
     const ai = isAiCommand();
-    const a = { id: uid('ann'), target: tgt, text: body, author: (ai ? 'ai' : 'user') as 'ai' | 'user', createdAt: Date.now(), ...(ai && st().activeTransaction ? { txId: st().activeTransaction!.id } : {}) };
+    const a: Annotation = { id: uid('ann'), target: tgt, text: body, author: authorNow(ai), createdAt: Date.now(), ...(parent ? { replyTo: parent.id } : {}), ...(ai && st().activeTransaction ? { txId: st().activeTransaction!.id } : {}) };
     st().commit((d) => void (d.annotations = [...(d.annotations ?? []), a]), { label: 'Annotation' });
     return { annotation_id: a.id, target: tgt };
   },
 
   list_annotations: ({ target, include_resolved }) => {
     const list = (st().project.annotations ?? []).filter((a) => (include_resolved || !a.resolved) && (!target || matchesTarget(a.target, target)));
-    return { annotations: list.map((a) => ({ id: a.id, target: a.target, text: a.text, author: a.author, created_at: a.createdAt, ...(a.resolved ? { resolved: true } : {}), ...(a.orphaned ? { orphaned: true } : {}) })) };
+    return { annotations: list.map((a) => ({ id: a.id, target: a.target, text: a.text, author: a.author, ...(a.replyTo ? { reply_to: a.replyTo } : {}), created_at: a.createdAt, ...(a.resolved ? { resolved: true } : {}), ...(a.orphaned ? { orphaned: true } : {}) })) };
   },
 
   resolve_annotation: ({ annotation_id, resolved }) => {

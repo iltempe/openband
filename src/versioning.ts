@@ -29,6 +29,41 @@ export interface BranchRef {
   projectId: string;
   name: string;
   headId: string;
+  /** When the head last moved (shared rooms: the newest wins). */
+  at?: number;
+}
+
+// ---- sharing with a room (F16): listeners hear about every version saved / branch moved here,
+// and versions / branches from the room are stored locally.
+type Shared = { version?: StoredVersion; branch?: BranchRef };
+const shareListeners = new Set<(s: Shared) => void>();
+export const onVersionShared = (fn: (s: Shared) => void) => (shareListeners.add(fn), () => void shareListeners.delete(fn));
+const share = (s: Shared) => shareListeners.forEach((fn) => fn(s));
+
+/** Everything stored for a song (to give to a room). */
+export async function storedFor(projectId: string): Promise<{ versions: StoredVersion[]; branches: BranchRef[] }> {
+  const versions = ((await tx<StoredVersion[]>('versions', 'readonly', (s) => s.getAll())) ?? []).filter((v) => v.projectId === projectId);
+  const branches = ((await tx<BranchRef[]>('branches', 'readonly', (s) => s.getAll())) ?? []).filter((b) => b.projectId === projectId);
+  return { versions, branches };
+}
+
+/** Versions and branch heads from a room: kept locally (versions never change; heads: the newest move wins). */
+export async function receiveShared(versions: StoredVersion[], branches: BranchRef[]) {
+  let changed = 0;
+  for (const v of versions) {
+    const have = await tx<StoredVersion | undefined>('versions', 'readonly', (s) => s.get(v.id));
+    if (have) continue;
+    await tx('versions', 'readwrite', (s) => s.put({ ...v, snapshot: new Uint8Array(v.snapshot) }));
+    changed++;
+  }
+  for (const b of branches) {
+    const have = await tx<BranchRef | undefined>('branches', 'readonly', (s) => s.get(b.id));
+    if (have && (have.at ?? 0) >= (b.at ?? 0)) continue;
+    await tx('branches', 'readwrite', (s) => s.put(b));
+    changed++;
+  }
+  if (changed && vs().projectId) await loadVersions();
+  return changed;
 }
 
 interface VersionsState {
@@ -140,7 +175,9 @@ export async function saveVersion(label: string, author: 'user' | 'ai', extra: {
     snapshot: pack(project),
   };
   await tx('versions', 'readwrite', (x) => x.put(v));
-  await tx('branches', 'readwrite', (x) => x.put({ id: `${v.projectId}:${branch}`, projectId: v.projectId, name: branch, headId: v.id } satisfies BranchRef));
+  const ref: BranchRef = { id: `${v.projectId}:${branch}`, projectId: v.projectId, name: branch, headId: v.id, at: Date.now() };
+  await tx('branches', 'readwrite', (x) => x.put(ref));
+  share({ version: v, branch: ref });
   await loadVersions();
   setHead(branch, v.id);
   const { snapshot: _, ...meta } = v;
@@ -169,8 +206,9 @@ export async function createBranch(name: string, fromVersionId?: string) {
   if (vs().branches.some((b) => b.name === clean)) throw new Error(`Branch "${clean}" already exists`);
   // Branching needs a version to start from: save the current state if there is none.
   const from = fromVersionId ? resolveRef(fromVersionId) : vs().headId ?? (await saveVersion('Start', 'user')).id;
-  const ref: BranchRef = { id: `${vs().projectId}:${clean}`, projectId: vs().projectId!, name: clean, headId: from };
+  const ref: BranchRef = { id: `${vs().projectId}:${clean}`, projectId: vs().projectId!, name: clean, headId: from, at: Date.now() };
   await tx('branches', 'readwrite', (x) => x.put(ref));
+  share({ branch: ref });
   await loadVersions();
   return { branch: clean, head_id: from };
 }

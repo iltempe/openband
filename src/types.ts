@@ -257,12 +257,20 @@ export interface AnnotationTarget {
   to_beat?: number;
 }
 
+export interface AnnotationAuthor {
+  kind: 'user' | 'ai';
+  name: string;
+}
+
 export interface Annotation {
   id: string;
   target: AnnotationTarget;
   /** Short markdown, at most 500 characters. */
   text: string;
-  author: 'ai' | 'user';
+  /** Who wrote it (F16): a person (their room name) or an AI (acting for someone). */
+  author: AnnotationAuthor;
+  /** The comment this one answers (same target, same thread). */
+  replyTo?: string;
   txId?: string;
   createdAt: number;
   resolved?: boolean;

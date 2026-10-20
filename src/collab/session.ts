@@ -1,6 +1,8 @@
 // Multiplayer rooms (F16): one Y.Doc per room, synced over the LAN (the MCP server's relay) or peer to
 // peer (WebRTC). The store stays the single source for the UI and the audio engine; this module keeps
 // it and the doc in step, shares who's who (awareness), samples, and what the AI does.
+import { branchesMap, publishBranches, publishVersions, roomBranches, roomVersions, versionsMap } from './shared';
+import { onVersionShared, receiveShared, storedFor } from '../versioning';
 import * as Y from 'yjs';
 import { getConfig } from '../config';
 import { create } from 'zustand';
@@ -243,6 +245,38 @@ function bind(session: Session) {
   session.provider.awareness.on('change', readPeers);
 }
 
+/**
+ * Versions and branches of the song, shared with the room (F16): ours go into the doc, theirs into our
+ * local store, and from then on every new version or moved branch goes both ways.
+ */
+async function shareVersions(session: Session) {
+  const { doc } = session;
+  const pid = useStore.getState().project.meta?.projectId;
+  if (!pid) return;
+  const by = () => useCollab.getState().me.name;
+  try {
+    const local = await storedFor(pid);
+    publishVersions(doc, local.versions.map((v) => ({ ...v, by: by() })), LOCAL_VERSIONS);
+    publishBranches(doc, local.branches.map((b) => ({ ...b, at: b.at ?? 0, by: by() })), LOCAL_VERSIONS);
+    await receiveShared(roomVersions(doc, pid), roomBranches(doc, pid));
+  } catch {
+    // no local store (private window): the room still works
+  }
+  const incoming = (ev: Y.YEvent<Y.Map<unknown>>) => {
+    if (ev.transaction.origin === LOCAL_VERSIONS) return;
+    void receiveShared(roomVersions(doc, pid), roomBranches(doc, pid)).catch(() => {});
+  };
+  versionsMap(doc).observe(incoming as never);
+  branchesMap(doc).observe(incoming as never);
+  session.unsub.push(
+    onVersionShared(({ version, branch }) => {
+      if (version && version.projectId === pid) publishVersions(doc, [{ ...version, by: by() }], LOCAL_VERSIONS);
+      if (branch && branch.projectId === pid) publishBranches(doc, [{ ...branch, at: branch.at ?? Date.now(), by: by() }], LOCAL_VERSIONS);
+    }),
+  );
+}
+const LOCAL_VERSIONS = { versions: true };
+
 async function makeProvider(room: string, via: 'lan' | 'p2p', doc: Y.Doc, wsBase?: string, password?: string) {
   if (via === 'lan') {
     const { WebsocketProvider } = await import('y-websocket');
@@ -297,6 +331,7 @@ async function start(room: string, password: string | undefined, via: 'lan' | 'p
     useStore.getState().loadProject(readProject(doc, current));
   }
   bind(session);
+  void shareVersions(session);
   setUndoOverride({ undo: () => undo.undo(), redo: () => undo.redo(), boundary: () => undo.stopCapturing() });
   useCollab.setState({ status: 'connected' });
   pushAwareness();

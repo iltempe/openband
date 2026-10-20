@@ -36,6 +36,12 @@ export function migrate(raw: unknown, now = Date.now()): Project {
   for (const r of p.regions) {
     if (!Array.isArray(r.notes)) r.notes = [];
   }
+  // Annotation authors were 'ai' | 'user'; now {kind, name} (F16 in rooms).
+  if (Array.isArray(p.annotations))
+    for (const a of p.annotations as unknown as { author: unknown }[]) {
+      if (a.author === 'ai') a.author = { kind: 'ai', name: 'AI' };
+      else if (typeof a.author === 'string' || !a.author) a.author = { kind: 'user', name: 'You' };
+    }
   // v2 → v3: track automation becomes a list of lanes with open targets (F22).
   for (const t of p.tracks) {
     const lanes = lanesFromRecord((t as { automation?: unknown }).automation);

@@ -90,7 +90,7 @@ export function Markdown({ text }: { text: string }) {
 
 export function CommentPin({ list, target, className = '' }: { list: Annotation[]; target: AnnotationTarget; className?: string }) {
   if (!list.length) return null;
-  const ai = list.some((a) => a.author === 'ai');
+  const ai = list.some((a) => a.author.kind === 'ai');
   return (
     <button
       className={`cm-pin ${ai ? 'ai' : ''} ${className}`}
@@ -145,9 +145,9 @@ function ThreadView({ th, project }: { th: Thread; project: Project }) {
         {th.orphaned && <span className="cm-orphan">{t('cm.orphan')}</span>}
       </button>
       {th.items.map((a) => (
-        <div key={a.id} className={`cm-item ${a.author}`}>
+        <div key={a.id} className={`cm-item ${a.author.kind} ${a.replyTo ? 'reply' : ''}`}>
           <div className="cm-meta">
-            <b>{a.author === 'ai' ? 'AI' : t('cm.you')}</b>
+            <b>{a.author.kind === 'user' && a.author.name === 'You' ? t('cm.you') : a.author.name}</b>
             <span>{new Date(a.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
             <span className="eb-spacer" />
             <button className="mini" onClick={() => run('resolve_annotation', { annotation_id: a.id, resolved: !a.resolved })}>
@@ -168,7 +168,8 @@ function ThreadView({ th, project }: { th: Thread; project: Project }) {
           onSubmit={(e) => {
             e.preventDefault();
             if (!reply.trim()) return;
-            void run('annotate', { target: th.target, text: reply.trim().slice(0, 500) });
+            const last = th.items[th.items.length - 1];
+            void run('annotate', { target: th.target, text: reply.trim().slice(0, 500), ...(last ? { reply_to: last.id } : {}) });
             setReply('');
           }}
         >

@@ -416,8 +416,9 @@ const TargetSchema = z.object({
 }).describe('What the annotation is about. Ranges are in beats from the song start (bar n starts at beat (n-1)*4).');
 
 tool('annotate', 'Attach a short explanation (markdown, max 500 characters) to part of the song: why a chord, voicing, rhythm or mix choice works. It appears as a pin on the arrangement / piano roll and in the Comments panel. Answer "Explain" questions (ask events with context.explain) this way.', {
-  target: TargetSchema,
+  target: TargetSchema.optional().describe('What it is about (not needed with reply_to)'),
   text: z.string().max(500),
+  reply_to: z.string().optional().describe('Answer this annotation (same thread; target is then taken from it)'),
 });
 
 tool('list_annotations', 'List annotations (optionally only those about a target; resolved ones only with include_resolved). Annotations whose target was deleted are marked orphaned.', {
