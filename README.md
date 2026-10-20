@@ -89,7 +89,9 @@ That's it: the studio opens in your browser (Node 18+). No clone, no build. Pref
 
 > The `openband` npm package and the `.mcpb` extension are published with the v0.2 release. Until then, use a checkout (see [Development](#development)).
 
-A demo song opens on first launch. The “Enter the studio” click is needed because browsers only enable audio after a user interaction.
+The first screen starts with music, not a tutorial: **🎲 Surprise me** builds and plays an 8-bar loop in a fraction of a second (a random progression among 12, in a random key, with drums and bass — no AI needed), **🎤 Hum an idea** turns 4 sung bars into a melody with chords, bass and a beat under it, **🤖 Ask the AI** opens the connection wizard, **📂 Open a file** takes a song or a MIDI file. *Example songs* has 8 small songs (lo-fi, pop ballad, trap, house, rock, bossa nova, singer-songwriter, ambient) that explain their own choices in the Comments panel. A 5-step tour follows what you actually do (play, make a region, add a note, open the mixer, meet the AI) and can be skipped or replayed from the ⋯ menu; `?` shows every keyboard shortcut.
+
+<img src="docs/welcome.png" alt="Welcome screen: Surprise me, Hum an idea, Ask the AI, Open a file" width="640">
 
 ## Sounds, effects, automation and MIDI
 
@@ -213,6 +215,7 @@ Conventions: 4/4 time; bars start at 1; inside a region, positions and durations
 | ⌘Z / ⇧⌘Z | Undo / Redo |
 | ⌘D · ⌫ | Duplicate region · Delete notes or region |
 | ⌘A (in the editor) | Select all notes |
+| ? | All keyboard shortcuts |
 
 ## Development
 

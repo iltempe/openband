@@ -87,7 +87,9 @@ Fatto: lo studio si apre nel browser (serve Node 18+). Niente clone, niente buil
 
 > Il pacchetto npm `openband` e l'estensione `.mcpb` vengono pubblicati con la release v0.2. Fino ad allora usa un checkout (vedi [Sviluppo](#sviluppo)).
 
-Al primo avvio si apre un brano demo. Il clic su “Entra nello studio” (“Enter the studio” in inglese) serve perché i browser abilitano l'audio solo dopo un'interazione dell'utente.
+La prima schermata comincia con la musica, non con un tutorial: **🎲 Sorprendimi** crea e fa suonare un loop di 8 battute in una frazione di secondo (un giro a caso fra 12, in una tonalità a caso, con batteria e basso, senza AI), **🎤 Canticchia un'idea** trasforma 4 battute cantate in una melodia con accordi, basso e ritmo, **🤖 Chiedi all'AI** apre la procedura di collegamento, **📂 Apri un file** prende una canzone o un MIDI. *Brani d'esempio* contiene 8 piccoli brani (lo-fi, ballata pop, trap, house, rock, bossa nova, cantautore, ambient) che spiegano le proprie scelte nel pannello Commenti. Un tour di 5 passi segue quello che fai davvero (play, crea una regione, aggiungi una nota, apri il mixer, conosci l'AI), si può saltare o rivedere dal menu ⋯; `?` mostra tutte le scorciatoie.
+
+<img src="docs/welcome.png" alt="Schermata iniziale: Sorprendimi, Canticchia un'idea, Chiedi all'AI, Apri un file" width="640">
 
 ## Suoni, effetti, automazioni e MIDI
 
@@ -211,6 +213,7 @@ Convenzioni: tempo in 4/4; le battute partono da 1; dentro una regione posizioni
 | ⌘Z / ⇧⌘Z | Annulla / Ripristina |
 | ⌘D · ⌫ | Duplica regione · Elimina note o regione |
 | ⌘A (nell'editor) | Seleziona tutte le note |
+| ? | Tutte le scorciatoie |
 
 ## Sviluppo
 

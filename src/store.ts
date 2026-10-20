@@ -249,11 +249,12 @@ export const useStore = create<State>((set, get) => ({
   },
   loadProject: (raw) => {
     const p = migrate(raw);
-    const { project, past } = get();
+    const { project, past, activeTransaction } = get();
     set({
       project: p,
-      past: [...past, entry(project, t('hist.load'), 'ui', 1)].slice(-HISTORY_LIMIT),
-      future: [],
+      // Inside a transaction (e.g. building a template) the load is part of that one undo step.
+      past: activeTransaction ? past : [...past, entry(project, t('hist.load'), 'ui', 1)].slice(-HISTORY_LIMIT),
+      future: activeTransaction ? get().future : [],
       selectedRegionId: null,
       selectedNoteIds: [],
       selectedTrackId: p.tracks[0]?.id ?? null,

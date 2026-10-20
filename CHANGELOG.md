@@ -6,6 +6,16 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 The v0.3 work follows [docs/SPEC-v0.3.md](docs/SPEC-v0.3.md).
 
+### D6 · First run: "your first song in 60 seconds"
+- The welcome screen offers four choices — each click also unlocks audio: **Surprise me** (an 8-bar loop from 12 progressions × keys × 5 grooves, built with the same commands the AI uses and playing in about 0.1 s), **Hum an idea** (4 bars sung → melody, then chords chosen bar by bar from the melody's notes, bass and a beat), **Ask the AI** (the Connect AI wizard), **Open a file** (.openband/JSON or MIDI). *Enter the studio* resumes the autosaved song or opens the demo; MIDI devices found are listed.
+- Pure, tested modules: `src/generate/plan.ts` (songs as plans; Roman numerals → chords in any key, flat degrees relative to the major scale), `src/generate/surprise.ts` (deterministic per seed; melody harmonisation), `src/tour.ts` (steps advance only on the real action).
+- 8 templates in `src/templates/` (lo-fi, pop ballad, trap, house, rock, bossa nova, singer-songwriter, ambient), each with sections, placeholder lyrics where it fits and annotations that explain its choices; they open with the Comments panel. Every template is built in a test; a template is one undo step.
+- 5-step contextual tour (play → make a region → add a note in the piano roll → open the mixer → open the AI panel) with the target highlighted, skippable, replayable from the ⋯ menu.
+- `?` opens the shortcuts sheet; useful empty states (empty song: instrument, drums, import audio, example songs; Problems: "No problems 🎉"); a note when the audio latency is high.
+- Local-only metrics (time to first sound and to first export) kept in this browser for the coming Diagnostics page — never sent.
+- Fixed: `new_project`/loading a song inside a transaction added its own undo step.
+- E2E check: from a fresh browser profile, *Surprise me* → playing in ~100 ms; the tour ignores wrong actions (opening the mixer first) and advances on the right ones.
+
 ### D3 · The online demo talks to your AI (secure pairing)
 - `server/pairing.mjs` (tested): origins are *local* (localhost pages, no change), *pair* (sites in `OPENBAND_ALLOWED_ORIGINS`, default `https://iltempe.github.io`) or rejected. A 6-digit code valid 10 minutes (spent once used) gives a 32-byte session token kept only in memory, so restarting the server revokes it; 5 wrong codes in a minute lock pairing for 5 minutes. The code is printed at start and returned by `open_studio`.
 - The bridge gives an allowed site nothing — no commands, no events — until it has paired; unpaired sockets are closed after 2 minutes. Integration test on the real server process: unknown origin refused, allowed origin without code refused, wrong ×5 → locked, right code → token, token accepted on reconnection and refused after a restart.

@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react';
+import { useOverlays } from './Welcome';
+import { beginTour } from '../firstRun';
 import { ShareButton } from './Collab';
 import { useStore } from '../store';
 import { engine } from '../audio/engine';
@@ -140,6 +142,7 @@ function ProjectMenu() {
           <div className="menu">
             <button onClick={() => (close(), commands.new_project({}))}>{t('menu.new')}</button>
             <button onClick={() => (close(), loadDemo())}>{t('menu.demo')}</button>
+            <button onClick={() => (close(), useOverlays.setState({ templates: true }))}>{t('wel.examples')}</button>
             <hr />
             <button onClick={() => (close(), void saveProject())}>{t('menu.save')}</button>
             <button onClick={() => (close(), fileRef.current?.click())}>{t('menu.open')}</button>
@@ -163,6 +166,9 @@ function ProjectMenu() {
             <hr />
             <button onClick={exportWav}>{t('menu.exportWav')}</button>
             <button onClick={() => (close(), commands.export_midi({}))}>{t('menu.exportMidi')}</button>
+            <hr />
+            <button onClick={() => (close(), useOverlays.setState({ shortcuts: true }))}>{t('sc.title')} (?)</button>
+            <button onClick={() => (close(), beginTour(true))}>{t('tour.replay')}</button>
             <hr />
             <div className="menu-label">{t('menu.language')}</div>
             <div className="lang-switch">

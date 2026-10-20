@@ -1,5 +1,6 @@
 // Live input: musical typing (computer keyboard), Web MIDI, and recording into regions.
 import { create } from 'zustand';
+import { setMidiInputs } from './firstRun';
 import type { Note } from './types';
 import { BEATS_PER_BAR, uid } from './music';
 import { engine } from './audio/engine';
@@ -180,8 +181,10 @@ export function initMidi() {
             else if (cmd === 0x80 || (cmd === 0x90 && d2 === 0)) liveNoteOff(d1);
           };
         });
+      const list = () => setMidiInputs([...access.inputs.values()].map((i) => i.name ?? 'MIDI input'));
       bind();
-      access.onstatechange = bind;
+      list();
+      access.onstatechange = () => (bind(), list());
     })
     .catch(() => {
       /* MIDI permission denied — musical typing still works */

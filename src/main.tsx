@@ -12,6 +12,7 @@ import './lintLive';
 import { initReference } from './reference';
 import { initVersions } from './versioning';
 import { initJam } from './jamMode';
+import { initFirstRun } from './firstRun';
 
 // A song handed over from the online demo wins; otherwise the autosave, otherwise the demo song.
 if (!consumeHandoff() && !hasSavedProject()) loadDemo();
@@ -24,6 +25,7 @@ useStore.subscribe((s, prev) => {
 initReference();
 initVersions();
 initJam();
+initFirstRun();
 connectBridge();
 initMidi();
 

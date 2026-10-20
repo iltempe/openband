@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { useOverlays } from './Welcome';
 import { PeerDots } from './Collab';
 import { useVersions } from '../versioning';
 import { CommentPin, useComments } from './Comments';
@@ -102,7 +103,13 @@ function EmptyState() {
         <button className="btn" onClick={() => commands.add_track({ kind: 'drums' })}>
           <I.DrumIcon /> {t('arr.addDrums')}
         </button>
+        <button className="btn" onClick={() => void importAudioFlow()} title={t('arr.dropHint')}>
+          <I.Wave /> {t('arr.dropFile')}
+        </button>
       </div>
+      <button className="mini" onClick={() => useOverlays.setState({ templates: true })}>
+        {t('wel.examples')}
+      </button>
     </div>
   );
 }

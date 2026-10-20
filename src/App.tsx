@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { getRegion, useStore } from './store';
-import { engine } from './audio/engine';
 import { clamp } from './music';
 import { commands } from './commands';
 import { liveNoteOff, liveNoteOn, typingPitch } from './input';
@@ -23,8 +22,9 @@ import { ABOverlay, TakesDialog } from './components/Takes';
 import { CommentsPanel, ExplainMenu } from './components/Comments';
 import { CompareBanner, VersionsPanel } from './components/Versions';
 import { JoinDialog } from './components/Collab';
+import { ShortcutsSheet, TemplateGallery, TourCard, Welcome, useOverlays } from './components/Welcome';
 import { PluginBrowser, PluginWindow } from './components/Plugins';
-import { LANGS, setLang, useLang, useT } from './i18n';
+import { useT } from './i18n';
 
 function useShortcuts() {
   useEffect(() => {
@@ -110,6 +110,9 @@ function useShortcuts() {
         case 'k':
           s.set({ keyboardOpen: !s.keyboardOpen });
           break;
+        case '?':
+          useOverlays.setState((o) => ({ shortcuts: !o.shortcuts }));
+          break;
         case 'm':
           s.commit((d) => void (d.metronome = !d.metronome), { history: false });
           break;
@@ -150,50 +153,6 @@ function useShortcuts() {
   }, []);
 }
 
-function Splash() {
-  const set = useStore((s) => s.set);
-  const name = useStore((s) => s.project.name);
-  const t = useT();
-  const lang = useLang((s) => s.lang);
-  return (
-    <div className="splash">
-      <div className="splash-glow" />
-      <div className="splash-card">
-        <svg width="72" height="72" viewBox="0 0 64 64">
-          <defs>
-            <linearGradient id="sg" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor="#ff7a59" />
-              <stop offset=".5" stopColor="#b14cff" />
-              <stop offset="1" stopColor="#3cc8ff" />
-            </linearGradient>
-          </defs>
-          <path d="M8 40c7 0 7-16 14-16s7 16 14 16 7-16 14-16" fill="none" stroke="url(#sg)" strokeWidth="6" strokeLinecap="round" />
-        </svg>
-        <h1>OpenBand</h1>
-        <p>{t('splash.tagline')}</p>
-        <button
-          className="btn primary big"
-          onClick={async () => {
-            await engine.unlock();
-            set({ audioReady: true });
-          }}
-        >
-          {t('splash.enter')}
-        </button>
-        <div className="splash-sub">
-          {t('splash.project')} <strong>{name}</strong>
-        </div>
-        <div className="lang-switch">
-          {LANGS.map((l) => (
-            <button key={l.id} className={l.id === lang ? 'on' : ''} onClick={() => setLang(l.id)}>
-              {l.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function useFileDrop() {
   useEffect(() => {
@@ -292,7 +251,10 @@ export function App() {
       <PluginWindow />
       {s.toast && <div className="toast">{s.toast}</div>}
       {s.isRecording && <div className="rec-glow" />}
-      {!s.audioReady && <Splash />}
+      {!s.audioReady && <Welcome />}
+      <TemplateGallery />
+      <ShortcutsSheet />
+      {s.audioReady && <TourCard />}
     </div>
   );
 }

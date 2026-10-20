@@ -1,6 +1,7 @@
 // High-level command API. This is what the MCP bridge calls, and the UI reuses parts of it.
 // Bars are 1-based (bar 1 starts at beat 0); positions inside regions are in beats.
 import type { Note, Project, Region, Track, TrackKind } from './types';
+import { markFirstExport } from './firstRun';
 import { BEATS_PER_BAR, KEYS, clamp, drumByPitch, noteName, parseChord, parsePitch, uid } from './music';
 import { PRESETS, customInstruments, findInstrument } from './audio/instruments';
 import { getBuffer, importSample, useSamples } from './audio/samples';
@@ -732,6 +733,7 @@ export const commands: Record<string, (args: P) => unknown> = {
   },
 
   export_wav: async ({ return_data }) => {
+    markFirstExport();
     await captureWamStates();
     const p = st().project;
     const blob = await renderProject(p);
