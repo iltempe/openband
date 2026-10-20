@@ -30,6 +30,8 @@ import { emptyProject, enterAiCommand, exitAiCommand, isAiCommand, getRegion, ge
 import { engine } from './audio/engine';
 import { checkSegments, compNotes, nextTakeName, withTakes, type CompSegment } from './takes';
 import { startABTest } from './abtest';
+import { pluginsChanged } from './pluginHistory';
+import type { HistoryEntry } from './types';
 import { bestTakeAt, fixWindow, takeOf } from './flubs';
 import { markFlub, useFlubLive } from './flubLive';
 import { createRoom, getPeers, joinRoom, leaveRoom } from './collab/session';
@@ -644,11 +646,21 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   get_history: ({ limit }) => {
     const n = clamp(Math.round(Number(limit ?? 20)), 1, 200);
-    const fmt = (e: { label: string; source: string; commands: number; at: number }) => ({ label: e.label, source: e.source, commands: e.commands, at: e.at });
+    const { past, future, project } = st();
+    // Each entry holds the project before its step: the step's result is the next snapshot.
+    const fmt = (e: HistoryEntry, after: Project) => ({
+      label: e.label,
+      source: e.source,
+      commands: e.commands,
+      at: e.at,
+      plugins_changed: pluginsChanged(e.project, after),
+      ...(e.pluginStateDropped ? { plugin_state_dropped: true } : {}),
+    });
     const tx = st().activeTransaction;
     return {
-      past: st().past.slice(-n).reverse().map(fmt),
-      future: st().future.slice(0, n).map(fmt),
+      past: past.map((e, i) => fmt(e, past[i + 1]?.project ?? project)).slice(-n).reverse(),
+      // Future entries hold the project after their step; the step starts from the previous one.
+      future: future.slice(0, n).map((e, i) => ({ ...fmt(e, e.project), plugins_changed: pluginsChanged(i === 0 ? project : future[i - 1].project, e.project) })),
       open: tx ? { label: tx.label, source: tx.source, commands: tx.commands } : null,
     };
   },

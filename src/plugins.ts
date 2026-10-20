@@ -4,6 +4,7 @@ import type { CustomInstrument, PluginSlot } from './types';
 import { getTrack, makeTrack, useStore } from './store';
 import { uid } from './music';
 import { normalizeFx } from './audio/fx';
+import { PluginStateSync, projectPluginStates, trimPluginHistory, type LivePlugin } from './pluginHistory';
 import { liveWams, resolvePlugin, wamCatalog, wamErrors, type WamCatalogEntry, type WamInstance } from './audio/wam';
 
 const st = () => useStore.getState();
@@ -165,7 +166,10 @@ export async function setPluginParams(trackId: string, slotId: string | undefine
     data[p.id] = { id: p.id, value: Math.min(p.maxValue, Math.max(p.minValue, Number(v))), normalized: false };
   }
   await node.setParameterValues(data);
-  await captureWamStates();
+  // The new state goes into the project as a normal (undoable) edit.
+  const key = `${trackId}:${slotId ?? 'instrument'}`;
+  const state = await node.getState().catch(() => undefined);
+  if (state !== undefined) pluginSync.recordEdit(key, pluginName(key), state, { own: false });
   return Object.keys(data);
 }
 
@@ -177,10 +181,18 @@ export async function captureWamStates() {
   for (const t of p.tracks) {
     const c = p.instruments?.find((i) => i.id === t.instrument);
     const live = c?.source === 'wam' ? liveWams.get(`${t.id}:instrument`) : undefined;
-    if (c && live && !instStates.has(c.id)) instStates.set(c.id, await live.audioNode.getState().catch(() => undefined));
+    if (c && live && !instStates.has(c.id)) {
+      const state = await live.audioNode.getState().catch(() => undefined);
+      instStates.set(c.id, state);
+      pluginSync.noteCaptured(`${t.id}:instrument`, state);
+    }
     for (const s of t.fx?.plugins ?? []) {
       const l = liveWams.get(`${t.id}:${s.id}`);
-      if (l) slotStates.set(s.id, await l.audioNode.getState().catch(() => undefined));
+      if (l) {
+        const state = await l.audioNode.getState().catch(() => undefined);
+        slotStates.set(s.id, state);
+        pluginSync.noteCaptured(`${t.id}:${s.id}`, state);
+      }
     }
   }
   if (!instStates.size && !slotStates.size) return;
@@ -190,9 +202,44 @@ export async function captureWamStates() {
   }, { history: false });
 }
 
-// Keep plugin states in the autosaved project while people tweak plugin GUIs.
+// ---------- undo of plugin state (F19) ----------
+
+function pluginName(key: string) {
+  return projectPluginStates(st().project).get(key)?.name ?? 'plugin';
+}
+
+export const pluginSync = new PluginStateSync({
+  live: () => {
+    const m = new Map<string, LivePlugin>();
+    for (const [key, inst] of liveWams) m.set(key, { name: pluginName(key), getState: () => inst.audioNode.getState(), setState: (s) => inst.audioNode.setState(s) });
+    return m;
+  },
+  project: () => st().project,
+  watched: () => {
+    const w = st().pluginWindow;
+    return w ? `${w.trackId}:${w.slotId ?? 'instrument'}` : null;
+  },
+  commit: (mutate, label) => st().commit(mutate, { label }),
+  beginEdit: (label) => st().beginTransaction(label, 'ui'),
+  endEdit: (id) => void st().endTransaction(id),
+  isOpen: (id) => st().activeTransaction?.id === id,
+  notify: (msg) => st().notify(msg),
+});
+
+// Undo, redo, checkout, load: plugins follow the project.
+useStore.subscribe((s, prev) => {
+  if (s.project !== prev.project) void pluginSync.projectChanged();
+  if (s.past !== prev.past) {
+    const trimmed = trimPluginHistory(s.past);
+    if (trimmed) useStore.setState({ past: trimmed });
+  }
+});
+
 if (typeof window !== 'undefined') {
+  // GUI edits of the open plugin window.
+  setInterval(() => void pluginSync.poll(), 750);
+  // Keep plugin states in the autosaved project while people tweak plugin GUIs.
   setInterval(() => {
-    if (liveWams.size) void captureWamStates();
+    if (liveWams.size && !pluginSync.busy) void captureWamStates();
   }, 15000);
 }

@@ -24,7 +24,7 @@ import { CompareBanner, VersionsPanel } from './components/Versions';
 import { JoinDialog } from './components/Collab';
 import { DiagnosticsPage } from './components/Diagnostics';
 import { ShortcutsSheet, TemplateGallery, TourCard, Welcome, useOverlays } from './components/Welcome';
-import { PluginBrowser, PluginWindow } from './components/Plugins';
+import { PluginBrowser, PluginRestoreOverlay, PluginWindow } from './components/Plugins';
 import { useT } from './i18n';
 import { FlubsPanel } from './components/Flubs';
 import { isRecordingTake, jumpToFlub, markFlub } from './flubLive';
@@ -260,6 +260,7 @@ export function App() {
       </div>
       {s.keyboardOpen && <MusicalTyping />}
       <SoundFontDialog />
+      <PluginRestoreOverlay />
       <MicOverlay />
       <TakesDialog />
       <ABOverlay />

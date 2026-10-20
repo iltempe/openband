@@ -284,6 +284,8 @@ export interface HistoryEntry {
   /** How many commands the step groups. */
   commands: number;
   at: number;
+  /** Plugin states of this step were dropped to save memory (F19): undoing to it leaves plugins as they are. */
+  pluginStateDropped?: boolean;
 }
 
 export interface ActiveTransaction {

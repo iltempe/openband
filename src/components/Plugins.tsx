@@ -1,4 +1,5 @@
 // Web Audio Module plugins: browser (catalog + URL), floating plugin window, effect slots.
+import { usePluginSync } from '../pluginHistory';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { create } from 'zustand';
 import type { Track } from '../types';
@@ -237,6 +238,18 @@ export function PluginSlots({ track }: { track: Track }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** While undo/redo restores plugin states the studio waits (no clicks that would race with it). */
+export function PluginRestoreOverlay() {
+  const busy = usePluginSync((s) => s.applying > 0);
+  const tr = useT();
+  if (!busy) return null;
+  return (
+    <div className="plugin-restore" role="status" aria-live="polite">
+      <span className="spinner" /> {tr('plg.restoring')}
     </div>
   );
 }

@@ -6,6 +6,16 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 The v0.3 work follows [docs/SPEC-v0.3.md](docs/SPEC-v0.3.md).
 
+### F19 · Undo that includes plugin state
+- A plugin's whole state (`getState()`: presets, modes, wavetables, anything its GUI changes — not only automatable parameters) is now part of every undo step: it lives in the project (`fx.plugins[].state`, the instrument's `wam.state`), so each history snapshot carries it (`src/pluginHistory.ts`).
+- GUI edits: while a plugin window is open its state is polled every 750 ms and hashed (CRC32 of a key-sorted JSON); a change opens an automatic "Edit <plugin>" step, extended while you keep tweaking and closed after 1.5 s of quiet. The first reading after opening is the baseline: opening or closing the window never makes a step.
+- Undo, redo, checkout and loading apply the project's state to the live plugins with `setState` when it differs from what they have; meanwhile polling is paused and the studio shows a spinner over everything, so the restore can't be mistaken for an edit or raced by a click. What the plugin reports after `setState` becomes the new baseline (plugins may serialise differently from what they were given).
+- `set_plugin_params` (AI) records the resulting state as a normal edit: undoable, grouped with the rest of the AI's request.
+- Memory: history keeps at most 50 MB of plugin state, newest first; older steps lose it (`pluginStateDropped`, `plugin_state_dropped` in `get_history`) and undoing to them leaves plugins as they are. States are not compressed in history (the cap bounds the memory instead).
+- `get_history` lists `plugins_changed` (plugin names) for every step. No new tools.
+- Tests with a fake WAM whose state is not just parameters: GUI edit (several polls) → one step; undo → the exact original state; redo → the edited one; no step from opening/closing the window or from applying a state; `set_plugin_params` undoable; unrelated edits don't touch the plugin; the 50 MB cap (newest kept). Checked in Chrome with a catalog plugin (Simple Delay): opening its window adds no step, `set_plugin_params` 0.3 → 4.5 is undone back to exactly 0.3 and redone.
+- The plugin parameter events (`wam-automation`) suggested by the spec are not used: polling covers every plugin, including those that don't send them.
+
 ### F18 · Flub markers
 - While recording, **F** marks a mistake and **G** a good part (with musical typing open, where F and G play notes: Shift+F / Shift+G); outside a recording F still opens Effects. A MIDI pedal marks mistakes too: CC64 by default, or any controller learned from the *To fix* panel (*Learn*; kept in this browser), only on the way down and only while recording.
 - Model: `Project.flubs?: Flub[]` (`{id, beat, trackId, regionId, takeId, kind: flub|good|note, text, createdAt, resolved, author}`), optional, no schema bump. Marks made during a take wait and are stored with the recorded region in the same undo step, bound to it and — in cycle recording — to the take of their pass; a take that records nothing keeps its marks. Marks follow their region when it moves or changes track; deleting the region keeps them unlinked.

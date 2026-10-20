@@ -484,6 +484,7 @@ const en = {
   // Connect AI
   'ca.tabDesktop': 'Claude Desktop',
   'ca.tabCli': 'Code, Cursor…',
+  'plg.restoring': 'Restoring plugin state…',
   'fl.tab': 'To fix',
   'fl.marked': 'Flub marked',
   'fl.markedGood': 'Good part marked',
@@ -1143,6 +1144,7 @@ const it: Record<MessageKey, string> = {
   'arr.dropFile': 'Importa audio', 'arr.dropHint': 'Oppure trascina audio, MIDI o una canzone nella finestra',
   'ca.tabDesktop': 'Claude Desktop',
   'ca.tabCli': 'Code, Cursor…',
+  'plg.restoring': 'Ripristino dello stato dei plugin…',
   'fl.tab': 'Da sistemare',
   'fl.marked': 'Errore segnato',
   'fl.markedGood': 'Parte buona segnata',
