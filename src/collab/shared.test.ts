@@ -45,6 +45,14 @@ describe('versions and comments shared in a room (F16)', () => {
   });
 
   it('when two people move a branch head at once, the newest move wins everywhere', () => {
+    // Yjs settles concurrent writes of one key by client id: try many pairs so luck can't pass it.
+    for (let round = 0; round < 20; round++) {
+      const pair = offlinePair();
+      publishBranches(pair.a, [{ id: 'song_1:main', projectId: 'song_1', name: 'main', headId: 'ver_new', at: 200 }]);
+      publishBranches(pair.b, [{ id: 'song_1:main', projectId: 'song_1', name: 'main', headId: 'ver_old', at: 100 }]);
+      pair.exchange();
+      for (const d of [pair.a, pair.b]) expect(roomBranches(d, 'song_1')[0].headId).toBe('ver_new');
+    }
     const { a, b, exchange } = offlinePair();
     publishBranches(a, [{ id: 'song_1:main', projectId: 'song_1', name: 'main', headId: 'ver_a1', at: 100, by: 'Alice' }]);
     publishBranches(b, [{ id: 'song_1:main', projectId: 'song_1', name: 'main', headId: 'ver_b1', at: 200, by: 'Bob' }]);

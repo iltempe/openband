@@ -1,7 +1,8 @@
 // Versions shared in a room (F16 delta): every peer's saved versions and branch heads live in the Y.Doc,
 // so the history of the song is the same for everyone. Pure Yjs, no store.
 //   versions   Y.Map<versionId, SharedVersion>   (a gzipped snapshot of the project with its metadata)
-//   branches   Y.Map<"projectId:name", {headId, at, by}>   (the newest move of a branch head wins)
+//   branches   Y.Map<"projectId:name@client", {headId, at, by}>   one entry per peer and branch; readers take
+//              the newest move (Yjs alone would settle two concurrent writes of one key by client order, not by time)
 import * as Y from 'yjs';
 
 export interface SharedVersion {
@@ -42,10 +43,21 @@ export function publishVersions(doc: Y.Doc, list: SharedVersion[], origin: unkno
 /** Move branch heads, unless someone moved them later. */
 export function publishBranches(doc: Y.Doc, list: SharedBranch[], origin: unknown = 'versions') {
   const m = branchesMap(doc);
-  const newer = list.filter((b) => (m.get(b.id)?.at ?? -1) < b.at);
-  if (newer.length) doc.transact(() => newer.forEach((b) => m.set(b.id, b)), origin);
+  const current = new Map(roomBranches(doc).map((b) => [b.id, b]));
+  const newer = list.filter((b) => (current.get(b.id)?.at ?? -1) < b.at);
+  if (newer.length) doc.transact(() => newer.forEach((b) => m.set(`${b.id}@${doc.clientID}`, b)), origin);
   return newer.length;
 }
 
 export const roomVersions = (doc: Y.Doc, projectId?: string) => [...versionsMap(doc).values()].filter((v) => !projectId || v.projectId === projectId).sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
-export const roomBranches = (doc: Y.Doc, projectId?: string) => [...branchesMap(doc).values()].filter((b) => !projectId || b.projectId === projectId).sort((a, b) => a.name.localeCompare(b.name));
+
+/** Branch heads: per branch, the newest move by anyone (ties: the larger head id, the same everywhere). */
+export function roomBranches(doc: Y.Doc, projectId?: string): SharedBranch[] {
+  const best = new Map<string, SharedBranch>();
+  for (const b of branchesMap(doc).values()) {
+    if (projectId && b.projectId !== projectId) continue;
+    const cur = best.get(b.id);
+    if (!cur || b.at > cur.at || (b.at === cur.at && b.headId > cur.headId)) best.set(b.id, b);
+  }
+  return [...best.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
