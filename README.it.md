@@ -126,6 +126,18 @@ jobs:
 
 I problemi compaiono come annotazioni sulla pull request. In locale: `node scripts/openband-lint.mjs brano.openband.json [--format=text|json|github] [--fail-on=warn]`. Le regole si possono disattivare o cambiare di gravità per ogni brano in `project.lint` (`disabled`, `severity`, `ignored`).
 
+### Ospitare il proprio OpenBand
+
+Lo studio è un'app statica, quindi gira ovunque: per una scuola, una community o per te:
+
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/iltempe/openband) [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/iltempe/openband)
+
+- **GitHub Pages dal tuo fork:** fork → *Settings → Pages → Source: GitHub Actions* → *Settings → Secrets and variables → Actions → Variables*: `OPENBAND_DEPLOY = true`. I fork non pubblicano finché non lo attivi.
+- **Cloudflare Pages:** collega il repository con il preset *Vite* (build `npm run build`, output `dist`), oppure `wrangler pages deploy dist`.
+- **Docker** (NAS, Raspberry Pi, server della scuola; amd64 e arm64): `docker run -p 8080:7777 ghcr.io/iltempe/openband`, oppure `docker compose up -d` con il `docker-compose.yml` incluso (stanze multiplayer attive, healthcheck su `/version.json`).
+- **Impostazioni senza ricompilare:** metti un `config.json` accanto a `index.html` (o indica con `OPENBAND_CONFIG` un file in Docker): nome dell'istanza, lingua predefinita, funzioni da disattivare (chat nel browser, plugin, stanze), URL del catalogo plugin, server di collaborazione. Vedi [`config.example.json`](config.example.json).
+- Ogni host riceve gli stessi header: asset in cache per sempre, pagina e service worker mai, e una Content-Security-Policy (`server/csp.mjs`) che permette alla pagina di raggiungere solo il bridge sul computer dell'utente, l'API Anthropic, il catalogo plugin e i server di collaborazione. Un'istanza statica non salva nulla: le canzoni restano nel browser di chi la usa. L'isolamento cross-origin (COOP/COEP, per un futuro uso di `SharedArrayBuffer`) non è ancora attivo.
+
 ### Suonare insieme
 
 - **Nella stessa rete** (il modo più veloce): avvia il server MCP con `OPENBAND_COLLAB=1`; servirà anche lo studio e un relay per le stanze sul tuo indirizzo di rete locale (stampato all'avvio; il bridge dell'AI resta raggiungibile solo da questo computer). Apri una stanza con *In questa rete* e manda il link.

@@ -1,0 +1,15 @@
+# docker compose up -d   → http://<this machine>:8080
+services:
+  openband:
+    image: ghcr.io/iltempe/openband:latest
+    build: .
+    ports:
+      - "8080:7777"
+    environment:
+      # Multiplayer rooms "on this network" (relay and signaling in the same container).
+      OPENBAND_COLLAB: "1"
+      # Instance settings (name, language, features…): see config.example.json.
+      # OPENBAND_CONFIG: /config/config.json
+    # volumes:
+    #   - ./config.json:/config/config.json:ro
+    restart: unless-stopped

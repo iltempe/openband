@@ -9,6 +9,7 @@ import { BRIDGE_ENABLED, useBridge } from '../bridge';
 import { ConnectAI, MCPB_URL } from './ConnectAI';
 import { AIChat } from './AIChat';
 import { useApiKey } from '../ai/keys';
+import { useConfig } from '../config';
 import * as I from './Icons';
 import { useT } from '../i18n';
 
@@ -37,7 +38,8 @@ export function AIPanel() {
   const notify = useStore((s) => s.notify);
   const t = useT();
   const pairing = useBridge((b) => b.pairing);
-  const hasKey = useApiKey((k) => k.hasKey);
+  const byoKey = useConfig((c) => c.features.byoKey);
+  const hasKey = useApiKey((k) => k.hasKey) && byoKey;
   const update = useBridge((b) => b.update);
 
   return (

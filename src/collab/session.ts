@@ -2,6 +2,7 @@
 // peer (WebRTC). The store stays the single source for the UI and the audio engine; this module keeps
 // it and the doc in step, shares who's who (awareness), samples, and what the AI does.
 import * as Y from 'yjs';
+import { getConfig } from '../config';
 import { create } from 'zustand';
 import type { Project } from '../types';
 import { setUndoOverride, useStore } from '../store';
@@ -250,7 +251,7 @@ async function makeProvider(room: string, via: 'lan' | 'p2p', doc: Y.Doc, wsBase
   const { WebrtcProvider } = await import('y-webrtc');
   const params = new URLSearchParams(location.search);
   // Peers meet on any signaling server they share: this computer's (if the MCP server offers one) and the public one.
-  const signaling = params.getAll('signal');
+  const signaling = [...params.getAll('signal'), ...(getConfig().collabServer?.signaling ?? [])];
   const server = useCollab.getState().server;
   if (server) signaling.push(`ws://127.0.0.1:${server.port}/signal`);
   signaling.push(PUBLIC_SIGNALING);
@@ -262,6 +263,8 @@ async function makeProvider(room: string, via: 'lan' | 'p2p', doc: Y.Doc, wsBase
 function lanBase(): string | undefined {
   const params = new URLSearchParams(location.search);
   if (params.get('collab')) return params.get('collab')!;
+  const relay = getConfig().collabServer?.relay;
+  if (relay) return relay.replace(/\/collab\/?$/, '');
   const srv = useCollab.getState().server;
   if (srv?.lan.length) return srv.lan[0].replace(/^http/, 'ws');
   // A page opened from the LAN server itself.

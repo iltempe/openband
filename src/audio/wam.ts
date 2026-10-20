@@ -1,6 +1,7 @@
 // Web Audio Modules 2.0 host: loads WAM plugins (instruments and effects) from URLs, the web's
 // open plugin standard. Plugins are ES modules whose default export has createInstance().
 import * as Tone from 'tone';
+import { getConfig } from '../config';
 import { cutoffToHz } from '../music';
 import type { Instrument } from './instruments';
 
@@ -46,7 +47,9 @@ let catalog: Promise<WamCatalogEntry[]> | null = null;
 
 /** The community plugin list, minus helpers that make no sense inside OpenBand (video, MIDI I/O…). */
 export function wamCatalog(): Promise<WamCatalogEntry[]> {
-  catalog ??= fetch(WAM_INDEX_URL)
+  const cfg = getConfig();
+  if (!cfg.features.plugins) return Promise.reject(new Error('Plugins are turned off on this OpenBand instance'));
+  catalog ??= fetch(cfg.pluginCatalogUrl ?? WAM_INDEX_URL)
     .then((r) => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();

@@ -6,6 +6,14 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 The v0.3 work follows [docs/SPEC-v0.3.md](docs/SPEC-v0.3.md).
 
+### D9 · Self-hosting in one click
+- GitHub Pages for forks: the deploy job runs on forks only with the `OPENBAND_DEPLOY=true` repository variable; the build also writes `404.html` and `version.json`.
+- Netlify (`netlify.toml`), Vercel (`vercel.json`), Cloudflare Pages (`wrangler.toml`) with deploy buttons in the README; the same headers everywhere, from one source (`server/csp.mjs`): hashed assets `immutable`, page / service worker / `version.json` / `config.json` `no-cache`, and a CSP whose `connect-src` allows only the bridge on the user's computer, the Anthropic API, the WAM catalog and the collaboration servers. `dist/_headers` is generated at build; a test checks `vercel.json` carries the same CSP.
+- Docker: multi-stage `Dockerfile` (`node server/http.mjs`: the studio, `version.json`, the CSP, optional rooms; the AI bridge stays local), `docker-compose.yml`, healthcheck on `/version.json`. CI builds and smoke-tests the image; the release pushes `ghcr.io/iltempe/openband` for amd64 and arm64.
+- Runtime `config.json` (`src/config.ts`, example in `config.example.json`, served from `OPENBAND_CONFIG` in Docker): instance name, default language (unless the user picked one), features (`byoKey`, `plugins`, `collab`), plugin catalog URL, collaboration relay and signaling. Read before the first render; a missing or malformed file falls back to the defaults (tested).
+- E2E `selfhost` (also in CI): with the CSP and a config turning the chat off, the page carries the CSP, the instance name applies, audio plays (worklets and workers under the CSP), the API key tab is gone, the plugin catalog is reachable, and the browser reports no CSP violation.
+- Cross-origin isolation (COOP/COEP, `coi-serviceworker`) is documented as not enabled until something needs `SharedArrayBuffer`. Making the repository a GitHub template is a repository setting left to the owner.
+
 ### D8 · Releases, versioning and update notices
 - `release.yml`: pushing `vX.Y.Z` checks the tag against `package.json`, runs the tests, smoke-tests the npm tarball, publishes it with provenance (`NPM_TOKEN`), builds and tests the `.mcpb`, creates the GitHub Release with the notes of that version from the CHANGELOG (`scripts/release-notes.mjs`) and the extension attached (also as `openband.mcpb`, for the README's "latest" link), then deploys the demo of the same version (the Pages workflow is now reusable). Guide: [docs/RELEASING.md](docs/RELEASING.md).
 - CI `release-dry-run` on every push: npm tarball, `.mcpb` and the demo's `version.json` carry the same version, and there are notes for it.

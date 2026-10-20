@@ -32,6 +32,12 @@ function openbandPwa(): Plugin {
       fs.writeFileSync(path.join(outDir, 'version.json'), JSON.stringify({ app: 'openband', version: pkg.version, build: version }) + '\n');
       // Deep links on static hosts (GitHub Pages serves 404.html for unknown paths).
       fs.copyFileSync(path.join(outDir, 'index.html'), path.join(outDir, '404.html'));
+      // Headers for Netlify and Cloudflare Pages (the same CSP and cache rules as the Docker image).
+      return import('./server/csp.mjs').then(({ contentSecurityPolicy, CACHE_RULES }) => {
+        const lines = ['/*', `  Content-Security-Policy: ${contentSecurityPolicy()}`, '  X-Content-Type-Options: nosniff', '  Referrer-Policy: strict-origin-when-cross-origin', ''];
+        for (const r of CACHE_RULES) lines.push(r.path, `  Cache-Control: ${r.value}`, '');
+        fs.writeFileSync(path.join(outDir, '_headers'), lines.join('\n'));
+      });
     },
   };
 }

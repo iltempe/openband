@@ -27,8 +27,8 @@ const check = (ok, label) => {
   if (!ok) failed++;
 };
 
-function server() {
-  const p = spawn(process.execPath, [path.join(root, 'bin', 'openband.mjs'), 'start'], { env: { ...process.env, OPENBAND_PORT: String(PORT), OPENBAND_OPEN_BROWSER: '0' }, stdio: ['ignore', 'ignore', 'pipe'] });
+function server(env = {}) {
+  const p = spawn(process.execPath, [path.join(root, 'bin', 'openband.mjs'), 'start'], { env: { ...process.env, OPENBAND_PORT: String(PORT), OPENBAND_OPEN_BROWSER: '0', ...env }, stdio: ['ignore', 'ignore', 'pipe'] });
   return new Promise((resolve) => p.stderr.on('data', (d) => String(d).includes('bridge on') && resolve(p)));
 }
 const launch = () => puppeteer.launch({ executablePath: chrome, headless: true, args: ['--autoplay-policy=no-user-gesture-required', '--no-sandbox'] });
@@ -82,6 +82,36 @@ const tests = {
       srv?.kill();
     }
   },
+};
+
+tests.selfhost = async () => {
+  // A public instance: the Docker CSP and a config.json that turns the in-browser chat off.
+  const dir = fs.mkdtempSync(path.join((await import('node:os')).tmpdir(), 'ob-e2e-'));
+  const cfg = path.join(dir, 'config.json');
+  fs.writeFileSync(cfg, JSON.stringify({ instanceName: 'Music lab', features: { byoKey: false } }));
+  const srv = await server({ OPENBAND_CSP: '1', OPENBAND_CONFIG: cfg });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    const violations = [];
+    p.on('console', (m) => /Content Security Policy|Refused to/i.test(m.text()) && !/7798\/bridge/.test(m.text()) && violations.push(m.text().slice(0, 200)));
+    // ?mcp= an unused port: no AI connected, so the Connect AI wizard shows its tabs.
+    const res = await p.goto(`${URL}?mcp=7798`, { waitUntil: 'networkidle0' });
+    check(!!res.headers()['content-security-policy'], 'the page is served with a CSP');
+    check((await p.title()).startsWith('Music lab'), `config.json applied (title "${await p.title()}")`);
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    check(await p.waitForSelector('.t-play.on', { timeout: 5000 }).then(() => true, () => false), 'audio plays under the CSP (worklets, workers)');
+    await p.evaluate(() => document.querySelector('.ai-pill').click());
+    await wait(300);
+    const tabs = await p.evaluate(() => [...document.querySelectorAll('.ca-tabs button')].map((b) => b.textContent));
+    check(tabs.length > 0 && !tabs.some((t) => /API key/.test(t)), `features.byoKey=false hides the API key tab (tabs: ${tabs.join(', ')})`);
+    const catalog = await p.evaluate(async () => (await fetch('https://www.webaudiomodules.com/community/plugins.json')).ok).catch(() => false);
+    check(catalog, 'the plugin catalog is reachable under the CSP');
+    check(violations.length === 0, `no CSP violations${violations.length ? `: ${violations.join(' | ')}` : ''}`);
+  } finally {
+    await b.close();
+    srv.kill();
+  }
 };
 
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);

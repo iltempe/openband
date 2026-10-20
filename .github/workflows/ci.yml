@@ -94,3 +94,18 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: node scripts/release-dry-run.mjs
+
+  # The self-hosting image: build, run, and check it serves the studio, its version and the CSP.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t openband:ci .
+      - run: docker run -d --name ob -p 8080:7777 openband:ci
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8080/version.json && break; sleep 1; done
+          curl -sf http://127.0.0.1:8080/version.json | grep -q '"app":"openband"'
+          curl -sf http://127.0.0.1:8080/ | grep -q 'id="root"'
+          curl -sI http://127.0.0.1:8080/ | grep -qi '^content-security-policy:'
+          test "$(docker inspect --format '{{.State.Health.Status}}' ob)" != unhealthy

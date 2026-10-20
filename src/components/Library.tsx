@@ -1,4 +1,5 @@
 import { getTrack, useStore } from '../store';
+import { useConfig } from '../config';
 import { PRESETS, findInstrument, type InstrumentPreset } from '../audio/instruments';
 import { commands } from '../commands';
 import { engine } from '../audio/engine';
@@ -19,6 +20,7 @@ const CATEGORY_HUE: Record<string, string> = {
 
 export function Library() {
   const project = useStore((s) => s.project);
+  const pluginsOn = useConfig((c) => c.features.plugins);
   const selected = getTrack(project, useStore((s) => s.selectedTrackId));
   const t = useT();
   const imported: InstrumentPreset[] = (project.instruments ?? []).map((c) => findInstrument(c.id)!).filter(Boolean);
@@ -57,9 +59,11 @@ export function Library() {
           <button className="mini" onClick={() => importAudioFlow()} title={t('imp.audioHint')}>
             <I.Wave width={13} height={13} /> {t('imp.audio')}
           </button>
-          <button className="mini plug-btn" onClick={() => openPluginBrowser('any')} title={t('plug.libHint')}>
+          {pluginsOn && (
+            <button className="mini plug-btn" onClick={() => openPluginBrowser('any')} title={t('plug.libHint')}>
             <I.Fx width={13} height={13} /> {t('plug.button')}
           </button>
+          )}
         </div>
       </div>
       <div className="lib-scroll">

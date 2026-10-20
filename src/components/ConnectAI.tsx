@@ -7,6 +7,7 @@ import { openLocalStudio } from '../handoff';
 import { useT, type MessageKey } from '../i18n';
 import * as I from './Icons';
 import { KeyForm } from './AIChat';
+import { connectTabs, useConfig } from '../config';
 
 export const MCPB_URL = 'https://github.com/iltempe/openband/releases/latest/download/openband.mcpb';
 const CLI = 'claude mcp add openband -- npx -y openband mcp';
@@ -92,11 +93,9 @@ export function ConnectAI() {
   const [tab, setTab] = useState<Tab>('desktop');
   const b = useBridge();
   const t = useT();
-  const tabs: [Tab, MessageKey][] = [
-    ['desktop', 'ca.tabDesktop'],
-    ['cli', 'ca.tabCli'],
-    ['key', 'ca.tabKey'],
-  ];
+  const features = useConfig((c) => c.features);
+  const LABEL: Record<Tab, MessageKey> = { desktop: 'ca.tabDesktop', cli: 'ca.tabCli', key: 'ca.tabKey' };
+  const tabs: [Tab, MessageKey][] = connectTabs(features).map((id) => [id, LABEL[id]]);
   return (
     <div className="ai-setup connect-ai">
       <div className="ca-tabs" role="tablist">
@@ -128,7 +127,7 @@ export function ConnectAI() {
           <p>{BRIDGE_ENABLED ? t('ca.cliLocal') : t('ca.cliDemo')}</p>
         </div>
       )}
-      {tab === 'key' && <KeyForm />}
+      {tab === 'key' && features.byoKey && <KeyForm />}
       {!BRIDGE_ENABLED && tab !== 'key' && <PairForm />}
       {BRIDGE_ENABLED && b.problem?.kind === 'protocol' && <div className="ca-problem">{problemText(b.problem, t)}</div>}
     </div>

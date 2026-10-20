@@ -1285,6 +1285,16 @@ const it: Record<MessageKey, string> = {
 const DICTS: Record<Lang, Record<MessageKey, string>> = { en, it };
 const STORAGE_KEY = 'openband.lang';
 
+/** The language the user picked, if any (an instance's default applies only otherwise). */
+export function savedLanguage(): Lang | null {
+  try {
+    const v = localStorage.getItem(STORAGE_KEY);
+    return v === 'en' || v === 'it' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 function initialLang(): Lang {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);

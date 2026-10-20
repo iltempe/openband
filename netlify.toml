@@ -1,0 +1,13 @@
+# Netlify: build the studio and serve it. Headers (CSP, cache) come from dist/_headers, written by the build
+# from server/csp.mjs — the same as the Docker image and Cloudflare Pages.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

@@ -1,0 +1,7 @@
+{
+  "instanceName": "Music lab",
+  "defaultLanguage": "en",
+  "features": { "byoKey": true, "plugins": true, "collab": true },
+  "pluginCatalogUrl": null,
+  "collabServer": { "relay": null, "signaling": ["wss://y-webrtc-eu.fly.dev"] }
+}

@@ -1,0 +1,5 @@
+# Cloudflare Pages (optional: the dashboard's "Vite" preset with output dist works too).
+# Headers come from dist/_headers, written by the build from server/csp.mjs.
+name = "openband"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-09-01"

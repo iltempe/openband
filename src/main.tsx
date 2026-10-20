@@ -17,6 +17,8 @@ import { loadKeyState } from './ai/keys';
 import { initPwa } from './pwa';
 import { initDiagnostics } from './diagnostics';
 import { ErrorBoundary } from './components/Diagnostics';
+import { getConfig, loadConfig } from './config';
+import { savedLanguage, useLang } from './i18n';
 
 // A song handed over from the online demo wins; otherwise the autosave, otherwise the demo song.
 if (!consumeHandoff() && !hasSavedProject()) loadDemo();
@@ -36,8 +38,13 @@ initDiagnostics();
 connectBridge();
 initMidi();
 
-createRoot(document.getElementById('root')!).render(
-  <ErrorBoundary>
-    <App />
-  </ErrorBoundary>,
-);
+// The instance's config.json (if any) is read before the first render.
+void loadConfig().finally(() => {
+  const cfg = getConfig();
+  if (cfg.defaultLanguage && !savedLanguage()) useLang.setState({ lang: cfg.defaultLanguage });
+  createRoot(document.getElementById('root')!).render(
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>,
+  );
+});

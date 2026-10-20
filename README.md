@@ -128,6 +128,18 @@ jobs:
 
 Problems appear as annotations on the pull request. Locally: `node scripts/openband-lint.mjs song.openband.json [--format=text|json|github] [--fail-on=warn]`. Rules can be disabled or re-graded per song in `project.lint` (`disabled`, `severity`, `ignored`).
 
+### Host your own OpenBand
+
+The studio is a static app, so it runs anywhere — for a school, a community or just yourself:
+
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/iltempe/openband) [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/iltempe/openband)
+
+- **GitHub Pages from your fork:** fork → *Settings → Pages → Source: GitHub Actions* → *Settings → Secrets and variables → Actions → Variables*: `OPENBAND_DEPLOY = true`. Forks don't deploy until you opt in.
+- **Cloudflare Pages:** connect the repository with the *Vite* preset (build `npm run build`, output `dist`), or `wrangler pages deploy dist`.
+- **Docker** (NAS, Raspberry Pi, a school server; amd64 and arm64): `docker run -p 8080:7777 ghcr.io/iltempe/openband`, or `docker compose up -d` with the included `docker-compose.yml` (multiplayer rooms on, healthcheck on `/version.json`).
+- **Settings without rebuilding:** put a `config.json` next to `index.html` (or point `OPENBAND_CONFIG` to one in Docker) — instance name, default language, features to turn off (the in-browser chat, plugins, rooms), plugin catalog URL, collaboration server. See [`config.example.json`](config.example.json).
+- Every host gets the same headers: assets cached forever, the page and the service worker never, and a Content-Security-Policy (`server/csp.mjs`) that lets the page reach only the bridge on the user's computer, the Anthropic API, the plugin catalog and the collaboration servers. A static instance stores nothing: songs stay in each visitor's browser. Cross-origin isolation (COOP/COEP, for future `SharedArrayBuffer` use) is not enabled yet.
+
 ### Play together
 
 - **On the same network** (fastest): start the MCP server with `OPENBAND_COLLAB=1` — it then also serves the studio and a room relay on your LAN address (printed at start; the AI bridge itself stays reachable only from this computer). Open a room with *On this network* and send the link.

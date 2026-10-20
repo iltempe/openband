@@ -18,6 +18,8 @@ concurrency:
 
 jobs:
   build:
+    # Forks don't deploy unless they opt in (Settings → Variables → OPENBAND_DEPLOY = true).
+    if: github.event.repository.fork == false || vars.OPENBAND_DEPLOY == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

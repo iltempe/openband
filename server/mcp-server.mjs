@@ -52,16 +52,29 @@ async function findFreePort(from) {
 
 // ---------------------------------------------------------------- HTTP + WebSocket bridge
 
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.png': 'image/png', '.wav': 'audio/wav' };
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.png': 'image/png', '.wav': 'audio/wav', '.webmanifest': 'application/manifest+json' };
 
 const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+const CONFIG_FILE = process.env.OPENBAND_CONFIG || '';
+/** Public instances (Docker) send the same CSP as the static hosts. */
+const CSP = process.env.OPENBAND_CSP === '1' ? (await import('./csp.mjs')).contentSecurityPolicy({ collab: process.env.OPENBAND_CSP_COLLAB ? process.env.OPENBAND_CSP_COLLAB.split(',') : undefined }) : '';
 
 const httpServer = http.createServer((req, res) => {
-  if (new URL(req.url || '/', 'http://x').pathname === '/version.json') {
+  const pathname = new URL(req.url || '/', 'http://x').pathname;
+  if (pathname === '/version.json') {
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-cache' });
     res.end(JSON.stringify({ app: 'openband', version: PKG.version }));
     return;
   }
+  // Instance settings without rebuilding: OPENBAND_CONFIG points to a config.json (see config.example.json).
+  if (pathname === '/config.json' && CONFIG_FILE) {
+    fs.readFile(CONFIG_FILE, (err, data) => {
+      res.writeHead(err ? 404 : 200, { 'content-type': 'application/json', 'cache-control': 'no-cache' });
+      res.end(err ? '{}' : data);
+    });
+    return;
+  }
+  if (CSP) res.setHeader('content-security-policy', CSP);
   if (!fs.existsSync(DIST)) {
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
     res.end(`OpenBand bridge is running. Run "npm run build" to serve the studio here, or open ${DEV_URL} (npm run dev).`);
@@ -74,7 +87,9 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(DIST, 'index.html');
-  res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream' });
+  const ext = path.extname(file);
+  const cache = /\/assets\//.test(file) ? 'public, max-age=31536000, immutable' : 'no-cache';
+  res.writeHead(200, { 'content-type': MIME[ext] || 'application/octet-stream', 'cache-control': cache });
   fs.createReadStream(file).pipe(res);
 });
 

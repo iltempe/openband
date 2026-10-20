@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useConfig } from '../config';
 import { useDiagnostics } from './Diagnostics';
 import { installApp, isSafari, usePwa } from '../pwa';
 import { useOverlays } from './Welcome';
@@ -220,6 +221,7 @@ function ProblemsBadge() {
 
 export function Toolbar() {
   const s = useStore();
+  const collabOn = useConfig((c) => c.features.collab);
   const p = s.project;
   const t = useT();
   const toggleBottom = (b: typeof s.bottom) => s.set({ bottom: s.bottom === b ? null : b });
@@ -316,7 +318,7 @@ export function Toolbar() {
           <I.Keyboard />
         </button>
         <ProblemsBadge />
-        <ShareButton />
+        {collabOn && <ShareButton />}
         <button className={`ai-pill ${s.bridgeStatus}`} onClick={() => s.set({ aiOpen: !s.aiOpen })} title={t('tb.ai')}>
           <span className="dot" />
           <I.Sparkles width={15} height={15} />
