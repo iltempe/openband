@@ -45,7 +45,7 @@ OpenBand è una reimplementazione *clean-room*: riproduce il flusso di lavoro di
 - **L'AI ti segue**: le frasi che suoni (separate dopo una battuta di silenzio), ciò che selezioni, play/stop, le tue modifiche e le domande scritte in *Chiedi all'AI* arrivano all'AI collegata come eventi. Un interruttore nel pannello AI disattiva la condivisione dell'attività (le domande vengono sempre inviate).
 - **Annulla per intento**: tutto ciò che l'AI fa per una richiesta è un solo passo di annullamento con etichetta (*“Annulla: Beat lo-fi (23 comandi)”*); trascinamenti e manopole contano un passo ciascuno. **Plugin compresi**: quello che cambi nella finestra di un plugin (preset, modalità, wavetable — non solo le manopole automatizzabili) e ogni `set_plugin_params` sono anch'essi passi di annullamento, e l'annulla rimette il plugin esattamente nello stato in cui era.
 - **Annulla/ripristina**, salvataggio automatico, **esportazione WAV** con rendering offline; i progetti con suoni importati si salvano in un unico file `.openband` che contiene i campioni.
-- **Controllo AI via MCP**: 121 strumenti per comporre, arrangiare, importare suoni, aggiungere plugin, mixare, automatizzare ed esportare: l'AI può aggiungere un plugin solo a partire da una descrizione come *“un overdrive valvolare caldo”*.
+- **Controllo AI via MCP**: 122 strumenti per comporre, arrangiare, importare suoni, aggiungere plugin, mixare, automatizzare ed esportare: l'AI può aggiungere un plugin solo a partire da una descrizione come *“un overdrive valvolare caldo”*.
 - Interfaccia in **inglese e italiano**: l'inglese è predefinito, si cambia dalla schermata iniziale o dal menu ⋯.
 
 | Piano roll | Mixer |
@@ -230,7 +230,7 @@ Il server fa solo da ponte e non conserva nulla: le canzoni restano nella scheda
 | Linter | `lint_project` (regole simboliche, opzionalmente audio), `apply_fix`, `ignore_issue`; `update_notes` modifica le note sul posto |
 | Ascolto | `analyze_mix` (battute o sezione, per traccia, summary/full), `render_spectrogram` (restituisce un'immagine), `detect_key` (MIDI, audio o entrambi), `analyze_harmony` (accordi, numeri romani, funzioni, cadenze) |
 | Multiplayer | `create_room` (LAN o peer to peer, password facoltativa), `join_room`, `leave_room`, `get_peers` |
-| Jam | `set_jam_mode` (traccia di risposta, finestra), `play_phrase` (note effimere a `next_bar`, `next_loop` o a una battuta; `commit` opzionale), `keep_answer`; le frasi dell'utente arrivano come eventi `phrase` |
+| Jam | `set_jam_mode` (traccia di risposta, finestra), `play_phrase` (note effimere a `next_bar`, `next_loop` o a una battuta; `commit` opzionale; restituisce un `phrase_id`), `keep_answer`, `keep_phrase({phrase_id})` (una qualunque delle ultime 20 risposte); le frasi dell'utente arrivano come eventi `phrase` |
 | Versioni | `save_version`, `list_versions`, `create_branch`, `checkout` (branch o versione, annullabile, salva il WIP), `diff_versions` (riepilogo leggibile + modifiche strutturate), `merge` (a tre vie; `strategy` e `pick` per entità); `export_project_json` con `canonical` |
 | Spiegami | `annotate` (progetto, traccia, regione, note, sezione o intervallo di battute; markdown fino a 500 caratteri), `list_annotations`, `resolve_annotation`, `delete_annotation`; `get_status` riporta `teach_mode` |
 | Take | `add_take`, `list_takes`, `set_active_take`, `delete_take`, `comp_takes` (segmenti, note tagliate ai confini), `start_ab_test` (test alla cieca; la classifica arriva come evento `ab_result`) |

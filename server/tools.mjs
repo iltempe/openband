@@ -24,7 +24,7 @@ When the user talks about parts of a song (verse, chorus…), call get_structure
 For vocal lines, keep lyrics and melody aligned: set_lyrics → align_lyrics → check_prosody. Put stressed syllables on strong beats (suggest_melody_rhythm helps).
 When get_status reports teach_mode: true, explain your non-obvious musical choices (harmony, voicing, rhythm, mix) with annotate on the exact notes/region/section, using analyze_harmony to be precise. An ask event with context.explain is a request to explain that part: answer with annotate.
 In a multiplayer room (get_peers), say who you are acting for and avoid editing a track someone else has selected unless asked.
-To jam with the user: set_jam_mode({enabled:true, response_track_id}), then repeatedly wait_for_event({kinds:["phrase"]}) and answer with play_phrase (it is quantized to the next window, so latency is fine).
+In jam mode loop: wait_for_event({kinds:['phrase']}) → answer with play_phrase in the same key, contrasting rhythm, ≤ 2 bars (set_jam_mode({enabled:true, response_track_id}) first; answers are quantized to the next window, so latency is fine). keep_phrase(phrase_id) keeps an answer the user liked.
 Before a big rework, save_version; to try a different direction without losing the current one, create_branch + checkout (merge brings the good parts back).
 To offer alternatives, add them as takes (add_take) and let the user pick with a blind test (start_ab_test, then wait_for_event ab_result).
 Before destructive operations a version is saved automatically; preview_at/restore_at can bring back any earlier moment.
@@ -350,7 +350,7 @@ tool('get_peers', 'Who is in the room: names, who hosts, who has an AI connected
 
 // ---- jam: call-and-response
 
-tool('play_phrase', 'Answer what the user played: the notes (beats from the phrase start, like add_region) are played live on a track at the next musical window — next_bar (default), next_loop (the cycle start) or {bar} — never earlier, and if your answer arrives too late it moves to the following window. The notes are NOT added to the song unless commit:true (the user can also press Keep). Returns when it will start.', {
+tool('play_phrase', 'Answer what the user played: the notes (beats from the phrase start, like add_region) are played live on a track at the next musical window — next_bar (default), next_loop (the cycle start) or {bar} — never earlier, and if your answer arrives too late it moves to the following window. The notes are NOT added to the song unless commit:true (the user can also press Keep). Returns its phrase_id (for keep_phrase) and when it will start.', {
   track_id: z.string().optional().describe('Default: the jam response track'),
   notes: z.array(NoteSchema),
   at: z.union([z.enum(['next_bar', 'next_loop']), z.object({ bar: z.number().int().min(1) })]).optional(),
@@ -364,6 +364,8 @@ tool('set_jam_mode', 'Turn jam (call-and-response) mode on or off: the studio sh
 });
 
 tool('keep_answer', 'Keep the last answer played with play_phrase: its notes are added to the song (one undo step).', {});
+
+tool('keep_phrase', 'Keep one of the recent answers (the phrase_id returned by play_phrase, up to 20 back): its notes are added to the song where they were played (one undo step).', { phrase_id: z.string() });
 
 // ---- versions and branches
 

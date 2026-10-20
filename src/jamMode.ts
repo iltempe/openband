@@ -9,6 +9,8 @@ import { onStudioEvent } from './events';
 import { phraseLength, planResponse, type JamWindow } from './jam';
 
 export interface JamAnswer {
+  /** Returned by play_phrase; keep_phrase keeps it later. */
+  id: string;
   trackId: string;
   /** Timeline beat where it starts (bar-aligned). */
   startBeat: number;
@@ -25,9 +27,12 @@ interface JamState {
   window: 'next_bar' | 'next_loop';
   status: 'idle' | 'listening' | 'thinking' | 'answering';
   last: JamAnswer | null;
+  /** Recent answers, newest last (at most 20), that can still be kept. */
+  answers: JamAnswer[];
 }
 
-export const useJam = create<JamState>(() => ({ enabled: false, trackId: null, window: 'next_bar', status: 'idle', last: null }));
+export const useJam = create<JamState>(() => ({ enabled: false, trackId: null, window: 'next_bar', status: 'idle', last: null, answers: [] }));
+const MAX_ANSWERS = 20;
 
 const st = () => useStore.getState();
 let doneTimer: ReturnType<typeof setTimeout> | undefined;
@@ -56,12 +61,12 @@ export function playPhrase(trackId: string, notes: JamAnswer['notes'], at?: JamW
   const plan = planResponse({ now: engine.position, playing: engine.playing, window: at ?? j.window, loop: p.loop, length, busyFor });
   const startTime = engine.now + 0.02 + (plan.wait * 60) / p.bpm;
   const endTime = engine.schedulePhrase(track.id, notes, startTime);
-  const last: JamAnswer = { trackId: track.id, startBeat: plan.startBeat, notes, startTime, endTime, slipped: plan.slipped };
-  useJam.setState({ last, status: 'answering' });
+  const last: JamAnswer = { id: uid('phr'), trackId: track.id, startBeat: plan.startBeat, notes, startTime, endTime, slipped: plan.slipped };
+  useJam.setState((s) => ({ last, status: 'answering', answers: [...s.answers, last].slice(-MAX_ANSWERS) }));
   clearTimeout(doneTimer);
   doneTimer = setTimeout(() => useJam.setState((s) => ({ status: s.enabled ? 'listening' : 'idle' })), Math.max(0, (endTime - engine.now) * 1000));
-  const out = { start_bar: +(plan.startBeat / BEATS_PER_BAR + 1).toFixed(2), starts_in_beats: +plan.wait.toFixed(2), starts_in_seconds: +(startTime - engine.now).toFixed(2), slipped: plan.slipped, length_bars: length / BEATS_PER_BAR };
-  if (commitIt) return { ...out, ...keepAnswer() };
+  const out = { phrase_id: last.id, start_bar: +(plan.startBeat / BEATS_PER_BAR + 1).toFixed(2), starts_in_beats: +plan.wait.toFixed(2), starts_in_seconds: +(startTime - engine.now).toFixed(2), slipped: plan.slipped, length_bars: length / BEATS_PER_BAR };
+  if (commitIt) return { ...out, ...keepPhrase(last.id) };
   return out;
 }
 
@@ -69,6 +74,14 @@ export function playPhrase(trackId: string, notes: JamAnswer['notes'], at?: JamW
 export function keepAnswer() {
   const a = useJam.getState().last;
   if (!a) throw new Error('There is no answer to keep');
+  return keepPhrase(a.id);
+}
+
+/** Keep an answer by its phrase_id (one undo step); it can't be kept twice. */
+export function keepPhrase(phraseId: string) {
+  const a = useJam.getState().answers.find((x) => x.id === phraseId);
+  if (!a) throw new Error(`No answer "${phraseId}" to keep (already kept, or older than the last ${MAX_ANSWERS})`);
+  const forget = () => useJam.setState((s) => ({ answers: s.answers.filter((x) => x.id !== a.id), last: s.last?.id === a.id ? null : s.last }));
   const p = st().project;
   const length = phraseLength(a.notes);
   const notes: Note[] = a.notes.map((n) => ({ id: uid('n'), ...n }));
@@ -76,13 +89,13 @@ export function keepAnswer() {
   const host = p.regions.find((r) => r.trackId === a.trackId && !r.audio && r.start <= a.startBeat && r.start + r.length >= a.startBeat + length);
   if (host) {
     st().commit((d) => void d.regions.find((r) => r.id === host.id)!.notes.push(...notes.map((n) => ({ ...n, start: n.start + a.startBeat - host.start }))), { label: 'Keep AI answer' });
-    useJam.setState({ last: null });
-    return { kept: true, region_id: host.id };
+    forget();
+    return { kept: true, phrase_id: a.id, region_id: host.id };
   }
   const region: Region = { id: uid('rgn'), trackId: a.trackId, name: 'AI answer', start: a.startBeat, length, notes };
   st().commit((d) => void d.regions.push(region), { label: 'Keep AI answer' });
-  useJam.setState({ last: null });
-  return { kept: true, region_id: region.id };
+  forget();
+  return { kept: true, phrase_id: a.id, region_id: region.id };
 }
 
 export const dismissAnswer = () => useJam.setState({ last: null });

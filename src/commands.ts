@@ -54,7 +54,7 @@ import type { HistoryEntry } from './types';
 import { bestTakeAt, fixWindow, takeOf } from './flubs';
 import { markFlub, useFlubLive } from './flubLive';
 import { createRoom, getPeers, joinRoom, leaveRoom } from './collab/session';
-import { jamStatus, keepAnswer, playPhrase, setJamMode, useJam } from './jamMode';
+import { jamStatus, keepAnswer, keepPhrase, playPhrase, setJamMode, useJam } from './jamMode';
 import { canonicalJSON } from './versions/canonical';
 import { checkout, createBranch, diffVersions, listVersions, mergeBranch, saveVersion } from './versioning';
 import { MAX_ANNOTATION, checkTarget, matchesTarget } from './annotations';
@@ -1106,6 +1106,7 @@ export const commands: Record<string, (args: P) => unknown> = {
   },
 
   keep_answer: () => keepAnswer(),
+  keep_phrase: ({ phrase_id }) => keepPhrase(String(phrase_id ?? '')),
 
   // ---------- versions ----------
 

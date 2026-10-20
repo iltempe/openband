@@ -59,6 +59,20 @@ export function JamSection() {
           </button>
         </div>
       )}
+      {jam.answers.filter((a) => a.id !== jam.last?.id).length > 0 && (
+        <div className="jam-earlier">
+          <small>{t('jam.earlier')}</small>
+          {jam.answers
+            .filter((a) => a.id !== jam.last?.id)
+            .slice(-5)
+            .reverse()
+            .map((a) => (
+              <button key={a.id} className="mini" onClick={() => run('keep_phrase', { phrase_id: a.id })} title={t('jam.keepThis')}>
+                {t('jam.keepBar', { bar: +(a.startBeat / BEATS_PER_BAR + 1).toFixed(2) })}
+              </button>
+            ))}
+        </div>
+      )}
     </div>
   );
 }
