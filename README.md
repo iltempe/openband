@@ -81,6 +81,10 @@ npx openband
 
 That's it: the studio opens in your browser (Node 18+). No clone, no build. Prefer zero install? [Open the online demo](https://iltempe.github.io/openband/).
 
+**Just a browser and an API key:** open the [online demo](https://iltempe.github.io/openband/) → **AI** panel → *Connect AI* → *API key*, paste your Anthropic key and chat: Claude runs inside the page and plays the studio with the same tools it gets over MCP (each request is one undo step, the cost of each answer is shown, *Stop* is always there). The key stays in your browser's storage, never in songs or exports, and requests go from your browser straight to Anthropic.
+
+<img src="docs/chat.png" alt="Chatting with Claude inside the studio" width="300">
+
 **Claude Desktop — two steps, nothing to install:**
 
 [**⬇ Download OpenBand for Claude Desktop**](https://github.com/iltempe/openband/releases/latest/download/openband.mcpb) → double-click the file (or drag it onto Claude Desktop) → *Install*. Then ask Claude for a song: the studio opens in your browser by itself. Claude Desktop already includes Node; the extension's settings let you change the port, turn off the automatic opening and pick a samples folder Claude can import sounds from by name.

@@ -17,7 +17,9 @@ export function LyricsPanel() {
   const [sectionId, setSectionId] = useState<string>(sections[0]?.id ?? '');
   const lines = (doc?.lines ?? []).filter((l) => (sectionId ? l.sectionId === sectionId : !l.sectionId));
   const [text, setText] = useState(lines.map((l) => l.text).join('\n'));
-  useEffect(() => setText(lines.map((l) => l.text).join('\n')), [sectionId, doc?.lines.length]);
+  useEffect(() => {
+    setText(lines.map((l) => l.text).join('\n'));
+  }, [sectionId, doc?.lines.length]);
   const melodic = project.tracks.filter((tr) => tr.kind === 'instrument');
   const melody = doc?.melodyTrackId ?? '';
   const issues = useMemo(() => prosodyIssues(project, sectionId || undefined), [project, sectionId]);

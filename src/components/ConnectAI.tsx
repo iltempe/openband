@@ -6,6 +6,7 @@ import { BRIDGE_ENABLED, connectRemote, useBridge, type BridgeProblem } from '..
 import { openLocalStudio } from '../handoff';
 import { useT, type MessageKey } from '../i18n';
 import * as I from './Icons';
+import { KeyForm } from './AIChat';
 
 export const MCPB_URL = 'https://github.com/iltempe/openband/releases/latest/download/openband.mcpb';
 const CLI = 'claude mcp add openband -- npx -y openband mcp';
@@ -127,11 +128,7 @@ export function ConnectAI() {
           <p>{BRIDGE_ENABLED ? t('ca.cliLocal') : t('ca.cliDemo')}</p>
         </div>
       )}
-      {tab === 'key' && (
-        <div className="ca-steps">
-          <p>{t('ca.keySoon')}</p>
-        </div>
-      )}
+      {tab === 'key' && <KeyForm />}
       {!BRIDGE_ENABLED && tab !== 'key' && <PairForm />}
       {BRIDGE_ENABLED && b.problem?.kind === 'protocol' && <div className="ca-problem">{problemText(b.problem, t)}</div>}
     </div>

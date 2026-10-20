@@ -7,6 +7,8 @@ import { useState } from 'react';
 import { emitStudioEvent, setActivitySharing, useActivitySharing } from '../events';
 import { BRIDGE_ENABLED, useBridge } from '../bridge';
 import { ConnectAI } from './ConnectAI';
+import { AIChat } from './AIChat';
+import { useApiKey } from '../ai/keys';
 import * as I from './Icons';
 import { useT } from '../i18n';
 
@@ -35,6 +37,7 @@ export function AIPanel() {
   const notify = useStore((s) => s.notify);
   const t = useT();
   const pairing = useBridge((b) => b.pairing);
+  const hasKey = useApiKey((k) => k.hasKey);
 
   return (
     <aside className="ai-panel">
@@ -45,7 +48,7 @@ export function AIPanel() {
           </div>
           <div className={`ai-status ${status}`}>
             <span className="dot" />
-            {status === 'connected' ? t('ai.connected') : status === 'connecting' ? t('ai.connecting') : BRIDGE_ENABLED ? t('ai.unreachable') : pairing ? t('ca.waitingCode') : t('ai.demo')}
+            {status === 'connected' ? t('ai.connected') : hasKey ? t('chat.status') : status === 'connecting' ? t('ai.connecting') : BRIDGE_ENABLED ? t('ai.unreachable') : pairing ? t('ca.waitingCode') : t('ai.demo')}
           </div>
         </div>
         <button className="icon-btn" onClick={() => set({ aiOpen: false })}>
@@ -53,7 +56,7 @@ export function AIPanel() {
         </button>
       </div>
 
-      {status !== 'connected' && <ConnectAI />}
+      {status !== 'connected' && (hasKey ? <AIChat /> : <ConnectAI />)}
 
       {status === 'connected' && (
         <div className="ai-live">
@@ -85,12 +88,16 @@ export function AIPanel() {
         </div>
       )}
 
+      {!(hasKey && status !== 'connected') && (
+        <>
       <div className="ai-section">{t('ai.try')}</div>
       <div className="ai-examples">
         {EXAMPLES.map((e) => (
           <div key={e} className="ai-example">“{t(e)}”</div>
         ))}
       </div>
+        </>
+      )}
 
       <RoomActivity />
       <div className="ai-section">{t('ai.activity')}</div>

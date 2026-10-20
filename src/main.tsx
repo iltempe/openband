@@ -13,6 +13,7 @@ import { initReference } from './reference';
 import { initVersions } from './versioning';
 import { initJam } from './jamMode';
 import { initFirstRun } from './firstRun';
+import { loadKeyState } from './ai/keys';
 
 // A song handed over from the online demo wins; otherwise the autosave, otherwise the demo song.
 if (!consumeHandoff() && !hasSavedProject()) loadDemo();
@@ -26,6 +27,7 @@ initReference();
 initVersions();
 initJam();
 initFirstRun();
+void loadKeyState();
 connectBridge();
 initMidi();
 

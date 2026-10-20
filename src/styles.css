@@ -4292,3 +4292,134 @@ div.ca-steps {
 .empty-state > .mini {
   margin-top: 12px;
 }
+
+/* ---------- chat (own API key) ---------- */
+.ai-chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  max-height: 70vh;
+  margin: 10px 12px;
+  border-radius: 12px;
+  background: var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.chat-list {
+  flex: 1;
+  min-height: 160px;
+  overflow: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chat-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--dim);
+}
+.chat-empty p {
+  margin: 0 0 4px;
+}
+.chat-empty .ai-example {
+  text-align: left;
+}
+.chat-msg {
+  max-width: 92%;
+  padding: 7px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.chat-msg.user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.chat-msg.assistant {
+  align-self: flex-start;
+  background: var(--panel-3);
+  border-bottom-left-radius: 4px;
+}
+.chat-text {
+  white-space: pre-wrap;
+}
+.chat-cmds {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--dim);
+}
+.chat-cmds summary {
+  cursor: pointer;
+}
+.chat-dots {
+  letter-spacing: 3px;
+  animation: mic-pulse 1s ease-in-out infinite;
+}
+.chat-input {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--line);
+}
+.chat-input textarea {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line-2);
+  background: var(--panel-3);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+.chat-stop {
+  color: #fecaca;
+}
+.chat-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 8px;
+  font-size: 11px;
+  color: var(--dim);
+}
+.chat-foot select,
+.key-form select {
+  background: var(--panel-3);
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  color: inherit;
+  font-size: 11px;
+  padding: 2px 4px;
+}
+.key-form input[type='password'] {
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--line-2);
+  background: var(--panel-3);
+  color: inherit;
+  font: 12px var(--mono, ui-monospace, monospace);
+}
+.key-form .mic-row {
+  padding: 0;
+}
+.key-form .mic-row select {
+  max-width: 190px;
+}
+.chat-foot {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+.chat-foot > span:not(.eb-spacer),
+.chat-foot .mini {
+  white-space: nowrap;
+}
+.chat-foot select {
+  max-width: 130px;
+}
