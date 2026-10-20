@@ -170,6 +170,21 @@ function ProjectMenu() {
             <hr />
             <button onClick={exportWav}>{t('menu.exportWav')}</button>
             <button onClick={() => (close(), commands.export_midi({}))}>{t('menu.exportMidi')}</button>
+            <button
+              onClick={async () => {
+                close();
+                const [f] = await pickFiles('.dawproject');
+                if (!f) return;
+                try {
+                  await commands.import_dawproject_file({ file: f });
+                } catch (e) {
+                  s.notify((e as Error).message);
+                }
+              }}
+            >
+              {t('menu.importDaw')}
+            </button>
+            <button onClick={() => (close(), void Promise.resolve(commands.export_dawproject({})).catch((e: Error) => s.notify(e.message)))}>{t('menu.exportDaw')}</button>
             <hr />
             <button onClick={() => (close(), useOverlays.setState({ shortcuts: true }))}>{t('sc.title')} (?)</button>
             {!pwa.installed && (pwa.canInstall || isSafari()) && (

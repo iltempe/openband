@@ -95,6 +95,15 @@ export async function handleDroppedFiles(files: File[], target: { trackId?: stri
   if (sf) return importSoundFontFlow(sf);
   const project = files.find((f) => isProject(f.name));
   if (project) return openProjectFile(project);
+  const daw = files.find((f) => /\.dawproject$/i.test(f.name));
+  if (daw) {
+    try {
+      await commands.import_dawproject_file({ file: daw });
+    } catch (e) {
+      fail(e);
+    }
+    return;
+  }
   const midi = files.find((f) => isMidi(f.name));
   if (midi && commands.import_midi_file) {
     try {

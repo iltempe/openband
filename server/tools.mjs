@@ -48,6 +48,7 @@ Imported sounds: import_sample loads an audio file (local path or URL) and retur
 Mixing: set_track_effects adds an amp sim, 3-band EQ and compressor to a track; set_automation draws curves for volume, pan, tone, reverb or echo over time (e.g. fades, filter sweeps, auto-pan).
 Recording: record_audio records the user's microphone after they confirm (mode "hum" turns a hummed melody into MIDI); audio_to_midi converts an existing monophonic audio region into notes.
 Files: export_wav and export_midi download in the browser, or write to disk with save_to; import_midi turns a .mid file into tracks.
+Other DAWs: import_dawproject/export_dawproject move songs to and from Bitwig, Studio One and Cubase; report what could not be converted.
 Plugins: Web Audio Modules (WAM 2.0) instruments and effects. When the user describes a sound or effect in words, call add_plugin with that description (or search_plugins first to compare options); then get_plugin_params / set_plugin_params to dial it in.`;
 
 const Pitch = z.union([z.number().int().min(0).max(127), z.string()]).describe('MIDI number, note name ("C4", "F#3") or drum name ("kick")');
@@ -241,6 +242,12 @@ exportTool('export_midi', 'Export the song as a Standard MIDI File (format 1): o
 fileTool('import_midi', 'Import a MIDI file (.mid): each part becomes a track with the closest OpenBand instrument (channel 10 → drums). Adds to the current song unless replace is true; the song tempo is used when the project is empty or replaced.', {
   replace: z.boolean().optional(),
 });
+
+fileTool('import_dawproject', 'Open a .dawproject file (the open format of Bitwig Studio, Studio One and Cubase): tracks with the closest OpenBand instruments, note and audio clips, markers as sections, volume/pan automation, mixer settings, built-in EQ and compressor. Replaces the song by default (a version of the current one is saved first); replace=false adds its tracks. Returns what could not be converted (plugins, other automation, tempo changes…): tell the user.', {
+  replace: z.boolean().optional(),
+});
+
+exportTool('export_dawproject', 'Export the song as a .dawproject (with its audio) to open it in Bitwig Studio, Studio One or Cubase. OpenBand-only parts (lyrics, takes, comments, plugins) travel inside it for OpenBand and are listed in the result.');
 
 // ---- song structure
 

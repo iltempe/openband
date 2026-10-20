@@ -4726,3 +4726,16 @@ div.ca-steps {
 .recovery-banner {
   z-index: 120;
 }
+
+/* ---------- DAWproject report (F17) ---------- */
+.dp-report {
+  max-width: 560px;
+}
+.dp-list {
+  margin: 8px 0 12px;
+  padding-left: 18px;
+  max-height: 50vh;
+  overflow: auto;
+  font-size: 13px;
+  line-height: 1.5;
+}

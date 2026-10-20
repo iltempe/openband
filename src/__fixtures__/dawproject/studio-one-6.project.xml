@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- Hand-written fixture in the shape of a PreSonus Studio One 6.5 export: a folder track, an FX channel
+     with dB sends, a VST3 instrument, built-in EQ/compressor, tempo changes, a looped clip and a
+     timeline in seconds. -->
+<Project version="1.0">
+  <Application name="Studio One" version="6.5.0"/>
+  <Transport>
+    <Tempo unit="bpm" value="96" min="10" max="300" id="tempo1"/>
+    <TimeSignature numerator="4" denominator="4" id="sig1"/>
+  </Transport>
+  <Structure>
+    <Track contentType="tracks" id="folder1" name="Rhythm Section">
+      <Track contentType="notes" id="trk_drums" name="Drums">
+        <Channel role="regular" audioChannels="2" destination="main" id="ch_drums" solo="false">
+          <Devices>
+            <Vst3Plugin deviceName="Impact XT" deviceRole="instrument" deviceVendor="PreSonus" id="dev_impact" name="Impact XT"/>
+          </Devices>
+          <Mute value="false" id="m_drums"/>
+          <Pan unit="normalized" value="0.5" min="0" max="1" id="p_drums"/>
+          <Sends>
+            <Send destination="fx_room" type="post" id="s1" name="Room">
+              <Volume unit="decibel" value="-12" id="sv1"/>
+            </Send>
+          </Sends>
+          <Volume unit="decibel" value="-3" id="v_drums"/>
+        </Channel>
+      </Track>
+      <Track contentType="notes" id="trk_keys" name="Electric Piano">
+        <Channel role="regular" audioChannels="2" destination="main" id="ch_keys" solo="true">
+          <Devices>
+            <Vst3Plugin deviceName="Mai Tai" deviceRole="instrument" deviceVendor="PreSonus" id="dev_maitai" name="Mai Tai"/>
+            <Equalizer deviceName="Pro EQ3" deviceRole="audioFX" id="dev_eq" name="Pro EQ3">
+              <Band type="lowShelf" order="0"><Freq unit="hertz" value="120"/><Gain unit="decibel" value="-4"/></Band>
+              <Band type="bell" order="1"><Freq unit="hertz" value="1800"/><Gain unit="decibel" value="2.5"/><Q unit="linear" value="1"/></Band>
+              <Band type="highPass" order="2"><Freq unit="hertz" value="40"/></Band>
+            </Equalizer>
+            <Compressor deviceName="Compressor" deviceRole="audioFX" id="dev_comp" name="Compressor">
+              <Attack unit="seconds" value="0.02"/>
+              <Ratio unit="linear" value="3"/>
+              <Release unit="seconds" value="0.25"/>
+              <Threshold unit="decibel" value="-20"/>
+            </Compressor>
+            <Vst3Plugin deviceName="Valhalla VintageVerb" deviceRole="audioFX" deviceVendor="Valhalla DSP" id="dev_vv" name="VintageVerb"/>
+          </Devices>
+          <Mute value="false" id="m_keys"/>
+          <Pan unit="normalized" value="0.3" min="0" max="1" id="p_keys"/>
+          <Sends>
+            <Send destination="fx_room" type="post" id="s2" name="Room">
+              <Volume unit="decibel" value="-6" id="sv2"/>
+            </Send>
+            <Send destination="fx_delay" type="post" id="s3" name="Delay">
+              <Volume unit="decibel" value="-18" id="sv3"/>
+            </Send>
+            <Send destination="fx_delay" type="pre" id="s4" name="Delay 2">
+              <Volume unit="decibel" value="-30" id="sv4"/>
+            </Send>
+          </Sends>
+          <Volume unit="decibel" value="0" id="v_keys"/>
+        </Channel>
+      </Track>
+    </Track>
+    <Track contentType="audio" id="trk_vox" name="Vocal">
+      <Channel role="regular" audioChannels="1" destination="main" id="ch_vox" solo="false">
+        <Mute value="true" id="m_vox"/>
+        <Pan unit="normalized" value="0.5" min="0" max="1" id="p_vox"/>
+        <Volume unit="decibel" value="-6" id="v_vox"/>
+      </Channel>
+    </Track>
+    <Track contentType="audio" id="trk_room" name="FX Room">
+      <Channel role="effect" audioChannels="2" destination="main" id="fx_room">
+        <Devices><Vst3Plugin deviceName="Room Reverb" deviceRole="audioFX" id="dev_room" name="Room Reverb"/></Devices>
+        <Volume unit="decibel" value="0"/>
+      </Channel>
+    </Track>
+    <Track contentType="audio" id="trk_dly" name="FX Delay">
+      <Channel role="effect" audioChannels="2" destination="main" id="fx_delay">
+        <Volume unit="decibel" value="0"/>
+      </Channel>
+    </Track>
+    <Channel role="master" audioChannels="2" id="main" name="Main">
+      <Volume unit="decibel" value="-1.5" id="v_main"/>
+    </Channel>
+  </Structure>
+  <Arrangement id="arr">
+    <Lanes timeUnit="seconds" id="lanes_root">
+      <Lanes track="trk_drums" id="l_drums">
+        <Clips id="c_drums">
+          <Clip time="0" duration="5" playStart="0" loopStart="0" loopEnd="2.5" contentTimeUnit="seconds" name="Groove">
+            <Notes id="n_drums">
+              <Note time="0" duration="0.1" channel="9" key="36" vel="1"/>
+              <Note time="0.625" duration="0.1" channel="9" key="38" vel="0.9"/>
+              <Note time="1.25" duration="0.1" channel="9" key="36" vel="1"/>
+              <Note time="1.875" duration="0.1" channel="9" key="38" vel="0.9"/>
+            </Notes>
+          </Clip>
+        </Clips>
+      </Lanes>
+      <Lanes track="trk_keys" id="l_keys">
+        <Clips id="c_keys">
+          <Clip time="2.5" duration="2.5" playStart="0.625" contentTimeUnit="seconds" name="Chords" fadeInTime="0.1">
+            <Notes id="n_keys">
+              <Note time="0" duration="0.6" channel="0" key="60" vel="0.5"/>
+              <Note time="0.625" duration="1.25" channel="0" key="64" vel="0.7"/>
+              <Note time="0.625" duration="1.25" channel="0" key="67" vel="0.7"/>
+              <Note time="1.875" duration="1.25" channel="0" key="69" vel="0.6"/>
+            </Notes>
+          </Clip>
+        </Clips>
+        <Points unit="normalized" id="pts_pan">
+          <Target parameter="p_keys"/>
+          <RealPoint time="2.5" value="0.0"/>
+          <RealPoint time="5.0" value="1.0"/>
+        </Points>
+      </Lanes>
+      <Lanes track="trk_vox" id="l_vox">
+        <Clips id="c_vox">
+          <Clip time="1.25" duration="2.5" playStart="0.5" contentTimeUnit="seconds" name="Lead vocal">
+            <Audio channels="1" duration="3" sampleRate="44100" id="a_vox">
+              <File path="Media/lead vocal.wav"/>
+            </Audio>
+          </Clip>
+          <Clip time="4" duration="1" playStart="0" contentTimeUnit="seconds" name="Missing take">
+            <Audio channels="1" duration="1" sampleRate="44100" id="a_gone">
+              <File path="Media/not there.wav"/>
+            </Audio>
+          </Clip>
+        </Clips>
+      </Lanes>
+    </Lanes>
+    <Markers id="mk">
+      <Marker time="0" name="Verse"/>
+      <Marker time="2.5" name="Chorus"/>
+    </Markers>
+    <TempoAutomation unit="bpm" id="tempo_auto">
+      <Target parameter="tempo1"/>
+      <RealPoint time="0" value="96"/>
+      <RealPoint time="10" value="104"/>
+    </TempoAutomation>
+  </Arrangement>
+</Project>

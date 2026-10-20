@@ -27,6 +27,7 @@ import { ShortcutsSheet, TemplateGallery, TourCard, Welcome, useOverlays } from 
 import { PluginBrowser, PluginRestoreOverlay, PluginWindow } from './components/Plugins';
 import { useT } from './i18n';
 import { FlubsPanel } from './components/Flubs';
+import { DawReportDialog } from './components/DawReport';
 import { isRecordingTake, jumpToFlub, markFlub } from './flubLive';
 
 function useShortcuts() {
@@ -261,6 +262,7 @@ export function App() {
       {s.keyboardOpen && <MusicalTyping />}
       <SoundFontDialog />
       <RecoveryBanner />
+      <DawReportDialog />
       <PluginRestoreOverlay />
       <MicOverlay />
       <TakesDialog />

@@ -35,6 +35,7 @@ import { targetStatus } from './analysis/liveLoudness';
 import { currentTarget, setMonitoring, useMonitoring } from './monitoring';
 import { levelMatch } from './levelMatch';
 import { projectAt, restoreAt, timeline } from './journal';
+import { exportDawproject, importDawproject } from './interop/dawproject';
 import { autoVersion } from './versioning';
 
 /** ISO date, ms since epoch, or a relative "-20m" / "-2h" / "-90s". */
@@ -1432,6 +1433,19 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   import_midi: ({ data_base64, filename, replace }) => importMidiSong(readMidi(fromBase64(data_base64)), String(filename ?? 'song.mid'), !!replace),
 
+  // ---- DAWproject (F17)
+  import_dawproject: ({ data_base64, filename, replace }) => importDawproject(new Uint8Array(fromBase64(data_base64)), String(filename ?? 'song.dawproject'), replace !== false, isAiCommand() ? 'ai' : 'user'),
+
+  /** UI only: a .dawproject dropped, picked or opened from the OS. */
+  import_dawproject_file: async ({ file, replace }) => {
+    const f = file as File;
+    const r = await importDawproject(new Uint8Array(await f.arrayBuffer()), f.name, replace !== false, 'user', true);
+    st().notify(tr('dp.imported', { n: r.tracks.length }));
+    return r;
+  },
+
+  export_dawproject: ({ return_data }) => exportDawproject(!!return_data),
+
   /** UI only: a File dropped or picked by the user. */
   import_midi_file: async ({ file }) => {
     const f = file as File;
@@ -1444,7 +1458,7 @@ export const commands: Record<string, (args: P) => unknown> = {
 /** Run a command and record it in the AI activity log. */
 /** Commands that never change the project: they don't open an undo step. */
 const READ_ONLY = new Set([
-  'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi',
+  'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi', 'export_dawproject',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
   'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
