@@ -112,21 +112,33 @@ tool(
   },
 );
 
+const AutoTargetArg = z
+  .union([
+    z.object({ kind: z.literal('mix'), param: z.enum(['volume', 'pan', 'tone', 'reverb', 'echo']) }),
+    z.object({ kind: z.literal('fx'), unit: z.enum(['amp', 'eq', 'comp']), param: z.string().describe('amp: drive, tone, level · eq: low, mid, high (dB), midFreq (Hz) · comp: threshold, makeup (dB), ratio, attack, release (s)') }),
+    z.object({ kind: z.literal('plugin'), slot_id: z.string().nullable().describe('The plugin effect slot, or null for the track\'s plugin instrument'), param_id: z.string() }),
+  ])
+  .describe('What to automate (list_automatable shows every target of a track with its range)');
+
 tool(
   'set_automation',
-  'Draw an automation curve on a track parameter: volume 0..1 (0.8 = unity), pan -1..1, tone 0..1, reverb 0..1, echo 0..1. Points are {bar (1-based, fractional ok) or beat (0-based from song start), value}; values are interpolated linearly and held before the first / after the last point. Replaces the curve unless replace is false. Example fade-in: [{bar:1,value:0},{bar:3,value:0.8}].',
+  'Draw an automation curve on a track: a mix parameter with param (volume 0..1 with 0.8 = unity, pan -1..1, tone/reverb/echo 0..1), or any target — a built-in effect parameter (e.g. {kind:"fx", unit:"eq", param:"midFreq"} for a filter sweep in Hz) or a plugin parameter ({kind:"plugin", slot_id, param_id}) — with values in that parameter\'s own range. Points are {bar (1-based, fractional ok) or beat (0-based from song start), value}; values are interpolated linearly and held before the first / after the last point. Replaces the curve unless replace is false. Example fade-in: param "volume", [{bar:1,value:0},{bar:3,value:0.8}].',
   {
     track_id: z.string(),
-    param: z.enum(['volume', 'pan', 'tone', 'reverb', 'echo']),
+    param: z.enum(['volume', 'pan', 'tone', 'reverb', 'echo']).optional(),
+    target: AutoTargetArg.optional(),
     points: z.array(z.object({ bar: z.number().min(1).optional(), beat: z.number().min(0).optional(), value: z.number() })).min(1),
     replace: z.boolean().optional(),
   },
 );
 
-tool('clear_automation', 'Remove the automation curve of one parameter (or all of them) from a track, returning to the static value.', {
+tool('clear_automation', 'Remove the automation curve of one parameter or target (or all of them) from a track, returning to the static value.', {
   track_id: z.string(),
   param: z.enum(['volume', 'pan', 'tone', 'reverb', 'echo']).optional(),
+  target: AutoTargetArg.optional(),
 });
+
+tool('list_automatable', 'Everything on a track that can be automated: the mix, the built-in effects (with ranges and units) and the parameters of its loaded plugins, marking those that already have a curve. Use the targets with set_automation.', { track_id: z.string() }, readOnly);
 
 tool('delete_track', 'Delete a track and all its regions.', { track_id: z.string() });
 

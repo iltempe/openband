@@ -1,12 +1,14 @@
 // Offline rendering: the whole song, a range, or single tracks (stems), as AudioBuffers or a WAV.
 import * as Tone from 'tone';
-import type { Project, TrackFx } from '../types';
+import type { AutoPoint, Project, TrackFx } from '../types';
 import { faderToDb, sendToDb } from '../music';
 import { projectEnd, projectSampleIds } from '../store';
 import { ensureSamples, getBuffer } from './samples';
 import { createInstrument, makeImpulse, seeded } from './instruments';
 import { FxChain, normalizeFx } from './fx';
-import { effectiveValue, hasAutomation } from '../automation';
+import { effectiveValue, hasAutomation, isAutomated, mix, valueAt } from '../automation';
+import { applyFxAutomation, automatePlugin } from './automate';
+import type { WamInstance } from './wam';
 
 const dbToGain = (db: number) => (db === -Infinity ? 0 : Math.pow(10, db / 20));
 
@@ -71,6 +73,8 @@ export async function renderProject(p: Project): Promise<Blob> {
 
 async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer> {
   const bypass = o.bypass;
+  /** Plugin automation, sent to the plugins while the render runs (see the pause loop below). */
+  const pluginLanes: { points: AutoPoint[]; paramId: string; instance: () => WamInstance | null }[] = [];
   const fromBeat = Math.max(0, o.fromBeat ?? 0);
   const toBeat = Math.max(fromBeat + 0.25, o.toBeat ?? Math.max(projectEnd(p), 4));
   const sampleRate = o.sampleRate ?? 44100;
@@ -81,7 +85,10 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
 
   // Like Tone.Offline, but on a native OfflineAudioContext (WAM plugins need one) and waiting for
   // plugins to load before rendering.
-  const ctx = new Tone.OfflineContext(new OfflineAudioContext(2, Math.ceil(seconds * sampleRate), sampleRate));
+  // Automated plugins get a short lead-in, trimmed afterwards: they start from their saved state and
+  // glide to the automated value, and some need a moment to start listening.
+  const preRoll = p.tracks.some((t) => included(t.id, t.mute, t.solo) && (t.automation ?? []).some((l) => l.target.kind === 'plugin' && l.points.length)) ? 0.5 : 0;
+  const ctx = new Tone.OfflineContext(new OfflineAudioContext(2, Math.ceil((seconds + preRoll) * sampleRate), sampleRate));
   const loading: Promise<unknown>[] = [];
   const live = Tone.getContext();
   Tone.setContext(ctx);
@@ -103,6 +110,11 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
       if ('ready' in inst) loading.push((inst as { ready: Promise<void> }).ready);
       const fx = new FxChain();
       fx.update(bypass?.trackId === track.id ? bypassed(track.fx, bypass.slotId) : track.fx);
+      for (const lane of track.automation ?? []) {
+        const tg = lane.target;
+        if (tg.kind !== 'plugin' || !lane.points.length) continue;
+        pluginLanes.push({ points: lane.points, paramId: tg.paramId, instance: () => (tg.slotId === null ? (inst as { instance?: WamInstance | null }).instance ?? null : fx.plugin(tg.slotId)) });
+      }
       loading.push(fx.ready);
       inst.output.connect(fx.input);
       // Polarity is part of the mix (exported); mono and dim are monitoring only and never get here.
@@ -112,15 +124,17 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
       ch.connect(revSend);
       ch.connect(delSend);
       if (hasAutomation(track)) {
-        const auto = track.automation!;
+        const on = (p: 'volume' | 'pan' | 'tone' | 'reverb' | 'echo') => isAutomated(track, mix(p));
         transport.scheduleRepeat((time) => {
           const beat = transport.getTicksAtTime(time) / PPQ;
           const v = (p: 'volume' | 'pan' | 'tone' | 'reverb' | 'echo') => effectiveValue(track, p, beat);
-          if (auto.volume?.length) ch.volume.rampTo(Math.max(-100, faderToDb(v('volume'))), 0.03, time);
-          if (auto.pan?.length) ch.pan.rampTo(v('pan'), 0.03, time);
-          if (auto.reverb?.length) revSend.gain.rampTo(dbToGain(sendToDb(v('reverb'))), 0.03, time);
-          if (auto.echo?.length) delSend.gain.rampTo(dbToGain(sendToDb(v('echo'))) * 0.7, 0.03, time);
-          if (auto.tone?.length) inst.setCutoff(v('tone'), time);
+          if (on('volume')) ch.volume.rampTo(Math.max(-100, faderToDb(v('volume'))), 0.03, time);
+          if (on('pan')) ch.pan.rampTo(v('pan'), 0.03, time);
+          if (on('reverb')) revSend.gain.rampTo(dbToGain(sendToDb(v('reverb'))), 0.03, time);
+          if (on('echo')) delSend.gain.rampTo(dbToGain(sendToDb(v('echo'))) * 0.7, 0.03, time);
+          if (on('tone')) inst.setCutoff(v('tone'), time);
+          // Effect lanes as live; plugin lanes are sent during the render (below).
+          applyFxAutomation(track, beat, time, fx, inst as { instance?: WamInstance | null }, { plugins: false });
         }, '32n', 0);
       }
 
@@ -153,23 +167,40 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
         }
       }
     }
-    transport.start(0, ticks(fromBeat));
+    transport.start(preRoll, ticks(fromBeat));
   } finally {
     Tone.setContext(live);
   }
   await Promise.all(loading);
+  // Automated plugins must be listening before the render starts: a round trip to each one.
+  await Promise.all(pluginLanes.map((l) => l.instance()?.audioNode.getParameterValues(false).catch(() => null)));
   // Some WAM instruments keep MIDI events in a main-thread queue that is drained as audio time
-  // advances, which never happens while an offline context renders in one go. Pause every 20 ms
-  // of audio and yield to the main thread so those queues keep up.
-  if (p.instruments?.some((c) => c.source === 'wam' && p.tracks.some((t) => t.instrument === c.id && included(t.id, t.mute, t.solo)))) {
+  // advances, which never happens while an offline context renders in one go; and plugin automation
+  // (F22) reaches the plugin's audio thread through its message port. Pause every 20 ms of audio and
+  // yield to the main thread so both keep up with the render.
+  const wamInstrument = p.instruments?.some((c) => c.source === 'wam' && p.tracks.some((t) => t.instrument === c.id && included(t.id, t.mute, t.solo)));
+  if (wamInstrument || pluginLanes.length) {
     const raw = ctx.rawContext as unknown as OfflineAudioContext;
     const step = 0.02;
+    // Plugin automation: sent at each pause for the render's own time (every 20 ms), the same event the
+    // live engine sends. Events scheduled far ahead are not reliable offline.
+    const setAutomation = (at: number) => {
+      const beat = fromBeat + (Math.max(0, at - preRoll) * p.bpm) / 60;
+      for (const l of pluginLanes) {
+        const inst = l.instance();
+        if (inst) automatePlugin(inst, l.paramId, valueAt(l.points, beat)!, at);
+      }
+    };
+    setAutomation(0);
+    // Plugins that pass parameter changes on from main-thread timers need a little main-thread time per step.
+    const yieldMs = 8;
     const pause = (at: number) =>
       raw.suspend(at).then(() =>
         setTimeout(() => {
+          if (pluginLanes.length) setAutomation(at);
           if (at + step < seconds) void pause(+(at + step).toFixed(6));
           void raw.resume();
-        }, 0),
+        }, pluginLanes.length ? yieldMs : 0),
       );
     void pause(step);
   }
@@ -185,8 +216,12 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
   const random = Math.random;
   Math.random = seeded(0x5eed);
   try {
-    const buffer = await ctx.render();
-    return buffer.get() as AudioBuffer;
+    const buffer = (await ctx.render()).get() as AudioBuffer;
+    if (!preRoll) return buffer;
+    const skip = Math.round(preRoll * sampleRate);
+    const out = new AudioBuffer({ numberOfChannels: buffer.numberOfChannels, length: buffer.length - skip, sampleRate });
+    for (let c = 0; c < buffer.numberOfChannels; c++) out.copyToChannel(buffer.getChannelData(c).subarray(skip), c);
+    return out;
   } finally {
     Math.random = random;
   }

@@ -1,7 +1,9 @@
 // Live audio engine: keeps a Tone.js graph in sync with the Project state.
 import * as Tone from 'tone';
 import type { AutoParam, Project, Track } from '../types';
-import { effectiveValue, hasAutomation } from '../automation';
+import { effectiveValue, hasAutomation, isAutomated, mix } from '../automation';
+import { applyFxAutomation } from './automate';
+import type { WamInstance } from './wam';
 import { faderToDb, sendToDb } from '../music';
 import { createInstrument, customById, makeImpulse, type Instrument } from './instruments';
 import { getBuffer, onSamplesChanged } from './samples';
@@ -306,7 +308,7 @@ class AudioEngine {
 
   /** Volume, pan, sends and tone at a song position (automation curves or static values). */
   private applyMix(node: TrackNode, track: Track, beat: number, time?: number, onlyAutomated = false) {
-    const want = (p: AutoParam) => !onlyAutomated || !!track.automation?.[p]?.length;
+    const want = (p: AutoParam) => !onlyAutomated || isAutomated(track, mix(p));
     const v = (p: AutoParam) => effectiveValue(track, p, beat);
     const ramp = time === undefined ? 0.04 : 0.03;
     if (want('volume')) node.channel.volume.rampTo(Math.max(-100, faderToDb(v('volume'))), ramp, time);
@@ -323,7 +325,9 @@ class AudioEngine {
     for (const track of p.tracks) {
       if (!hasAutomation(track)) continue;
       const node = this.nodes.get(track.id);
-      if (node) this.applyMix(node, track, beat, time, true);
+      if (!node) continue;
+      this.applyMix(node, track, beat, time, true);
+      applyFxAutomation(track, beat, time, node.fx, node.instrument as { instance?: WamInstance | null });
     }
   }
 
@@ -393,6 +397,42 @@ class AudioEngine {
       this.monoSum.connect(this.dimGain);
     } else this.monitor.connect(this.dimGain);
     this.dimGain.gain.rampTo(this.monitoring.dim ? 0.1 : 1, 0.03);
+  }
+
+  /**
+   * Record what the master outputs for `seconds` (tests and diagnostics: comparing the live sound with
+   * the offline render). Resolves with the samples and the audio time of the first one.
+   */
+  captureMaster(seconds: number): Promise<{ channels: Float32Array[]; startTime: number; sampleRate: number }> {
+    const ctx = this.master.context.rawContext as unknown as AudioContext;
+    const sp = ctx.createScriptProcessor(4096, 2, 2);
+    const chunks: Float32Array[][] = [];
+    let startTime = -1;
+    const total = Math.ceil(seconds * ctx.sampleRate);
+    let got = 0;
+    return new Promise((resolve) => {
+      sp.onaudioprocess = (e) => {
+        if (startTime < 0) startTime = e.playbackTime;
+        chunks.push([0, 1].map((c) => new Float32Array(e.inputBuffer.getChannelData(Math.min(c, e.inputBuffer.numberOfChannels - 1)))));
+        got += e.inputBuffer.length;
+        if (got >= total) {
+          sp.disconnect();
+          Tone.disconnect(this.master, sp);
+          const channels = [0, 1].map((c) => {
+            const out = new Float32Array(got);
+            let o = 0;
+            for (const ch of chunks) {
+              out.set(ch[c], o);
+              o += ch[c].length;
+            }
+            return out;
+          });
+          resolve({ channels, startTime, sampleRate: ctx.sampleRate });
+        }
+      };
+      Tone.connect(this.master, sp);
+      sp.connect(ctx.destination);
+    });
   }
 
   /** The FX chain of a track (level-matched A/B). */

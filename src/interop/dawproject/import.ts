@@ -10,6 +10,7 @@ import { defaultFx } from '../../audio/fx';
 import { migrate } from '../../migrations';
 import { BEATS_PER_BAR, uid } from '../../music';
 import { attr, bool, kid, kids, num, parseXml } from './xml';
+import { mix, setPoints } from '../../automation';
 import { emptyReport, type ImportReport } from './report';
 import { OPENBAND_JSON, xmlHash } from './export';
 
@@ -359,7 +360,7 @@ export function dawprojectToProject(zip: Uint8Array): DawprojectImport {
       const value = info.param === 'volume' ? valueToFader(v, unit) : clamp(+(v * 2 - 1).toFixed(4), -1, 1);
       return { beat: +Math.max(0, unitBeats(num(e, 'time', 0))).toFixed(4), value };
     });
-    if (out.length) tr.automation = { ...(tr.automation ?? {}), [info.param]: out.sort((a, b) => a.beat - b.beat) };
+    if (out.length) setPoints(tr, mix(info.param), out);
   };
 
   const top = kid(arrangement, 'Lanes');

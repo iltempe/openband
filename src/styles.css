@@ -4739,3 +4739,30 @@ div.ca-steps {
   font-size: 13px;
   line-height: 1.5;
 }
+.auto-write {
+  font-size: 11px;
+}
+.auto-write.on {
+  background: #ef4444;
+  color: #fff;
+}
+/* Lane header on two lines: what is automated (and close) above, write mode and Clear below. */
+.auto-head {
+  flex-wrap: wrap;
+  align-content: center;
+  row-gap: 5px;
+}
+.auto-head select:not(.auto-write) {
+  flex: 1 1 calc(100% - 64px);
+}
+.auto-head .icon-btn {
+  order: 1;
+}
+.auto-head .auto-write {
+  order: 2;
+  flex: 0 0 auto;
+  margin-left: 22px;
+}
+.auto-head .mini {
+  order: 3;
+}

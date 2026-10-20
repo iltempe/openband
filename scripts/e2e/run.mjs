@@ -4,6 +4,7 @@
 //   pwa        — installable (no installability errors), and offline after the first visit the app opens and plays
 //   selfhost   — under the Docker CSP with a config.json: audio, features, no violations
 //   remote     — OPENBAND_REMOTE_MCP=1: an MCP client over HTTP pairs with the tab's code and drives it
+//   automation — a filter sweep on a WAM plugin: live and export within 1 dB per 100 ms
 //
 //   node scripts/e2e/run.mjs [first-run|pwa ...]   (CHROME=/path/to/chrome, default: the system Chrome)
 import { spawn } from 'node:child_process';
@@ -149,6 +150,69 @@ tests.remote = async () => {
   } finally {
     await b.close();
     srv.kill();
+  }
+};
+
+tests.automation = async () => {
+  // F22: a filter sweep automated on a WAM plugin sounds the same live and in the export (RMS per 100 ms < 1 dB).
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+  const c = new Client({ name: 'e2e', version: '1' });
+  await c.connect(new StdioClientTransport({ command: process.execPath, args: [path.join(root, 'server', 'mcp-server.mjs')], env: { ...process.env, OPENBAND_PORT: String(PORT), OPENBAND_OPEN_BROWSER: '0', OPENBAND_NO_UPDATE_CHECK: '1' }, stderr: 'ignore' }));
+  const call = async (name, args = {}) => {
+    const r = await c.callTool({ name, arguments: args });
+    if (r.isError) throw new Error(`${name}: ${r.content[0].text}`);
+    return JSON.parse(r.content[0].text);
+  };
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.keyboard.press('Space');
+    await call('new_project', { name: 'Sweep', bpm: 120 });
+    // A square wave: no detuned oscillators whose random phase would differ between live and export.
+    const { track_id } = await call('add_track', { kind: 'instrument', instrument: 'chip' });
+    await call('add_region', { track_id, start_bar: 1, length_bars: 4, notes: [{ pitch: 'C3', start: 0, duration: 16, velocity: 0.7 }, { pitch: 'G3', start: 0, duration: 16, velocity: 0.6 }] });
+    await call('update_track', { track_id, reverb: 0, delay: 0 });
+    const plugin = (await call('search_plugins', { description: 'GraphicEqualizer', kind: 'effect' })).matches[0];
+    await call('add_plugin_effect', { track_id, plugin: plugin.id });
+    let list;
+    for (let i = 0; i < 40; i++) {
+      list = await call('list_automatable', { track_id });
+      if (list.plugins.length) break;
+      await wait(500);
+    }
+    const freq = list.plugins.find((x) => /frequency/i.test(x.label));
+    check(!!freq, `list_automatable shows the plugin's parameters (${list.plugins.length})`);
+    await call('set_automation', { track_id, target: freq.target, points: [{ bar: 1, value: 40 }, { bar: 4.5, value: 3000 }] });
+    const r = await p.evaluate(async () => {
+      const { engine, useStore, renderBuffer } = window.openband;
+      engine.position = 0;
+      const cap = engine.captureMaster(9);
+      await engine.play();
+      const live = await cap;
+      engine.stop();
+      const proj = useStore.getState().project;
+      const off = await renderBuffer(proj, { fromBeat: 0, toBeat: 16, tailSeconds: 1 });
+      const flat = structuredClone(proj);
+      flat.tracks.forEach((t) => delete t.automation);
+      const offFlat = await renderBuffer(flat, { fromBeat: 0, toBeat: 16, tailSeconds: 1 });
+      const mono = (a, b2) => Float32Array.from(a, (v, i) => (v + b2[i]) / 2);
+      const first = (x) => x.findIndex((v) => Math.abs(v) > 1e-3);
+      const win = (x, sr) => { const n = Math.floor(sr * 0.1), out = [], f = first(x); for (let i = f; i + n <= x.length; i += n) { let s = 0; for (let k = 0; k < n; k++) s += x[i + k] ** 2; out.push(10 * Math.log10(s / n + 1e-12)); } return out; };
+      const L = win(mono(live.channels[0], live.channels[1]), live.sampleRate);
+      const O = win(mono(off.getChannelData(0), off.getChannelData(1)), off.sampleRate);
+      const F = win(mono(offFlat.getChannelData(0), offFlat.getChannelData(1)), offFlat.sampleRate);
+      const cmp = (A, B) => { const d = []; for (let i = 2; i < 72; i++) if (A[i] > -60 && B[i] > -60) d.push(Math.abs(A[i] - B[i])); return { max: Math.max(...d), mean: d.reduce((x, y) => x + y, 0) / d.length }; };
+      return { same: cmp(L, O), control: cmp(L, F) };
+    });
+    check(r.same.max < 1, `the WAM filter sweep sounds the same live and exported (max ${r.same.max.toFixed(2)} dB, mean ${r.same.mean.toFixed(2)} dB per 100 ms)`);
+    check(r.control.mean > 3, `…and the sweep is really there (without it the export differs by ${r.control.mean.toFixed(1)} dB)`);
+  } finally {
+    await b.close();
+    await c.close();
   }
 };
 

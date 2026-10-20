@@ -100,11 +100,25 @@ export interface Track {
   fx?: TrackFx;
   /** Polarity inverted (F20): monitoring and render. */
   polarity?: boolean;
-  /** Automation curves; a parameter with points follows its curve instead of the static value. */
-  automation?: Partial<Record<AutoParam, AutoPoint[]>>;
+  /** Automation lanes (schema v3): a parameter with points follows its curve instead of its static value. */
+  automation?: AutomationLane[];
 }
 
 export type AutoParam = 'volume' | 'pan' | 'tone' | 'reverb' | 'echo';
+export type FxUnit = 'amp' | 'eq' | 'comp';
+
+/** What a lane automates (F22): the mix, a built-in effect parameter, or a plugin parameter. */
+export type AutoTarget =
+  | { kind: 'mix'; param: AutoParam }
+  | { kind: 'fx'; unit: FxUnit; param: string }
+  /** slotId null = the track's plugin instrument. */
+  | { kind: 'plugin'; slotId: string | null; paramId: string };
+
+export interface AutomationLane {
+  target: AutoTarget;
+  /** Values in the parameter's own range (plugins: as getParameterInfo reports it). */
+  points: AutoPoint[];
+}
 
 export interface AutoPoint {
   /** Position in beats from the song start. */
@@ -139,7 +153,7 @@ export interface LoopRange {
 }
 
 export interface Project {
-  version: 2;
+  version: 3;
   name: string;
   bpm: number;
   key: string;

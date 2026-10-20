@@ -1,6 +1,7 @@
 // Deterministic JSON for projects: sorted keys, numbers rounded to 4 decimals, unordered lists sorted.
 // The same song always gives the same string, whatever order things were added in — so songs
 // versioned with git get readable diffs.
+import { targetKey } from '../automation';
 import type { Project } from '../types';
 
 const round = (x: number) => (Number.isInteger(x) ? x : Math.round(x * 1e4) / 1e4);
@@ -34,7 +35,8 @@ export function canonicalProject(p: Project): Project {
   if (c.sections) c.sections = [...c.sections].sort((a, b) => a.start - b.start || cmp(a.id, b.id));
   if (c.instruments) c.instruments = [...c.instruments].sort((a, b) => cmp(a.id, b.id));
   if (c.annotations) c.annotations = [...c.annotations].sort((a, b) => a.createdAt - b.createdAt || cmp(a.id, b.id));
-  for (const t of c.tracks) if (t.automation) for (const k of Object.keys(t.automation) as (keyof typeof t.automation)[]) t.automation[k] = [...t.automation[k]!].sort((a, b) => a.beat - b.beat);
+  for (const t of c.tracks)
+    if (t.automation) t.automation = t.automation.map((l) => ({ ...l, points: [...l.points].sort((a, b) => a.beat - b.beat) })).sort((a, b) => cmp(targetKey(a.target), targetKey(b.target)));
   return c;
 }
 

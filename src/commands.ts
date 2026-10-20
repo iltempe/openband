@@ -6,7 +6,8 @@ import { BEATS_PER_BAR, KEYS, clamp, drumByPitch, noteName, parseChord, parsePit
 import { PRESETS, customInstruments, findInstrument } from './audio/instruments';
 import { getBuffer, importSample, useSamples } from './audio/samples';
 import { normalizeFx } from './audio/fx';
-import { AUTO_PARAMS, autoParam, sortPoints } from './automation';
+import { AUTO_PARAMS, FX_PARAMS, hasAutomation, isAutomated, lanesOf, mix, parseTargetKey, pointsOf, setPoints, targetKey, targetRange } from './automation';
+import type { AutoTarget } from './types';
 import type { AutoParam } from './types';
 import { presetForProgram, readMidi, writeMidi, type MidiSong } from './midi';
 import { addPluginEffect, addPluginInstrument, captureWamStates, getPluginParams, removePluginEffect, searchPlugins, setPluginParams, updateSlot } from './plugins';
@@ -128,6 +129,40 @@ function requireFlub(id: string) {
   if (!f) throw new Error(`Flub "${id}" not found. Call list_flubs.`);
   return f;
 }
+/** set_automation's target: a mix param name ("volume"…), a target object, or a key ("fx:eq.midFreq"). */
+function resolveTarget(t: Track, param: unknown, target: unknown): AutoTarget {
+  if (target && typeof target === 'object') {
+    const o = target as Record<string, unknown>;
+    if (o.kind === 'mix' && AUTO_PARAMS.some((p) => p.id === o.param)) return mix(o.param as AutoParam);
+    if (o.kind === 'fx') {
+      const tg = parseTargetKey(`fx:${o.unit}.${o.param}`);
+      if (!tg) throw new Error(`Unknown effect parameter "${o.unit}.${o.param}". Call list_automatable.`);
+      return tg;
+    }
+    if (o.kind === 'plugin') {
+      const slotId = (o.slot_id ?? o.slotId ?? null) as string | null;
+      const paramId = String(o.param_id ?? o.paramId ?? '');
+      if (!paramId) throw new Error('A plugin target needs param_id. Call list_automatable.');
+      if (slotId && !t.fx?.plugins?.some((s) => s.id === slotId)) throw new Error(`Plugin slot "${slotId}" not found on this track`);
+      return { kind: 'plugin', slotId, paramId };
+    }
+    throw new Error('target.kind must be "mix", "fx" or "plugin"');
+  }
+  const p = String(param ?? '');
+  if (AUTO_PARAMS.some((x) => x.id === p)) return mix(p as AutoParam);
+  const parsed = parseTargetKey(p);
+  if (parsed) return parsed;
+  throw new Error(`Unknown parameter "${p}". Use ${AUTO_PARAMS.map((x) => x.id).join(', ')}, or a target from list_automatable.`);
+}
+
+/** A plugin parameter's native range (the plugin has to be loaded). */
+async function pluginRange(trackId: string, tg: Extract<AutoTarget, { kind: 'plugin' }>) {
+  const prm = (await getPluginParams(trackId, tg.slotId ?? undefined)).find((x) => x.id === tg.paramId || x.label.toLowerCase() === tg.paramId.toLowerCase());
+  if (!prm) throw new Error(`Unknown plugin parameter "${tg.paramId}". Call list_automatable.`);
+  tg.paramId = prm.id;
+  return { min: prm.min, max: prm.max };
+}
+
 function requireRegion(p: Project, id: string): Region {
   const r = getRegion(p, id);
   if (!r) throw new Error(`Region "${id}" not found. Call get_project to list region ids.`);
@@ -183,12 +218,13 @@ function summarize(p: Project, includeNotes = false) {
       delay: t.delay,
       tone: t.cutoff,
       ...(t.fx && (t.fx.amp.on || t.fx.eq.on || t.fx.comp.on) ? { effects: describeFx(t) } : {}),
-      ...(t.automation && Object.values(t.automation).some((x) => x?.length)
+      ...(hasAutomation(t)
         ? {
+            // Keys as in set_automation: "volume", "pan"… for the mix, "fx:eq.midFreq", "plugin:<slot>:<param>".
             automation: Object.fromEntries(
-              Object.entries(t.automation)
-                .filter(([, pts]) => pts?.length)
-                .map(([k, pts]) => [k, pts!.map((pt) => ({ bar: +beatToBar(pt.beat).toFixed(4), value: +pt.value.toFixed(3) }))]),
+              lanesOf(t)
+                .filter((l) => l.points.length)
+                .map((l) => [l.target.kind === 'mix' ? l.target.param : targetKey(l.target), l.points.map((pt) => ({ bar: +beatToBar(pt.beat).toFixed(4), value: +pt.value.toFixed(4) }))]),
             ),
           }
         : {}),
@@ -364,32 +400,59 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { track_id: t.id, effects: describeFx(getTrack(st().project, t.id)!) };
   },
 
-  set_automation: ({ track_id, param, points, replace }) => {
+  set_automation: async ({ track_id, param, target, points, replace }) => {
     const t = requireTrack(st().project, track_id);
-    if (!AUTO_PARAMS.some((p) => p.id === param)) throw new Error(`Unknown parameter "${param}". Use: ${AUTO_PARAMS.map((p) => p.id).join(', ')}`);
-    const info = autoParam(param as AutoParam);
+    const tg = resolveTarget(t, param, target);
+    const range = tg.kind === 'plugin' ? await pluginRange(t.id, tg) : targetRange(tg);
     const parsed = ((points ?? []) as { bar?: number; beat?: number; value: number }[]).map((pt) => ({
       beat: pt.beat !== undefined ? Math.max(0, Number(pt.beat)) : barToBeat(Number(pt.bar ?? 1)),
-      value: clamp(Number(pt.value), info.min, info.max),
+      value: clamp(Number(pt.value), range.min, range.max),
     }));
     st().commit((d) => {
       const tr = d.tracks.find((x) => x.id === t.id)!;
-      tr.automation ??= {};
-      const keep = replace === false ? tr.automation[param as AutoParam] ?? [] : [];
-      tr.automation[param as AutoParam] = sortPoints([...keep, ...parsed]);
+      const keep = replace === false ? pointsOf(tr, tg) ?? [] : [];
+      setPoints(tr, tg, [...keep, ...parsed]);
     });
-    return { track_id: t.id, param, points: getTrack(st().project, t.id)!.automation![param as AutoParam]!.length };
+    return { track_id: t.id, target: targetKey(tg), points: pointsOf(getTrack(st().project, t.id)!, tg)?.length ?? 0, range };
   },
 
-  clear_automation: ({ track_id, param }) => {
+  clear_automation: ({ track_id, param, target }) => {
     const t = requireTrack(st().project, track_id);
+    const tg = param || target ? resolveTarget(t, param, target) : null;
     st().commit((d) => {
       const tr = d.tracks.find((x) => x.id === t.id)!;
-      if (!tr.automation) return;
-      if (param) delete tr.automation[param as AutoParam];
+      if (tg) setPoints(tr, tg, []);
       else delete tr.automation;
     });
-    return { track_id: t.id, cleared: param ?? 'all' };
+    return { track_id: t.id, cleared: tg ? targetKey(tg) : 'all' };
+  },
+
+  list_automatable: async ({ track_id }) => {
+    const t = requireTrack(st().project, track_id);
+    const fx = normalizeFx(t.fx);
+    const auto = (tg: Parameters<typeof targetKey>[0]) => (isAutomated(t, tg) ? { automated: true } : {});
+    const plugins: { target: unknown; key: string; label: string; plugin: string; min: number; max: number; value: number; automated?: boolean }[] = [];
+    const custom = st().project.instruments?.find((i) => i.id === t.instrument && i.source === 'wam');
+    const slots: { slotId: string | null; name: string }[] = [...(custom ? [{ slotId: null, name: custom.name }] : []), ...(fx.plugins ?? []).map((s) => ({ slotId: s.id, name: s.name }))];
+    for (const s of slots) {
+      try {
+        for (const prm of await getPluginParams(t.id, s.slotId ?? undefined)) {
+          const tg = { kind: 'plugin' as const, slotId: s.slotId, paramId: prm.id };
+          plugins.push({ target: { kind: 'plugin', slot_id: s.slotId, param_id: prm.id }, key: targetKey(tg), label: prm.label, plugin: s.name, min: prm.min, max: prm.max, value: prm.value, ...auto(tg) });
+        }
+      } catch {
+        // not loaded: no parameters to offer
+      }
+    }
+    return {
+      track_id: t.id,
+      mix: AUTO_PARAMS.map((p) => ({ param: p.id, key: targetKey(mix(p.id)), min: p.min, max: p.max, value: +p.base(t).toFixed(4), ...auto(mix(p.id)) })),
+      fx: FX_PARAMS.map((p) => {
+        const tg = { kind: 'fx' as const, unit: p.unit, param: p.param };
+        return { target: { kind: 'fx', unit: p.unit, param: p.param }, key: targetKey(tg), unit: p.unit, param: p.param, min: p.min, max: p.max, ...(p.units ? { units: p.units } : {}), value: (fx[p.unit] as unknown as Record<string, number>)[p.param], on: fx[p.unit].on, ...auto(tg) };
+      }),
+      plugins,
+    };
   },
 
   delete_track: ({ track_id }) => {
@@ -1461,7 +1524,7 @@ const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi', 'export_dawproject',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

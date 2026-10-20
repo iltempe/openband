@@ -6,6 +6,7 @@ import { strToU8, zipSync } from 'fflate';
 import type { Project, Track } from '../../types';
 import { normalizeFx } from '../../audio/fx';
 import { findInstrument } from '../../audio/instruments';
+import { lanesOf, mix, pointsOf, targetKey } from '../../automation';
 import { BEATS_PER_BAR } from '../../music';
 import { writeXml, x, type XNode } from './xml';
 import type { ReportItem } from './report';
@@ -73,7 +74,8 @@ export function projectToDawproject(p: Project, samples: Record<string, ExportSa
     if (fx.amp.on) report.push({ code: 'export_skipped', track: t.name, detail: 'amp simulator' });
     for (const s of fx.plugins ?? []) report.push({ code: 'export_skipped', track: t.name, detail: `WAM plugin ${s.name}` });
     if (custom?.source === 'wam') report.push({ code: 'export_skipped', track: t.name, detail: `WAM instrument ${custom.name}` });
-    if (t.automation?.tone?.length || t.automation?.reverb?.length || t.automation?.echo?.length) report.push({ code: 'export_skipped', track: t.name, detail: 'tone / reverb / echo automation' });
+    const other = lanesOf(t).filter((l) => l.points.length && !(l.target.kind === 'mix' && (l.target.param === 'volume' || l.target.param === 'pan')));
+    if (other.length) report.push({ code: 'export_skipped', track: t.name, detail: `automation of ${other.map((l) => targetKey(l.target)).join(', ')}` });
     return x('Channel', { audioChannels: 2, destination: 'master_ch', role: 'regular', solo: t.solo, id: `${xid(t.id)}_ch` }, [
       devices.length ? x('Devices', {}, devices) : null,
       x('Mute', { value: t.mute, id: `${xid(t.id)}_mute`, name: 'Mute' }),
@@ -133,7 +135,7 @@ export function projectToDawproject(p: Project, samples: Record<string, ExportSa
         ]);
       });
     const auto = (param: 'volume' | 'pan', target: string) => {
-      const pts = t.automation?.[param];
+      const pts = pointsOf(t, mix(param));
       if (!pts?.length) return null;
       return x('Points', { unit: param === 'volume' ? 'linear' : 'normalized', id: `${xid(t.id)}_${param}_pts` }, [
         x('Target', { parameter: target }),

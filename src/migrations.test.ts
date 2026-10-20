@@ -3,10 +3,10 @@ import { migrate } from './migrations';
 import { demoV1Raw } from './__fixtures__/projects';
 
 describe('migrate', () => {
-  it('upgrades the real v1 demo export to v2 without losing content', () => {
+  it('upgrades the real v1 demo export to the current schema without losing content', () => {
     const v1 = demoV1Raw as { tracks: unknown[]; regions: { notes: unknown[] }[]; name: string; bpm: number };
     const p = migrate(demoV1Raw, 1000);
-    expect(p.version).toBe(2);
+    expect(p.version).toBe(3);
     expect(p.name).toBe(v1.name);
     expect(p.bpm).toBe(v1.bpm);
     expect(p.tracks).toEqual(v1.tracks);
@@ -15,7 +15,7 @@ describe('migrate', () => {
     expect(p.meta!.projectId).toMatch(/^song_/);
   });
 
-  it('accepts JSON strings and is idempotent on v2', () => {
+  it('accepts JSON strings and is idempotent on the current schema', () => {
     const once = migrate(JSON.stringify(demoV1Raw));
     const twice = migrate(once);
     expect(twice).toEqual(once);

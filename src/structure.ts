@@ -1,5 +1,6 @@
 // Song structure: sections and the edits that keep content and sections together (split, move,
 // duplicate, delete a span). Pure: functions take and mutate a Project draft, no store/audio.
+import { allPoints } from './automation';
 import type { Project, Region, Section, SectionKind } from './types';
 import { BEATS_PER_BAR, uid } from './music';
 
@@ -63,7 +64,7 @@ export function splitAllAt(p: Project, beat: number) {
 export function shiftFrom(p: Project, from: number, delta: number, except: { regions?: Set<string>; sections?: Set<string> } = {}) {
   for (const r of p.regions) if (r.start >= from - EPS && !except.regions?.has(r.id)) r.start = Math.max(0, r.start + delta);
   for (const s of p.sections ?? []) if (s.start >= from - EPS && !except.sections?.has(s.id)) s.start = Math.max(0, s.start + delta);
-  for (const t of p.tracks) for (const pts of Object.values(t.automation ?? {})) for (const pt of pts ?? []) if (pt.beat >= from - EPS) pt.beat = Math.max(0, pt.beat + delta);
+  for (const t of p.tracks) for (const pt of allPoints(t)) if (pt.beat >= from - EPS) pt.beat = Math.max(0, pt.beat + delta);
 }
 
 const regionsIn = (p: Project, s: number, e: number) => p.regions.filter((r) => r.start >= s - EPS && r.start + r.length <= e + EPS);
@@ -79,7 +80,7 @@ export function moveSection(p: Project, sectionId: string, to: number, ripple = 
   splitAllAt(p, s);
   splitAllAt(p, e);
   const moving = new Set(regionsIn(p, s, e).map((r) => r.id));
-  const autoMoving = p.tracks.flatMap((t) => Object.values(t.automation ?? {}).flatMap((pts) => (pts ?? []).filter((pt) => pt.beat >= s - EPS && pt.beat < e - EPS)));
+  const autoMoving = p.tracks.flatMap((t) => allPoints(t).filter((pt) => pt.beat >= s - EPS && pt.beat < e - EPS));
   if (!ripple) {
     for (const r of p.regions) if (moving.has(r.id)) r.start += to - s;
     for (const pt of autoMoving) pt.beat += to - s;
@@ -105,7 +106,7 @@ export function moveSection(p: Project, sectionId: string, to: number, ripple = 
 function shiftFromExcept(p: Project, from: number, delta: number, except: { regions: Set<string>; sections: Set<string> }, autoExcept: Set<unknown>) {
   for (const r of p.regions) if (r.start >= from - EPS && !except.regions.has(r.id)) r.start = Math.max(0, r.start + delta);
   for (const x of p.sections ?? []) if (x.start >= from - EPS && !except.sections.has(x.id)) x.start = Math.max(0, x.start + delta);
-  for (const t of p.tracks) for (const pts of Object.values(t.automation ?? {})) for (const pt of pts ?? []) if (pt.beat >= from - EPS && !autoExcept.has(pt)) pt.beat = Math.max(0, pt.beat + delta);
+  for (const t of p.tracks) for (const pt of allPoints(t)) if (pt.beat >= from - EPS && !autoExcept.has(pt)) pt.beat = Math.max(0, pt.beat + delta);
 }
 
 function splitAllAtExcept(p: Project, beat: number, except: Set<string>) {
@@ -125,7 +126,7 @@ export function duplicateSection(p: Project, sectionId: string, to?: number, rip
   const copies = regionsIn(p, s, e).map((r) => ({ ...structuredClone(r), id: uid('rgn'), notes: r.notes.map((n) => ({ ...n, id: uid('n') })) }));
   const autoCopies = p.tracks.map((t) => ({
     t,
-    pts: Object.entries(t.automation ?? {}).flatMap(([param, pts]) => (pts ?? []).filter((pt) => pt.beat >= s - EPS && pt.beat < e - EPS).map((pt) => ({ param, beat: pt.beat - s, value: pt.value }))),
+    pts: (t.automation ?? []).flatMap((lane) => lane.points.filter((pt) => pt.beat >= s - EPS && pt.beat < e - EPS).map((pt) => ({ lane, beat: pt.beat - s, value: pt.value }))),
   }));
   if (ripple) {
     splitAllAt(p, dest);
@@ -139,9 +140,10 @@ export function duplicateSection(p: Project, sectionId: string, to?: number, rip
   }
   for (const { t, pts } of autoCopies) {
     for (const pt of pts) {
-      const list = ((t.automation ??= {})[pt.param as keyof NonNullable<typeof t.automation>] ??= []);
-      list.push({ beat: dest + pt.beat, value: pt.value });
-      list.sort((a, b) => a.beat - b.beat);
+      const lane = (t.automation ?? []).find((l) => l === pt.lane);
+      if (!lane) continue;
+      lane.points.push({ beat: dest + pt.beat, value: pt.value });
+      lane.points.sort((a, b) => a.beat - b.beat);
     }
   }
   const copy: Section = { ...sec, id: uid('sec'), start: dest };
@@ -162,7 +164,7 @@ export function deleteSection(p: Project, sectionId: string, deleteContent = fal
     splitAllAt(p, e);
     const doomed = new Set(regionsIn(p, s, e).map((r) => r.id));
     p.regions = p.regions.filter((r) => !doomed.has(r.id));
-    for (const t of p.tracks) for (const [k, pts] of Object.entries(t.automation ?? {})) (t.automation as Record<string, unknown>)[k] = (pts ?? []).filter((pt) => pt.beat < s - EPS || pt.beat >= e - EPS);
+    for (const t of p.tracks) for (const lane of t.automation ?? []) lane.points = lane.points.filter((pt) => pt.beat < s - EPS || pt.beat >= e - EPS);
   }
   p.sections = (p.sections ?? []).filter((x) => x.id !== sectionId);
 }

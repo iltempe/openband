@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { reconcileAnnotations } from './annotations';
 import { followRegions } from './flubs';
-import type { ActiveTransaction, AutoParam, BottomPanel, HistoryEntry, BridgeLogEntry, BridgeStatus, Project, Region, Track, TrackKind } from './types';
+import type { ActiveTransaction, BottomPanel, HistoryEntry, BridgeLogEntry, BridgeStatus, Project, Region, Track, TrackKind } from './types';
 import { AUDIO_COLOR, DRUM_COLOR, TRACK_COLORS, uid } from './music';
 import { defaultPreset, findInstrument, setCustomInstruments } from './audio/instruments';
 import { ensureSamples } from './audio/samples';
@@ -16,7 +16,7 @@ const HISTORY_LIMIT = 120;
 
 export function emptyProject(name = t('name.untitled'), bpm = 110): Project {
   return {
-    version: 2,
+    version: 3,
     name,
     bpm,
     key: 'Am',
@@ -71,8 +71,8 @@ interface State {
   zoom: number;
   /** Plugin GUI window: the track and effect slot (null = the track's plugin instrument). */
   pluginWindow: { trackId: string; slotId: string | null } | null;
-  /** Open automation lanes: track id → parameter shown. */
-  automationLanes: Record<string, AutoParam>;
+  /** Open automation lanes: track id → target key shown ("mix:volume", "fx:eq.midFreq"…). */
+  automationLanes: Record<string, string>;
 
   octave: number;
   velocity: number;

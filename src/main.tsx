@@ -1,5 +1,4 @@
 import './audio/context';
-import { initJournal } from './journal';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import { App } from './App';
@@ -20,6 +19,10 @@ import { initDiagnostics } from './diagnostics';
 import { ErrorBoundary } from './components/Diagnostics';
 import { getConfig, loadConfig } from './config';
 import { savedLanguage, useLang } from './i18n';
+import { initJournal } from './journal';
+import { initAutoWrite } from './autoWrite';
+import { renderBuffer } from './audio/render';
+import * as Tone from 'tone';
 
 // A song handed over from the online demo wins; otherwise the autosave, otherwise the demo song.
 if (!consumeHandoff() && !hasSavedProject()) loadDemo();
@@ -32,6 +35,9 @@ useStore.subscribe((s, prev) => {
 initReference();
 initVersions();
 void initJournal();
+initAutoWrite();
+// ?debug: the engine and the store on window.openband, for diagnostics and end-to-end tests.
+if (new URLSearchParams(location.search).has('debug')) (window as unknown as { openband: unknown }).openband = { engine, useStore, renderBuffer, Tone };
 initJam();
 initFirstRun();
 void loadKeyState();

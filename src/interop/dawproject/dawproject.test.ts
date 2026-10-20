@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeAll } from 'vitest';
+import { mix, pointsOf } from '../../automation';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -46,8 +47,8 @@ describe('DAWproject import: Bitwig-style fixture', () => {
     expect(audio.audio).toMatchObject({ sampleId: 'dawp:0', offset: 0 });
     expect(samples).toHaveLength(1);
     expect(samples[0].name).toBe('Drumfunk3 170bpm.wav');
-    expect(bass.automation?.volume?.map((x) => x.beat)).toEqual([0, 8]);
-    expect(bass.automation!.volume![0].value).toBeCloseTo(0.16, 3);
+    expect(pointsOf(bass, mix('volume'))?.map((x) => x.beat)).toEqual([0, 8]);
+    expect(pointsOf(bass, mix('volume'))![0].value).toBeCloseTo(0.16, 3);
     expect(p.sections?.map((s) => [s.name, s.start, s.length])).toEqual([
       ['Intro', 0, 4],
       ['Drop', 4, 4],
@@ -101,7 +102,7 @@ describe('DAWproject import: Studio One-style fixture', () => {
     expect(keys.reverb).toBeCloseTo(Math.pow(10, -6 / 20), 3);
     expect(keys.delay).toBeCloseTo(Math.pow(10, -18 / 20), 3);
     expect(drums.reverb).toBeCloseTo(Math.pow(10, -12 / 20), 3);
-    expect(keys.automation?.pan).toEqual([
+    expect(pointsOf(keys, mix('pan'))).toEqual([
       { beat: 4, value: -1 },
       { beat: 8, value: 1 },
     ]);
@@ -172,8 +173,8 @@ describe('DAWproject export and round trip', () => {
     expect(k.delay).toBeCloseTo(k0.delay, 3);
     expect(k.fx?.eq).toMatchObject({ on: true, low: 3, mid: -2, high: 1.5, midFreq: 1500 });
     expect(k.fx?.comp).toMatchObject({ on: true, threshold: -22, ratio: 3, makeup: 2 });
-    expect(k.automation?.volume?.map((x) => [x.beat, +x.value.toFixed(3)])).toEqual(k0.automation!.volume!.map((x) => [x.beat, +x.value.toFixed(3)]));
-    expect(k.automation?.pan).toEqual(k0.automation!.pan);
+    expect(pointsOf(k, mix('volume'))?.map((x) => [x.beat, +x.value.toFixed(3)])).toEqual(pointsOf(k0, mix('volume'))!.map((x) => [x.beat, +x.value.toFixed(3)]));
+    expect(pointsOf(k, mix('pan'))).toEqual(pointsOf(k0, mix('pan'))!);
     const notesOf = (pr: Project, name: string) => pr.regions.filter((r) => r.trackId === pr.tracks.find((t) => t.name === name)!.id).flatMap((r) => r.notes.map((n) => [r.start + n.start, n.pitch, n.duration, +n.velocity.toFixed(2)])).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
     for (const name of ['Beat', 'Rhodes']) expect(notesOf(q, name)).toEqual(notesOf(p, name));
     expect(q.sections?.map((s) => [s.name, s.start, s.length])).toEqual(p.sections!.map((s) => [s.name, s.start, s.length]));

@@ -1,11 +1,12 @@
 import { RegionFlags, RulerFlags } from './Flubs';
+import { hasAutomation, targetKey } from '../automation';
 import { memo, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { useOverlays } from './Welcome';
 import { PeerDots } from './Collab';
 import { useVersions } from '../versioning';
 import { CommentPin, useComments } from './Comments';
 import { TakesBadge } from './Takes';
-import type { AutoParam, Region, Track } from '../types';
+import type { Region, Track } from '../types';
 import { useStore, projectEnd } from '../store';
 import { engine } from '../audio/engine';
 import { BEATS_PER_BAR, DRUM_PIECES, clamp, uid } from '../music';
@@ -326,11 +327,11 @@ function TrackHeader({ track, selected }: { track: Track; selected: boolean }) {
           S
         </button>
         <button
-          className={`ms auto ${laneOpen ? 'on' : ''} ${track.automation && Object.values(track.automation).some((p) => p?.length) ? 'has' : ''}`}
+          className={`ms auto ${laneOpen ? 'on' : ''} ${hasAutomation(track) ? 'has' : ''}`}
           onClick={() => {
             const lanes = { ...useStore.getState().automationLanes };
             if (lanes[track.id]) delete lanes[track.id];
-            else lanes[track.id] = (Object.keys(track.automation ?? {})[0] as AutoParam | undefined) ?? 'volume';
+            else lanes[track.id] = track.automation?.[0] ? targetKey(track.automation[0].target) : 'mix:volume';
             set({ automationLanes: lanes });
           }}
           title={t('auto.toggle')}

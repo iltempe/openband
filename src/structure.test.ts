@@ -1,21 +1,24 @@
 import { describe, expect, it } from 'vitest';
+import { mix, pointsOf } from './automation';
 import { deleteSection, duplicateSection, energyProfile, moveSection, proposeSections, splitRegionAt } from './structure';
 import { note, region, track } from './__fixtures__/projects';
 import type { Project, Section } from './types';
 
 const sec = (id: string, kind: Section['kind'], startBar: number, bars: number): Section => ({ id, name: id, kind, start: (startBar - 1) * 4, length: bars * 4 });
 
+const vol = (p: { tracks: Parameters<typeof pointsOf>[0][] }) => pointsOf(p.tracks[0], mix('volume'))!;
+
 /** Song: A (bars 1–4) · B (5–8) · C (9–12), one region per section on one track, + automation. */
 function song(): Project {
   return {
-    version: 2,
+    version: 3,
     name: 'S',
     bpm: 120,
     key: 'C',
     loop: { enabled: false, start: 0, end: 16 },
     masterVolume: 0.8,
     metronome: false,
-    tracks: [track('t1', { automation: { volume: [{ beat: 2, value: 0.1 }, { beat: 18, value: 0.5 }, { beat: 34, value: 0.9 }] } })],
+    tracks: [track('t1', { automation: [{ target: { kind: 'mix', param: 'volume' }, points: [{ beat: 2, value: 0.1 }, { beat: 18, value: 0.5 }, { beat: 34, value: 0.9 }] }] })],
     regions: [region('ra', 't1', 0, 16, [note(60, 0, 1, 0.8, 'a1')]), region('rb', 't1', 16, 16, [note(62, 0, 1, 0.8, 'b1')]), region('rc', 't1', 32, 16, [note(64, 0, 1, 0.8, 'c1')])],
     sections: [sec('A', 'verse', 1, 4), sec('B', 'chorus', 5, 4), sec('C', 'bridge', 9, 4)],
   };
@@ -51,8 +54,8 @@ describe('move_section', () => {
     expect(order(p)).toEqual([[62, 0], [60, 16], [64, 32]]);
     expect(p.sections!.map((s) => [s.id, s.start]).sort()).toEqual([['A', 16], ['B', 0], ['C', 32]]);
     // automation moves with its section
-    expect(p.tracks[0].automation!.volume!.map((pt) => pt.beat).sort((a, b) => a - b)).toEqual([2, 18, 34]);
-    expect(p.tracks[0].automation!.volume!.find((pt) => pt.value === 0.1)!.beat).toBe(18);
+    expect(vol(p).map((pt) => pt.beat).sort((a, b) => a - b)).toEqual([2, 18, 34]);
+    expect(vol(p).find((pt) => pt.value === 0.1)!.beat).toBe(18);
   });
   it('moves a section earlier with ripple: A B C → C A B', () => {
     const p = song();
@@ -99,7 +102,7 @@ describe('duplicate_section and delete_section', () => {
     expect(p.regions).toHaveLength(3);
     deleteSection(p, 'C', true);
     expect(order(p)).toEqual([[60, 0], [62, 16]]);
-    expect(p.tracks[0].automation!.volume!.map((pt) => pt.beat)).toEqual([2, 18]);
+    expect(vol(p).map((pt) => pt.beat)).toEqual([2, 18]);
   });
 });
 

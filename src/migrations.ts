@@ -2,8 +2,9 @@
 // bundles, MCP import) goes through migrate(), so old songs keep opening. Pure: no store/audio.
 import type { Project } from './types';
 import { uid } from './music';
+import { lanesFromRecord } from './automation';
 
-export const CURRENT_VERSION = 2;
+export const CURRENT_VERSION = 3;
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -26,7 +27,6 @@ export function migrate(raw: unknown, now = Date.now()): Project {
   const p = structuredClone(data) as unknown as Project & Record<string, unknown>;
 
   // v1 → v2: same shape plus optional fields; fill defaults that very old saves may lack.
-  p.version = 2;
   p.name = typeof p.name === 'string' && p.name ? p.name : 'Untitled';
   p.bpm = typeof p.bpm === 'number' && p.bpm > 0 ? p.bpm : 110;
   p.key = typeof p.key === 'string' && p.key ? p.key : 'C';
@@ -36,6 +36,13 @@ export function migrate(raw: unknown, now = Date.now()): Project {
   for (const r of p.regions) {
     if (!Array.isArray(r.notes)) r.notes = [];
   }
+  // v2 → v3: track automation becomes a list of lanes with open targets (F22).
+  for (const t of p.tracks) {
+    const lanes = lanesFromRecord((t as { automation?: unknown }).automation);
+    if (lanes) t.automation = lanes;
+    else delete t.automation;
+  }
+  p.version = 3;
   const meta = isObject(p.meta) ? (p.meta as Partial<Project['meta']>) : {};
   p.meta = {
     projectId: typeof meta?.projectId === 'string' && meta.projectId ? meta.projectId : uid('song'),

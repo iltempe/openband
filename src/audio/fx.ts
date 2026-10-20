@@ -2,13 +2,10 @@
 // of the signal path entirely, so a track without effects sounds exactly as before.
 import * as Tone from 'tone';
 import type { TrackFx } from '../types';
-import { WamEffect } from './wam';
+import { WamEffect, type WamInstance } from './wam';
 
-export const defaultFx = (): TrackFx => ({
-  amp: { on: false, drive: 0.45, tone: 0.55, level: 0.7 },
-  eq: { on: false, low: 0, mid: 0, high: 0, midFreq: 1000 },
-  comp: { on: false, threshold: -18, ratio: 4, attack: 0.01, release: 0.18, makeup: 4 },
-});
+import { defaultFx } from '../fxDefaults';
+export { defaultFx };
 
 /** Fill in any missing section, e.g. for projects saved before a parameter existed. */
 export function normalizeFx(fx?: Partial<TrackFx>): TrackFx {
@@ -34,12 +31,12 @@ class AmpSim {
     this.output = new Tone.Gain(1);
     this.input.chain(this.shaper, this.lowCut, this.presence, this.cab, this.output);
   }
-  set(p: TrackFx['amp']) {
+  set(p: TrackFx['amp'], time?: number) {
     // Pre-gain drives the waveshaper harder; level compensates so drive doesn't just mean "louder".
-    this.input.gain.rampTo(1 + p.drive * 24, 0.03);
+    this.input.gain.rampTo(1 + p.drive * 24, 0.03, time);
     this.shaper.distortion = 0.15 + p.drive * 0.85;
     this.cab.frequency.rampTo(1400 * Math.pow(2, p.tone * 2.8), 0.03);
-    this.output.gain.rampTo((p.level * 1.4) / (1 + p.drive * 2), 0.03);
+    this.output.gain.rampTo((p.level * 1.4) / (1 + p.drive * 2), 0.03, time);
   }
   dispose() {
     [this.input, this.shaper, this.lowCut, this.presence, this.cab, this.output].forEach((n) => n.dispose());
@@ -133,6 +130,28 @@ export class FxChain {
     // Output trim: a level-match compensation made permanent (rendered too).
     this.output.gain.rampTo(dbToGain(fx.trim ?? 0), 0.03);
     this.compareGain.gain.rampTo(dbToGain(cmp?.gainDb ?? 0), 0.03);
+  }
+
+  /** An automated effect parameter at an audio time (F22); values in the parameter's own range. */
+  setParam(unit: 'amp' | 'eq' | 'comp', param: string, value: number, time?: number) {
+    const fx = normalizeFx(this.last);
+    if (unit === 'amp') return this.amp.set({ ...fx.amp, [param]: value }, time);
+    if (unit === 'eq') {
+      if (param === 'low' || param === 'mid' || param === 'high') return void this.eq[param].rampTo(value, 0.03, time);
+      if (param === 'midFreq') {
+        const f = Math.min(6000, Math.max(200, value));
+        this.eq.lowFrequency.rampTo(Math.max(40, f / 3), 0.03, time);
+        this.eq.highFrequency.rampTo(Math.min(16000, f * 3), 0.03, time);
+      }
+      return;
+    }
+    if (param === 'makeup') return void this.makeup.gain.rampTo(dbToGain(value), 0.03, time);
+    if (param === 'threshold' || param === 'ratio' || param === 'attack' || param === 'release') this.comp[param].rampTo(value, 0.03, time);
+  }
+
+  /** A plugin effect of the chain, once loaded. */
+  plugin(slotId: string): WamInstance | null {
+    return this.plugins.get(slotId)?.instance ?? null;
   }
 
   /** Hear the chain (or one plugin) bypassed at matched loudness; null goes back to normal. Live only. */
