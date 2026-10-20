@@ -1,3 +1,4 @@
+import { RegionFlags, RulerFlags } from './Flubs';
 import { memo, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { useOverlays } from './Welcome';
 import { PeerDots } from './Collab';
@@ -179,6 +180,7 @@ function Ruler({ totalBeats }: { totalBeats: number }) {
       {loop.enabled && (
         <div className="loop-range" style={{ left: loop.start * zoom, width: (loop.end - loop.start) * zoom }} />
       )}
+      <RulerFlags zoom={zoom} />
       {Array.from({ length: bars }, (_, i) =>
         i % labelEvery === 0 ? (
           <div key={i} className="ruler-bar" style={{ left: i * BEATS_PER_BAR * zoom }}>
@@ -421,6 +423,7 @@ function RegionView({ region, track }: { region: Region; track: Track }) {
         <TakesBadge region={region} />
       </div>
       {region.audio ? <AudioPreview region={region} /> : <RegionPreview region={region} drums={track.kind === 'drums'} />}
+      <RegionFlags region={region} zoom={zoom} />
       <div className="region-resize" onPointerDown={(e) => startDrag(e, 'resize')} />
     </div>
   );

@@ -9,6 +9,7 @@ import { t } from './i18n';
 import { PhraseSegmenter } from './phrases';
 import { emitStudioEvent } from './events';
 import { takesFromPasses, type PassNote } from './takes';
+import { beginFlubTake, bindPendingFlubs, flushPendingFlubs, onControlChange } from './flubLive';
 
 /** Musical typing layout, semitone offsets from the current octave's C. */
 export const TYPING_KEYS: Record<string, number> = {
@@ -59,6 +60,7 @@ export async function startRecording() {
     r.lastPos = pos;
   }, 20);
   rec = r;
+  beginFlubTake({ trackId: track.id, pass: () => r.pass });
   s.set({ isRecording: true, keyboardOpen: true });
   if (!engine.playing) {
     await engine.play();
@@ -75,14 +77,19 @@ export function stopRecording() {
   const now = engine.position;
   for (const [pitch, p] of r.pending) r.notes.push({ ...finishNote(pitch, p.start, p.velocity, now), pass: p.pass });
   st().set({ isRecording: false });
-  if (!r.notes.length) return;
+  if (!r.notes.length) return void flushPendingFlubs();
   const loop = st().project.loop;
   if (loopLen() && new Set(r.notes.map((n) => n.pass)).size > 1) {
     // Cycle recording: one region over the cycle, one take per pass, the last one active.
     const takes = takesFromPasses(r.notes, loop.start, loopLen(), Date.now(), () => uid('take'));
     const last = takes[takes.length - 1];
     const region = { id: uid('rgn'), trackId: r.trackId, name: t('rec.region'), start: loop.start, length: loopLen(), notes: last.notes.map((n) => ({ ...n })), takes, activeTakeId: last.id };
-    st().commit((d) => void d.regions.push(region));
+    // takesFromPasses makes one take per pass with notes, in pass order.
+    const passes = [...new Set(r.notes.map((n) => n.pass))].sort((a, b) => a - b);
+    st().commit((d) => {
+      d.regions.push(region);
+      bindPendingFlubs(d, region, (pass) => takes[passes.indexOf(pass)]);
+    });
     st().selectRegion(region);
     st().notify(t('rec.takes', { n: takes.length }));
     emitStudioEvent({ kind: 'region_recorded', region_id: region.id });
@@ -99,7 +106,10 @@ export function stopRecording() {
     length,
     notes: r.notes.map(({ pass: _, ...n }) => ({ ...n, start: n.start - startBar })),
   };
-  st().commit((d) => void d.regions.push(region));
+  st().commit((d) => {
+    d.regions.push(region);
+    bindPendingFlubs(d, region);
+  });
   st().selectRegion(region);
   st().notify(t('rec.done', { n: r.notes.length }));
   emitStudioEvent({ kind: 'region_recorded', region_id: region.id });
@@ -179,6 +189,8 @@ export function initMidi() {
             const cmd = status & 0xf0;
             if (cmd === 0x90 && d2 > 0) liveNoteOn(d1, d2 / 127);
             else if (cmd === 0x80 || (cmd === 0x90 && d2 === 0)) liveNoteOff(d1);
+            // A pedal (CC64 by default, or the one learned) marks a flub while recording.
+            else if (cmd === 0xb0) onControlChange(d1, d2);
           };
         });
       const list = () => setMidiInputs([...access.inputs.values()].map((i) => i.name ?? 'MIDI input'));

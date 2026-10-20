@@ -7,6 +7,7 @@ import { runCommand } from '../commands';
 import { cancelABTest, choose, dismissAB, finishABTest, useAB } from '../abtest';
 import { useT } from '../i18n';
 import * as I from './Icons';
+import { takeOf } from '../flubs';
 
 export const useTakesUI = create<{ regionId: string | null }>(() => ({ regionId: null }));
 
@@ -54,6 +55,7 @@ interface Seg {
 export function TakesDialog() {
   const regionId = useTakesUI((s) => s.regionId);
   const region = useStore((s) => s.project.regions.find((r) => r.id === regionId));
+  const allFlubs = useStore((s) => s.project.flubs);
   const [segs, setSegs] = useState<Seg[]>([]);
   const [pick, setPick] = useState<string[]>([]);
   const t = useT();
@@ -83,6 +85,7 @@ export function TakesDialog() {
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
+  const flubs = (allFlubs ?? []).filter((f) => f.regionId === region.id);
   const colorOf = (id: string) => `hsl(${(takes.findIndex((x) => x.id === id) * 67 + 200) % 360} 70% 60%)`;
 
   return (
@@ -115,6 +118,11 @@ export function TakesDialog() {
               </button>
               <div className="take-lane" onPointerDown={(e) => startComp(e, tk.id)}>
                 {!tk.audio && <Mini take={tk} length={region.length} />}
+                {flubs
+                  .filter((f) => takeOf(f, region) === tk.id)
+                  .map((f) => (
+                    <span key={f.id} className={`take-flag ${f.kind} ${f.resolved ? 'resolved' : ''}`} style={{ left: `${((f.beat - region.start) / region.length) * 100}%` }} />
+                  ))}
                 {segs
                   .filter((s) => s.takeId === tk.id)
                   .map((s, i) => (

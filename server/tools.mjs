@@ -27,6 +27,7 @@ In a multiplayer room (get_peers), say who you are acting for and avoid editing 
 To jam with the user: set_jam_mode({enabled:true, response_track_id}), then repeatedly wait_for_event({kinds:["phrase"]}) and answer with play_phrase (it is quantized to the next window, so latency is fine).
 Before a big rework, save_version; to try a different direction without losing the current one, create_branch + checkout (merge brings the good parts back).
 To offer alternatives, add them as takes (add_take) and let the user pick with a blind test (start_ab_test, then wait_for_event ab_result).
+Flubs: list_flubs shows where the user marked mistakes while recording; offer to fix them (comp from takes, re-record, or edit notes).
 Run lint_project before declaring a task done and fix errors (apply_fix).
 Before mixing decisions, LISTEN: call analyze_mix (and render_spectrogram if useful). After changes, analyze again and compare. If the user names a song they want to sound like, import_reference it and use compare_to_reference.
 The studio also reports what the user does: get_events / wait_for_event (phrases they play, selections, edits, questions). The resource openband://project holds the song and notifies subscribers after each change.
@@ -422,6 +423,26 @@ tool('start_ab_test', 'Open a blind A/B listening test of 2–4 takes of a regio
   loop: z.boolean().optional(),
 }, readOnly);
 
+// ---- flub markers
+
+tool('add_flub', 'Mark a point of the song: kind "flub" (a mistake to fix, default), "good" (a part worth keeping) or "note". Without beat/bar it marks the playhead; during a recording the mark is bound to the take being recorded. The user marks flubs with F/G or a MIDI pedal while recording.', {
+  beat: z.number().min(0).optional().describe('Beat on the timeline (0 = the start)'),
+  bar: z.number().min(1).optional().describe('1-based bar, may be fractional (2.5 = middle of bar 2)'),
+  kind: z.enum(['flub', 'good', 'note']).optional(),
+  text: z.string().max(200).optional(),
+  track_id: z.string().optional(),
+});
+
+tool('list_flubs', 'List the marks left while recording (where the user made mistakes, or liked a part), with their bar, track, region and take. Offer to fix the open ones: replace_with_best_take, re-record, or edit the notes.', {
+  unresolved_only: z.boolean().optional(),
+}, readOnly);
+
+tool('resolve_flub', 'Mark a flub as fixed (or open again with resolved=false).', { flub_id: z.string(), resolved: z.boolean().optional() });
+
+tool('delete_flub', 'Delete a flub mark.', { flub_id: z.string() });
+
+tool('replace_with_best_take', 'Fix a flub from the other takes of its region: picks the take with no mistake within ±1 beat of the flub and the most "good" marks, and comps it in over the bars around the flub (audio takes switch as a whole). The flub is marked resolved.', { flub_id: z.string() });
+
 // ---- reference track
 
 fileTool('import_reference', 'Load a reference song (a commercial track the user wants to sound like) for mix matching. It is not put on the timeline. Optional from_seconds/to_seconds pick an excerpt (e.g. the chorus). Returns its loudness, dynamics, stereo width and band balance.', {
@@ -457,7 +478,7 @@ tool('audio_to_midi', 'Convert a monophonic audio region (voice, whistle, bass, 
 
 // ---- studio → AI events (answered by this server, not the studio)
 
-const EventKind = z.enum(['phrase', 'selection', 'transport', 'user_edit', 'region_recorded', 'ask', 'ab_result']);
+const EventKind = z.enum(['phrase', 'selection', 'transport', 'user_edit', 'region_recorded', 'ask', 'ab_result', 'flub']);
 
 special('get_events', 'What the user has been doing in the studio, oldest first: phrases played live (notes in beats from the phrase\'s first bar), selection changes, transport, finished edits, recorded regions and questions asked with "Ask the AI". Pass since_id (the last_id you got) to get only new ones.', { since_id: z.number().int().optional(), kinds: z.array(EventKind).optional(), limit: z.number().int().min(1).max(500).optional() }, 'events_list', readOnly);
 

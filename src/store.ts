@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { reconcileAnnotations } from './annotations';
+import { followRegions } from './flubs';
 import type { ActiveTransaction, AutoParam, BottomPanel, HistoryEntry, BridgeLogEntry, BridgeStatus, Project, Region, Track, TrackKind } from './types';
 import { AUDIO_COLOR, DRUM_COLOR, TRACK_COLORS, uid } from './music';
 import { defaultPreset, findInstrument, setCustomInstruments } from './audio/instruments';
@@ -169,6 +170,8 @@ export const useStore = create<State>((set, get) => ({
     mutate(draft);
     // Deleting what an annotation points at orphans it (it isn't deleted); undo brings it back.
     if (draft.annotations?.length) reconcileAnnotations(draft);
+    // Flub marks follow their region (moved, other track, deleted).
+    if (draft.flubs?.length) followRegions(project, draft);
     const history = (opts?.history ?? true) && !activeTransaction;
     set({
       project: draft,

@@ -26,6 +26,8 @@ import { DiagnosticsPage } from './components/Diagnostics';
 import { ShortcutsSheet, TemplateGallery, TourCard, Welcome, useOverlays } from './components/Welcome';
 import { PluginBrowser, PluginWindow } from './components/Plugins';
 import { useT } from './i18n';
+import { FlubsPanel } from './components/Flubs';
+import { isRecordingTake, jumpToFlub, markFlub } from './flubLive';
 
 function useShortcuts() {
   useEffect(() => {
@@ -83,6 +85,16 @@ function useShortcuts() {
         const i = tracks.findIndex((t) => t.id === s.selectedTrackId);
         const next = clamp(i + (e.key === 'ArrowUp' ? -1 : 1), 0, tracks.length - 1);
         s.set({ selectedTrackId: tracks[next].id });
+        return;
+      }
+
+      // Flub markers while recording: F / G — with Shift when musical typing is open (F and G play notes there).
+      if ((key === 'f' || key === 'g') && isRecordingTake() && (e.shiftKey || !s.keyboardOpen)) {
+        if (!e.repeat) markFlub(key === 'f' ? 'flub' : 'good');
+        return;
+      }
+      if (e.key === ']' || e.key === '[') {
+        jumpToFlub(e.key === ']' ? 1 : -1);
         return;
       }
 
@@ -179,6 +191,7 @@ export function App() {
   useFileDrop();
   const s = useStore();
   const annCount = (s.project.annotations ?? []).filter((a) => !a.resolved).length;
+  const flubCount = (s.project.flubs ?? []).filter((f) => !f.resolved && f.kind === 'flub').length;
   const t = useT();
 
   return (
@@ -216,6 +229,10 @@ export function App() {
                   <I.Sparkles width={14} height={14} /> {t('cm.tab')}
                   {annCount > 0 && <span className="cm-tab-count">{annCount}</span>}
                 </button>
+                <button className={s.bottom === 'flubs' ? 'on' : ''} onClick={() => s.set({ bottom: 'flubs' })}>
+                  <I.Flag width={14} height={14} /> {t('fl.tab')}
+                  {flubCount > 0 && <span className="cm-tab-count">{flubCount}</span>}
+                </button>
                 <button className={s.bottom === 'versions' ? 'on' : ''} onClick={() => s.set({ bottom: 'versions' })}>
                   <I.Cycle width={14} height={14} /> {t('ver.tab')}
                 </button>
@@ -234,6 +251,7 @@ export function App() {
                 {s.bottom === 'lyrics' && <LyricsPanel />}
                 {s.bottom === 'comments' && <CommentsPanel />}
                 {s.bottom === 'versions' && <VersionsPanel />}
+                {s.bottom === 'flubs' && <FlubsPanel />}
               </div>
             </div>
           )}

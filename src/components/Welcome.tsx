@@ -220,6 +220,8 @@ const SHORTCUTS: [string, MessageKey][] = [
   ['X', 'sc.k.mixer'],
   ['F', 'sc.k.fx'],
   ['N', 'sc.k.analysis'],
+  ['F / G', 'sc.k.flub'],
+  ['] [', 'sc.k.flubJump'],
   ['↑ ↓', 'sc.k.tracks'],
   ['⌘Z / ⇧⌘Z', 'sc.k.undo'],
   ['⌘D', 'sc.k.dup'],

@@ -98,3 +98,6 @@ export const Automation = (p: I) => (
 export const Midi = (p: I) => (
   <svg {...base(p)}><circle cx="12" cy="12" r="9" /><circle cx="7.5" cy="12" r="1" fill="currentColor" /><circle cx="16.5" cy="12" r="1" fill="currentColor" /><circle cx="9" cy="8" r="1" fill="currentColor" /><circle cx="15" cy="8" r="1" fill="currentColor" /><circle cx="12" cy="6.8" r="1" fill="currentColor" /></svg>
 );
+export const Flag = (p: I) => (
+  <svg {...base(p)}><path d="M5 21V4" /><path d="M5 4h11l-2 4 2 4H5" /></svg>
+);

@@ -4487,3 +4487,119 @@ div.ca-steps {
   font-size: 12px;
   line-height: 1.4;
 }
+
+/* ---------- flub markers (F18) ---------- */
+.ruler-flag {
+  position: absolute;
+  top: 1px;
+  transform: translateX(-2px);
+  z-index: 4;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: #ef4444;
+  line-height: 0;
+}
+.ruler-flag.good {
+  color: #22c55e;
+}
+.ruler-flag.note {
+  color: #9ca3af;
+}
+.region-flag {
+  position: absolute;
+  top: 18px;
+  bottom: 2px;
+  width: 0;
+  border-left: 2px solid #ef4444;
+  pointer-events: none;
+  opacity: 0.9;
+}
+.region-flag.good {
+  border-left-color: #22c55e;
+}
+.region-flag.note {
+  border-left-color: #9ca3af;
+}
+.flubs-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  height: 100%;
+  overflow: auto;
+}
+.fl-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.fl-hint,
+.fl-pedal {
+  opacity: 0.7;
+}
+.fl-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.fl-empty {
+  opacity: 0.7;
+  font-size: 13px;
+  max-width: 640px;
+}
+.fl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fl-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: var(--panel-3);
+  font-size: 13px;
+}
+.fl-row .fl-icon {
+  color: #ef4444;
+}
+.fl-row.good .fl-icon {
+  color: #22c55e;
+}
+.fl-row.note .fl-icon {
+  color: #9ca3af;
+}
+.fl-row.resolved {
+  opacity: 0.5;
+}
+.fl-pos {
+  font: 600 12px var(--mono, ui-monospace, monospace);
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+.take-flag {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 2px solid #ef4444;
+  pointer-events: none;
+}
+.take-flag.good {
+  border-left-color: #22c55e;
+}
+.take-flag.note {
+  border-left-color: #9ca3af;
+}
+.take-flag.resolved {
+  opacity: 0.35;
+}

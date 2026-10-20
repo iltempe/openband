@@ -11,6 +11,7 @@ import { pitchTrackInWorker } from './analysis/client';
 import { quantizeNotes, snapToScale } from './analysis/pitchtrack';
 import { scalePitchClasses } from './analysis/key';
 import { emitStudioEvent } from './events';
+import { beginFlubTake, bindPendingFlubs, flushPendingFlubs } from './flubLive';
 
 export type MicMode = 'audio' | 'hum';
 export interface MicState {
@@ -128,7 +129,10 @@ export async function recordFromMic(o: RecordOptions): Promise<RecordResult> {
       if (now < t0) {
         const left = Math.ceil(((t0 - now) * p.bpm) / 60);
         if (left !== useMic.getState().countdown) useMic.setState({ countdown: left });
-      } else if (useMic.getState().state === 'countin') useMic.setState({ state: 'recording', countdown: 0 });
+      } else if (useMic.getState().state === 'countin') {
+        useMic.setState({ state: 'recording', countdown: 0 });
+        beginFlubTake({ trackId: o.trackId, pass: () => 0 });
+      }
       if (stopped || now >= endTime + 0.05 || (now > t0 + 0.2 && !engine.playing)) {
         clearInterval(tick);
         resolve();
@@ -161,6 +165,7 @@ export async function recordFromMic(o: RecordOptions): Promise<RecordResult> {
     const tx = useStore.getState().beginTransaction(o.mode === 'hum' ? 'Hummed melody' : 'Audio recording', 'ui');
     try {
       const region = addAudioRegion(info, { trackId: track?.kind === 'audio' ? track.id : undefined, startBeat });
+      useStore.getState().commit((d) => bindPendingFlubs(d, d.regions.find((r) => r.id === region.id)));
       emitStudioEvent({ kind: 'region_recorded', region_id: region.id });
       const result: RecordResult = { region_id: region.id, track_id: region.trackId, seconds: +info.duration.toFixed(2) };
       if (o.mode === 'hum') {
@@ -177,6 +182,8 @@ export async function recordFromMic(o: RecordOptions): Promise<RecordResult> {
     useMic.setState({ error: (e as Error).message });
     throw e;
   } finally {
+    // Marks of a take that could not be stored are kept anyway.
+    flushPendingFlubs();
     useMic.setState({ state: 'idle' });
   }
 }

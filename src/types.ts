@@ -157,7 +157,26 @@ export interface Project {
   reference?: ReferenceTrack;
   /** Linter configuration (F7). */
   lint?: LintConfig;
+  /** Marks left while recording (F18): mistakes to fix, good parts, notes. */
+  flubs?: Flub[];
   meta?: ProjectMeta;
+}
+
+export type FlubKind = 'flub' | 'good' | 'note';
+
+export interface Flub {
+  id: string;
+  /** Beat on the timeline (follows its region when the region moves). */
+  beat: number;
+  trackId?: string;
+  /** The region it was recorded into, and the take (no take id = the region's first take). */
+  regionId?: string;
+  takeId?: string;
+  kind: FlubKind;
+  text?: string;
+  createdAt: number;
+  resolved?: boolean;
+  author?: 'user' | 'ai';
 }
 
 export interface ProjectMeta {
@@ -244,7 +263,7 @@ export interface LintConfig {
   ignored?: string[];
 }
 
-export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | null;
+export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | 'flubs' | null;
 
 export interface BridgeLogEntry {
   id: string;

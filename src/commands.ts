@@ -30,6 +30,8 @@ import { emptyProject, enterAiCommand, exitAiCommand, isAiCommand, getRegion, ge
 import { engine } from './audio/engine';
 import { checkSegments, compNotes, nextTakeName, withTakes, type CompSegment } from './takes';
 import { startABTest } from './abtest';
+import { bestTakeAt, fixWindow, takeOf } from './flubs';
+import { markFlub, useFlubLive } from './flubLive';
 import { createRoom, getPeers, joinRoom, leaveRoom } from './collab/session';
 import { jamStatus, keepAnswer, playPhrase, setJamMode, useJam } from './jamMode';
 import { canonicalJSON } from './versions/canonical';
@@ -100,6 +102,11 @@ function requireTrack(p: Project, id: string): Track {
   const t = getTrack(p, id) ?? p.tracks.find((tr) => tr.name.toLowerCase() === String(id).toLowerCase());
   if (!t) throw new Error(`Track "${id}" not found. Call get_project to list track ids.`);
   return t;
+}
+function requireFlub(id: string) {
+  const f = st().project.flubs?.find((x) => x.id === id);
+  if (!f) throw new Error(`Flub "${id}" not found. Call list_flubs.`);
+  return f;
 }
 function requireRegion(p: Project, id: string): Region {
   const r = getRegion(p, id);
@@ -1154,6 +1161,91 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { region_id: r.id, take_id: comp.id, name: comp.name, notes: notes.length, segments: segs.map((s) => ({ ...s, take: takes.find((t) => t.id === s.take_id)!.name })) };
   },
 
+  // ---- flub markers (F18)
+  add_flub: ({ beat, bar, kind, text, track_id }) => {
+    const at = beat !== undefined ? Number(beat) : bar !== undefined ? barToBeat(Number(bar)) : undefined;
+    const trackId = track_id ? requireTrack(st().project, track_id).id : undefined;
+    const f = markFlub(kind ?? 'flub', { beat: at, trackId, text, author: isAiCommand() ? 'ai' : 'user' });
+    return { flub_id: f.id, beat: f.beat, bar: +beatToBar(f.beat).toFixed(2), kind: f.kind, pending: !st().project.flubs?.some((x) => x.id === f.id) };
+  },
+
+  list_flubs: ({ unresolved_only }) => {
+    const p = st().project;
+    const pending = useFlubLive.getState().pending.map((x) => ({ ...x.flub, pending: true }));
+    const all = [...(p.flubs ?? []), ...pending].filter((f) => !unresolved_only || !f.resolved).sort((a, b) => a.beat - b.beat);
+    return {
+      flubs: all.map((f) => {
+        const r = f.regionId ? getRegion(p, f.regionId) : undefined;
+        const takeId = r ? takeOf(f, r) : undefined;
+        return {
+          id: f.id,
+          kind: f.kind,
+          bar: +beatToBar(f.beat).toFixed(2),
+          beat: f.beat,
+          ...(f.text ? { text: f.text } : {}),
+          ...(f.trackId ? { track_id: f.trackId, track: getTrack(p, f.trackId)?.name } : {}),
+          ...(r ? { region_id: r.id, take_id: takeId ?? null, take: r.takes?.find((t) => t.id === takeId)?.name ?? null, takes_in_region: r.takes?.length ?? 0 } : {}),
+          resolved: !!f.resolved,
+          ...('pending' in f ? { pending: true } : {}),
+          author: f.author ?? 'user',
+        };
+      }),
+    };
+  },
+
+  resolve_flub: ({ flub_id, resolved }) => {
+    const f = requireFlub(flub_id);
+    st().commit((d) => void (d.flubs!.find((x) => x.id === f.id)!.resolved = resolved !== false));
+    return { flub_id: f.id, resolved: resolved !== false };
+  },
+
+  delete_flub: ({ flub_id }) => {
+    const f = requireFlub(flub_id);
+    st().commit((d) => void (d.flubs = d.flubs!.filter((x) => x.id !== f.id)));
+    return { deleted: f.id };
+  },
+
+  replace_with_best_take: ({ flub_id }) => {
+    const f = requireFlub(flub_id);
+    const p = st().project;
+    const r = f.regionId ? getRegion(p, f.regionId) : undefined;
+    if (!r?.takes || r.takes.length < 2) throw new Error('This flub is not on a region with several takes: record more takes (cycle recording) or fix it by hand');
+    const best = bestTakeAt(r, p.flubs ?? [], f.beat);
+    if (!best) throw new Error('Every take has a mistake at this point: re-record this part');
+    const { takes, activeTakeId } = withTakes(r, Date.now(), () => uid('take'));
+    if (best.id === activeTakeId) {
+      st().commit((d) => void (d.flubs!.find((x) => x.id === f.id)!.resolved = true));
+      return { region_id: r.id, take_id: best.id, take: best.name, already_active: true };
+    }
+    const { from, to } = fixWindow(r, f.beat);
+    // Audio takes switch as a whole; MIDI takes are comped: the best take only around the mistake.
+    if (r.audio) {
+      st().commit((d) => {
+        const x = d.regions.find((y) => y.id === r.id)!;
+        x.takes = takes;
+        x.activeTakeId = best.id;
+        if (best.audio) x.audio = { ...best.audio };
+        d.flubs!.find((y) => y.id === f.id)!.resolved = true;
+      });
+      return { region_id: r.id, take_id: best.id, take: best.name, whole_take: true };
+    }
+    const segs: CompSegment[] = [
+      ...(from > 0 ? [{ from_beat: 0, to_beat: from, take_id: activeTakeId }] : []),
+      { from_beat: from, to_beat: to, take_id: best.id },
+      ...(to < r.length ? [{ from_beat: to, to_beat: r.length, take_id: activeTakeId }] : []),
+    ];
+    const notes = compNotes(takes, segs, () => uid('n'));
+    const comp = { id: uid('take'), name: `Comp (${best.name} @ ${+beatToBar(f.beat).toFixed(2)})`, notes, createdAt: Date.now(), author: (isAiCommand() ? 'ai' : 'user') as 'ai' | 'user' };
+    st().commit((d) => {
+      const x = d.regions.find((y) => y.id === r.id)!;
+      x.takes = [...takes, comp];
+      x.activeTakeId = comp.id;
+      x.notes = notes.map((n) => ({ ...n }));
+      d.flubs!.find((y) => y.id === f.id)!.resolved = true;
+    });
+    return { region_id: r.id, take_id: comp.id, name: comp.name, from_take: best.name, from_beat: from, to_beat: to };
+  },
+
   start_ab_test: ({ region_id, take_ids, loop }) => {
     const r = requireRegion(st().project, region_id);
     const ids = (take_ids as string[] | undefined)?.length ? (take_ids as string[]) : (r.takes ?? []).slice(-4).map((t) => t.id);
@@ -1278,7 +1370,7 @@ const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

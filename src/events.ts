@@ -17,7 +17,8 @@ export type StudioEvent =
   | { kind: 'user_edit'; label: string }
   | { kind: 'region_recorded'; region_id: string }
   | { kind: 'ask'; text: string; context?: { region_id?: string; section_id?: string; note_ids?: string[]; track_id?: string; explain?: boolean } }
-  | { kind: 'ab_result'; test_id: string; ranking: string[] };
+  | { kind: 'ab_result'; test_id: string; ranking: string[] }
+  | { kind: 'flub'; flub_id: string; flub_kind: 'flub' | 'good' | 'note'; beat: number; bar: number; track_id?: string };
 
 /** Events the user triggers on purpose: always sent, even with activity sharing off. */
 const EXPLICIT = new Set<StudioEvent['kind']>(['ask', 'ab_result']);
