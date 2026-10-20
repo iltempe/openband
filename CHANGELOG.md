@@ -2,7 +2,9 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
-## Unreleased
+## v0.4.0 "The studio on your desktop"
+
+**Download the desktop app:** [macOS (Apple Silicon)](https://github.com/iltempe/openband/releases/latest/download/OpenBand-mac-arm64.dmg) · [macOS (Intel)](https://github.com/iltempe/openband/releases/latest/download/OpenBand-mac-x64.dmg) · [Windows](https://github.com/iltempe/openband/releases/latest/download/OpenBand-win-x64.exe) · [Linux .deb](https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-amd64.deb) · [Linux AppImage](https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-x86_64.AppImage). Not signed yet: the first opening needs one confirmation, see [docs/DESKTOP.md](docs/DESKTOP.md#opening-it-the-first-time).
 
 ### F26 · Desktop app for macOS, Windows and Linux
 - `desktop/`: OpenBand as an Electron app (Chromium 152, the engine the studio is tested on), with the same studio served from the app's private `openband://app` scheme — a stable origin, so songs saved in the app are always found again, and no port to collide with. Installers: `.dmg` (Apple Silicon and Intel), NSIS `.exe` (x64 and ARM), `.deb` and AppImage (x64 and ARM), built by `scripts/build-desktop.mjs` and added to each GitHub Release, also under names without the version for "latest" links. Not signed yet (docs/DESKTOP.md explains the first opening); signing and notarization switch on with the `CSC_LINK` / `APPLE_*` secrets.
