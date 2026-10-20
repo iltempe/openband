@@ -279,7 +279,9 @@ function openBrowser(url = studioUrl()) {
   if (process.env.OPENBAND_APP) {
     // This process runs as Node inside the app (ELECTRON_RUN_AS_NODE); the app itself must not.
     const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env;
-    spawn(process.env.OPENBAND_APP, [`--studio=${url}`], { stdio: 'ignore', detached: true, env }).on('error', () => {}).unref();
+    // Chromium checks its sandbox before the app's code runs: the switch must be on the command line.
+    const extra = process.env.OPENBAND_NO_SANDBOX === '1' ? ['--no-sandbox'] : [];
+    spawn(process.env.OPENBAND_APP, [`--studio=${url}`, ...extra], { stdio: 'ignore', detached: true, env }).on('error', () => {}).unref();
     return;
   }
   const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'cmd' : 'xdg-open';

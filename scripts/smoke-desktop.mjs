@@ -35,9 +35,10 @@ const check = (ok, label) => {
 const { ELECTRON_RUN_AS_NODE: _n, ...baseEnv } = process.env;
 const env = { ...baseEnv, OPENBAND_NO_UPDATE_CHECK: '1', ...(process.platform === 'linux' ? { OPENBAND_NO_SANDBOX: '1' } : {}) };
 
-const smoke = spawnSync(exe, ['--smoke'], { env, encoding: 'utf8', timeout: 90000 });
+const smoke = spawnSync(exe, ['--smoke', ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], { env, encoding: 'utf8', timeout: 90000 });
 const line = `${smoke.stdout}${smoke.stderr}`.split('\n').find((l) => l.startsWith('SMOKE')) ?? `exit ${smoke.status} ${smoke.error?.message ?? ''}`;
 check(smoke.status === 0 && line.startsWith('SMOKE OK'), `the app starts and plays (${line.trim()})`);
+if (smoke.status !== 0) console.log(`${smoke.stderr}`.split('\n').slice(-15).join('\n'));
 
 const c = new Client({ name: 'desktop-smoke', version: '1' });
 // A throwaway profile: the test's songs must not end up in the user's app.

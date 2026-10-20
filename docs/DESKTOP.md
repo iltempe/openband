@@ -32,7 +32,7 @@ system asks you to confirm once:
   *Run anyway*.
 - **Linux**: `sudo apt install ./OpenBand-linux-amd64.deb`, or make the AppImage executable
   (`chmod +x OpenBand-*.AppImage`) and run it. On Ubuntu 24.04 and later the AppImage may not start
-  because of AppArmor's sandbox rules: use the `.deb`, or start it with `OPENBAND_NO_SANDBOX=1`.
+  because of AppArmor's sandbox rules: use the `.deb`, or start it with `--no-sandbox`.
 
 ## Connect your AI
 

@@ -26,7 +26,8 @@ const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf
 /** The executable AI clients should launch (an AppImage runs from a temporary mount: use the image). */
 const exe = () => process.env.APPIMAGE || app.getPath('exe');
 
-// CI containers (and some AppImage setups) can't use Chromium's sandbox; never set by default.
+// CI containers (and some AppImage setups) can't use Chromium's sandbox; never set by default. (On Linux
+// --no-sandbox must also be on the command line: Chromium checks before this code runs.)
 if (process.env.OPENBAND_NO_SANDBOX === '1') app.commandLine.appendSwitch('no-sandbox');
 
 protocol.registerSchemesAsPrivileged([
