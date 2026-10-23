@@ -46,7 +46,8 @@ export interface RemoteMcpState {
   paired: boolean;
 }
 
-export const useBridge = create<{ port: number; remote: boolean; pairing: boolean; problem: BridgeProblem | null; serverVersion: string | null; update: ServerUpdate | null; remoteMcp: RemoteMcpState | null }>(() => ({
+export const useBridge = create<{ port: number; remote: boolean; pairing: boolean; problem: BridgeProblem | null; serverVersion: string | null; update: ServerUpdate | null; remoteMcp: RemoteMcpState | null; engines: boolean }>(() => ({
+  engines: false,
   // A page served by the OpenBand server talks to that same server (whatever free port it got);
   // Vite's dev server (5173) and the online demo default to 7777.
   port: Number(params.get('mcp') ?? (IS_LOCAL_PAGE && loc.port && loc.port !== '5173' ? loc.port : null) ?? sessionGet(PORT_KEY) ?? 7777),
@@ -136,6 +137,22 @@ export function switchBridgePort(port: number) {
   connectBridge();
 }
 
+const engineCalls = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+let engineSeq = 0;
+/** Ask the local server's engine host (SPEC v0.6 §9): list the engines or call one. */
+export function engineRequest<T = unknown>(op: 'list' | 'call', payload: Record<string, unknown> = {}, timeoutMs = 600000): Promise<T> {
+  if (!socket || socket.readyState !== 1 || !useBridge.getState().engines) return Promise.reject(new Error('No OpenBand server with engines is connected'));
+  const id = `e${++engineSeq}`;
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      engineCalls.delete(id);
+      reject(new Error('The engine did not answer in time'));
+    }, timeoutMs);
+    engineCalls.set(id, { resolve: resolve as (v: unknown) => void, reject, timer });
+    socket!.send(JSON.stringify({ type: 'engine', id, op, ...payload }));
+  });
+}
+
 export function disconnectBridge() {
   wanted = false;
   if (remoteMcpMode) {
@@ -177,7 +194,7 @@ export function connectBridge() {
     send({ type: 'hello', app: 'openband', protocol: PROTOCOL, ...(viaMcp ? { remote: true } : {}), ...(remote ? { token: sessionGet(TOKEN_KEY) ?? undefined, pair: pendingCode ?? undefined } : {}) });
   };
   ws.onmessage = async (ev) => {
-    let msg: { type: string; id: string; method: string; params: Record<string, unknown>; collab?: { lan: string[]; port: number } | null; protocol?: number; update?: ServerUpdate | null; version?: string; token?: string; reason?: 'wrong' | 'expired' | 'locked' | 'missing'; attempts_left?: number; retry_in_ms?: number; remote?: boolean; code?: string; expires_in_ms?: number };
+    let msg: { type: string; id: string; method: string; params: Record<string, unknown>; collab?: { lan: string[]; port: number } | null; protocol?: number; update?: ServerUpdate | null; version?: string; token?: string; reason?: 'wrong' | 'expired' | 'locked' | 'missing'; attempts_left?: number; retry_in_ms?: number; remote?: boolean; code?: string; expires_in_ms?: number; engines?: boolean; ok?: boolean; result?: unknown; error?: string };
     try {
       msg = JSON.parse(ev.data);
     } catch {
@@ -210,13 +227,20 @@ export function connectBridge() {
     if (msg.type === 'hello') {
       setCollabServer(msg.collab ?? null);
       const mismatch = protocolProblem(msg.protocol, PROTOCOL);
-      useBridge.setState({ pairing: false, problem: mismatch ? { kind: 'protocol', server: msg.protocol!, app: PROTOCOL, version: msg.version } : null, serverVersion: msg.version ?? null, update: msg.update ?? null });
+      useBridge.setState({ pairing: false, problem: mismatch ? { kind: 'protocol', server: msg.protocol!, app: PROTOCOL, version: msg.version } : null, serverVersion: msg.version ?? null, update: msg.update ?? null, engines: !!msg.engines });
       set({ bridgeStatus: 'connected' });
       setEventSink({
         event: (event) => send({ type: 'event', event }),
         projectChanged: () => send({ type: 'project_changed' }),
       });
       return;
+    }
+    if (msg.type === 'engine_result') {
+      const p = engineCalls.get(msg.id);
+      if (!p) return;
+      engineCalls.delete(msg.id);
+      clearTimeout(p.timer);
+      return void (msg.ok ? p.resolve(msg.result) : p.reject(new Error(msg.error || 'Engine request failed')));
     }
     if (msg.type !== 'call') return;
     try {

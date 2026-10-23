@@ -50,6 +50,7 @@ Poi riavvia il client AI e chiedigli una canzone: lo studio si apre da solo nel 
 
 - **Un piccolo studio completo**: tracce di strumenti, batteria e audio, piano roll, step sequencer, mixer con mandate, effetti (ampli, EQ, compressore), automazione di qualsiasi parametro, plugin [WAM](https://www.webaudiomodules.com) a standard aperto, i tuoi campioni e SoundFont, controller MIDI e tastiera musicale.
 - **L'AI suona, ascolta e spiega**: 129 strumenti MCP per comporre, arrangiare, mixare ed esportare; `analyze_mix` misura loudness, bilanciamento e mascheramenti e suggerisce correzioni; *Spiega* appunta commenti sulla canzone; un batterista che segue le tue sezioni.
+- **Crea una parte a parole** (✦ Crea): *«batteria funk»*, *«piano arpeggiato»*: la suonano i motori di OpenBand o i modelli musicali che installi, adattata a tempo, tonalità e battute della canzone, con il registro di chi ha suonato cosa. Vedi [Ensemble](docs/ENSEMBLE.it.md).
 - **Jam con l'AI**: suoni una frase e lei risponde alla battuta dopo, con note fantasma che puoi tenere.
 - **Registra come in studio**: microfono o scheda audio, più ingressi insieme, punch-in con pre-roll, take e comping, test A/B alla cieca, segnalini degli errori, dalla voce al MIDI.
 - **Non perdi mai il lavoro**: versioni e rami come git per le canzoni (con merge e vista di confronto), una macchina del tempo di 30 giorni e il recupero dopo un crash.
@@ -81,6 +82,7 @@ Poi riavvia il client AI e chiedigli una canzone: lo studio si apre da solo nel 
 - **[Qualsiasi AI](docs/AI-MODELS.it.md)**: Claude, ChatGPT / OpenAI, Gemini, Ollama e altri modelli locali.
 - **[Collegare un'AI](docs/CONNECT.it.md)**: come funziona, ogni client, abbinare la demo online al tuo computer, variabili d'ambiente, problemi.
 - **[Ospitare il proprio OpenBand](docs/SELF-HOSTING.it.md)**: Netlify, Vercel, Cloudflare, GitHub Pages, Docker; stanze nella tua rete; OpenBand come connettore di claude.ai (anche dal telefono).
+- **[Ensemble](docs/ENSEMBLE.it.md)**: crea parti con i motori, aggiungi i tuoi modelli, le tue regole di licenza e privacy, il registro dei contributi.
 - **[Open Music Engine Profile](omep/README.md)** (in inglese): lo standard aperto con cui qualsiasi modello musicale può suonare in OpenBand (o in qualsiasi studio), con la sua suite di conformità.
 - **[Sviluppo](docs/DEVELOPMENT.it.md)**: compilare dai sorgenti, test, struttura del codice. Modifiche: [CHANGELOG.md](CHANGELOG.md).
 - Qualcosa non va? Nello studio, *⋯ → Diagnostica → Segnala un problema* apre una segnalazione già compilata (niente delle tue canzoni, mai le tue chiavi).

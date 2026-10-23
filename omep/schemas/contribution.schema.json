@@ -12,7 +12,7 @@
         "type": "object",
         "required": ["uri", "role", "format"],
         "properties": {
-          "uri": { "type": "string", "pattern": "^(file|https?|data):" },
+          "uri": { "type": "string", "pattern": "^(file|https?|data|blob|openband):" },
           "role": { "enum": ["layer", "full", "vocal", "drums", "bass", "other", "guitar", "piano", "harmony", "lead", "fx"] },
           "format": { "enum": ["wav", "flac", "ogg", "mp3"] },
           "sample_rate": { "type": "integer", "minimum": 8000 },

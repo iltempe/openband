@@ -65,6 +65,11 @@ function drummerNotes(sections: Section[], from: number, to: number, o: DrummerO
 }
 
 import { autoVersion } from './versioning';
+import { createPart, type CreateArgs } from './ensemble/create';
+import { allEngines, setPolicy, useEnsemble } from './ensemble/engines';
+import { route } from './ensemble/router';
+import type { Capability } from './ensemble/types';
+import { attributions, nonCommercial, shares } from './ensemble/ledger';
 
 /** ISO date, ms since epoch, or a relative "-20m" / "-2h" / "-90s". */
 function toTime(v: unknown): number {
@@ -1425,6 +1430,40 @@ export const commands: Record<string, (args: P) => unknown> = {
   add_loop: async ({ loop_id, track_id, start_bar, repeat, follow_tempo, match_key }) =>
     addLoop(String(loop_id ?? ''), { trackId: track_id ? requireTrack(st().project, track_id).id : undefined, startBar: start_bar, repeat, followTempo: follow_tempo, matchKey: match_key }),
 
+  // ---- Ensemble (SPEC v0.6)
+  create: (args) => createPart(args as CreateArgs),
+
+  list_engines: async ({ capability }) => {
+    const engines = await allEngines();
+    const policy = useEnsemble.getState().policy;
+    const caps = capability ? [String(capability)] : [...new Set(engines.flatMap((e) => Object.keys(e.manifest.capabilities)))];
+    return {
+      policy,
+      engines: engines.map((e) => ({
+        id: e.id,
+        name: e.manifest.engine.name,
+        version: e.manifest.engine.version,
+        where: e.manifest.runtime.where,
+        capabilities: Object.keys(e.manifest.capabilities),
+        licence: { code: e.manifest.license.code, weights: e.manifest.license.weights, commercial: e.manifest.license.commercial, ...(e.manifest.license.attribution ? { attribution: e.manifest.license.attribution } : {}) },
+        ...(e.manifest.runtime.pricing ? { pricing: e.manifest.runtime.pricing } : {}),
+      })),
+      routes: caps.map((c) => {
+        const r = route({ capability: c as Capability }, engines, policy);
+        return { capability: c, order: r.candidates.map((x) => x.id), excluded: r.excluded };
+      }),
+      unavailable: useEnsemble.getState().broken,
+    };
+  },
+
+  get_ledger: () => {
+    const p = st().project;
+    return { contributions: (p.ledger ?? []).map((e) => ({ ...e, at: new Date(e.at).toISOString() })), share: shares(p), attributions: attributions(p), non_commercial: nonCommercial(p).map((e) => e.engine) };
+  },
+
+  set_engine_policy: ({ commercial_only, local_only, allow_cloud }) =>
+    setPolicy({ ...(commercial_only !== undefined ? { commercial_only: !!commercial_only } : {}), ...(local_only !== undefined ? { local_only: !!local_only } : {}), ...(allow_cloud !== undefined ? { allow_cloud: !!allow_cloud } : {}) }),
+
   // ---- safety net (F21)
   get_timeline: async ({ from, to }) => {
     const r = await timeline(from !== undefined ? toTime(from) : undefined, to !== undefined ? toTime(to) : undefined);
@@ -1706,6 +1745,7 @@ const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi', 'export_dawproject',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
+  'list_engines', 'get_ledger', 'set_engine_policy',
   'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
 ]);
 /** Commands that manage history themselves. */

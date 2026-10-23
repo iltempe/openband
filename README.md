@@ -50,6 +50,7 @@ Then restart your AI client and ask it for a song: the studio opens in your brow
 
 - **A complete small studio**: instrument, drum and audio tracks, piano roll, step sequencer, mixer with sends, effects (amp, EQ, compressor), automation of any parameter, open-standard [WAM](https://www.webaudiomodules.com) plugins, your own samples and SoundFonts, MIDI controllers and musical typing.
 - **The AI plays, listens and explains**: 129 MCP tools to compose, arrange, mix and export; `analyze_mix` measures loudness, balance and masking and suggests fixes; *Explain* pins comments to the song; a drummer that follows your sections.
+- **Create a part in words** (✦ Create): *“funk drums”*, *“arpeggiated piano”* — OpenBand's own engines or the music models you install play it, fitted to the song's tempo, key and bars, with a ledger of who played what. See [Ensemble](docs/ENSEMBLE.md).
 - **Jam with the AI**: play a phrase and it answers on the next bar, as ghost notes you can keep.
 - **Record like a studio**: microphone or interface, several inputs at once, punch-in with pre-roll, takes and comping, blind A/B tests, flub markers, hum-to-MIDI.
 - **Never lose work**: versions and branches like git for songs (with merge and a compare view), a 30-day time machine and crash recovery.
@@ -81,6 +82,7 @@ Then restart your AI client and ask it for a song: the studio opens in your brow
 - **[Any AI](docs/AI-MODELS.md)**: Claude, ChatGPT / OpenAI, Gemini, Ollama and other local models.
 - **[Connect an AI](docs/CONNECT.md)**: how it works, every client, pairing the online demo with your computer, environment variables, troubleshooting.
 - **[Host your own](docs/SELF-HOSTING.md)**: Netlify, Vercel, Cloudflare, GitHub Pages, Docker; rooms on your network; OpenBand as a claude.ai connector (also from your phone).
+- **[Ensemble](docs/ENSEMBLE.md)**: create parts with engines, add your own models, your licence and privacy policy, the contribution ledger.
 - **[Open Music Engine Profile](omep/README.md)**: the open standard that lets any music model play in OpenBand (or any studio), with its conformance suite.
 - **[Development](docs/DEVELOPMENT.md)**: build from source, tests, code structure. Changes: [CHANGELOG.md](CHANGELOG.md).
 - Something wrong? In the studio, *⋯ → Diagnostics → Report a problem* opens a pre-filled issue (nothing from your songs, never your keys).

@@ -18,6 +18,7 @@ import { saveProject } from '../importers';
 import { useLint } from '../lintLive';
 import { LANGS, setLang, useLang, useT } from '../i18n';
 import { MicButton } from './Mic';
+import { useEnsemble } from '../ensemble/engines';
 
 export async function togglePlay() {
   const s = useStore.getState();
@@ -372,6 +373,9 @@ export function Toolbar() {
         </button>
         <ProblemsBadge />
         {collabOn && <ShareButton />}
+        <button className="icon-btn create-btn" onClick={() => useEnsemble.setState({ createOpen: true })} title={t('en.createTip')}>
+          <span aria-hidden>✦</span> <span className="create-label">{t('en.createShort')}</span>
+        </button>
         <button className={`ai-pill ${s.bridgeStatus}`} onClick={() => s.set({ aiOpen: !s.aiOpen })} title={t('tb.ai')}>
           <span className="dot" />
           <I.Sparkles width={15} height={15} />

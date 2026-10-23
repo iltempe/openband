@@ -29,6 +29,8 @@ export interface Region {
   /** Alternative versions of the content (F12); notes/audio above always hold the active one. */
   takes?: Take[];
   activeTakeId?: string;
+  /** The contribution (ledger entry, SPEC v0.6 §6) that made this region, when an engine did. */
+  contribution?: string;
   /** Made by the drummer (F24): how, so it can be regenerated with another seed. */
   drummer?: { style: string; complexity: number; loudness: number; swing: number; fills: 'none' | 'end_of_section' | 'every_4'; seed: number };
 }
@@ -186,7 +188,34 @@ export interface Project {
   lint?: LintConfig;
   /** Marks left while recording (F18): mistakes to fix, good parts, notes. */
   flubs?: Flub[];
+  /** Who made what (SPEC v0.6 §6): one entry per engine contribution. */
+  ledger?: LedgerEntry[];
   meta?: ProjectMeta;
+}
+
+export interface LedgerEntry {
+  id: string;
+  at: number;
+  /** builtin: OpenBand's own algorithm; engine: an OMEP engine; conductor: an LLM writing notes itself. */
+  source: 'builtin' | 'engine' | 'conductor';
+  engine: string;
+  engineName?: string;
+  engineVersion?: string;
+  capability: string;
+  modelHash?: string;
+  seed?: number;
+  prompt?: string;
+  /** The request as asked (by the user or the conductor). */
+  request?: string;
+  requestedBy: 'user' | 'ai';
+  contextHash?: string;
+  /** Corrections the studio applied (tempo, key, length…). */
+  conform: string[];
+  license: { code: string; weights: string | null; commercial: 'yes' | 'no' | 'conditional'; attribution?: string | null; conditions?: string | null; url?: string };
+  costUsd?: number;
+  trackId: string;
+  regionIds: string[];
+  takeIds?: string[];
 }
 
 export type FlubKind = 'flub' | 'good' | 'note';
@@ -298,7 +327,7 @@ export interface LintConfig {
   ignored?: string[];
 }
 
-export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | 'flubs' | null;
+export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | 'flubs' | 'ensemble' | null;
 
 export interface BridgeLogEntry {
   id: string;

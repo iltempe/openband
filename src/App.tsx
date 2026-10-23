@@ -28,6 +28,7 @@ import { PluginBrowser, PluginRestoreOverlay, PluginWindow } from './components/
 import { useT } from './i18n';
 import { FlubsPanel } from './components/Flubs';
 import { DawReportDialog } from './components/DawReport';
+import { CreateDialog, EnsemblePanel } from './components/Ensemble';
 import { isRecordingTake, jumpToFlub, markFlub } from './flubLive';
 
 function useShortcuts() {
@@ -237,6 +238,9 @@ export function App() {
                 <button className={s.bottom === 'versions' ? 'on' : ''} onClick={() => s.set({ bottom: 'versions' })}>
                   <I.Cycle width={14} height={14} /> {t('ver.tab')}
                 </button>
+                <button className={s.bottom === 'ensemble' ? 'on' : ''} onClick={() => s.set({ bottom: 'ensemble' })}>
+                  <span aria-hidden>✦</span> {t('en.tab')}
+                </button>
                 <div className="eb-spacer" />
                 <button className="dock-close" onClick={() => s.set({ bottom: null })}>
                   <I.Close width={14} height={14} />
@@ -253,6 +257,7 @@ export function App() {
                 {s.bottom === 'comments' && <CommentsPanel />}
                 {s.bottom === 'versions' && <VersionsPanel />}
                 {s.bottom === 'flubs' && <FlubsPanel />}
+                {s.bottom === 'ensemble' && <EnsemblePanel />}
               </div>
             </div>
           )}
@@ -263,6 +268,7 @@ export function App() {
       <SoundFontDialog />
       <RecoveryBanner />
       <DawReportDialog />
+      <CreateDialog />
       <PluginRestoreOverlay />
       <MicOverlay />
       <TakesDialog />

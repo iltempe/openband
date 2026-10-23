@@ -50,7 +50,9 @@ Mixing: set_track_effects adds an amp sim, 3-band EQ and compressor to a track; 
 Recording: record_audio records the user's microphone after they confirm (mode "hum" turns a hummed melody into MIDI); audio_to_midi converts an existing monophonic audio region into notes.
 Files: export_wav and export_midi download in the browser, or write to disk with save_to; import_midi turns a .mid file into tracks.
 Other DAWs: import_dawproject/export_dawproject move songs to and from Bitwig, Studio One and Cubase; report what could not be converted.
-Plugins: Web Audio Modules (WAM 2.0) instruments and effects. When the user describes a sound or effect in words, call add_plugin with that description (or search_plugins first to compare options); then get_plugin_params / set_plugin_params to dial it in.`;
+Plugins: Web Audio Modules (WAM 2.0) instruments and effects. When the user describes a sound or effect in words, call add_plugin with that description (or search_plugins first to compare options); then get_plugin_params / set_plugin_params to dial it in.
+
+Ensemble: to add a part (drums, an accompaniment, an audio layer) you can describe it with create instead of writing every note: OpenBand picks the engine (its own drummer, chords and CC0 loops, or the OMEP engines the user installed) within the user's licence and privacy policy, sends it the song's tempo, key, sections and harmony, and fits the result to the song. Do not pin an engine unless the user asks. Ask for variants when taste matters: they arrive as takes, offer a blind test (start_ab_test). Report which engine played and what OpenBand corrected. get_ledger tells who made what; never describe engine-made parts as the user's own playing.`;
 
 const Pitch = z.union([z.number().int().min(0).max(127), z.string()]).describe('MIDI number, note name ("C4", "F#3") or drum name ("kick")');
 const NoteSchema = z.object({
@@ -696,4 +698,26 @@ tool('add_audio_region', 'Place an imported sample on the timeline as an audio c
   offset_seconds: z.number().min(0).optional(),
   length_bars: z.number().positive().optional(),
   gain: z.number().min(0).max(2).optional(),
+});
+
+// ---- Ensemble (SPEC v0.6): OpenBand as a client of OMEP engines
+tool('create', 'Make a musical part from a description: OpenBand picks the capability (drums, accompaniment, an audio layer…) and the engine — its own algorithms or the OMEP engines the user installed — within the user\'s licence and privacy policy, sends it the song\'s context (tempo, key, sections, harmony), then conforms the result (tempo, key, length) and puts it in the song as one undo step. Ask for variants (up to 4, from different engines when several can play) to get takes for a blind test. Do not pin an engine unless the user asks. The answer says which engine played and what OpenBand had to correct.', {
+  text: z.string().optional().describe('What to make, in words: "arpeggiated piano, intimate", "funk drums", "a lo-fi keys loop"'),
+  capability: z.enum(['symbolic.drums', 'symbolic.accompany', 'symbolic.continue', 'symbolic.harmonize', 'music.add_layer', 'music.repaint', 'music.extend']).optional().describe('Only when you need a specific one; inferred otherwise'),
+  track_id: z.string().optional().describe('Target track (otherwise one is found or created)'),
+  section_id: z.string().optional(),
+  from_bar: z.number().int().min(1).optional(),
+  to_bar: z.number().int().min(1).optional().describe('Last bar (inclusive)'),
+  role: z.string().optional().describe('drums, bass, harmony, lead, texture…'),
+  instrument: z.string().optional(),
+  variants: z.number().int().min(1).max(4).optional(),
+  seed: z.number().int().optional(),
+  engine: z.string().optional().describe('Pin an engine id (see list_engines) — only if the user asked for it'),
+}, { timeout: 900000 });
+tool('list_engines', 'The music engines OpenBand can use (OpenBand\'s own algorithms and the OMEP engines the user configured): capabilities, where they run, licence, and — under the user\'s policy — which ones a request would exclude and why.', { capability: z.string().optional() }, readOnly);
+tool('get_ledger', 'Who made what: every part an engine contributed (engine, model, seed, licence, the request, the corrections OpenBand applied) and the human / AI share of each track.', {}, readOnly);
+tool('set_engine_policy', 'The user\'s engine policy: commercial use only (licences that forbid it are excluded), local engines only, online engines allowed (they cost money and send data). Change it only when the user asks.', {
+  commercial_only: z.boolean().optional(),
+  local_only: z.boolean().optional(),
+  allow_cloud: z.boolean().optional(),
 });

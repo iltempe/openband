@@ -15,6 +15,7 @@ import { INSTRUCTIONS, TOOLS } from './tools.mjs';
 import { Pairing, classifyOrigin, parseAllowedOrigins } from './pairing.mjs';
 import { checkForUpdate } from './update.mjs';
 import { RUN } from './package.mjs';
+import { EngineHost } from './engines.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -60,6 +61,8 @@ async function findFreePort(from) {
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.png': 'image/png', '.wav': 'audio/wav', '.webmanifest': 'application/manifest+json' };
 
 const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+/** OMEP engines the user configured (SPEC v0.6 §9). Never on a public server: there the page is a stranger's. */
+const engineHost = REMOTE ? null : new EngineHost({ log });
 const CONFIG_FILE = process.env.OPENBAND_CONFIG || '';
 /** Public instances (Docker) send the same CSP as the static hosts. */
 const CSP = process.env.OPENBAND_CSP === '1' ? (await import('./csp.mjs')).contentSecurityPolicy({ collab: process.env.OPENBAND_CSP_COLLAB ? process.env.OPENBAND_CSP_COLLAB.split(',') : undefined }) : '';
@@ -193,7 +196,7 @@ wss.on('connection', (ws, _req, kind = 'local') => {
   const welcome = () => {
     studio = ws; // the most recent tab wins
     log(kind === 'local' ? 'studio connected' : 'studio connected (paired online demo)');
-    send({ type: 'hello', protocol: PROTOCOL, version: PKG.version, update: updateInfo, collab: COLLAB ? { lan: lanUrls(), port: PORT } : null });
+    send({ type: 'hello', protocol: PROTOCOL, version: PKG.version, update: updateInfo, collab: COLLAB ? { lan: lanUrls(), port: PORT } : null, engines: !!engineHost });
   };
   let paired = kind === 'local';
   if (paired) welcome();
@@ -230,6 +233,14 @@ wss.on('connection', (ws, _req, kind = 'local') => {
     }
     if (msg.type === 'event' && msg.event?.kind) return void events.push(msg.event);
     if (msg.type === 'project_changed') return void notifyProjectResource();
+    if (msg.type === 'engine') {
+      // The page asks for the engines or calls one (OpenBand as an OMEP client).
+      const answer = (ok, payload) => send({ type: 'engine_result', id: msg.id, ok, ...(ok ? { result: payload } : { error: payload }) });
+      if (!engineHost) return void answer(false, 'Engines are not available on this server');
+      const job = msg.op === 'list' ? engineHost.list() : msg.op === 'call' ? engineHost.call(String(msg.engine), String(msg.capability), msg.args ?? {}) : Promise.reject(new Error(`Unknown engine op "${msg.op}"`));
+      job.then((r) => answer(true, r), (e) => answer(false, e.message));
+      return;
+    }
     if (msg.type !== 'result') return;
     const p = pending.get(msg.id);
     if (!p) return;
@@ -322,7 +333,7 @@ async function call(method, params = {}, timeoutMs = 20000) {
 /** Tools that throw away or replace work (undo still works in the studio, but the AI should ask first). */
 const DESTRUCTIVE = new Set(['new_project', 'import_project_json', 'delete_track', 'delete_region', 'remove_notes', 'delete_section', 'delete_take', 'delete_annotation', 'clear_automation', 'clear_reference', 'remove_plugin_effect', 'checkout', 'merge', 'import_midi', 'join_room', 'import_dawproject', 'restore_at', 'delete_flub']);
 /** Tools that reach the internet: URL imports and the community plugin catalog, multiplayer rooms. */
-const OPEN_WORLD = new Set(['import_sample', 'import_soundfont', 'import_midi', 'import_reference', 'import_dawproject', 'list_plugins', 'search_plugins', 'add_plugin', 'add_plugin_instrument', 'add_plugin_effect', 'create_room', 'join_room', 'search_loops', 'add_loop']);
+const OPEN_WORLD = new Set(['import_sample', 'import_soundfont', 'import_midi', 'import_reference', 'import_dawproject', 'list_plugins', 'search_plugins', 'add_plugin', 'add_plugin_instrument', 'add_plugin_effect', 'create_room', 'join_room', 'search_loops', 'add_loop', 'create', 'list_engines']);
 function annotationsFor(name, given = {}) {
   const readOnly = !!given.readOnlyHint;
   return { ...given, readOnlyHint: readOnly, ...(readOnly ? {} : { destructiveHint: DESTRUCTIVE.has(name) }), openWorldHint: OPEN_WORLD.has(name) };

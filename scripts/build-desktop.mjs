@@ -37,6 +37,7 @@ fs.rmSync(stage, { recursive: true, force: true });
 fs.mkdirSync(path.join(stage, 'server'), { recursive: true });
 const copy = (from, to = from) => fs.cpSync(path.join(root, from), path.join(stage, to), { recursive: true });
 copy('dist');
+copy('omep');
 for (const f of fs.readdirSync(path.join(root, 'server'))) if (f.endsWith('.mjs')) copy(`server/${f}`);
 copy('desktop/main.mjs', 'main.mjs');
 copy('desktop/preload.cjs', 'preload.cjs');

@@ -1,4 +1,5 @@
 import { RegionFlags, RulerFlags } from './Flubs';
+import { ContributionBadge } from './Ensemble';
 import { armTrack, useRecSetup } from '../recording';
 import { hasAutomation, targetKey } from '../automation';
 import { stretchFactor } from '../audio/stretch';
@@ -444,6 +445,7 @@ function RegionView({ region, track }: { region: Region; track: Track }) {
         <span className="region-title">{region.name}</span>
         <CommentPin list={notes} target={{ type: 'region', id: region.id }} />
         <TakesBadge region={region} />
+        <ContributionBadge region={region} />
       </div>
       {region.audio ? <AudioPreview region={region} /> : <RegionPreview region={region} drums={track.kind === 'drums'} />}
       <RegionFlags region={region} zoom={zoom} />

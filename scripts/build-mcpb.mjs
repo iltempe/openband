@@ -28,6 +28,7 @@ const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'openband-mcpb-'));
 const copy = (from, to = from) => fs.cpSync(path.join(root, from), path.join(stage, to), { recursive: true });
 copy('dist');
 copy('bin');
+copy('omep');
 fs.mkdirSync(path.join(stage, 'server'));
 for (const f of fs.readdirSync(path.join(root, 'server'))) if (f.endsWith('.mjs')) copy(`server/${f}`);
 copy('mcpb/icon.png', 'icon.png');
