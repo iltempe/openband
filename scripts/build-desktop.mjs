@@ -73,7 +73,8 @@ const assoc = [
   { ext: ['mid', 'midi'], name: 'MIDI file', role: 'Viewer', mimeType: 'audio/midi' },
   { ext: 'dawproject', name: 'DAWproject', role: 'Editor', mimeType: 'application/x-dawproject' },
 ];
-const config = {
+// A fresh object per build: electron-builder normalizes (and mutates) the one it is given.
+const makeConfig = () => ({
   appId: 'io.github.iltempe.openband',
   productName: 'OpenBand',
   copyright: 'MIT license — OpenBand contributors',
@@ -127,11 +128,11 @@ const config = {
     mimeTypes: assoc.map((a) => a.mimeType),
   },
   deb: { artifactName: '${productName}-${version}-linux-${arch}.${ext}' },
-};
+});
 const platform = { darwin: builder.Platform.MAC, win32: builder.Platform.WINDOWS, linux: builder.Platform.LINUX }[process.platform];
 const archs = arch ? [arch] : ['x64', 'arm64'];
 // One architecture at a time: a single NSIS call with two would make one combined installer.
 for (const a of archs) {
-  const out = await builder.build({ targets: platform.createTarget(null, builder.Arch[a]), config, projectDir: stage });
+  const out = await builder.build({ targets: platform.createTarget(null, builder.Arch[a]), config: makeConfig(), projectDir: stage });
   for (const f of out) console.log(path.relative(root, f));
 }

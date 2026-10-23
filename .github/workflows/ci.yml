@@ -103,7 +103,8 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix desktop
       - run: npm run build
-      - run: node scripts/build-desktop.mjs --dir --arch=${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+      # Both architectures, as the release does (the second build once failed on a reused config).
+      - run: node scripts/build-desktop.mjs --dir
       - if: runner.os == 'Linux'
         run: xvfb-run -a node scripts/smoke-desktop.mjs
       - if: runner.os != 'Linux'
