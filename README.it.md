@@ -81,6 +81,7 @@ Poi riavvia il client AI e chiedigli una canzone: lo studio si apre da solo nel 
 - **[Qualsiasi AI](docs/AI-MODELS.it.md)**: Claude, ChatGPT / OpenAI, Gemini, Ollama e altri modelli locali.
 - **[Collegare un'AI](docs/CONNECT.it.md)**: come funziona, ogni client, abbinare la demo online al tuo computer, variabili d'ambiente, problemi.
 - **[Ospitare il proprio OpenBand](docs/SELF-HOSTING.it.md)**: Netlify, Vercel, Cloudflare, GitHub Pages, Docker; stanze nella tua rete; OpenBand come connettore di claude.ai (anche dal telefono).
+- **[Open Music Engine Profile](omep/README.md)** (in inglese): lo standard aperto con cui qualsiasi modello musicale può suonare in OpenBand (o in qualsiasi studio), con la sua suite di conformità.
 - **[Sviluppo](docs/DEVELOPMENT.it.md)**: compilare dai sorgenti, test, struttura del codice. Modifiche: [CHANGELOG.md](CHANGELOG.md).
 - Qualcosa non va? Nello studio, *⋯ → Diagnostica → Segnala un problema* apre una segnalazione già compilata (niente delle tue canzoni, mai le tue chiavi).
 

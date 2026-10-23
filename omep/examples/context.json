@@ -1,0 +1,26 @@
+{
+  "scp": "1.0",
+  "song": { "title": "Conformance song", "bpm": 92, "meter": "4/4", "key": "Dm", "length_bars": 16 },
+  "scope": { "from_bar": 9, "to_bar": 17, "section_id": "sec_verse2" },
+  "sections": [
+    { "id": "sec_verse1", "kind": "verse", "from_bar": 1, "bars": 8, "energy": 0.4 },
+    { "id": "sec_verse2", "kind": "verse", "from_bar": 9, "bars": 8, "energy": 0.5 }
+  ],
+  "harmony": [
+    { "bar": 9, "beat": 0, "chord": "Dm7", "roman": "i7", "beats": 4 },
+    { "bar": 10, "beat": 0, "chord": "Gm7", "roman": "iv7", "beats": 4 },
+    { "bar": 11, "beat": 0, "chord": "Bbmaj7", "roman": "VImaj7", "beats": 4 },
+    { "bar": 12, "beat": 0, "chord": "A7", "roman": "V7", "beats": 4 },
+    { "bar": 13, "beat": 0, "chord": "Dm7", "roman": "i7", "beats": 4 },
+    { "bar": 14, "beat": 0, "chord": "Gm7", "roman": "iv7", "beats": 4 },
+    { "bar": 15, "beat": 0, "chord": "Bbmaj7", "roman": "VImaj7", "beats": 4 },
+    { "bar": 16, "beat": 0, "chord": "A7", "roman": "V7", "beats": 4 }
+  ],
+  "tracks": [
+    { "id": "t_drums", "role": "drums", "summary": "boom-bap groove" },
+    { "id": "t_bass", "role": "bass", "summary": "roots on beats 1 and 3" }
+  ],
+  "intent": { "text": "soft arpeggiated keys, intimate", "role": "harmony", "energy": 0.4 },
+  "constraints": { "hard": { "key": true, "bpm": true, "length": true, "sections": true, "range": ["C3", "C6"] }, "soft": { "style": ["lo-fi"], "density": 0.4 } },
+  "policy": { "commercial_only": true, "local_only": true }
+}

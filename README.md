@@ -81,6 +81,7 @@ Then restart your AI client and ask it for a song: the studio opens in your brow
 - **[Any AI](docs/AI-MODELS.md)**: Claude, ChatGPT / OpenAI, Gemini, Ollama and other local models.
 - **[Connect an AI](docs/CONNECT.md)**: how it works, every client, pairing the online demo with your computer, environment variables, troubleshooting.
 - **[Host your own](docs/SELF-HOSTING.md)**: Netlify, Vercel, Cloudflare, GitHub Pages, Docker; rooms on your network; OpenBand as a claude.ai connector (also from your phone).
+- **[Open Music Engine Profile](omep/README.md)**: the open standard that lets any music model play in OpenBand (or any studio), with its conformance suite.
 - **[Development](docs/DEVELOPMENT.md)**: build from source, tests, code structure. Changes: [CHANGELOG.md](CHANGELOG.md).
 - Something wrong? In the studio, *⋯ → Diagnostics → Report a problem* opens a pre-filled issue (nothing from your songs, never your keys).
 

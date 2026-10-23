@@ -32,6 +32,8 @@ Usage:
   openband mcp         run the MCP server (stdio) for an AI client
   openband setup       add OpenBand to Claude Desktop, Claude Code, Cursor or VS Code
   openband doctor      check Node, ports, the build and your MCP clients
+  openband omep-conformance -- <engine command>   check an Open Music Engine Profile engine
+  openband omep-mock   run the reference mock engine (MCP over stdio)
   openband --version
 
 Environment: OPENBAND_PORT (default 7777, or the next free one), OPENBAND_OPEN_BROWSER=0,
@@ -57,6 +59,14 @@ switch (cmd) {
     break;
   case 'setup':
     await (await import('../server/setup.mjs')).setup(rest);
+    break;
+  case 'omep-conformance':
+    // Check an OMEP engine: openband omep-conformance -- <command> [args…]
+    process.argv = [process.argv[0], fileURLToPath(new URL('../omep/conformance.mjs', import.meta.url)), ...rest];
+    await import('../omep/conformance.mjs');
+    break;
+  case 'omep-mock':
+    await import('../omep/mock-engine.mjs');
     break;
   case 'doctor':
     process.exitCode = await (await import('../server/doctor.mjs')).doctor(rest);

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openband.dev/omep/1.0/contribution.schema.json",
+  "title": "OMEP 1.0 Contribution (structuredContent of every capability tool)",
+  "type": "object",
+  "required": ["kind", "claims", "provenance", "license"],
+  "properties": {
+    "kind": { "enum": ["audio", "notes", "stems", "params", "stream"] },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["uri", "role", "format"],
+        "properties": {
+          "uri": { "type": "string", "pattern": "^(file|https?|data):" },
+          "role": { "enum": ["layer", "full", "vocal", "drums", "bass", "other", "guitar", "piano", "harmony", "lead", "fx"] },
+          "format": { "enum": ["wav", "flac", "ogg", "mp3"] },
+          "sample_rate": { "type": "integer", "minimum": 8000 },
+          "channels": { "type": "integer", "minimum": 1, "maximum": 8 },
+          "expires": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "notes": { "type": "array", "items": { "$ref": "scp.schema.json#/$defs/note" } },
+    "params": { "type": "object", "description": "mix.assist / audio.match_sound: parameter values", "additionalProperties": true },
+    "stream": {
+      "type": "object",
+      "required": ["transport", "url"],
+      "properties": { "transport": { "enum": ["ws-pcm", "webrtc-opus"] }, "url": { "type": "string" }, "clock_url": { "type": "string" }, "sample_rate": { "type": "integer" } },
+      "additionalProperties": false
+    },
+    "alignment": {
+      "type": "object",
+      "properties": {
+        "start_bar": { "type": "number", "minimum": 1 },
+        "bpm_detected": { "type": "number", "exclusiveMinimum": 0 },
+        "downbeat_offset_ms": { "type": "number" },
+        "syllables": { "type": "array", "items": { "type": "object", "required": ["text", "start_ms", "end_ms"], "properties": { "text": { "type": "string" }, "start_ms": { "type": "number", "minimum": 0 }, "end_ms": { "type": "number", "minimum": 0 } }, "additionalProperties": false } }
+      },
+      "additionalProperties": false
+    },
+    "claims": {
+      "description": "What the engine DECLARES it respected; the studio measures and corrects.",
+      "type": "object",
+      "properties": { "key": { "type": "string", "pattern": "^[A-G](#|b)?m?$" }, "bpm": { "type": "number", "exclusiveMinimum": 0 }, "length_bars": { "type": "number", "exclusiveMinimum": 0 }, "meter": { "type": "string" } },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["engine"],
+      "properties": {
+        "engine": { "type": "string" },
+        "engine_version": { "type": "string" },
+        "model_hash": { "type": "string", "pattern": "^(sha256:[0-9a-f]{64}|none)$" },
+        "seed": { "type": "integer" },
+        "prompt": { "type": "string" },
+        "context_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "capability": { "type": "string" },
+        "voice": { "type": "string" },
+        "conform": { "type": "array", "items": { "type": "string" }, "description": "Corrections the studio applied (added by the studio, not the engine)." }
+      },
+      "additionalProperties": false
+    },
+    "license": { "$ref": "manifest.schema.json#/$defs/license" },
+    "cost_usd": { "type": "number", "minimum": 0 }
+  },
+  "allOf": [
+    { "if": { "properties": { "kind": { "enum": ["audio", "stems"] } } }, "then": { "required": ["files"], "properties": { "files": { "minItems": 1 } } } },
+    { "if": { "properties": { "kind": { "const": "notes" } } }, "then": { "required": ["notes"] } },
+    { "if": { "properties": { "kind": { "const": "params" } } }, "then": { "required": ["params"] } },
+    { "if": { "properties": { "kind": { "const": "stream" } } }, "then": { "required": ["stream"] } }
+  ],
+  "additionalProperties": false
+}

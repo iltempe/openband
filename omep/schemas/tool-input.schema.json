@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openband.dev/omep/1.0/tool-input.schema.json",
+  "title": "OMEP 1.0 capability tool input",
+  "description": "Arguments of every capability tool. `request` is capability-specific; the keys below are the ones OMEP defines, engines ignore those they don't use.",
+  "type": "object",
+  "required": ["context"],
+  "properties": {
+    "context": {
+      "oneOf": [
+        { "$ref": "scp.schema.json" },
+        { "type": "string", "pattern": "^(openband|omep|https?|file)://", "description": "URI of a Song Context Package" }
+      ]
+    },
+    "request": {
+      "type": "object",
+      "properties": {
+        "text": { "type": "string", "description": "free description of what is wanted" },
+        "role": { "type": "string" },
+        "instrument": { "type": "string" },
+        "style": { "type": "string" },
+        "voice": { "type": "string" },
+        "stems": { "type": "array", "items": { "type": "string" } },
+        "source_uri": { "type": "string" },
+        "complexity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "seconds": { "type": "number", "exclusiveMinimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "seed": { "type": "integer" },
+    "variants": { "type": "integer", "minimum": 1, "maximum": 8 }
+  },
+  "additionalProperties": false
+}

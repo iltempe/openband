@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openband.dev/omep/1.0/scp.schema.json",
+  "title": "Song Context Package 1.0",
+  "description": "What there is and what is wanted, independent of any model. Engines use the parts they declare in `conditioning`; the studio enforces the rest.",
+  "type": "object",
+  "required": ["scp", "song"],
+  "properties": {
+    "scp": { "const": "1.0" },
+    "song": {
+      "type": "object",
+      "required": ["bpm", "meter", "key", "length_bars"],
+      "properties": {
+        "title": { "type": "string" },
+        "bpm": { "type": "number", "minimum": 20, "maximum": 400 },
+        "tempo_map": { "type": "array", "items": { "type": "object", "required": ["bar", "bpm"], "properties": { "bar": { "type": "number", "minimum": 1 }, "bpm": { "type": "number", "minimum": 20, "maximum": 400 } }, "additionalProperties": false } },
+        "meter": { "type": "string", "pattern": "^[1-9][0-9]?/(2|4|8|16)$" },
+        "key": { "$ref": "#/$defs/key" },
+        "length_bars": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "scope": {
+      "type": "object",
+      "required": ["from_bar", "to_bar"],
+      "properties": { "from_bar": { "type": "number", "minimum": 1 }, "to_bar": { "type": "number", "minimum": 1 }, "section_id": { "type": "string" } },
+      "additionalProperties": false
+    },
+    "sections": { "type": "array", "items": { "type": "object", "required": ["id", "kind", "from_bar", "bars"], "properties": { "id": { "type": "string" }, "kind": { "type": "string" }, "name": { "type": "string" }, "from_bar": { "type": "number", "minimum": 1 }, "bars": { "type": "number", "exclusiveMinimum": 0 }, "energy": { "type": "number", "minimum": 0, "maximum": 1 } }, "additionalProperties": false } },
+    "harmony": { "type": "array", "items": { "type": "object", "required": ["bar", "chord"], "properties": { "bar": { "type": "number", "minimum": 1 }, "beat": { "type": "number", "minimum": 0 }, "chord": { "type": "string" }, "roman": { "type": "string" }, "beats": { "type": "number", "exclusiveMinimum": 0 } }, "additionalProperties": false } },
+    "melody": { "type": "object", "properties": { "track_id": { "type": "string" }, "notes": { "type": "array", "items": { "$ref": "#/$defs/note" } } }, "additionalProperties": false },
+    "lyrics": {
+      "type": "object",
+      "required": ["language", "lines"],
+      "properties": {
+        "language": { "type": "string" },
+        "lines": { "type": "array", "items": { "type": "object", "required": ["text"], "properties": { "text": { "type": "string" }, "section_id": { "type": "string" }, "syllables": { "type": "array", "items": { "type": "object", "required": ["text"], "properties": { "text": { "type": "string" }, "stressed": { "type": "boolean" }, "start_beat": { "type": "number", "minimum": 0 }, "dur": { "type": "number", "minimum": 0 }, "phonemes": { "type": "array", "items": { "type": "string" } } }, "additionalProperties": false } } }, "additionalProperties": false } }
+      },
+      "additionalProperties": false
+    },
+    "tracks": { "type": "array", "items": { "type": "object", "required": ["id", "role"], "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "role": { "type": "string" }, "summary": { "type": "string" }, "stem_uri": { "type": "string" } }, "additionalProperties": false } },
+    "context_audio": { "type": "object", "properties": { "mix_uri": { "type": "string" }, "stems": { "type": "object", "additionalProperties": { "type": "string" } }, "from_bar": { "type": "number", "minimum": 1 }, "to_bar": { "type": "number", "minimum": 1 } }, "additionalProperties": false },
+    "references": { "type": "array", "items": { "type": "object", "required": ["uri"], "properties": { "uri": { "type": "string" }, "excerpt": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0 } }, "note": { "type": "string" } }, "additionalProperties": false } },
+    "intent": { "type": "object", "properties": { "text": { "type": "string" }, "role": { "type": "string" }, "energy": { "type": "number", "minimum": 0, "maximum": 1 }, "instrument": { "type": "string" } }, "additionalProperties": false },
+    "constraints": {
+      "type": "object",
+      "properties": {
+        "hard": { "type": "object", "properties": { "key": { "type": "boolean" }, "bpm": { "type": "boolean" }, "length": { "type": "boolean" }, "sections": { "type": "boolean" }, "range": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "string", "pattern": "^[A-G](#|b)?-?[0-9]$" } } }, "additionalProperties": false },
+        "soft": { "type": "object", "properties": { "style": { "type": "array", "items": { "type": "string" } }, "avoid": { "type": "array", "items": { "type": "string" } }, "density": { "type": "number", "minimum": 0, "maximum": 1 } }, "additionalProperties": false }
+      },
+      "additionalProperties": false
+    },
+    "policy": { "type": "object", "properties": { "commercial_only": { "type": "boolean" }, "local_only": { "type": "boolean" } }, "additionalProperties": false },
+    "context_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "key": { "type": "string", "pattern": "^[A-G](#|b)?m?$" },
+    "note": {
+      "type": "object",
+      "required": ["pitch", "start", "duration"],
+      "properties": {
+        "pitch": { "type": "integer", "minimum": 0, "maximum": 127 },
+        "start": { "type": "number", "minimum": 0, "description": "beats from scope.from_bar (or from bar 1 without a scope)" },
+        "duration": { "type": "number", "exclusiveMinimum": 0 },
+        "velocity": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": false
+    }
+  }
+}

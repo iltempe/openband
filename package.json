@@ -1,6 +1,6 @@
 {
   "name": "openband",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Open-source GarageBand-style music studio for the browser, controllable by AI through MCP",
   "keywords": [
     "daw",
@@ -26,6 +26,7 @@
     "dist",
     "bin",
     "server/*.mjs",
+    "omep",
     "README.md",
     "README.it.md",
     "LICENSE",
@@ -52,7 +53,8 @@
     "e2e": "node scripts/e2e/run.mjs",
     "desktop:dev": "node scripts/desktop-dev.mjs",
     "desktop:build": "node scripts/build-desktop.mjs",
-    "desktop:smoke": "node scripts/smoke-desktop.mjs"
+    "desktop:smoke": "node scripts/smoke-desktop.mjs",
+    "omep:conformance": "node omep/conformance.mjs --min-adherence 0.9 -- node omep/mock-engine.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",

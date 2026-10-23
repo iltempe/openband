@@ -2,7 +2,17 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
-## Unreleased
+## v0.6.0 "Ensemble E0: the Open Music Engine Profile"
+
+The v0.6 work follows [docs/SPEC-v0.6.md](docs/SPEC-v0.6.md), one release per requirement.
+
+### E0 · OMEP 1.0, Song Context Package 1.0, Contribution
+- [`omep/`](omep/README.md): the **Open Music Engine Profile**, an open MCP profile (MIT) that makes any music model — local, hosted or an algorithm — a *performer* a studio can call: the engine declares `experimental["io.openband/music-engine"]`, serves its manifest at `omep://manifest`, and exposes one tool per capability (`music.add_layer`, `symbolic.drums`, `voice.sing`, `audio.separate`… 16 in the 1.0 catalog, plus `x-vendor.*`). JSON Schemas (2020-12) for the **manifest** (licence of code and weights with commercial use, conditions and attribution; runtime, and for cloud engines price, data policy and output rights), the **Song Context Package** (song, scope, sections, harmony, melody, lyrics with syllables and phonemes, tracks, context audio, references, intent, hard and soft constraints, policy, context hash), the **Contribution** (notes, files by URI, stems, params or a stream; alignment; what the engine *claims*; provenance; licence) and the tool input.
+- Long jobs use **MCP tasks** (2025-11-25, experimental) with `taskSupport: "optional"`, so clients without tasks still get a synchronous answer — the fallback the spec asks for.
+- A **reference mock engine** (`omep/mock-engine.mjs`, also `openband omep-mock`): a real MCP server with `symbolic.drums`, `symbolic.accompany` and `music.add_layer` (a WAV), seeded, with tasks and cancellation, and flags that make it misbehave on purpose (`--wrong-key`, `--wrong-tempo`, `--bad-output`, `--slow`).
+- **`omep-conformance`** (`omep/conformance.mjs`, also `openband omep-conformance -- <engine command>`, or `--url` for remote engines): checks the declaration, the manifest, one tool per capability, every Contribution against its schema and capability, same seed → same result, a run as a task and a cancellation; then **measures** each output against the context — notes in scope, in key and in range; audio length, tempo (onset autocorrelation) and key (chroma + Krumhansl–Kessler) — and prints an **adherence** score, exposing claims that don't match what is heard (*claims key Dm, sounds like Ebm*). `--json`, `--min-adherence`.
+- Tests: the mock passes with 100% adherence (also as a CI job); the wrong-key mock still conforms but drops to ~80% with the false claim reported; the fast mock loses the tempo and length scores; the broken one fails with the missing fields named; a process that isn't an engine fails cleanly; schema rules (CC BY attribution, conditional licences, cloud disclosures, vendor namespaces); WAV round trip, tempo and key measurement.
+- Not yet: OMEP lives in this repository (`omep/`) until a separate `openband/omep` repository is created.
 
 - macOS: the disk image now holds *If it won't open - Se non si apre.txt* next to the app, with the two ways through Gatekeeper's *“Apple could not verify…”* for an app that isn't notarized (System Settings → Privacy & Security → *Open Anyway*, or `xattr -dr com.apple.quarantine`); docs/DESKTOP.md leads with them (right-click → *Open* no longer works on macOS 15). The real fix is signing and notarization, which the release workflow does as soon as the Apple secrets are added.
 
