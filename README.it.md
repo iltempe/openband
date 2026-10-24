@@ -1,6 +1,6 @@
 # OpenBand
 
-🇬🇧 [English](README.md) · 🇮🇹 Italiano
+🇬🇧 [English](README.md) · 🇮🇹 Italiano · 🌐 **[Sito](https://iltempe.github.io/openband/about/)** · 💡 [Proponi una funzione](https://iltempe.github.io/openband/about/contribute.html)
 
 **Uno studio musicale open source in stile GarageBand, che gira nel browser e che puoi far suonare anche alla tua AI tramite il Model Context Protocol (MCP).**
 

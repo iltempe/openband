@@ -1,4 +1,4 @@
-name: Deploy demo to GitHub Pages
+name: Deploy the studio and the website to GitHub Pages
 
 on:
   push:
@@ -29,6 +29,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # The website, next to the studio: /openband/about/
+      - run: node scripts/build-site.mjs
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

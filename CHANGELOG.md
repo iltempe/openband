@@ -2,6 +2,11 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.7 "The website, and macOS installers again"
+
+- **The OpenBand website**: [iltempe.github.io/openband/about](https://iltempe.github.io/openband/about/), next to the studio (`site/`, published by the Pages workflow through `scripts/build-site.mjs`; `npm run site` builds it locally). What OpenBand is for — the first open-source DAW anyone can improve — how an idea becomes a release, the features with real screenshots, the AI, and **downloads that are always the latest release** (stable asset names; the version is read live from GitHub, and the visitor's system and architecture are recognised). **[Suggest a feature](https://iltempe.github.io/openband/about/contribute.html)**: a form that opens the GitHub issue already filled in from the feature template (label *enhancement*), with the draft kept until it's sent, the latest suggestions with their 👍, and other ways to help. English and Italian. The studio's service worker leaves the site alone.
+- Fixed: v0.6.6 has no macOS installer — the release test of native plugins measured the CLAP effect before the slower CI runner had loaded it; it now waits for the plugin to be running.
+
 ## v0.6.6 "Windows installer again"
 
 - Fixed: v0.6.5 has no Windows installer — the app's test failed on Windows when it looked for native plugins, because it loaded the plugin module from a bare `d:\…` path, which Node only accepts as a `file://` URL. The plugin host itself built fine with MSVC (x64 and ARM64). Same fix for the host's own path in `server/plughost.mjs`.

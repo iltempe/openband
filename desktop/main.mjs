@@ -389,24 +389,32 @@ async function smokeNative() {
   const dry = await rms();
   const slot = (p) => ({ id: 'n1', url: '', name: p.name, on: true, format: 'clap', native: { id: p.id, vendor: p.vendor, version: p.version, path_hint: p.path } });
   const setSlot = (p) => useStore.getState().commit((d) => { const tr = d.tracks.find((x) => x.id === t); tr.fx = { amp: { on: false, drive: 0, tone: 0, level: 0.7 }, eq: { on: false, low: 0, mid: 0, high: 0, midFreq: 1000 }, comp: { on: false, threshold: -18, ratio: 4, attack: 0.01, release: 0.18, makeup: 0 }, plugins: [slot(p)] }; });
+  const status = window.openband.nativeStatus;
+  // Wait for the plugin to be running (its host loaded, the latency known) — slower on CI runners.
+  const waitLive = async () => {
+    for (let i = 0; i < 150 && !status.getState()[`${t}:n1`]?.latency; i++) await wait(100);
+    await wait(300);
+  };
+  status.setState({}, true);
   setSlot(gain);
-  await wait(1500);
+  await waitLive();
   step('gain');
   const wet = await rms();
   const latency = engine.pdcLatency;
+  status.setState({}, true);
   setSlot(crash);
-  await wait(1500);
+  await waitLive();
   step('crash fixture');
   const before = await rms();
   // The crash fixture aborts at its next block once its "Crash" parameter is on: reach its port through the worklet.
   window.openband.nativeParam(`${t}:n1`, 1, 1);
-  await wait(1000);
+  for (let i = 0; i < 100 && !status.getState()[`${t}:n1`]?.crashed; i++) await wait(100);
   const crashed = window.openband.nativeStatus.getState()[`${t}:n1`]?.crashed ?? null;
   step('bypassed');
   const after = await rms();
   step('restart');
   await window.openband.restartNative(`${t}:n1`);
-  await wait(1000);
+  await wait(1500);
   const restarted = !window.openband.nativeStatus.getState()[`${t}:n1`]?.crashed;
   const back = await rms();
   const ok = Math.abs(wet - dry + 6) < 1 && latency === 6 * 128 && Math.abs(before - dry) < 1 && !!crashed && Math.abs(after - dry) < 1 && restarted && Math.abs(back - dry) < 1;

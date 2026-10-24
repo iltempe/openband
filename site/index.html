@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenBand — the music studio everyone builds together</title>
+    <meta name="description" content="OpenBand is a free, open-source music studio (DAW) that anyone can improve: suggest a feature, follow it on the public roadmap, play it in the next release. In your browser or on macOS, Windows and Linux — and your AI can play it too." />
+    <meta property="og:title" content="OpenBand — the music studio everyone builds together" />
+    <meta property="og:description" content="The first open-source DAW anyone can improve. Free, in your browser and on your desktop, and your AI can play it too." />
+    <meta property="og:image" content="https://iltempe.github.io/openband/about/img/studio.png" />
+    <meta property="og:url" content="https://iltempe.github.io/openband/about/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#0b0c10" />
+    <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="site.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <div class="wrap">
+        <a class="brand" href="./"><img src="../icon.svg" alt="" />OpenBand</a>
+        <nav class="nav-links">
+          <a href="#how" data-i18n="nav.how">How it grows</a>
+          <a href="#features" data-i18n="nav.features">Features</a>
+          <a href="#download" data-i18n="nav.download">Download</a>
+          <a href="contribute.html" data-i18n="nav.contribute">Contribute</a>
+        </nav>
+        <div class="nav-end">
+          <button class="lang" type="button" data-lang-toggle aria-label="Italiano">IT</button>
+          <a class="gh" href="https://github.com/iltempe/openband"
+            ><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 0-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2 0-.3-.5-1.5.2-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.7 18.3 5 18.3 5c.7 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.5.4.9 1.1.9 2.2v3.3c0 .3.1.7.8.6A12 12 0 0 0 12 .3" /></svg
+            ><span>GitHub</span></a
+          >
+          <a class="btn btn-primary btn-small" href="../" data-i18n="nav.open">Open the studio</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="wrap">
+          <span class="kicker"><span class="dot"></span><span data-i18n="hero.kicker">Free · Open source · Built in the open</span></span>
+          <h1 data-i18n-html="hero.title">The music studio <span class="grad">everyone builds together</span></h1>
+          <p class="lead" data-i18n-html="hero.lead">
+            OpenBand is the first open-source DAW that <strong>anyone can improve</strong>: suggest a feature, follow it on the public roadmap, and play it in the next release. Make music in your browser or on your computer — and let your AI play along.
+          </p>
+          <div class="cta">
+            <a class="btn btn-primary" href="#download" data-download-primary>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16" /></svg>
+              <span data-download-label data-i18n="hero.download">Download the app</span>
+            </a>
+            <a class="btn btn-ghost" href="../" data-i18n="hero.browser">Try it in your browser</a>
+          </div>
+          <p class="cta-note"><span data-i18n="hero.note">Free forever · No account · macOS, Windows, Linux</span> · <span class="version" data-version>latest</span></p>
+
+          <div class="shot reveal">
+            <img src="img/studio.png" alt="The OpenBand studio: tracks, regions, the sound library and smart controls" width="1600" height="1000" />
+            <div class="shot-tag tag-1"><span class="ico">✦</span><span><span data-i18n="hero.tag1">“Funk drums, please”</span><small data-i18n="hero.tag1s">Create a part in words</small></span></div>
+            <div class="shot-tag tag-2"><span class="ico">◎</span><span><span data-i18n="hero.tag2">−19.8 → −14.0 LUFS</span><small data-i18n="hero.tag2s">Mix &amp; master in one gesture</small></span></div>
+          </div>
+
+          <div class="facts">
+            <span data-i18n-html="facts.license"><b>MIT</b> licence</span>
+            <span data-i18n-html="facts.platforms"><b>Browser</b>, macOS, Windows, Linux</span>
+            <span data-i18n-html="facts.ai"><b>139</b> tools for AI apps</span>
+            <span data-i18n-html="facts.lang"><b>English</b> &amp; Italiano</span>
+            <span data-i18n-html="facts.offline">Works <b>offline</b></span>
+          </div>
+        </div>
+      </section>
+
+      <section id="how">
+        <div class="wrap">
+          <div class="section-head reveal">
+            <div class="eyebrow" data-i18n="how.eyebrow">How OpenBand grows</div>
+            <h2 data-i18n="how.title">Your idea can be in the next release.</h2>
+            <p data-i18n="how.lead">Most music software is decided behind closed doors. OpenBand is built where everyone can see it: every idea is public, every change is tested, every feature ships as its own release.</p>
+          </div>
+          <div class="steps">
+            <div class="step reveal">
+              <h3 data-i18n="how.s1">You suggest it</h3>
+              <p data-i18n="how.s1p">Describe what you'd like the studio to do, in your own words. It becomes a public issue on GitHub.</p>
+            </div>
+            <div class="step reveal">
+              <h3 data-i18n="how.s2">Everyone sees it</h3>
+              <p data-i18n="how.s2p">Other musicians vote with a 👍 and add their case. The most wanted ideas rise on the roadmap.</p>
+            </div>
+            <div class="step reveal">
+              <h3 data-i18n="how.s3">It gets built</h3>
+              <p data-i18n="how.s3p">In the open, with tests that listen to the audio — by contributors and AI coding agents working side by side.</p>
+            </div>
+            <div class="step reveal">
+              <h3 data-i18n="how.s4">You play it</h3>
+              <p data-i18n="how.s4p">Each feature is its own release. The app tells you when it's out; the online studio updates by itself.</p>
+            </div>
+          </div>
+          <div class="pulse reveal">
+            <span class="live"></span>
+            <span data-pulse-releases data-i18n="how.pulse">New releases every week</span>
+            <span data-pulse-ideas></span>
+            <a class="btn btn-ghost btn-small" href="contribute.html" data-i18n="how.suggest">Suggest a feature →</a>
+          </div>
+        </div>
+      </section>
+
+      <section id="features">
+        <div class="wrap">
+          <div class="section-head center reveal">
+            <div class="eyebrow" data-i18n="feat.eyebrow">What it does</div>
+            <h2 data-i18n="feat.title">A complete studio, made simple.</h2>
+            <p data-i18n="feat.lead">From the first idea to a master ready for Spotify: instruments, drums, audio, effects, mixing and mastering — each step a gesture, not a manual.</p>
+          </div>
+          <div class="features">
+            <article class="feature wide reveal">
+              <figure><img src="img/pilot.png" alt="The Mix Pilot" loading="lazy" /></figure>
+              <div>
+                <span class="pill new" data-i18n="feat.new">New</span>
+                <h3 data-i18n="feat.pilot">Mix &amp; master in one gesture</h3>
+                <p data-i18n="feat.pilotp">Pick a genre and a platform: the Mix Pilot balances, EQs, pans, sidechains and masters your song to Spotify, Apple Music or club loudness — every change explained, dosed with one knob.</p>
+              </div>
+            </article>
+            <article class="feature wide reveal">
+              <figure><img src="img/ensemble-create.png" alt="Create a part" loading="lazy" /></figure>
+              <div>
+                <h3 data-i18n="feat.create">Create a part in words</h3>
+                <p data-i18n="feat.createp">“Funk drums”, “arpeggiated piano”, “a lo-fi keys loop”: OpenBand's engines — or the music models you install — play it, in time and in key with your song.</p>
+              </div>
+            </article>
+            <article class="feature reveal">
+              <figure><img src="img/jam-ghosts.png" alt="Jam with the AI" loading="lazy" /></figure>
+              <div>
+                <h3 data-i18n="feat.jam">Jam with the AI</h3>
+                <p data-i18n="feat.jamp">Play a phrase and it answers on the next bar, as notes you can keep.</p>
+              </div>
+            </article>
+            <article class="feature reveal">
+              <figure><img src="img/takes.png" alt="Takes" loading="lazy" /></figure>
+              <div>
+                <h3 data-i18n="feat.rec">Record like a studio</h3>
+                <p data-i18n="feat.recp">Microphone or interface, punch-in, takes and comping, blind A/B tests, hum a melody to MIDI.</p>
+              </div>
+            </article>
+            <article class="feature reveal">
+              <figure><img src="img/versions.png" alt="Versions" loading="lazy" /></figure>
+              <div>
+                <h3 data-i18n="feat.versions">Never lose an idea</h3>
+                <p data-i18n="feat.versionsp">Versions and branches like git for songs, a 30-day time machine, crash recovery.</p>
+              </div>
+            </article>
+            <article class="feature reveal">
+              <figure><img src="img/multiplayer.png" alt="Play together" loading="lazy" /></figure>
+              <div>
+                <h3 data-i18n="feat.together">Play together</h3>
+                <p data-i18n="feat.togetherp">Share a link and edit the same song live, with comments — and the AI as the third musician.</p>
+              </div>
+            </article>
+            <article class="feature reveal">
+              <figure><img src="img/native-plugins.png" alt="Native plugins" loading="lazy" /></figure>
+              <div>
+                <span class="pill" data-i18n="feat.desktop">Desktop app</span>
+                <h3 data-i18n="feat.plugins">Your plugins</h3>
+                <p data-i18n="feat.pluginsp">Open-source web plugins everywhere, and the CLAP plugins installed on your computer — each in its own process, so a crash never stops the music.</p>
+              </div>
+            </article>
+            <article class="feature reveal">
+              <figure><img src="img/master-chain.png" alt="Master chain" loading="lazy" /></figure>
+              <div>
+                <h3 data-i18n="feat.master">Sounds like a record</h3>
+                <p data-i18n="feat.masterp">A true-peak limiter, sidechain, loudness meters and exports for every platform, with stems that add up to the master.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="ai">
+        <div class="wrap ai">
+          <div class="reveal">
+            <div class="eyebrow" data-i18n="ai.eyebrow">Any AI</div>
+            <h2 data-i18n="ai.title">Your AI can play it too.</h2>
+            <p class="lead" style="margin-left: 0" data-i18n="ai.lead">OpenBand speaks MCP, the open standard AI apps use to work with tools. Ask for a bassline, a mix, an arrangement — and watch it happen in the studio, one undo away.</p>
+            <ul>
+              <li data-i18n-html="ai.l1"><span><b>In the studio's own chat</b> — Claude, OpenAI, Gemini with your key, or a free model on your computer with Ollama.</span></li>
+              <li data-i18n-html="ai.l2"><span><b>From your AI app</b> — Claude Desktop, Claude Code, ChatGPT, Codex, Gemini CLI, Cursor, VS Code.</span></li>
+              <li data-i18n-html="ai.l3"><span><b>It listens before it touches</b> — loudness, balance, masking, harmony: it explains its choices on the notes.</span></li>
+            </ul>
+            <div class="logos"><span>Claude</span><span>ChatGPT</span><span>Gemini</span><span>Ollama</span><span>Cursor</span><span>VS Code</span></div>
+          </div>
+          <div class="ai-shot reveal"><img src="img/chat.png" alt="The AI panel in the studio" loading="lazy" /></div>
+        </div>
+      </section>
+
+      <section id="download">
+        <div class="wrap">
+          <div class="section-head center reveal">
+            <div class="eyebrow" data-i18n="dl.eyebrow">Download</div>
+            <h2 data-i18n="dl.title">Get OpenBand. It's free.</h2>
+            <p><span data-i18n="dl.lead">Always the latest version, straight from the GitHub releases.</span> <span class="version" data-version></span></p>
+          </div>
+          <div class="downloads">
+            <div class="os reveal" data-os="mac">
+              <span class="mine-tag" data-i18n="dl.yours">Your system</span>
+              <svg class="os-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.7c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8s2 .8 3.4.8c1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.7-1-2.7-4.1zM13.9 5.1c.7-.9 1.2-2 1.1-3.2-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.1 1.1.1 2.3-.6 3-1.5z" /></svg>
+              <h3>macOS</h3>
+              <p class="req" data-i18n="dl.macreq">macOS 11 or later</p>
+              <a class="btn btn-primary" href="https://github.com/iltempe/openband/releases/latest/download/OpenBand-mac-arm64.dmg" data-asset="mac-arm64" data-i18n="dl.macarm">Apple Silicon (M1–M4)</a>
+              <a class="btn btn-ghost" href="https://github.com/iltempe/openband/releases/latest/download/OpenBand-mac-x64.dmg" data-asset="mac-x64" data-i18n="dl.macintel">Intel</a>
+              <p class="alt"><a href="https://github.com/iltempe/openband/blob/main/docs/DESKTOP.md#opening-it-the-first-time" data-i18n="dl.macnote">Not signed yet: how to open it the first time</a></p>
+            </div>
+            <div class="os reveal" data-os="win">
+              <span class="mine-tag" data-i18n="dl.yours">Your system</span>
+              <svg class="os-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.1 10.4 4v7.2H3V5.1zm8.4-1.2L21 2.5v8.7h-9.6V3.9zM3 12.8h7.4V20L3 18.9v-6.1zm8.4 0H21v8.7l-9.6-1.4v-7.3z" /></svg>
+              <h3>Windows</h3>
+              <p class="req" data-i18n="dl.winreq">Windows 10 or 11</p>
+              <a class="btn btn-primary" href="https://github.com/iltempe/openband/releases/latest/download/OpenBand-win-x64.exe" data-asset="win-x64" data-i18n="dl.winx64">Download (64-bit)</a>
+              <a class="btn btn-ghost" href="https://github.com/iltempe/openband/releases/latest/download/OpenBand-win-arm64.exe" data-asset="win-arm64" data-i18n="dl.winarm">ARM (Snapdragon)</a>
+              <p class="alt" data-i18n="dl.winnote">SmartScreen may ask once: “More info → Run anyway”.</p>
+            </div>
+            <div class="os reveal" data-os="linux">
+              <span class="mine-tag" data-i18n="dl.yours">Your system</span>
+              <svg class="os-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="16" rx="3" /><path d="m7 10 3 2.5L7 15m5.5 0H17" /></svg>
+              <h3>Linux</h3>
+              <p class="req" data-i18n="dl.linreq">AppImage, or .deb for Debian / Ubuntu</p>
+              <a class="btn btn-primary" href="https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-x86_64.AppImage" data-asset="linux-appimage">AppImage (x86_64)</a>
+              <a class="btn btn-ghost" href="https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-amd64.deb" data-asset="linux-deb">.deb (amd64)</a>
+              <p class="alt"><span data-i18n="dl.linarm">ARM64:</span> <a href="https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-arm64.AppImage">AppImage</a> · <a href="https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-arm64.deb">.deb</a></p>
+            </div>
+          </div>
+          <div class="more-ways">
+            <div class="way reveal">
+              <h4 data-i18n="dl.web">No install</h4>
+              <span data-i18n-html="dl.webp">Open the studio in Chrome, Edge or Safari — and install it as an app from the browser to use it offline. <a href="../">Open the studio →</a></span>
+            </div>
+            <div class="way reveal">
+              <h4 data-i18n="dl.claude">For Claude Desktop</h4>
+              <span data-i18n-html="dl.claudep">One file, double-click to install: <a href="https://github.com/iltempe/openband/releases/latest/download/openband.mcpb">openband.mcpb</a>. Then ask Claude to make music.</span>
+            </div>
+            <div class="way reveal">
+              <h4 data-i18n="dl.npx">From a terminal</h4>
+              <span data-i18n="dl.npxp">With Node.js 18+, the studio and its AI server in one command:</span>
+              <code class="cmd">npx -y --allow-remote=all https://github.com/iltempe/openband/releases/latest/download/openband.tgz</code>
+            </div>
+          </div>
+          <p class="note"><a href="https://github.com/iltempe/openband/releases" data-i18n="dl.all">All releases and what changed in each →</a></p>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <div class="join reveal">
+            <div class="eyebrow" data-i18n="join.eyebrow">Make it yours</div>
+            <h2 data-i18n="join.title">The next feature could be your idea.</h2>
+            <p data-i18n="join.lead">You don't need to write code. Tell us what would make OpenBand better for the music you make — it takes a minute, and everyone can see where it goes.</p>
+            <div class="cta">
+              <a class="btn btn-primary" href="contribute.html" data-i18n="join.suggest">Suggest a feature</a>
+              <a class="btn btn-ghost" href="https://github.com/iltempe/openband" data-i18n="join.star">Star it on GitHub</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <span data-i18n="foot.made">OpenBand · MIT licence · made by its contributors, with AI</span>
+        <nav>
+          <a href="../" data-i18n="foot.studio">Studio</a>
+          <a href="contribute.html" data-i18n="nav.contribute">Contribute</a>
+          <a href="https://github.com/iltempe/openband/blob/main/docs/FEATURES.md" data-i18n="foot.features">All features</a>
+          <a href="https://github.com/iltempe/openband/blob/main/CHANGELOG.md" data-i18n="foot.changelog">Changelog</a>
+          <a href="https://github.com/iltempe/openband">GitHub</a>
+        </nav>
+      </div>
+    </footer>
+    <script src="site.js"></script>
+  </body>
+</html>
