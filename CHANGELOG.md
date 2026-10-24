@@ -2,6 +2,17 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.4 "G8.1: plugin delay compensation"
+
+The native plugins of the desktop app (G8) come in phases; this one makes room for them in the engine.
+
+### G8.1 · Plugin delay compensation, NativePluginNode
+- **Plugin delay compensation** (live in `engine.ts`, offline in `render.ts`): every effect chain reports its latency — WAM plugins through `getCompensationDelay()` (WAM 2), native plugins through their node — and every other track is delayed by the difference, so the slowest track sets the pace and everything stays aligned. The offline render runs long enough for up to 1 s of plugin latency and trims exactly what was added. The effect slot shows the latency it compensates (*26.7 ms*). Sidechain keys are taken before compensation.
+- **NativePluginNode** (`src/audio/native.ts`, `worklets/native.worklet.ts`): a native plugin in the Web Audio graph, as an AudioWorklet that sends each 128-frame block to the plugin host and plays what comes back through a jitter buffer of 6 blocks (~16 ms, the ADR's measurements; late blocks play as silence and are counted), so its latency is exact: 6 × 128 + the plugin's own. Until `openband-plughost` runs (G8.2), the host is **in-process**: two test plugins (`native-dsp.js`: a pure latency and a gain), processed on the page behind the same bridge, and inline in the worklet for offline renders.
+- **Plugin formats in the project**: `PluginSlot` and `CustomInstrument` get `format` (`wam`, `clap`, `vst3`, `au`, `test`) and `native` (id, vendor, version, path hint, state). Projects saved before are migrated to `format: 'wam'` (same schema version, so older OpenBands still open new songs). The effect slot shows a format badge; the DAWproject report names the format.
+- The effects panel wraps onto a second row instead of scrolling the plugins out of sight.
+- Tests: the test plugins (latency exact block by block, gain), the jitter buffer (N blocks later, late blocks counted), the format migration. In Chrome (`npm run e2e`, *pdc*): two identical notes, one through 512 samples of plugin latency, line up **0 samples** apart in the export and live (where the compensation is 1280 samples: 6 bridge blocks + 512), and 1280 apart with compensation off.
+
 ## v0.6.3 "G1b: the Mix & Master Pilot"
 
 ### G1 (part 2) · Mix & Master Pilot, export for platforms

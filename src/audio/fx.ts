@@ -3,6 +3,7 @@
 import * as Tone from 'tone';
 import type { TrackFx } from '../types';
 import { WamEffect, type WamInstance } from './wam';
+import { NativeEffect } from './native';
 import { loadMasterWorklets } from './master';
 
 import { defaultFx } from '../fxDefaults';
@@ -66,7 +67,7 @@ export class FxChain {
   private cwReduction = 0;
   private makeup = new Tone.Gain(1);
   private routing = '';
-  private plugins = new Map<string, WamEffect>();
+  private plugins = new Map<string, WamEffect | NativeEffect>();
   /** Level-matched A/B (F20): the whole chain (slotId null) or one plugin bypassed, with this gain in its place. */
   private compare: { slotId: string | null; gainDb: number } | null = null;
   private compareGain = new Tone.Gain(1);
@@ -112,14 +113,15 @@ export class FxChain {
     const fx = normalizeFx(raw);
     const slots = fx.plugins ?? [];
     // Plugin instances: create new slots (with their saved state), drop removed ones.
+    const same = (s: (typeof slots)[number], p: WamEffect | NativeEffect) => (p instanceof NativeEffect ? s.format === p.slot.format && s.native?.id === p.slot.native?.id && s.native?.state_b64 === p.slot.native?.state_b64 : s.url === p.url && (s.format ?? 'wam') === 'wam');
     for (const [id, p] of this.plugins) {
-      if (!slots.some((s) => s.id === id && s.url === p.url)) {
+      if (!slots.some((s) => s.id === id && same(s, p))) {
         p.dispose();
         this.plugins.delete(id);
       }
     }
     for (const s of slots) {
-      if (!this.plugins.has(s.id)) this.plugins.set(s.id, new WamEffect(s.url, s.state, this.keyPrefix && `${this.keyPrefix}:${s.id}`));
+      if (!this.plugins.has(s.id)) this.plugins.set(s.id, (s.format ?? 'wam') === 'wam' ? new WamEffect(s.url, s.state, this.keyPrefix && `${this.keyPrefix}:${s.id}`) : new NativeEffect(s));
       this.plugins.get(s.id)!.setBypass(!s.on);
     }
     this.last = raw;
@@ -220,9 +222,24 @@ export class FxChain {
     if (param === 'threshold' || param === 'ratio' || param === 'attack' || param === 'release') this.compParam(param, value, time);
   }
 
-  /** A plugin effect of the chain, once loaded. */
+  /** A WAM plugin effect of the chain, once loaded. */
   plugin(slotId: string): WamInstance | null {
-    return this.plugins.get(slotId)?.instance ?? null;
+    const p = this.plugins.get(slotId);
+    return p instanceof WamEffect ? p.instance : null;
+  }
+
+  /** Samples of delay one plugin adds (0 when bypassed or not loaded). */
+  slotLatency(slotId: string) {
+    return this.plugins.get(slotId)?.activeLatency ?? 0;
+  }
+
+  /** Samples of delay the chain adds (its plugins' latencies), for delay compensation (G8). */
+  get latency() {
+    // A/B comparisons swap a plugin (or the whole chain) for a plain gain: no latency there.
+    if (this.compare && this.compare.slotId === null) return 0;
+    let l = 0;
+    for (const [id, p] of this.plugins) if (this.compare?.slotId !== id) l += p.activeLatency;
+    return l;
   }
 
   /** Hear the chain (or one plugin) bypassed at matched loudness; null goes back to normal. Live only. */

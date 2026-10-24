@@ -7,6 +7,7 @@
 //   automation — a filter sweep on a WAM plugin: live and export within 1 dB per 100 ms
 //   master     — the master chain meets −14 LUFS / −1 dBTP, live = export, sidechain kick → bass
 //   pilot      — the mix pilot: amount 0 changes nothing, 1 twice is idempotent, roles kept, stems = master
+//   pdc        — plugin delay compensation: a track behind a 512-sample plugin stays aligned, live and exported
 //
 //   node scripts/e2e/run.mjs [first-run|pwa ...]   (CHROME=/path/to/chrome, default: the system Chrome)
 import { spawn } from 'node:child_process';
@@ -362,6 +363,64 @@ tests.pilot = async () => {
     await b.close();
     await c.close();
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+tests.pdc = async () => {
+  // G8.1: two identical notes, one panned left through a plugin with 512 samples of latency (the
+  // in-process test host, behind the block bridge live), one panned right: they line up within a sample.
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.keyboard.press('Space');
+    const r = await p.evaluate(async () => {
+      const { engine, useStore, renderBuffer, commands, native } = window.openband;
+      await commands.new_project({ name: 'PDC', bpm: 120, key: 'C' });
+      const a = (await commands.add_track({ kind: 'instrument', instrument: 'chip', name: 'Late' })).track_id;
+      const c = (await commands.add_track({ kind: 'instrument', instrument: 'chip', name: 'Dry' })).track_id;
+      for (const [id, pan] of [[a, -1], [c, 1]]) {
+        await commands.add_region({ track_id: id, start_bar: 1, length_bars: 1, notes: [{ pitch: 'C4', start: 1, duration: 1, velocity: 0.8 }] });
+        await commands.update_track({ track_id: id, pan, reverb: 0, delay: 0 });
+      }
+      useStore.getState().commit((d) => {
+        const t = d.tracks.find((x) => x.id === a);
+        t.fx = { amp: { on: false, drive: 0, tone: 0, level: 0.7 }, eq: { on: false, low: 0, mid: 0, high: 0, midFreq: 1000 }, comp: { on: false, threshold: -18, ratio: 4, attack: 0.01, release: 0.18, makeup: 0 }, plugins: [native.testSlot('lat', 'org.openband.test.latency', { latency: 512 })] };
+      });
+      await new Promise((r) => setTimeout(r, 800));
+      const onset = (x) => x.findIndex((v) => Math.abs(v) > 0.01);
+      const off = await renderBuffer(useStore.getState().project, { sampleRate: 48000, tailSeconds: 0.5 });
+      const exportDiff = onset(off.getChannelData(1)) - onset(off.getChannelData(0));
+      const expected = Math.round(0.5 * 48000);
+      const exportAt = onset(off.getChannelData(1));
+      const live = async () => {
+        engine.position = 0;
+        const cap = engine.captureMaster(1.2);
+        await engine.play();
+        const got = await cap;
+        engine.stop();
+        await new Promise((r) => setTimeout(r, 300));
+        return onset(got.channels[1]) - onset(got.channels[0]);
+      };
+      const liveDiff = await live();
+      const pdcLatency = engine.pdcLatency;
+      engine.pdcEnabled = false;
+      engine.syncPdc();
+      const rawDiff = await live();
+      engine.pdcEnabled = true;
+      engine.syncPdc();
+      return { exportDiff, exportAt, expected, liveDiff, rawDiff, pdcLatency, sr: engine.sampleRate ?? 48000 };
+    });
+    check(Math.abs(r.exportDiff) <= 1 && Math.abs(r.exportAt - r.expected) <= 64, `export: the delayed track lines up with the dry one (${r.exportDiff} samples apart; both at sample ${r.exportAt}, the note's time ${r.expected})`);
+    check(r.pdcLatency === 6 * 128 + 512, `live latency compensated: ${r.pdcLatency} samples (6 bridge blocks + 512)`);
+    check(Math.abs(r.liveDiff) <= 1, `live: the two tracks line up (${r.liveDiff} samples apart)`);
+    check(Math.abs(Math.abs(r.rawDiff) - r.pdcLatency) <= 1, `…and without compensation they would be ${Math.abs(r.rawDiff)} samples apart`);
+  } finally {
+    await b.close();
+    srv.kill();
   }
 };
 

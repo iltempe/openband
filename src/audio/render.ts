@@ -8,6 +8,7 @@ import { clipBuffer, ensureClipBuffer, needsProcessing, processingOf } from './p
 import { createInstrument, makeImpulse, seeded } from './instruments';
 import { FxChain, normalizeFx } from './fx';
 import { MasterChainNode, limiterLatency } from './master';
+import { MAX_PDC_SECONDS } from './native';
 import { effectiveValue, hasAutomation, isAutomated, mix, valueAt } from '../automation';
 import { applyFxAutomation, automatePlugin } from './automate';
 import type { WamInstance } from './wam';
@@ -104,9 +105,14 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
   const chainSpec = o.includeMaster === false ? null : o.masterChain !== undefined ? o.masterChain : (p.master ?? null);
   const latencyMax = chainSpec?.on && chainSpec.limiter.on ? limiterLatency(sampleRate) : 0;
   const linked = o.linked && chainSpec ? new Set(o.linked) : null;
-  const ctx = new Tone.OfflineContext(new OfflineAudioContext(2, Math.ceil((seconds + preRoll) * sampleRate) + latencyMax, sampleRate));
+  // Plugin delay compensation (G8): plugins report their latency once loaded, so with plugins in the
+  // song render up to MAX_PDC_SECONDS longer, line the tracks up and trim exactly what they added.
+  const pdcPad = p.tracks.some((t) => (t.fx?.plugins ?? []).some((s) => s.on)) ? Math.ceil(MAX_PDC_SECONDS * sampleRate) : 0;
+  const ctx = new Tone.OfflineContext(new OfflineAudioContext(2, Math.ceil((seconds + preRoll) * sampleRate) + latencyMax + pdcPad, sampleRate));
   let chain: MasterChainNode | null = null;
   let keyChain: MasterChainNode | null = null;
+  const fxById = new Map<string, FxChain>();
+  const pdcById = new Map<string, { delay: Tone.Delay; audible: boolean }>();
   const loading: Promise<unknown>[] = [];
   const live = Tone.getContext();
   Tone.setContext(ctx);
@@ -136,7 +142,6 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
     // Sidechain sources (G1) play into the key of their target even when they aren't heard (muted, or
     // outside a stem): the key is pre-fader and pre-mute, as live.
     const keySources = new Set(p.tracks.filter((t) => included(t.id, t.mute, t.solo) && t.fx?.comp.on && t.fx.comp.sidechain).map((t) => t.fx!.comp.sidechain!.sourceTrackId));
-    const fxById = new Map<string, FxChain>();
     const reverb = new Tone.Convolver(makeImpulse(2.8, 3.2)).connect(master);
     const delay = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.34, wet: 1 }).connect(master);
     const reverbHeard = linked ? new Tone.Convolver(makeImpulse(2.8, 3.2)).connect(heard) : null;
@@ -161,7 +166,9 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
       fxById.set(track.id, fx);
       inst.output.connect(fx.input);
       // Polarity is part of the mix (exported); mono and dim are monitoring only and never get here.
-      fx.output.connect(new Tone.Gain(track.polarity ? -1 : 1).connect(ch));
+      const pdc = new Tone.Delay({ delayTime: 0, maxDelay: MAX_PDC_SECONDS });
+      fx.output.chain(pdc, new Tone.Gain(track.polarity ? -1 : 1).connect(ch));
+      pdcById.set(track.id, { delay: pdc, audible });
       const revSend = new Tone.Gain(dbToGain(sendToDb(track.reverb)));
       const delSend = new Tone.Gain(dbToGain(sendToDb(track.delay)) * 0.7);
       if (audible) {
@@ -231,6 +238,12 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
   }
   await Promise.all(loading);
   if (keyChain) chain!.link(keyChain);
+  let pdcMax = 0;
+  if (pdcPad) {
+    const lat = new Map([...pdcById].filter(([, x]) => x.audible).map(([id]) => [id, fxById.get(id)!.latency]));
+    pdcMax = Math.min(pdcPad, Math.max(0, ...lat.values()));
+    for (const [id, l] of lat) pdcById.get(id)!.delay.delayTime.value = (pdcMax - l) / sampleRate;
+  }
   // Automated plugins must be listening before the render starts: a round trip to each one.
   await Promise.all(pluginLanes.map((l) => l.instance()?.audioNode.getParameterValues(false).catch(() => null)));
   // Some WAM instruments keep MIDI events in a main-thread queue that is drained as audio time
@@ -277,9 +290,9 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
   try {
     const buffer = (await ctx.render()).get() as AudioBuffer;
     const latency = (chain as MasterChainNode | null)?.latency ?? 0;
-    if (!preRoll && !latencyMax) return buffer;
-    const skip = Math.round(preRoll * sampleRate) + latency;
-    const length = buffer.length - skip - (latencyMax - latency);
+    if (!preRoll && !latencyMax && !pdcPad) return buffer;
+    const skip = Math.round(preRoll * sampleRate) + latency + pdcMax;
+    const length = buffer.length - skip - (latencyMax - latency) - (pdcPad - pdcMax);
     const out = new AudioBuffer({ numberOfChannels: buffer.numberOfChannels, length, sampleRate });
     for (let c = 0; c < buffer.numberOfChannels; c++) out.copyToChannel(buffer.getChannelData(c).subarray(skip, skip + length), c);
     return out;

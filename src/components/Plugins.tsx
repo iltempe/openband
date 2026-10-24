@@ -8,6 +8,7 @@ import { getTrack, useStore } from '../store';
 import { wamCatalog, type WamCatalogEntry } from '../audio/wam';
 import { addPluginEffect, addPluginInstrument, captureWamStates, livePlugin, removePluginEffect, searchPlugins, updateSlot } from '../plugins';
 import { t, useT } from '../i18n';
+import { engine } from '../audio/engine';
 import * as I from './Icons';
 
 type Mode = 'instrument' | 'effect' | 'any';
@@ -210,6 +211,25 @@ export function PluginWindow() {
 }
 
 /** Effect plugin slots shown in the Effects panel. */
+/** The latency a plugin adds, compensated by the engine (G8): shown when there is some. */
+function SlotLatency({ trackId, slotId }: { trackId: string; slotId: string }) {
+  const tr = useT();
+  const [samples, setSamples] = useState(0);
+  useEffect(() => {
+    const read = () => setSamples(engine.pluginLatency(trackId, slotId));
+    read();
+    const t = setInterval(read, 1000);
+    return () => clearInterval(t);
+  }, [trackId, slotId]);
+  if (!samples) return null;
+  const ms = (samples / engine.sampleRateNow()) * 1000;
+  return (
+    <span className="plug-latency" title={tr('plug.latencyHint', { samples })}>
+      {ms.toFixed(1)} ms
+    </span>
+  );
+}
+
 export function PluginSlots({ track }: { track: Track }) {
   const slots = track.fx?.plugins ?? [];
   const set = useStore((s) => s.set);
@@ -230,9 +250,13 @@ export function PluginSlots({ track }: { track: Track }) {
               <span className="dot" />
             </button>
             <span className="plug-slot-name">{s.name}</span>
-            <button className="mini" onClick={() => set({ pluginWindow: { trackId: track.id, slotId: s.id } })}>
-              {tr('plug.edit')}
-            </button>
+            {s.format && s.format !== 'wam' && <span className={`plug-format f-${s.format}`}>{s.format.toUpperCase()}</span>}
+            <SlotLatency trackId={track.id} slotId={s.id} />
+            {(s.format ?? 'wam') === 'wam' && (
+              <button className="mini" onClick={() => set({ pluginWindow: { trackId: track.id, slotId: s.id } })}>
+                {tr('plug.edit')}
+              </button>
+            )}
             <LevelMatchControl track={track} slotId={s.id} compact />
             <button className="mini danger" onClick={() => removePluginEffect(track.id, s.id)}>
               <I.Close width={12} height={12} />

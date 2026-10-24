@@ -84,6 +84,9 @@ export interface CustomInstrument {
   zones: SampleZone[];
   /** Web Audio Module plugin instrument: where to load it from and its saved state. */
   wam?: { url: string; state?: unknown };
+  /** A native plugin instrument (G8); missing = WAM when source is 'wam'. */
+  format?: PluginFormat;
+  native?: NativePluginRef;
   /** Envelope in seconds. */
   attack: number;
   release: number;
@@ -203,11 +206,30 @@ export interface TrackFx {
 
 export interface PluginSlot {
   id: string;
+  /** WAM: where the plugin loads from ('' for native plugins). */
   url: string;
   name: string;
   on: boolean;
-  /** Plugin state from getState(), restored when the plugin loads. */
+  /** Plugin state from getState(), restored when the plugin loads (WAM). */
   state?: unknown;
+  /** Plugin format (G8): a Web Audio Module, a native plugin of the desktop app, or an in-process test
+   *  plugin. Missing = 'wam' (projects saved before G8). */
+  format?: PluginFormat;
+  native?: NativePluginRef;
+}
+
+export type PluginFormat = 'wam' | 'clap' | 'vst3' | 'au' | 'test';
+
+/** Which native plugin, and its state (G8). */
+export interface NativePluginRef {
+  /** CLAP id, VST3 class UID, AU type/subtype/manufacturer, or a test plugin id. */
+  id: string;
+  vendor?: string;
+  version?: string;
+  /** Where it was found, to tell the user which one is missing on another computer. */
+  path_hint?: string;
+  /** The plugin's state (the format's own state chunk), base64. */
+  state_b64?: string;
 }
 
 export interface LoopRange {

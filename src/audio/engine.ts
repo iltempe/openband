@@ -7,6 +7,7 @@ import type { WamInstance } from './wam';
 import { faderToDb, sendToDb } from '../music';
 import { createInstrument, customById, makeImpulse, type Instrument } from './instruments';
 import { onSamplesChanged } from './samples';
+import { MAX_PDC_SECONDS } from './native';
 import { FxChain } from './fx';
 import { MasterChainNode, loadMasterWorklets } from './master';
 import { attachMeter, detachMeter } from './meters';
@@ -23,6 +24,8 @@ interface TrackNode {
   delaySend: Tone.Gain;
   /** ×1 or ×−1 (polarity). */
   polarity: Tone.Gain;
+  /** Plugin delay compensation (G8): delays the track by what the slowest track's plugins add. */
+  pdc: Tone.Delay;
 }
 
 interface NoteEvent {
@@ -34,6 +37,7 @@ interface NoteEvent {
 }
 
 const transport = () => Tone.getTransport();
+export { MAX_PDC_SECONDS };
 
 class AudioEngine {
   private nodes = new Map<string, TrackNode>();
@@ -285,6 +289,7 @@ class AudioEngine {
       }
     }
     for (const track of p.tracks) this.syncTrack(track);
+    this.syncPdc();
     this.syncSidechains(p);
     this.syncParts(p);
   }
@@ -305,11 +310,12 @@ class AudioEngine {
       channel.connect(delaySend);
       const fx = new FxChain(track.id);
       const polarity = new Tone.Gain(1).connect(channel);
-      fx.output.connect(polarity);
+      const pdc = new Tone.Delay({ delayTime: 0, maxDelay: MAX_PDC_SECONDS }).connect(polarity);
+      fx.output.connect(pdc);
       void attachMeter(track.id, channel);
       const instrument = createInstrument(track.instrument, undefined, `${track.id}:instrument`);
       instrument.output.connect(fx.input);
-      node = { presetId: signature, instrument, fx, fxSignature: '', channel, meter, reverbSend, delaySend, polarity };
+      node = { presetId: signature, instrument, fx, fxSignature: '', channel, meter, reverbSend, delaySend, polarity, pdc };
       this.nodes.set(track.id, node);
     } else if (node.presetId !== signature) {
       node.instrument.releaseAll();
@@ -330,6 +336,35 @@ class AudioEngine {
     if (fxSignature !== node.fxSignature) {
       node.fxSignature = fxSignature;
       node.fx.update(track.fx);
+      // Plugins report their latency once loaded.
+      void node.fx.ready.then(() => this.syncPdc());
+    }
+  }
+
+  /** The delay plugin compensation adds to everything (samples): the slowest track's latency. */
+  pdcLatency = 0;
+  /** Off only to measure what compensation does (tests). */
+  pdcEnabled = true;
+
+  /** The audio context's sample rate now. */
+  sampleRateNow() {
+    return Tone.getContext().sampleRate;
+  }
+
+  /** Samples of latency a plugin effect adds (compensated by PDC). */
+  pluginLatency(trackId: string, slotId: string) {
+    return this.nodes.get(trackId)?.fx.slotLatency(slotId) ?? 0;
+  }
+
+  /** Plugin delay compensation (G8): every track is delayed to line up with the slowest one. */
+  syncPdc() {
+    const sr = Tone.getContext().sampleRate;
+    const lat = new Map([...this.nodes].map(([id, n]) => [id, this.pdcEnabled ? n.fx.latency : 0]));
+    const max = Math.min(MAX_PDC_SECONDS * sr, Math.max(0, ...lat.values()));
+    this.pdcLatency = max;
+    for (const [id, n] of this.nodes) {
+      const d = (max - (lat.get(id) ?? 0)) / sr;
+      if (Math.abs(Number(n.pdc.delayTime.value) - d) > 1e-9) n.pdc.delayTime.setValueAtTime(d, Tone.now());
     }
   }
 
@@ -504,6 +539,7 @@ class AudioEngine {
     n.reverbSend.dispose();
     n.delaySend.dispose();
     n.polarity.dispose();
+    n.pdc.dispose();
   }
 }
 

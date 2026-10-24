@@ -48,6 +48,9 @@ export function migrate(raw: unknown, now = Date.now()): Project {
     if (lanes) t.automation = lanes;
     else delete t.automation;
   }
+  // G8: plugins say their format; those saved before native plugins existed are Web Audio Modules.
+  for (const t of p.tracks) for (const s of t.fx?.plugins ?? []) if (!s.format) s.format = 'wam';
+  for (const c of p.instruments ?? []) if (c.source === 'wam' && !c.format) c.format = 'wam';
   p.version = 3;
   const meta = isObject(p.meta) ? (p.meta as Partial<Project['meta']>) : {};
   p.meta = {

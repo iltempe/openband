@@ -62,8 +62,12 @@ collegarla: le app AI ricordano dove si trova. Usa l'app oppure l'estensione per
   tra i due, salvala come `.openband` e aprila dall'altra parte.
 - **Aggiornamenti**: una volta al giorno l'app controlla su GitHub se c'è una nuova versione e ti
   propone di scaricarla (*Check for Updates…* nel menu). Installandola sopra la vecchia, le canzoni restano.
-- **Plugin**: i plugin web (WAM) funzionano come nel browser. I plugin nativi VST3 / CLAP sono il
-  prossimo passo ([ADR 0001](adr/0001-desktop.md)).
+- **Plugin**: i plugin web (WAM) funzionano come nel browser. I plugin nativi VST3 / CLAP / AU si
+  costruiscono per fasi ([SPEC v0.6, G8](SPEC-v0.6.md), [ADR 0001](adr/0001-desktop.md)). Fatto finora: la
+  **compensazione della latenza dei plugin**: un plugin che ritarda il suono (oggi un WAM con lookahead,
+  presto un plugin nativo dietro il ponte audio) ritarda altrettanto tutte le altre tracce, dal vivo e
+  negli export, così tutto resta a tempo; lo slot dell'effetto mostra di quanto (*26,7 ms*). Prossimo
+  passo: l'host dei plugin per gli effetti CLAP.
 
 ## Compilarla
 

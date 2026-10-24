@@ -218,6 +218,8 @@ export class WamEffect {
   ready: Promise<void>;
   instance: WamInstance | null = null;
   error: string | null = null;
+  /** The plugin's own latency in samples (WAM 2 getCompensationDelay), for delay compensation. */
+  latency = 0;
   private bypassed = false;
 
   constructor(readonly url: string, state?: unknown, private key?: string) {
@@ -227,6 +229,11 @@ export class WamEffect {
         this.instance = inst;
         if (this.key) liveWams.set(this.key, inst);
         this.route();
+        const node = inst.audioNode as unknown as { getCompensationDelay?: () => Promise<number> | number };
+        return Promise.resolve(node.getCompensationDelay?.() ?? 0).then(
+          (d) => void (this.latency = Number.isFinite(d) && d > 0 ? Math.round(d) : 0),
+          () => undefined,
+        );
       })
       .catch((e) => {
         this.error = (e as Error).message;
@@ -238,6 +245,10 @@ export class WamEffect {
   setBypass(off: boolean) {
     this.bypassed = off;
     this.route();
+  }
+
+  get activeLatency() {
+    return this.instance && !this.bypassed ? this.latency : 0;
   }
 
   private route() {

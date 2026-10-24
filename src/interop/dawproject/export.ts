@@ -73,7 +73,7 @@ export function projectToDawproject(p: Project, samples: Record<string, ExportSa
       );
     }
     if (fx.amp.on) report.push({ code: 'export_skipped', track: t.name, detail: 'amp simulator' });
-    for (const s of fx.plugins ?? []) report.push({ code: 'export_skipped', track: t.name, detail: `WAM plugin ${s.name}` });
+    for (const s of fx.plugins ?? []) report.push({ code: 'export_skipped', track: t.name, detail: `${(s.format ?? 'wam').toUpperCase()} plugin ${s.name}` });
     if (custom?.source === 'wam') report.push({ code: 'export_skipped', track: t.name, detail: `WAM instrument ${custom.name}` });
     const other = lanesOf(t).filter((l) => l.points.length && !(l.target.kind === 'mix' && (l.target.param === 'volume' || l.target.param === 'pan')));
     if (other.length) report.push({ code: 'export_skipped', track: t.name, detail: `automation of ${other.map((l) => targetKey(l.target)).join(', ')}` });

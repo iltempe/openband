@@ -60,8 +60,11 @@ would both add the OpenBand tools.
   two, save it as `.openband` and open it on the other side.
 - **Updates**: the app checks GitHub for a new version once a day and offers the download (*Check for
   Updates…* in the menu). Installing over the old version keeps your songs.
-- **Plugins**: the web plugins (WAM) work as in the browser. Native VST3 / CLAP plugins are the next
-  step ([ADR 0001](adr/0001-desktop.md)).
+- **Plugins**: the web plugins (WAM) work as in the browser. Native VST3 / CLAP / AU plugins are being
+  built in phases ([SPEC v0.6, G8](SPEC-v0.6.md), [ADR 0001](adr/0001-desktop.md)). Done so far: **plugin
+  delay compensation** — a plugin that delays the sound (a WAM with lookahead now, a native plugin behind
+  the audio bridge next) delays every other track as much, live and in exports, so everything stays in
+  time; the effect slot shows how much (*26.7 ms*). Next: the plugin host for CLAP effects.
 
 ## Building it
 
