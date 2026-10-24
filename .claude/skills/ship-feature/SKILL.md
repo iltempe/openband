@@ -68,6 +68,10 @@ The site is `site/` in this repository, served at **https://www.openband.it**: o
 to the repository **iltempe/openband-site** (GitHub Pages, deploy key in the `SITE_DEPLOY_KEY` secret). Never
 edit openband-site directly. The old address `iltempe.github.io/openband/about/` redirects to the domain once
 it is live. The studio stays at `iltempe.github.io/openband/`: links from the site to it are absolute.
+Visits are counted with GoatCounter (`openband.goatcounter.com`, loaded by `site/site.js` only on
+www.openband.it and never with Do Not Track / GPC; no cookies, no personal data; downloads as events). Keep
+it that way: no other trackers, no cookies, and the footer note (EN + IT) stays true. Never send test
+hits: stub `gc.zgo.at` when checking the site in a browser.
 Update the site when the feature deserves a place there:
 - a feature card on `site/index.html` (with a screenshot listed in `scripts/build-site.mjs`), the facts strip
   (tool count, platforms), the AI section;

@@ -1,5 +1,6 @@
 // OpenBand website: Italian / English, the download for this computer, live numbers from GitHub, and the
-// feature suggestion form (it opens a prefilled GitHub issue from .github/ISSUE_TEMPLATE/feature.yml).
+// feature suggestion form (it opens a prefilled GitHub issue from .github/ISSUE_TEMPLATE/feature.yml), and
+// privacy-friendly visit counts (GoatCounter: no cookies, no personal data, none with Do Not Track / GPC).
 (() => {
   const REPO = 'iltempe/openband';
   const API = `https://api.github.com/repos/${REPO}`;
@@ -135,6 +136,7 @@
     'foot.contacts': 'Contatti',
     'foot.contactsp': 'OpenBand è fatto da @iltempe e dai suoi contributori.',
     'foot.coffee': 'Offrimi un caffè',
+    'foot.privacy': 'Le visite si contano in forma anonima con <a href="https://www.goatcounter.com/help/privacy">GoatCounter</a>: niente cookie né dati personali, e nulla se il browser chiede di non essere tracciato.',
     'join.coffee': 'OpenBand è gratis e resta gratis. Se ti aiuta a fare musica, puoi sostenerlo:',
     'c.coffee': 'Offrimi un caffè',
     'c.coffeep': 'OpenBand è gratis: un caffè aiuta a portare avanti il lavoro.',
@@ -385,6 +387,26 @@
     );
     reveal.forEach((el) => io.observe(el));
   } else reveal.forEach((el) => el.classList.add('in'));
+
+  // ---------------------------------------------------------------- visits (GoatCounter)
+  // Only on the official site, never when the browser asks not to be tracked. GoatCounter keeps no
+  // cookies and no personal data: a page, the referrer, the browser and the screen size, in aggregate.
+  const GOAT = 'https://openband.goatcounter.com/count';
+  const noTrack = navigator.doNotTrack === '1' || window.doNotTrack === '1' || navigator.globalPrivacyControl === true;
+  if (location.hostname === 'www.openband.it' && !noTrack) {
+    const s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://gc.zgo.at/count.js';
+    s.dataset.goatcounter = GOAT;
+    document.head.appendChild(s);
+    // Downloads as events (which file only), to see what people take.
+    document.addEventListener('click', (e) => {
+      const a = e.target instanceof Element ? e.target.closest('a[href*="/releases/"]') : null;
+      if (!a || !window.goatcounter?.count) return;
+      const file = a.getAttribute('href').split('/').pop() || 'release';
+      window.goatcounter.count({ path: `download/${file}`, title: 'Download', event: true });
+    });
+  }
 
   applyLang();
 })();
