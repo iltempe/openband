@@ -132,6 +132,12 @@
     'c.codep': 'La guida per sviluppatori, e le issue “good first issue”.',
     'c.translate': 'Traducilo',
     'c.translatep': 'Oggi inglese e italiano: porta OpenBand nella tua lingua.',
+    'foot.contacts': 'Contatti',
+    'foot.contactsp': 'OpenBand è fatto da @iltempe e dai suoi contributori.',
+    'foot.coffee': 'Offrimi un caffè',
+    'join.coffee': 'OpenBand è gratis e resta gratis. Se ti aiuta a fare musica, puoi sostenerlo:',
+    'c.coffee': 'Offrimi un caffè',
+    'c.coffeep': 'OpenBand è gratis: un caffè aiuta a portare avanti il lavoro.',
     'c.star': 'Stella e condividi',
     'c.starp': 'Più musicisti, più idee, uno studio migliore per tutti.',
   };
