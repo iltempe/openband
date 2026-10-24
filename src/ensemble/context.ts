@@ -1,31 +1,15 @@
 // The Song Context Package (OMEP 1.0 §6) of the open song: what there is and what is wanted, independent of
 // any model. Built from what OpenBand already knows (sections, harmony from the notes, lyrics, track roles),
 // hashed on the canonical song, and trimmed to what each engine declares it uses before it leaves.
-import type { Project, Track } from '../types';
+import type { Project } from '../types';
+import { noteFacts, roleOf } from '../pilot/roles';
 import { BEATS_PER_BAR } from '../music';
 import { analyzeChords } from '../analysis/harmony';
-import { PRESETS } from '../audio/instruments';
 import { canonicalJSON } from '../versions/canonical';
 import type { Manifest, Scp } from './types';
 
 const projectEnd = (p: Project) => p.regions.reduce((m, r) => Math.max(m, r.start + r.length), 0);
 const bar = (beat: number) => beat / BEATS_PER_BAR + 1;
-
-/** A first guess at what a track does in the arrangement (the mix pilot will refine it, G1). */
-export function roleOf(t: Track): string {
-  const name = t.name.toLowerCase();
-  if (t.kind === 'drums') return 'drums';
-  if (/\b(vox|voc|voce|vocal|voice|lead vocal|canto)/.test(name)) return 'vocal';
-  if (/\b(bass|basso)/.test(name)) return 'bass';
-  if (/\b(guitar|chitarra|gtr)/.test(name)) return 'guitar';
-  if (/\b(lead|solo|melod)/.test(name)) return 'lead';
-  if (t.kind === 'audio') return 'other';
-  const cat = PRESETS.find((x) => x.id === t.instrument)?.category ?? '';
-  if (cat === 'Bass') return 'bass';
-  if (cat === 'Synth') return 'lead';
-  if (cat === 'Pads & Strings') return 'texture';
-  return 'harmony';
-}
 
 export interface ContextOptions {
   /** Bars (1-based, to_bar exclusive) or a section. Default: the whole song. */
@@ -51,7 +35,7 @@ export async function buildContext(p: Project, o: ContextOptions = {}): Promise<
   const pitched = new Set(p.tracks.filter((t) => t.kind === 'instrument').map((t) => t.id));
   const notes = p.regions.filter((r) => pitched.has(r.trackId) && !r.audio).flatMap((r) => r.notes.map((n) => ({ pitch: n.pitch, start: r.start + n.start, duration: n.duration, velocity: n.velocity })));
   if (notes.length) scp.harmony = analyzeChords(notes, p.key, 0, endBeat).map((c) => ({ bar: c.bar, beat: c.beat - 1, chord: c.chord, roman: c.roman, beats: c.length }));
-  scp.tracks = p.tracks.map((t) => ({ id: t.id, name: t.name, role: roleOf(t), summary: `${t.kind} · ${t.instrument}` }));
+  scp.tracks = p.tracks.map((t) => ({ id: t.id, name: t.name, role: roleOf(t, noteFacts(p, t.id)), summary: `${t.kind} · ${t.instrument}` }));
   const melodyTrack = p.lyrics?.melodyTrackId;
   if (melodyTrack) {
     const from = ((o.scope?.from_bar ?? 1) - 1) * BEATS_PER_BAR;

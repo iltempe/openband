@@ -113,6 +113,40 @@ export interface Track {
   polarity?: boolean;
   /** Automation lanes (schema v3): a parameter with points follows its curve instead of its static value. */
   automation?: AutomationLane[];
+  /** The role in the mix, set by the user (G1): the mix pilot classifies the others itself. */
+  role?: MixRole;
+}
+
+export type MixRole = 'kick' | 'drums' | 'bass' | 'harmony' | 'lead' | 'vocal' | 'texture' | 'fx';
+export const MIX_ROLES: MixRole[] = ['kick', 'drums', 'bass', 'harmony', 'lead', 'vocal', 'texture', 'fx'];
+
+/** What the mix pilot sets on a track (G1). */
+export interface TrackMix {
+  volume: number;
+  pan: number;
+  reverb: number;
+  delay: number;
+  fx?: TrackFx;
+}
+
+/** A pilot run that hasn't been fixed yet: the knob blends from `before` to `full` (G1). */
+export interface PilotState {
+  amount: number;
+  genre: string;
+  platform: string;
+  before: { tracks: Record<string, TrackMix>; master: MasterChain | null };
+  /** master null: the run left the master alone (scope "mix"). */
+  full: { tracks: Record<string, TrackMix>; master: MasterChain | null };
+  decisions: PilotDecision[];
+  /** Loudness before and after (LUFS) for the level-matched comparison. */
+  lufsBefore: number;
+  lufsAfter: number;
+}
+
+export interface PilotDecision {
+  trackId?: string;
+  kind: 'role' | 'gain' | 'balance' | 'eq' | 'hpf' | 'sidechain' | 'pan' | 'space' | 'master';
+  text: string;
 }
 
 export type AutoParam = 'volume' | 'pan' | 'tone' | 'reverb' | 'echo';
@@ -148,6 +182,8 @@ export interface TrackFx {
     /** Hz */ midFreq: number;
     /** High-pass filter, 12 dB/oct, before the EQ (G1); works with the EQ off too. */
     hpf?: { on: boolean; hz: number };
+    /** Peaking bands after the EQ (G1, the mix pilot's cuts); like the high-pass they work with the EQ off. */
+    bands?: { hz: number; gain: number; q: number }[];
   };
   comp: {
     on: boolean;
@@ -207,6 +243,8 @@ export interface Project {
   flubs?: Flub[];
   /** The master chain (G1): EQ, glue compressor, stereo width, true-peak limiter. Missing = no processing. */
   master?: MasterChain;
+  /** The mix pilot's last run, while its knob is live (G1). Removed by "Fix". */
+  pilot?: PilotState;
   /** Who made what (SPEC v0.6 §6): one entry per engine contribution. */
   ledger?: LedgerEntry[];
   meta?: ProjectMeta;
@@ -359,7 +397,7 @@ export interface LintConfig {
   ignored?: string[];
 }
 
-export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | 'flubs' | 'ensemble' | null;
+export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | 'flubs' | 'ensemble' | 'pilot' | null;
 
 export interface BridgeLogEntry {
   id: string;

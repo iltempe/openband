@@ -1,0 +1,42 @@
+{
+  "id": "rock",
+  "name": {
+    "en": "Rock",
+    "it": "Rock"
+  },
+  "balance": {
+    "vocal": 0,
+    "kick": -2,
+    "drums": -2,
+    "bass": -3,
+    "lead": -3,
+    "harmony": -4,
+    "texture": -9,
+    "fx": -12
+  },
+  "panWidth": 0.85,
+  "reverb": {
+    "vocal": 0.2,
+    "lead": 0.16,
+    "harmony": 0.12,
+    "texture": 0.22,
+    "drums": 0.12,
+    "kick": 0,
+    "bass": 0,
+    "fx": 0.2
+  },
+  "delay": {
+    "vocal": 0.1,
+    "lead": 0.1,
+    "harmony": 0,
+    "texture": 0,
+    "drums": 0,
+    "kick": 0,
+    "bass": 0,
+    "fx": 0.08
+  },
+  "sidechain": false,
+  "tilt": -4.5,
+  "width": 1.05,
+  "platform": "spotify"
+}

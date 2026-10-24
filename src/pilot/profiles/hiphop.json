@@ -1,0 +1,42 @@
+{
+  "id": "hiphop",
+  "name": {
+    "en": "Hip-hop",
+    "it": "Hip-hop"
+  },
+  "balance": {
+    "vocal": 0,
+    "kick": -1,
+    "drums": -4,
+    "bass": -2,
+    "lead": -6,
+    "harmony": -9,
+    "texture": -11,
+    "fx": -12
+  },
+  "panWidth": 0.5,
+  "reverb": {
+    "vocal": 0.1,
+    "lead": 0.12,
+    "harmony": 0.12,
+    "texture": 0.2,
+    "drums": 0.04,
+    "kick": 0,
+    "bass": 0,
+    "fx": 0.15
+  },
+  "delay": {
+    "vocal": 0.08,
+    "lead": 0.1,
+    "harmony": 0,
+    "texture": 0.06,
+    "drums": 0,
+    "kick": 0,
+    "bass": 0,
+    "fx": 0.08
+  },
+  "sidechain": true,
+  "tilt": -5.0,
+  "width": 1.0,
+  "platform": "spotify"
+}

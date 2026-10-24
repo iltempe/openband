@@ -65,6 +65,9 @@ export function MasterChainPanel() {
     <div className={`master-chain ${m.on ? 'on' : ''}`}>
       <div className="mc-head">
         <span className="smart-kicker">{t('mc.title')}</span>
+        <button className="btn mini mc-pilot" title={t('pi.noRun')} onClick={() => useStore.getState().set({ bottom: 'pilot' })}>
+          ◎ {t('pi.title')}
+        </button>
         <button className={`fx-power ${m.on ? 'on' : ''}`} aria-pressed={m.on} title={t('mc.bypass')} onClick={() => set({ on: !m.on }, true)}>
           <span className="dot" />
         </button>

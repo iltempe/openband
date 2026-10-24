@@ -1,0 +1,42 @@
+{
+  "id": "acoustic",
+  "name": {
+    "en": "Acoustic / singer-songwriter",
+    "it": "Acustico / cantautore"
+  },
+  "balance": {
+    "vocal": 0,
+    "kick": -6,
+    "drums": -7,
+    "bass": -5,
+    "lead": -4,
+    "harmony": -3,
+    "texture": -10,
+    "fx": -14
+  },
+  "panWidth": 0.65,
+  "reverb": {
+    "vocal": 0.24,
+    "lead": 0.22,
+    "harmony": 0.2,
+    "texture": 0.26,
+    "drums": 0.12,
+    "kick": 0.04,
+    "bass": 0.02,
+    "fx": 0.2
+  },
+  "delay": {
+    "vocal": 0.06,
+    "lead": 0.06,
+    "harmony": 0,
+    "texture": 0,
+    "drums": 0,
+    "kick": 0,
+    "bass": 0,
+    "fx": 0.06
+  },
+  "sidechain": false,
+  "tilt": -4.5,
+  "width": 1.0,
+  "platform": "apple"
+}

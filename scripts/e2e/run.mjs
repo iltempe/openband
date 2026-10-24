@@ -6,6 +6,7 @@
 //   remote     — OPENBAND_REMOTE_MCP=1: an MCP client over HTTP pairs with the tab's code and drives it
 //   automation — a filter sweep on a WAM plugin: live and export within 1 dB per 100 ms
 //   master     — the master chain meets −14 LUFS / −1 dBTP, live = export, sidechain kick → bass
+//   pilot      — the mix pilot: amount 0 changes nothing, 1 twice is idempotent, roles kept, stems = master
 //
 //   node scripts/e2e/run.mjs [first-run|pwa ...]   (CHROME=/path/to/chrome, default: the system Chrome)
 import { spawn } from 'node:child_process';
@@ -299,6 +300,68 @@ tests.master = async () => {
   } finally {
     await b.close();
     await c.close();
+  }
+};
+
+tests.pilot = async () => {
+  // G1: the Mix & Master Pilot on the demo song, through MCP; then the export for platforms.
+  const os = await import('node:os');
+  const { unzipSync } = await import('fflate');
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+  const c = new Client({ name: 'e2e', version: '1' });
+  await c.connect(new StdioClientTransport({ command: process.execPath, args: [path.join(root, 'server', 'mcp-server.mjs')], env: { ...process.env, OPENBAND_PORT: String(PORT), OPENBAND_OPEN_BROWSER: '0', OPENBAND_NO_UPDATE_CHECK: '1' }, stderr: 'ignore' }));
+  const call = async (name, args = {}) => {
+    const r = await c.callTool({ name, arguments: args }, undefined, { timeout: 900000 });
+    if (r.isError) throw new Error(`${name}: ${r.content[0].text}`);
+    return JSON.parse(r.content[0].text);
+  };
+  const b = await launch();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'openband-e2e-'));
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-more .btn.primary').click());
+    await wait(800);
+    await p.evaluate(() => window.openband.engine.stop());
+    // What the pilot touches: the mix of every track and the master.
+    const mixState = () => p.evaluate(() => JSON.stringify((({ tracks, master }) => ({ tracks: tracks.map((t) => [t.id, t.volume, t.pan, t.reverb, t.delay, t.fx ?? null, t.role ?? null]), master: master ?? null }))(window.openband.useStore.getState().project)));
+    const initial = await mixState();
+    const notesBefore = await p.evaluate(() => (window.openband.useStore.getState().project.annotations ?? []).length);
+    const r0 = await call('mix_pilot', { amount: 0, genre: 'pop', platform: 'spotify' });
+    check((await mixState()) === initial && (await p.evaluate(() => (window.openband.useStore.getState().project.annotations ?? []).length)) === notesBefore, `amount 0 leaves the song as it was (${r0.changes.length} changes proposed, none applied)`);
+    const tracks = (await call('get_project')).tracks;
+    const keys = tracks.find((t) => /piano/i.test(t.name));
+    await call('set_track_role', { track_id: keys.id, role: 'lead' });
+    const withRole = await mixState();
+    const r1 = await call('mix_pilot', { amount: 1, genre: 'pop', platform: 'spotify' });
+    const full = await mixState();
+    check(full !== initial && Math.abs(r1.loudness.after_lufs + 14) <= 0.3 && r1.loudness.true_peak_dbtp <= -0.95, `amount 1: ${r1.changes.length} changes, ${r1.loudness.before_lufs} → ${r1.loudness.after_lufs} LUFS, ${r1.loudness.true_peak_dbtp} dBTP`);
+    check(r1.roles.find((x) => x.track_id === keys.id)?.role === 'lead', `the user's role is kept (${keys.name}: ${r1.roles.find((x) => x.track_id === keys.id)?.role}; ${r1.roles.map((x) => `${x.name}=${x.role}`).join(', ')})`);
+    const r2 = await call('mix_pilot', { amount: 1, genre: 'pop', platform: 'spotify' });
+    check((await mixState()) === full, `amount 1 twice in a row is idempotent (${r2.loudness.after_lufs} LUFS again)`);
+    const half = await call('set_pilot_amount', { amount: 0.5 });
+    const mid = await mixState();
+    await call('set_pilot_amount', { amount: 0 });
+    check(mid !== full && mid !== withRole && (await mixState()) === withRole, `the knob blends live (50%: ${half.loudness?.after_lufs} LUFS) and back to the song as it was at 0`);
+    await call('set_pilot_amount', { amount: 1 });
+    const ex = await call('export_for_platforms', { platforms: ['spotify', 'cd'], stems: true, versions: ['instrumental'], save_to: dir });
+    const zip = unzipSync(fs.readFileSync(ex.saved));
+    const names = Object.keys(zip);
+    // Spotify's −14 is met; the CD's −9 is out of reach for this sparse song without crushing it, and the export says so.
+    const sp = ex.platforms.find((x) => x.platform === 'spotify');
+    const cd = ex.platforms.find((x) => x.platform === 'cd');
+    check(sp.compliant && cd.true_peak_dbtp <= -0.45 && (cd.compliant || ex.notes?.some((n) => /CD|cd/.test(n))), `masters: ${ex.platforms.map((x) => `${x.platform} ${x.lufs} LUFS ${x.true_peak_dbtp} dBTP${x.compliant ? '' : ' (out of reach, noted)'}`).join(', ')}`);
+    check(ex.stem_residual_db < -60, `the stems (${ex.stems.join(', ')}) add up to the master: residual ${ex.stem_residual_db} dB`);
+    const wav = (n) => zip[names.find((x) => x.includes(n))];
+    const bits = (w) => w[34] | (w[35] << 8);
+    check(names.includes('report.txt') && bits(wav('spotify')) === 24 && bits(wav('cd')) === 16, `zip: ${names.length} files (${names.filter((n) => !n.startsWith('stems/')).join(', ')} + ${names.filter((n) => n.startsWith('stems/')).length} stems); 24-bit masters, 16-bit CD`);
+    await call('fix_pilot');
+    check(await p.evaluate(() => !window.openband.useStore.getState().project.pilot), 'fix_pilot keeps the result and ends the live knob');
+  } finally {
+    await b.close();
+    await c.close();
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 };
 

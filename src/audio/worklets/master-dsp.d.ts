@@ -3,7 +3,7 @@ export declare class TruePeakLimiter {
   readonly latency: number;
   readonly reductionDb: number;
   set(o: { ceilingDb?: number; releaseMs?: number; inputGainDb?: number; on?: boolean }): void;
-  process(input: Float32Array[], output: Float32Array[]): void;
+  process(input: Float32Array[], output: Float32Array[], key?: Float32Array[] | null): void;
 }
 export declare class Compressor {
   constructor(fs: number);

@@ -1,0 +1,42 @@
+{
+  "id": "jazz",
+  "name": {
+    "en": "Jazz",
+    "it": "Jazz"
+  },
+  "balance": {
+    "vocal": 0,
+    "kick": -7,
+    "drums": -5,
+    "bass": -3,
+    "lead": -1,
+    "harmony": -3,
+    "texture": -10,
+    "fx": -14
+  },
+  "panWidth": 0.75,
+  "reverb": {
+    "vocal": 0.2,
+    "lead": 0.18,
+    "harmony": 0.16,
+    "texture": 0.2,
+    "drums": 0.14,
+    "kick": 0.04,
+    "bass": 0.04,
+    "fx": 0.16
+  },
+  "delay": {
+    "vocal": 0,
+    "lead": 0,
+    "harmony": 0,
+    "texture": 0,
+    "drums": 0,
+    "kick": 0,
+    "bass": 0,
+    "fx": 0
+  },
+  "sidechain": false,
+  "tilt": -5.0,
+  "width": 1.0,
+  "platform": "apple"
+}

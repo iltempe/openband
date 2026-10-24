@@ -93,10 +93,12 @@ import { MAX_ANNOTATION, checkTarget, matchesTarget } from './annotations';
 import { useTeachMode } from './events';
 import { clearReference, compareToReference, importReference } from './reference';
 import { armTrack, audioRegionToMidi, audioToMidi, recordFromMic, requestRecording, setPunch, useMic, useRecSetup } from './recording';
-import { download, renderBuffer, renderProject } from './audio/render';
+import { download, renderProject } from './audio/render';
 import { PLATFORM_TARGETS, mergeMaster, type Platform } from './audio/master';
-import { reachLoudness } from './audio/loudnessTarget';
-import { loudness as measureLoudness, truePeak } from './analysis/loudness';
+import { fitLimiter, outOfReach } from './audio/fitLimiter';
+import { fixPilot, runPilot, setPilotAmount, setTrackRole } from './pilot/pilot';
+import { exportForPlatforms } from './pilot/exportPlatforms';
+import type { MixRole } from './types';
 import { t as tr, useLang } from './i18n';
 
 const useLangOf = () => useLang.getState().lang;
@@ -1460,28 +1462,30 @@ export const commands: Record<string, (args: P) => unknown> = {
     let report: Record<string, unknown> = {};
     if (m.on && m.limiter.on) {
       // Find the limiter's input gain by rendering: the loudness target is a specification, met within ±0.3 LU.
-      const sr = 48000;
-      const measure = async (chain: typeof m) => {
-        const buf = await renderBuffer({ ...p, master: chain }, { sampleRate: sr, tailSeconds: 1 });
-        const chs = [buf.getChannelData(0), buf.getChannelData(Math.min(1, buf.numberOfChannels - 1))];
-        return { lufs: measureLoudness(chs, sr).integrated, tp: 20 * Math.log10(Math.max(...chs.map((c) => truePeak(c)), 1e-9)) };
-      };
-      const before = await measure({ ...m, limiter: { ...m.limiter, on: false } });
-      let tp = -Infinity;
-      const r = await reachLoudness(async (gainDb) => {
-        const x = await measure({ ...m, limiter: { ...m.limiter, inputGainDb: gainDb } });
-        tp = x.tp;
-        return x.lufs;
-      }, before.lufs, m.limiter.targetLufs);
-      m.limiter.inputGainDb = +r.gainDb.toFixed(2);
-      const reached = Math.abs(r.lufs - m.limiter.targetLufs) <= 0.3;
+      const f = await fitLimiter(p, m);
+      m.limiter.inputGainDb = f.inputGainDb;
       report = {
-        loudness: { before_lufs: +before.lufs.toFixed(1), after_lufs: +r.lufs.toFixed(1), target_lufs: m.limiter.targetLufs, true_peak_dbtp: +tp.toFixed(2), ceiling_dbtp: m.limiter.ceilingDbtp, limiter_gain_db: m.limiter.inputGainDb, renders: r.iterations + 1 },
-        ...(reached ? {} : { warning: `The target ${m.limiter.targetLufs} LUFS is out of reach without crushing the music: ${r.lufs.toFixed(1)} LUFS is as loud as the limiter goes. Choose a quieter target, or compress the mix first.` }),
+        loudness: { before_lufs: +f.beforeLufs.toFixed(1), after_lufs: +f.lufs.toFixed(1), target_lufs: m.limiter.targetLufs, true_peak_dbtp: +f.truePeak.toFixed(2), ceiling_dbtp: m.limiter.ceilingDbtp, limiter_gain_db: m.limiter.inputGainDb, renders: f.renders },
+        ...(f.reached ? {} : { warning: outOfReach(m, f.lufs) }),
       };
     }
     st().commit((d) => void (d.master = m), { label: 'Master chain' });
     return { master: m, ...report };
+  },
+
+  // ---- Mix & Master Pilot (G1)
+  mix_pilot: (args) => runPilot(args),
+  set_pilot_amount: ({ amount }) => setPilotAmount(Number(amount)),
+  fix_pilot: () => fixPilot(),
+  set_track_role: ({ track_id, role }) => setTrackRole(String(track_id ?? ''), (role ?? null) as MixRole | null),
+  export_for_platforms: async ({ platforms, stems, versions, return_data }) => {
+    markFirstExport();
+    await captureWamStates();
+    const res = await exportForPlatforms(st().project, { platforms: Array.isArray(platforms) ? platforms.map(String) : [], stems: !!stems, versions });
+    const summary = { platforms: res.reports, stems: res.stems, ...(res.stem_residual_db !== null ? { stem_residual_db: Number.isFinite(res.stem_residual_db) ? +res.stem_residual_db.toFixed(1) : -999 } : {}), ...(res.notes.length ? { notes: res.notes } : {}) };
+    if (return_data) return { bytes: res.zip.length, filename: res.filename, data_base64: toBase64(res.zip), ...summary };
+    download(new Blob([res.zip as BlobPart], { type: 'application/zip' }), res.filename);
+    return { exported: true, bytes: res.zip.length, filename: res.filename, note: 'The zip was downloaded by the browser.', ...summary };
   },
 
   // ---- Ensemble (SPEC v0.6)
@@ -1796,7 +1800,7 @@ export const commands: Record<string, (args: P) => unknown> = {
 /** Run a command and record it in the AI activity log. */
 /** Commands that never change the project: they don't open an undo step. */
 const READ_ONLY = new Set([
-  'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi', 'export_dawproject',
+  'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi', 'export_dawproject', 'export_for_platforms',
   'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
   'list_engines', 'get_ledger', 'set_engine_policy',

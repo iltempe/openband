@@ -78,6 +78,9 @@ export class MasterChainNode {
   private merge = new Tone.MidSideMerge();
   private sideHp = new Tone.Filter({ type: 'highpass', frequency: 120, rolloff: -24 });
   private sideGain = new Tone.Gain(1);
+  /** What enters the glue and the limiter, for chains linked to this one (stems, see link). */
+  private glueTap = new Tone.Gain(1);
+  private limTap = new Tone.Gain(1);
   private limiter: AudioWorkletNode | null = null;
   private limiterLoad: Promise<void> | null = null;
   private routing = '';
@@ -134,7 +137,7 @@ export class MasterChainNode {
       if (!(await loadMasterWorklets(raw))) return;
       const m = this.last?.limiter;
       this.limiter = new AudioWorkletNode(raw, 'openband-limiter', {
-        numberOfInputs: 1,
+        numberOfInputs: 2,
         numberOfOutputs: 1,
         outputChannelCount: [2],
         channelCount: 2,
@@ -166,7 +169,7 @@ export class MasterChainNode {
     if (routing !== this.routing) {
       this.routing = routing;
       this.input.disconnect();
-      [this.low, this.high, this.tiltLo, this.tiltHi, ...this.bands, this.glueMakeup, this.merge].forEach((n) => n.disconnect());
+      [this.low, this.high, this.tiltLo, this.tiltHi, ...this.bands, this.glueMakeup, this.merge, this.glueTap, this.limTap].forEach((n) => n.disconnect());
       if (this.limiter) this.limiter.disconnect();
       if (this.glueW) {
         this.glueW.disconnect();
@@ -174,9 +177,15 @@ export class MasterChainNode {
       }
       const stages: { in: Tone.InputNode; out: Tone.ToneAudioNode | AudioNode }[] = [];
       if (eqOn) for (const f of [this.low, this.high, this.tiltLo, this.tiltHi, ...this.bands.slice(0, bandCount)]) stages.push({ in: f, out: f });
-      if (glueOn) stages.push({ in: glueNode, out: this.glueMakeup });
+      if (glueOn) {
+        stages.push({ in: this.glueTap, out: this.glueTap });
+        stages.push({ in: glueNode, out: this.glueMakeup });
+      }
       if (widthOn) stages.push({ in: this.split, out: this.merge });
-      if (limOn) stages.push({ in: this.limiter!, out: this.limiter! });
+      if (limOn) {
+        stages.push({ in: this.limTap, out: this.limTap });
+        stages.push({ in: this.limiter!, out: this.limiter! });
+      }
       let from: Tone.ToneAudioNode | AudioNode = this.input;
       for (const st of stages) {
         Tone.connect(from as Tone.ToneAudioNode, st.in);
@@ -187,15 +196,16 @@ export class MasterChainNode {
     }
     if (!m) return;
     if (eqOn) {
-      this.low.gain.rampTo(m.eq.low, 0.03);
-      this.high.gain.rampTo(m.eq.high, 0.03);
+      // Filter gains are in dB, unconverted: ramp them linearly (Tone's exponential ramp fails through 0 dB).
+      this.low.gain.linearRampTo(m.eq.low, 0.03);
+      this.high.gain.linearRampTo(m.eq.high, 0.03);
       // Tilt: dB per octave around 1 kHz, as two opposite shelves ~3.5 octaves apart.
-      this.tiltLo.gain.rampTo(-m.eq.tilt * 1.75, 0.03);
-      this.tiltHi.gain.rampTo(m.eq.tilt * 1.75, 0.03);
+      this.tiltLo.gain.linearRampTo(-m.eq.tilt * 1.75, 0.03);
+      this.tiltHi.gain.linearRampTo(m.eq.tilt * 1.75, 0.03);
       (m.eq.bands ?? []).forEach((b, i) => {
         this.bands[i].frequency.rampTo(Math.min(18000, Math.max(30, b.hz)), 0.03);
         this.bands[i].Q.rampTo(Math.max(0.1, b.q), 0.03);
-        this.bands[i].gain.rampTo(b.gain, 0.03);
+        this.bands[i].gain.linearRampTo(b.gain, 0.03);
       });
     }
     if (glueOn) {
@@ -212,9 +222,19 @@ export class MasterChainNode {
     this.limiter?.port.postMessage({ on: limOn, ceilingDb: m.limiter.ceilingDbtp, releaseMs: m.limiter.release, inputGainDb: m.limiter.inputGainDb ?? 0 });
   }
 
+  /**
+   * Link this chain's glue and limiter to another chain's (offline, after both are ready and set the
+   * same): their gains then follow what the other chain hears — the full mix — so stems through this
+   * chain add up to the other chain's output. EQ and width are linear and need no link.
+   */
+  link(to: MasterChainNode) {
+    if (this.glueW && to.glueW) Tone.connect(to.glueTap, this.glueW, 0, 1);
+    if (this.limiter && to.limiter) Tone.connect(to.limTap, this.limiter, 0, 1);
+  }
+
   dispose() {
     this.limiter?.disconnect();
     this.glueW?.disconnect();
-    [this.input, this.output, this.low, this.high, this.tiltLo, this.tiltHi, ...this.bands, this.glue, this.glueMakeup, this.split, this.merge, this.sideHp, this.sideGain].forEach((n) => n.dispose());
+    [this.input, this.output, this.glueTap, this.limTap, this.low, this.high, this.tiltLo, this.tiltHi, ...this.bands, this.glue, this.glueMakeup, this.split, this.merge, this.sideHp, this.sideGain].forEach((n) => n.dispose());
   }
 }

@@ -59,7 +59,8 @@ class AudioEngine {
   /** Monitoring only (never in exports): mono sum and the −20 dB dim, after the monitor. */
   private monoSum!: Tone.Mono;
   private dimGain!: Tone.Gain;
-  monitoring = { mono: false, dim: false };
+  /** trimDb: a level offset for level-matched comparisons (the mix pilot's "Listen before"). */
+  monitoring = { mono: false, dim: false, trimDb: 0 };
   private refPlayer: Tone.Player | null = null;
   private refGain = 1;
   /** Ephemeral notes (the AI's live answers): played at absolute times, never stored in the song. */
@@ -251,7 +252,17 @@ class AudioEngine {
 
   // ---------- state sync ----------
 
-  sync(p: Project) {
+  /** A project heard in place of the song's (monitoring only, e.g. the mix pilot's "Listen before"). */
+  private previewed: Project | null = null;
+  private songProject: Project | null = null;
+  previewProject(p: Project | null) {
+    this.previewed = p;
+    if (this.songProject) this.sync(this.songProject);
+  }
+
+  sync(song: Project) {
+    this.songProject = song;
+    const p = this.previewed ?? song;
     this.setup();
     this.lastProject = p;
     const t = transport();
@@ -437,7 +448,7 @@ class AudioEngine {
   }
 
   /** Mono sum and dim: what you hear only — exports render their own graph without them. */
-  setMonitoring(m: Partial<{ mono: boolean; dim: boolean }>) {
+  setMonitoring(m: Partial<{ mono: boolean; dim: boolean; trimDb: number }>) {
     this.monitoring = { ...this.monitoring, ...m };
     if (this.ready) this.applyMonitoring();
   }
@@ -448,7 +459,7 @@ class AudioEngine {
       this.monitor.connect(this.monoSum);
       this.monoSum.connect(this.dimGain);
     } else this.monitor.connect(this.dimGain);
-    this.dimGain.gain.rampTo(this.monitoring.dim ? 0.1 : 1, 0.03);
+    this.dimGain.gain.rampTo((this.monitoring.dim ? 0.1 : 1) * Math.pow(10, this.monitoring.trimDb / 20), 0.03);
   }
 
   /**

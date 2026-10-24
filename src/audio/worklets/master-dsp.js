@@ -9,6 +9,8 @@
  * smooth ramp that reaches full reduction exactly when the peak plays, and never above what any sample
  * in the window needs, so the ceiling holds. Release: exponential, slower when the reduction lasts.
  * Latency: lookahead + 12 samples (`latency`).
+ * Linked (export of stems): with a `key` the gain is computed from the key (the full mix) and applied to
+ * the input, so stems through linked limiters add up to the limited mix.
  */
 export class TruePeakLimiter {
   constructor(fs, o = {}) {
@@ -33,6 +35,8 @@ export class TruePeakLimiter {
     this.mask = this.R - 1;
     this.hist = [];
     for (let c = 0; c < this.ch; c++) this.hist.push(new Float64Array(this.R));
+    this.khist = [];
+    for (let c = 0; c < this.ch; c++) this.khist.push(new Float64Array(this.R));
     this.n = 0; // samples written
     // Sliding minimum (monotonic deque) of the needed gain over L + 1 samples.
     this.dqIdx = new Float64Array(this.L + 4);
@@ -69,7 +73,7 @@ export class TruePeakLimiter {
     let peak = 0;
     const T = this.T;
     for (let c = 0; c < this.ch; c++) {
-      const h = this.hist[c];
+      const h = this.keyed ? this.khist[c] : this.hist[c];
       const a = Math.abs(h[k & this.mask]);
       if (a > peak) peak = a;
       const b = Math.abs(h[(k + 1) & this.mask]);
@@ -86,8 +90,9 @@ export class TruePeakLimiter {
     return peak > this.ceil ? this.ceil / peak : 1;
   }
 
-  /** Process one block: input and output channel arrays (output may be the same arrays). */
-  process(input, output) {
+  /** Process one block: input and output channel arrays (output may be the same arrays); `key` links it. */
+  process(input, output, key) {
+    this.keyed = !!(key && key.length);
     const n = (output[0] || input[0]).length;
     const L = this.L;
     const D = this.L + this.T;
@@ -97,6 +102,7 @@ export class TruePeakLimiter {
       for (let c = 0; c < this.ch; c++) {
         const x = input[c] ? input[c][i] : input[0] ? input[0][i] : 0;
         this.hist[c][w] = x * this.inGain;
+        if (this.keyed) this.khist[c][w] = (key[c] ? key[c][i] : key[0][i]) * this.inGain;
       }
       // Sample k = n − T now has its full interpolation neighbourhood.
       const k = this.n - this.T;

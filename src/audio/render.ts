@@ -27,6 +27,12 @@ export interface RenderOptions {
   sampleRate?: number;
   /** Extra seconds after toBeat for reverb/delay tails (default 3; 0 for section analysis). */
   tailSeconds?: number;
+  /**
+   * A stem through a master chain linked to the full mix (export for platforms, G1): these tracks are
+   * heard, while the mix (mute/solo respected) drives the chain's glue and limiter, so the stems of a
+   * song add up to its master. Needs a master chain.
+   */
+  linked?: string[];
   /** Render one track with its FX chain (slotId null) or one plugin bypassed (level match, F20). */
   bypass?: { trackId: string; slotId: string | null };
 }
@@ -36,7 +42,7 @@ export function bypassed(fx: TrackFx | undefined, slotId: string | null): TrackF
   if (!fx) return fx;
   if (slotId === null) {
     const n = normalizeFx(fx);
-    return { amp: { ...n.amp, on: false }, eq: { ...n.eq, on: false }, comp: { ...n.comp, on: false }, plugins: [] };
+    return { amp: { ...n.amp, on: false }, eq: { ...n.eq, on: false, hpf: undefined, bands: undefined }, comp: { ...n.comp, on: false }, plugins: [] };
   }
   return { ...fx, plugins: (fx.plugins ?? []).filter((s) => s.id !== slotId) };
 }
@@ -97,8 +103,10 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
   // The master chain's limiter delays everything by a few ms: render that much longer and trim it.
   const chainSpec = o.includeMaster === false ? null : o.masterChain !== undefined ? o.masterChain : (p.master ?? null);
   const latencyMax = chainSpec?.on && chainSpec.limiter.on ? limiterLatency(sampleRate) : 0;
+  const linked = o.linked && chainSpec ? new Set(o.linked) : null;
   const ctx = new Tone.OfflineContext(new OfflineAudioContext(2, Math.ceil((seconds + preRoll) * sampleRate) + latencyMax, sampleRate));
   let chain: MasterChainNode | null = null;
+  let keyChain: MasterChainNode | null = null;
   const loading: Promise<unknown>[] = [];
   const live = Tone.getContext();
   Tone.setContext(ctx);
@@ -108,13 +116,22 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
     const PPQ = transport.PPQ;
     const ticks = (beat: number) => `${Math.round(beat * PPQ)}i`;
     const secs = (beats: number) => (beats * 60) / p.bpm;
-    const master = new Tone.Gain(o.includeMaster === false ? 1 : dbToGain(faderToDb(p.masterVolume)));
+    const masterGain = o.includeMaster === false ? 1 : dbToGain(faderToDb(p.masterVolume));
+    const master = new Tone.Gain(masterGain);
+    // Linked: `master` carries the whole mix into a chain that only keys the heard one (`heard`).
+    const heard = linked ? new Tone.Gain(masterGain) : master;
     if (chainSpec) {
       chain = new MasterChainNode();
-      master.connect(chain.input);
+      heard.connect(chain.input);
       chain.output.toDestination();
       chain.update(chainSpec);
       loading.push(chain.ready());
+      if (linked) {
+        keyChain = new MasterChainNode();
+        master.connect(keyChain.input);
+        keyChain.update(chainSpec);
+        loading.push(keyChain.ready());
+      }
     } else master.toDestination();
     // Sidechain sources (G1) play into the key of their target even when they aren't heard (muted, or
     // outside a stem): the key is pre-fader and pre-mute, as live.
@@ -122,6 +139,8 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
     const fxById = new Map<string, FxChain>();
     const reverb = new Tone.Convolver(makeImpulse(2.8, 3.2)).connect(master);
     const delay = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.34, wet: 1 }).connect(master);
+    const reverbHeard = linked ? new Tone.Convolver(makeImpulse(2.8, 3.2)).connect(heard) : null;
+    const delayHeard = linked ? new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.34, wet: 1 }).connect(heard) : null;
 
     for (const track of p.tracks) {
       const audible = included(track.id, track.mute, track.solo);
@@ -148,6 +167,11 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
       if (audible) {
         revSend.connect(reverb);
         delSend.connect(delay);
+      }
+      if (linked?.has(track.id) && audible) {
+        ch.connect(heard);
+        revSend.connect(reverbHeard!);
+        delSend.connect(delayHeard!);
       }
       ch.connect(revSend);
       ch.connect(delSend);
@@ -206,6 +230,7 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
     Tone.setContext(live);
   }
   await Promise.all(loading);
+  if (keyChain) chain!.link(keyChain);
   // Automated plugins must be listening before the render starts: a round trip to each one.
   await Promise.all(pluginLanes.map((l) => l.instance()?.audioNode.getParameterValues(false).catch(() => null)));
   // Some WAM instruments keep MIDI events in a main-thread queue that is drained as audio time
@@ -291,6 +316,50 @@ export function encodeWav(buf: AudioBuffer): Blob {
     }
   }
   return new Blob([data], { type: 'audio/wav' });
+}
+
+/**
+ * A stereo WAV at 16 or 24 bits. 16 bits can be dithered (TPDF, ±1 LSB triangular noise, seeded so the
+ * same song always gives the same file): what a CD master needs.
+ */
+export function encodePcm(channels: Float32Array[], sampleRate: number, bits: 16 | 24, dither = false): Uint8Array {
+  const chans = Math.min(2, channels.length);
+  const len = channels[0].length;
+  const bytes = bits / 8;
+  const size = len * chans * bytes;
+  const data = new DataView(new ArrayBuffer(44 + size));
+  const str = (o: number, x: string) => [...x].forEach((c, i) => data.setUint8(o + i, c.charCodeAt(0)));
+  str(0, 'RIFF');
+  data.setUint32(4, 36 + size, true);
+  str(8, 'WAVE');
+  str(12, 'fmt ');
+  data.setUint32(16, 16, true);
+  data.setUint16(20, 1, true);
+  data.setUint16(22, chans, true);
+  data.setUint32(24, sampleRate, true);
+  data.setUint32(28, sampleRate * chans * bytes, true);
+  data.setUint16(32, chans * bytes, true);
+  data.setUint16(34, bits, true);
+  str(36, 'data');
+  data.setUint32(40, size, true);
+  const full = bits === 16 ? 0x7fff : 0x7fffff;
+  const rnd = seeded(0xd17e);
+  let o = 44;
+  for (let i = 0; i < len; i++) {
+    for (let c = 0; c < chans; c++) {
+      let v = Math.max(-1, Math.min(1, channels[c][i])) * full;
+      if (dither) v += rnd() - rnd();
+      const q = Math.max(-full - 1, Math.min(full, Math.round(v)));
+      if (bits === 16) data.setInt16(o, q, true);
+      else {
+        data.setUint8(o, q & 0xff);
+        data.setUint8(o + 1, (q >> 8) & 0xff);
+        data.setUint8(o + 2, (q >> 16) & 0xff);
+      }
+      o += bytes;
+    }
+  }
+  return new Uint8Array(data.buffer);
 }
 
 export function download(blob: Blob, filename: string) {

@@ -46,7 +46,7 @@ Prefer few, musically complete calls (e.g. a whole 4-bar melody in one add_regio
 
 Imported sounds: import_sample loads an audio file (local path or URL) and returns a sample_id. Use it to build instruments with create_sampler_instrument (melodic sampler or drum kit), or put it on the timeline with add_audio_region (audio tracks). import_soundfont lists the presets of a .sf2 file, then imports one as an instrument. Imported instruments get ids like "usr_..." that work in add_track / update_track.
 
-Mixing: set_track_effects adds a high-pass, amp sim, 3-band EQ and compressor to a track (compressor.sidechain ducks it under another track, e.g. the bass under the kick); set_master_chain is the mastering chain (EQ, glue, width, true-peak limiter) and reaches a platform's loudness target (platform "spotify", "apple", "club"…) on its own; set_automation draws curves for volume, pan, tone, reverb or echo over time (e.g. fades, filter sweeps, auto-pan).
+Mixing: set_track_effects adds a high-pass, amp sim, 3-band EQ and compressor to a track (compressor.sidechain ducks it under another track, e.g. the bass under the kick); set_master_chain is the mastering chain (EQ, glue, width, true-peak limiter) and reaches a platform's loudness target (platform "spotify", "apple", "club"…) on its own; mix_pilot mixes and masters the whole song for a genre in one step (ask the genre; set_pilot_amount doses it, fix_pilot keeps it; set_track_role corrects a role first); export_for_platforms makes the release zip (a master per platform, stems, instrumental, report); set_automation draws curves for volume, pan, tone, reverb or echo over time (e.g. fades, filter sweeps, auto-pan).
 Recording: record_audio records the user's microphone after they confirm (mode "hum" turns a hummed melody into MIDI); audio_to_midi converts an existing monophonic audio region into notes.
 Files: export_wav and export_midi download in the browser, or write to disk with save_to; import_midi turns a .mid file into tracks.
 Other DAWs: import_dawproject/export_dawproject move songs to and from Bitwig, Studio One and Cubase; report what could not be converted.
@@ -123,6 +123,25 @@ tool('set_master_chain', 'The master chain, in order: EQ (tilt dB/oct around 1 k
   limiter: z.object({ on: z.boolean().optional(), ceiling_dbtp: z.number().min(-6).max(0).optional(), target_lufs: z.number().min(-30).max(-4).optional(), release_ms: z.number().min(10).max(1000).optional() }).optional(),
   platform: z.enum(['spotify', 'apple', 'youtube', 'soundcloud', 'club', 'cd']).optional(),
 }, { timeout: 600000 });
+
+const Platform = z.enum(['spotify', 'apple', 'youtube', 'soundcloud', 'club', 'cd']);
+const MixRole = z.enum(['kick', 'drums', 'bass', 'harmony', 'lead', 'vocal', 'texture', 'fx']);
+tool('mix_pilot', 'The Mix & Master Pilot: listens to the song (renders each track) and mixes it for a genre — gain staging with trims, balance by role, EQ cuts where tracks mask each other, high-pass filters, kick → bass sidechain, pan by role and register, reverb/echo sends — then masters it (tilt EQ, glue, width, limiter at the platform\'s loudness and true peak). amount 0..1 doses every change (0 = the song as it is, 1 = the full proposal); the loudness target always applies. Roles come from set_track_role when the user set them. use_reference takes the tonal balance from the loaded reference. scope: "mix", "master" or "both" (default). One undo step; returns each change with its reason and the loudness before/after. Running it again starts from the song as it was before the last run, so it never stacks.', {
+  amount: z.number().min(0).max(1).optional().describe('Default 0.7'),
+  genre: z.enum(['pop', 'rock', 'hiphop', 'lofi', 'edm', 'acoustic', 'ambient', 'jazz']).optional(),
+  platform: Platform.optional().describe('Default: the genre\'s (club for edm, apple for acoustic/ambient/jazz, otherwise spotify)'),
+  use_reference: z.boolean().optional(),
+  scope: z.enum(['mix', 'master', 'both']).optional(),
+}, { timeout: 900000 });
+tool('set_pilot_amount', 'Turn the mix pilot\'s dose after a run: 0 = the song as it was before, 1 = the full proposal. Re-finds the limiter gain for the loudness target.', { amount: z.number().min(0).max(1) }, { timeout: 600000 });
+tool('fix_pilot', 'Keep the mix pilot\'s result as it is now: the dose stops being adjustable (the changes stay, and can be undone).', {});
+tool('set_track_role', 'The role of a track in the mix, used by mix_pilot and by the stems of export_for_platforms: kick, drums, bass, harmony, lead, vocal, texture or fx. null goes back to automatic. A role the user sets survives every pilot run.', { track_id: z.string(), role: MixRole.nullable() });
+add('export', 'export_for_platforms', 'Export the song for release in one zip: a master WAV per platform at its loudness and true peak (24-bit; 16-bit with TPDF dither for cd), optionally stems by role (drums, bass, harmony, lead, vocal, fx) and the instrumental / a-cappella versions — through the same master chain with the limiter linked to the full mix, so the stems add up to the master — and report.txt (LUFS, true peak, LRA, compliance per platform).', {
+  platforms: z.array(Platform).min(1),
+  stems: z.boolean().optional(),
+  versions: z.array(z.enum(['instrumental', 'acapella'])).optional(),
+  save_to: z.string().optional().describe('Optional file path to save the zip to (absolute or ~/...). Without it the browser downloads it.'),
+}, { timeout: 900000 });
 
 const AutoTargetArg = z
   .union([

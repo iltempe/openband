@@ -1,0 +1,42 @@
+{
+  "id": "ambient",
+  "name": {
+    "en": "Ambient",
+    "it": "Ambient"
+  },
+  "balance": {
+    "vocal": -2,
+    "kick": -6,
+    "drums": -8,
+    "bass": -4,
+    "lead": -2,
+    "harmony": -1,
+    "texture": 0,
+    "fx": -6
+  },
+  "panWidth": 0.9,
+  "reverb": {
+    "vocal": 0.4,
+    "lead": 0.4,
+    "harmony": 0.36,
+    "texture": 0.42,
+    "drums": 0.2,
+    "kick": 0.06,
+    "bass": 0.06,
+    "fx": 0.4
+  },
+  "delay": {
+    "vocal": 0.18,
+    "lead": 0.2,
+    "harmony": 0.12,
+    "texture": 0.14,
+    "drums": 0.06,
+    "kick": 0,
+    "bass": 0,
+    "fx": 0.2
+  },
+  "sidechain": false,
+  "tilt": -5.0,
+  "width": 1.2,
+  "platform": "apple"
+}

@@ -1,0 +1,42 @@
+{
+  "id": "pop",
+  "name": {
+    "en": "Pop",
+    "it": "Pop"
+  },
+  "balance": {
+    "vocal": 0,
+    "kick": -2,
+    "drums": -4,
+    "bass": -3,
+    "lead": -4,
+    "harmony": -8,
+    "texture": -10,
+    "fx": -12
+  },
+  "panWidth": 0.6,
+  "reverb": {
+    "vocal": 0.28,
+    "lead": 0.24,
+    "harmony": 0.18,
+    "texture": 0.3,
+    "drums": 0.08,
+    "kick": 0,
+    "bass": 0,
+    "fx": 0.25
+  },
+  "delay": {
+    "vocal": 0.14,
+    "lead": 0.12,
+    "harmony": 0,
+    "texture": 0.08,
+    "drums": 0,
+    "kick": 0,
+    "bass": 0,
+    "fx": 0.1
+  },
+  "sidechain": true,
+  "tilt": -4.0,
+  "width": 1.1,
+  "platform": "spotify"
+}

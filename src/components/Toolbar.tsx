@@ -224,6 +224,7 @@ function ProjectMenu() {
               {t('menu.importDaw')}
             </button>
             <button onClick={() => (close(), void Promise.resolve(commands.export_dawproject({})).catch((e: Error) => s.notify(e.message)))}>{t('menu.exportDaw')}</button>
+            <button onClick={() => (close(), useOverlays.setState({ exportPlatforms: true }))}>{t('ex.menu')}</button>
             <hr />
             <button onClick={() => (close(), useOverlays.setState({ shortcuts: true }))}>{t('sc.title')} (?)</button>
             {!pwa.installed && (pwa.canInstall || isSafari()) && (

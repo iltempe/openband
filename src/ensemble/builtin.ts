@@ -3,7 +3,9 @@
 import { BEATS_PER_BAR, keyInterval, parseChord } from '../music';
 import { DRUM_STYLES, generateDrums, spansFor, type DrumStyle } from '../generate/drummer';
 import { searchLoops, type LoopManifest } from '../loops';
-import type { SectionKind } from '../types';
+import { MIX_ROLES, type MixRole, type SectionKind } from '../types';
+import { GENRES, PROFILES } from '../pilot/plan';
+import { PLATFORM_TARGETS } from '../audio/master';
 import type { Capability, Contribution, Manifest, OmepLicense, Scp, ScpNote, ToolInput } from './types';
 
 export const OPENBAND_LICENSE: OmepLicense = { code: 'MIT', weights: null, commercial: 'yes', attribution: null, conditions: null, url: 'https://github.com/iltempe/openband/blob/main/LICENSE' };
@@ -137,4 +139,36 @@ const loops: BuiltinEngine = {
   },
 };
 
-export const BUILTINS: BuiltinEngine[] = [drummer, chords, loops];
+// ---------------------------------------------------------------- the mix pilot (G1) as mix.assist
+/**
+ * From the context alone (track roles, the genre in the request): the static part of the pilot — fader
+ * offsets, pan and sends by role, the master's target. Inside OpenBand, mix_pilot also listens to the
+ * song (trims, EQ cuts, sidechain) and applies the result; this is what an outside director gets.
+ */
+const pilot: BuiltinEngine = {
+  manifest: manifestOf('openband-pilot', 'OpenBand Mix Pilot', { 'mix.assist': { conditioning: ['text', 'stems'] } }, OPENBAND_LICENSE, ['application/x-omep-params']),
+  async run(_cap, input) {
+    const w = words(input);
+    const genre = GENRES.find((g) => w.includes(g)) ?? (/hip.?hop|rap|trap/.test(w) ? 'hiphop' : /lo.?fi/.test(w) ? 'lofi' : /dance|house|techno/.test(w) ? 'edm' : /folk|songwriter|cantautor/.test(w) ? 'acoustic' : 'pop');
+    const profile = PROFILES[genre];
+    const tracks = (input.context.tracks ?? []).map((t) => (MIX_ROLES.includes(t.role as MixRole) ? { ...t, role: t.role as MixRole } : { ...t, role: 'harmony' as MixRole }));
+    const top = Math.max(...tracks.map((t) => profile.balance[t.role]), -99);
+    const spread = tracks.filter((t) => t.role === 'harmony' || t.role === 'texture');
+    const params = {
+      genre,
+      platform: profile.platform,
+      target: PLATFORM_TARGETS[profile.platform],
+      tracks: Object.fromEntries(
+        tracks.map((t) => {
+          const i = spread.indexOf(t);
+          const pan = i < 0 || (i === spread.length - 1 && spread.length % 2) ? 0 : (i % 2 ? 1 : -1) * profile.panWidth;
+          return [t.id, { role: t.role, fader_db: +(profile.balance[t.role] - top).toFixed(1), pan, reverb: profile.reverb[t.role], delay: profile.delay[t.role] }];
+        }),
+      ),
+      master: { tilt_db_per_octave: profile.tilt, width: profile.width, mono_below_hz: 120 },
+    };
+    return { kind: 'params', params, claims: {}, provenance: { engine: 'openband-pilot', engine_version: '1.0.0', model_hash: 'none', seed: input.seed ?? 1, capability: 'mix.assist', prompt: genre }, license: OPENBAND_LICENSE };
+  },
+};
+
+export const BUILTINS: BuiltinEngine[] = [drummer, chords, loops, pilot];

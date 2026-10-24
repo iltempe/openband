@@ -5272,3 +5272,176 @@ div.ca-steps {
   padding: 3px 4px;
   max-width: 120px;
 }
+
+/* ---- mix pilot (G1) */
+.pi-panel {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(300px, auto) minmax(200px, 260px) minmax(260px, 1fr);
+  gap: 10px;
+  padding: 10px;
+  min-height: 0;
+}
+.pi-panel > div {
+  min-height: 0;
+  border-radius: 14px;
+  background: var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  padding: 10px 12px;
+}
+.pilot-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pilot-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.pilot-loud {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--play);
+}
+.pilot-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.pilot-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.pilot-fields label {
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.pilot-fields select,
+.role-select,
+.strip-role {
+  background: var(--panel-3);
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 11px;
+  padding: 3px 4px;
+  min-width: 0;
+}
+.pilot-fields .pilot-check {
+  display: flex;
+}
+.pilot-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pilot-actions .btn.on {
+  background: var(--cycle);
+  color: #111;
+}
+.pilot-error {
+  font-size: 11px;
+  color: var(--rec, #f87171);
+}
+.pilot-roles,
+.pilot-why {
+  overflow: auto;
+}
+.pilot-role {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0 3px 8px;
+  border-left: 3px solid var(--track, #fff);
+  margin-top: 4px;
+}
+.pilot-role-name {
+  flex: 1;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.role-select.set,
+.strip-role.set {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.pilot-why ul {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text);
+}
+.pilot-why li::marker {
+  color: var(--dim);
+}
+.pilot-why li.pd-eq::marker,
+.pilot-why li.pd-sidechain::marker {
+  color: var(--accent);
+}
+.pilot-why li.pd-master::marker {
+  color: var(--play);
+}
+.pilot-empty {
+  font-size: 12px;
+  color: var(--muted);
+  max-width: 340px;
+}
+.strip-role {
+  width: 84px;
+  font-size: 9.5px;
+  padding: 1px 2px;
+  color: var(--muted);
+  text-align: center;
+}
+.mc-pilot {
+  margin-left: auto;
+  margin-right: 6px;
+  font-size: 10.5px;
+}
+.ex-dialog {
+  width: min(460px, calc(100vw - 32px));
+  padding-bottom: 16px;
+}
+.ex-dialog > .ex-group,
+.ex-dialog > .ex-msg,
+.ex-dialog > .ver-actions {
+  padding: 0 16px;
+}
+.ex-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 10px;
+}
+.ex-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.ex-dim {
+  color: var(--muted);
+  font-size: 11px;
+}
+.ex-msg {
+  font-size: 12px;
+  color: var(--play);
+  margin-bottom: 8px;
+}
+@media (max-width: 900px) {
+  .pi-panel {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "id": "edm",
+  "name": {
+    "en": "EDM",
+    "it": "EDM"
+  },
+  "balance": {
+    "vocal": 0,
+    "kick": 0,
+    "drums": -5,
+    "bass": -2,
+    "lead": -3,
+    "harmony": -7,
+    "texture": -9,
+    "fx": -10
+  },
+  "panWidth": 0.7,
+  "reverb": {
+    "vocal": 0.24,
+    "lead": 0.22,
+    "harmony": 0.18,
+    "texture": 0.3,
+    "drums": 0.06,
+    "kick": 0,
+    "bass": 0,
+    "fx": 0.3
+  },
+  "delay": {
+    "vocal": 0.14,
+    "lead": 0.16,
+    "harmony": 0.06,
+    "texture": 0.1,
+    "drums": 0,
+    "kick": 0,
+    "bass": 0,
+    "fx": 0.14
+  },
+  "sidechain": true,
+  "tilt": -3.5,
+  "width": 1.15,
+  "platform": "club"
+}

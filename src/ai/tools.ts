@@ -6,6 +6,8 @@ import { INSTRUCTIONS, TOOLS, type ToolDef } from '../../server/tools.mjs';
 export { INSTRUCTIONS };
 
 /** Kinds the browser can run: studio → AI events belong to the MCP server and are left out. */
+/** In the page there is no disk: exports download, so save_to is not offered. */
+const withoutSaveTo = (shape: Record<string, unknown> = {}) => Object.fromEntries(Object.entries(shape).filter(([k]) => k !== 'save_to'));
 const IN_BROWSER = new Set(['call', 'file', 'export', 'chord_sheet', 'image']);
 /** The agent makes each request one undo step itself: a model opening its own (small local models do)
  *  would nest a second one inside. */
@@ -24,7 +26,7 @@ let cache: AgentTool[] | null = null;
 export function agentTools(): AgentTool[] {
   if (cache) return cache;
   cache = TOOLS.filter((t) => IN_BROWSER.has(t.kind) && !AGENT_OWNED.has(t.name)).map((def) => {
-    const shape = def.kind === 'file' ? { source: sourceArg, ...def.shape } : def.kind === 'export' ? {} : def.shape;
+    const shape = def.kind === 'file' ? { source: sourceArg, ...def.shape } : def.kind === 'export' ? withoutSaveTo(def.shape) : def.shape;
     const schema = z.object(shape);
     const { $schema: _, ...jsonSchema } = z.toJSONSchema(schema) as Record<string, unknown>;
     return { def, schema, jsonSchema };

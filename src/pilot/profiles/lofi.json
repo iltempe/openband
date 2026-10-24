@@ -1,0 +1,42 @@
+{
+  "id": "lofi",
+  "name": {
+    "en": "Lo-fi",
+    "it": "Lo-fi"
+  },
+  "balance": {
+    "vocal": -1,
+    "kick": -3,
+    "drums": -4,
+    "bass": -3,
+    "lead": -3,
+    "harmony": 0,
+    "texture": -6,
+    "fx": -10
+  },
+  "panWidth": 0.55,
+  "reverb": {
+    "vocal": 0.22,
+    "lead": 0.24,
+    "harmony": 0.22,
+    "texture": 0.3,
+    "drums": 0.1,
+    "kick": 0,
+    "bass": 0,
+    "fx": 0.2
+  },
+  "delay": {
+    "vocal": 0.1,
+    "lead": 0.14,
+    "harmony": 0.06,
+    "texture": 0.1,
+    "drums": 0,
+    "kick": 0,
+    "bass": 0,
+    "fx": 0.1
+  },
+  "sidechain": false,
+  "tilt": -5.5,
+  "width": 1.0,
+  "platform": "spotify"
+}

@@ -52,6 +52,8 @@ export class FxChain {
   private comp = new Tone.Compressor({ threshold: -18, ratio: 4, attack: 0.01, release: 0.18, knee: 6 });
   /** High-pass filter before the EQ (G1). */
   private hpf = new Tone.Filter({ type: 'highpass', frequency: 80, rolloff: -12 });
+  /** Peaking bands after the EQ (G1: the mix pilot's cuts), on even with the EQ off. */
+  private bands: Tone.Filter[] = [];
   /** Sidechain key input (G1): another track's signal, before its fader, drives the compressor. */
   readonly key = new Tone.Gain(1);
   /** The compressor itself (G1): an AudioWorklet, the same DSP live and offline (Web Audio's own
@@ -123,10 +125,12 @@ export class FxChain {
     this.last = raw;
     const cmp = this.compare;
     const hpfOn = !!fx.eq.hpf?.on;
+    const bandList = fx.eq.bands ?? [];
+    while (this.bands.length < bandList.length) this.bands.push(new Tone.Filter({ type: 'peaking', frequency: 1000, Q: 1.2, gain: 0 }));
     const side = fx.comp.on && fx.comp.sidechain ? fx.comp.sidechain : null;
     if (fx.comp.on && !this.cw) void this.ensureComp();
     const worklet = fx.comp.on && !!this.cw;
-    const routing = `${fx.amp.on}${hpfOn}${fx.eq.on}${fx.comp.on}${worklet}|${slots.map((s) => s.id).join(',')}|${cmp ? `${cmp.slotId}` : ''}`;
+    const routing = `${fx.amp.on}${hpfOn}${fx.eq.on}${bandList.length}${fx.comp.on}${worklet}|${slots.map((s) => s.id).join(',')}|${cmp ? `${cmp.slotId}` : ''}`;
     if (routing !== this.routing) {
       this.routing = routing;
       this.input.disconnect();
@@ -134,6 +138,7 @@ export class FxChain {
       this.eq.disconnect();
       this.makeup.disconnect();
       this.hpf.disconnect();
+      this.bands.forEach((b) => b.disconnect());
       if (this.cw) this.cw.disconnect();
       this.comp.disconnect();
       this.comp.connect(this.makeup);
@@ -145,6 +150,7 @@ export class FxChain {
         if (fx.amp.on) stages.push({ in: this.amp.input, out: this.amp.output });
         if (hpfOn) stages.push({ in: this.hpf, out: this.hpf });
         if (fx.eq.on) stages.push({ in: this.eq, out: this.eq });
+        for (const b of this.bands.slice(0, bandList.length)) stages.push({ in: b, out: b });
         if (fx.comp.on && worklet) {
           Tone.connect(this.cw!, this.makeup);
           stages.push({ in: this.cw!, out: this.makeup });
@@ -185,6 +191,12 @@ export class FxChain {
       this.keyed = !!side;
     }
     this.makeup.gain.rampTo(dbToGain(fx.comp.makeup), 0.03);
+    bandList.forEach((b, i) => {
+      this.bands[i].frequency.rampTo(Math.min(18000, Math.max(30, b.hz)), 0.03);
+      this.bands[i].Q.rampTo(Math.max(0.1, b.q), 0.03);
+      // A filter's gain is in dB, unconverted: Tone would ramp it exponentially, which fails through 0 dB.
+      this.bands[i].gain.linearRampTo(b.gain, 0.03);
+    });
     if (hpfOn) this.hpf.frequency.rampTo(Math.min(2000, Math.max(20, fx.eq.hpf!.hz)), 0.03);
     // Output trim: a level-match compensation made permanent (rendered too).
     this.output.gain.rampTo(dbToGain(fx.trim ?? 0), 0.03);
@@ -228,6 +240,6 @@ export class FxChain {
     this.plugins.forEach((p) => p.dispose());
     this.amp.dispose();
     this.cw?.disconnect();
-    [this.input, this.output, this.eq, this.comp, this.makeup, this.compareGain, this.hpf, this.key].forEach((n) => n.dispose());
+    [this.input, this.output, this.eq, this.comp, this.makeup, this.compareGain, this.hpf, this.key, ...this.bands].forEach((n) => n.dispose());
   }
 }

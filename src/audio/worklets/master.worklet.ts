@@ -16,7 +16,9 @@ class OpenBandLimiter extends AudioWorkletProcessor {
   process(inputs, outputs) {
     const input = inputs[0];
     const output = outputs[0];
-    this.dsp.process(input && input.length ? input : [new Float32Array(output[0].length)], output);
+    // Input 1 links the limiter to another signal (the full mix) for stems; unconnected, it limits itself.
+    const key = inputs[1] && inputs[1].length ? inputs[1] : null;
+    this.dsp.process(input && input.length ? input : [new Float32Array(output[0].length)], output, key);
     this.frames += output[0].length;
     if (this.frames >= 4800) { this.frames = 0; this.port.postMessage({ reductionDb: this.dsp.reductionDb }); }
     return true;

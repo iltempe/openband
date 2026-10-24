@@ -470,12 +470,12 @@ function buildMcpServer(ctx) {
       const { data, filename } = await read(source);
       return text(await call(t.name, { ...args, filename, data_base64: data.toString('base64') }, t.timeout));
     },
-    export: (t) => async ({ save_to }) => {
-      if (!save_to) return text(await call(t.name, {}, t.timeout));
-      const res = await call(t.name, { return_data: true }, t.timeout);
-      const file = savePath(save_to, res.filename);
-      await fs.promises.writeFile(file, Buffer.from(res.data_base64, 'base64'));
-      return text({ saved: file, bytes: res.bytes });
+    export: (t) => async ({ save_to, ...args }) => {
+      if (!save_to) return text(await call(t.name, args, t.timeout));
+      const { data_base64, filename, bytes, ...rest } = await call(t.name, { ...args, return_data: true }, t.timeout);
+      const file = savePath(save_to, filename);
+      await fs.promises.writeFile(file, Buffer.from(data_base64, 'base64'));
+      return text({ saved: file, bytes, ...rest });
     },
     chord_sheet: (t) => async ({ format, save_to }) => {
       const res = await call(t.name, { format, return_data: !!save_to }, t.timeout);

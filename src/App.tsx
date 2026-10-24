@@ -29,6 +29,7 @@ import { useT } from './i18n';
 import { FlubsPanel } from './components/Flubs';
 import { DawReportDialog } from './components/DawReport';
 import { CreateDialog, EnsemblePanel } from './components/Ensemble';
+import { ExportPlatformsDialog, PilotPanel } from './components/Pilot';
 import { isRecordingTake, jumpToFlub, markFlub } from './flubLive';
 
 function useShortcuts() {
@@ -215,6 +216,9 @@ export function App() {
                 <button className={s.bottom === 'mixer' ? 'on' : ''} onClick={() => s.set({ bottom: 'mixer' })}>
                   <I.Mixer width={14} height={14} /> Mixer
                 </button>
+                <button className={s.bottom === 'pilot' ? 'on' : ''} onClick={() => s.set({ bottom: 'pilot' })}>
+                  <span aria-hidden>◎</span> {t('pi.title')}
+                </button>
                 <button className={s.bottom === 'fx' ? 'on' : ''} onClick={() => s.set({ bottom: 'fx' })}>
                   <I.Fx width={14} height={14} /> {t('fx.tab')}
                 </button>
@@ -258,6 +262,7 @@ export function App() {
                 {s.bottom === 'versions' && <VersionsPanel />}
                 {s.bottom === 'flubs' && <FlubsPanel />}
                 {s.bottom === 'ensemble' && <EnsemblePanel />}
+                {s.bottom === 'pilot' && <PilotPanel />}
               </div>
             </div>
           )}
@@ -269,6 +274,7 @@ export function App() {
       <RecoveryBanner />
       <DawReportDialog />
       <CreateDialog />
+      <ExportPlatformsDialog />
       <PluginRestoreOverlay />
       <MicOverlay />
       <TakesDialog />

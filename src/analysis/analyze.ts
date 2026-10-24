@@ -18,6 +18,8 @@ export interface AnalysisInput {
   symbolicKey?: KeyResult | null;
   /** Bar number of the first sample (for per-bar statistics of a range). */
   firstBar?: number;
+  /** How many masking pairs to return (default 5). */
+  maskingTop?: number;
 }
 
 const r1 = (x: number) => (Number.isFinite(x) ? +x.toFixed(1) : x === -Infinity ? -999 : 0);
@@ -42,9 +44,9 @@ export function analyzeAudio(input: AnalysisInput) {
     const l = loudness(s.channels, sampleRate);
     const b = bandPowers(averageSpectrum(sm), sampleRate);
     const dominant = (Object.entries(b) as [BandId, number][]).sort((a, c) => c[1] - a[1])[0]?.[0] ?? 'mid';
-    return { id: s.id, name: s.name, lufs: r1(l.integrated), peak_db: r1(l.samplePeak), dominant_band: dominant, share_of_mix: +(e / totalE).toFixed(2), bands_db: bandsDb(b) };
+    return { id: s.id, name: s.name, lufs: r1(l.integrated), lufs_short_max: r1(l.shortTermMax), peak_db: r1(l.samplePeak), dominant_band: dominant, share_of_mix: +(e / totalE).toFixed(2), bands_db: bandsDb(b) };
   });
-  const mask = stems.length > 1 ? masking(stemEnergy.map(({ s, sm }) => ({ name: s.name, frames: bandFrames(sm, sampleRate) }))) : [];
+  const mask = stems.length > 1 ? masking(stemEnergy.map(({ s, sm }) => ({ name: s.name, frames: bandFrames(sm, sampleRate) })), input.maskingTop) : [];
 
   const detected = input.symbolicKey ?? keyFromProfile(profileFromAudio(m, sampleRate));
   // Relative keys (C / Am) share their notes and can't be told apart reliably: only a different scale is a mismatch.

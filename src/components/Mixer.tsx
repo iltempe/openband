@@ -1,5 +1,6 @@
 import { useRef, type CSSProperties } from 'react';
 import { MasterChainPanel } from './MasterChain';
+import { RoleSelect } from './Pilot';
 import type { Track } from '../types';
 import { useStore } from '../store';
 import { engine } from '../audio/engine';
@@ -126,6 +127,7 @@ function Strip({ track }: { track: Track }) {
       >
         FX
       </button>
+      <RoleSelect track={track} className="strip-role" compact />
       <div className="strip-name">{track.name}</div>
     </div>
   );

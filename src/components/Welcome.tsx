@@ -13,7 +13,7 @@ import { runCommand } from '../commands';
 import { TOUR_STEPS } from '../tour';
 import * as I from './Icons';
 
-export const useOverlays = create<{ templates: boolean; shortcuts: boolean }>(() => ({ templates: false, shortcuts: false }));
+export const useOverlays = create<{ templates: boolean; shortcuts: boolean; exportPlatforms: boolean }>(() => ({ templates: false, shortcuts: false, exportPlatforms: false }));
 
 const notify = (e: unknown) => useStore.getState().notify((e as Error).message);
 const hadSave = hasSavedProject();
