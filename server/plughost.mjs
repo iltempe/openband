@@ -115,7 +115,7 @@ export async function scanPlugins({ host = hostBinary(), dirs = clapDirs(), cach
 
 // ---------------------------------------------------------------- one plugin in a host process
 
-const T = { LOAD: 1, PROCESS: 2, PARAM: 3, GET_STATE: 4, SET_STATE: 5, QUIT: 6, GUI_OPEN: 7, GUI_CLOSE: 8, GET_VALUES: 10 };
+const T = { LOAD: 1, PROCESS: 2, PARAM: 3, GET_STATE: 4, SET_STATE: 5, QUIT: 6, GUI_OPEN: 7, GUI_CLOSE: 8, GET_VALUES: 10, RENDER_MODE: 11 };
 const R = { LOADED: 1, BLOCK: 2, STATE: 4, STATE_SET: 5, LATENCY: 7, ERROR: 8, PARAM_CHANGED: 9, GESTURE: 10, STATE_DIRTY: 11, GUI: 12, VALUES: 13 };
 /** Event kinds inside a block (see native/plughost/src/plughost.c). */
 export const EVENT = { NOTE_ON: 0, NOTE_OFF: 1, PARAM: 2, ALL_NOTES_OFF: 3 };
@@ -234,6 +234,40 @@ export class PlugHostSession extends EventEmitter {
     const at = 16 + ev * 20;
     channels.forEach((c, i) => Buffer.from(c.buffer, c.byteOffset, frames * 4).copy(b, at + i * frames * 4));
     this.write(frame(T.PROCESS, b));
+  }
+
+  /** Offline rendering (exports): the plugin may work faster than real time, at its best quality. */
+  setRenderMode(offline) {
+    this.write(frame(T.RENDER_MODE, Buffer.from([offline ? 1 : 0])));
+  }
+
+  /**
+   * Process blocks [{n, data, events}] in order and resolve with their outputs [{n, data}] — the offline
+   * path of exports, where every block must come back before the render goes on.
+   */
+  processBatch(blocks, timeoutMs = 30000) {
+    if (!blocks.length) return Promise.resolve([]);
+    return new Promise((resolve, reject) => {
+      const want = new Set(blocks.map((b) => b.n));
+      const out = new Map();
+      const onBlock = ({ seq, channels }) => {
+        if (!want.has(seq)) return;
+        out.set(seq, channels);
+        if (out.size === want.size) done(null);
+      };
+      const onExit = () => done(new Error('the plugin host stopped during the export'));
+      const timer = setTimeout(() => done(new Error('the plugin host did not answer during the export')), timeoutMs);
+      const done = (err) => {
+        clearTimeout(timer);
+        this.off('block', onBlock);
+        this.off('exit', onExit);
+        if (err) reject(err);
+        else resolve(blocks.map((b) => ({ n: b.n, data: out.get(b.n) })));
+      };
+      this.on('block', onBlock);
+      this.once('exit', onExit);
+      for (const b of blocks) this.process(b.n, b.data, b.events ?? []);
+    });
   }
 
   /** Open the plugin's own window (floating above the app) → {open, supported?, error?}. */

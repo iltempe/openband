@@ -95,8 +95,15 @@ parte: uno che si blocca o si chiude durante la ricerca viene messo da parte (*I
 
 - I plugin sono programmi che girano con i tuoi permessi: OpenBand lo dice prima del primo, e li carica
   solo dalle cartelle dei plugin, mai da internet.
-- Prossimi passi: export delle canzoni con plugin nativi e ascolto nel browser da una copia "congelata"
-  (G8.4 — fino ad allora un export suona quelle tracce senza il plugin, e lo dice); VST3 e AU.
+- Gli **export** includono i plugin nativi: l'export li fa girare nella loro modalità offline, blocco per
+  blocco attraverso il loro host; due export della stessa canzone sono identici al bit, e suonano come
+  quello che hai sentito.
+- **Le canzoni viaggiano**: quando salvi una canzone come `.openband`, ogni traccia che suona un plugin
+  nativo tiene il suo audio "congelato" dentro il file. Aperta nel browser, nello studio online o su un
+  computer senza quel plugin, la traccia suona l'audio congelato (**❄ Congelata** accanto al nome) e puoi
+  comunque mixarla; se lì cambi le sue note, il badge dice **Non aggiornata**: apri la canzone nell'app
+  desktop per congelarla di nuovo, o clicca il badge per scegliere un altro strumento.
+- Prossimi passi: VST3 e AU; finestre native su Linux.
 
 ## Compilarla
 

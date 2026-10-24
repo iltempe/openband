@@ -7,7 +7,9 @@ import type { WamInstance } from './wam';
 import { faderToDb, sendToDb } from '../music';
 import { createInstrument, customById, makeImpulse, type Instrument } from './instruments';
 import { onSamplesChanged } from './samples';
-import { MAX_PDC_SECONDS, type NativeEffect } from './native';
+import { MAX_PDC_SECONDS, desktopNative, useNativeStatus, type NativeEffect } from './native';
+import { usesFrozen } from './freeze';
+import { getBuffer } from './samples';
 import { FxChain } from './fx';
 import { MasterChainNode, loadMasterWorklets } from './master';
 import { attachMeter, detachMeter } from './meters';
@@ -264,8 +266,19 @@ class AudioEngine {
     if (this.songProject) this.sync(this.songProject);
   }
 
+  /** Tracks playing their frozen audio (G8.4): where their native plugins can't run. */
+  private frozen = new Set<string>();
+  private watchingNatives = false;
+
   sync(song: Project) {
     this.songProject = song;
+    // A native plugin that fails to load switches its track to the frozen audio.
+    if (!this.watchingNatives) {
+      this.watchingNatives = true;
+      useNativeStatus.subscribe((s, prev) => {
+        if (Object.keys(s).some((k) => !!s[k]?.error !== !!prev[k]?.error) && this.songProject) this.sync(this.songProject);
+      });
+    }
     const p = this.previewed ?? song;
     this.setup();
     this.lastProject = p;
@@ -288,6 +301,8 @@ class AudioEngine {
         detachMeter(id);
       }
     }
+    const failed = (key: string) => !!useNativeStatus.getState()[key]?.error;
+    this.frozen = new Set(p.tracks.filter((t) => usesFrozen(p, t, { desktop: !!desktopNative(), failed })).map((t) => t.id));
     for (const track of p.tracks) this.syncTrack(track);
     this.syncPdc();
     this.syncSidechains(p);
@@ -336,10 +351,12 @@ class AudioEngine {
     node.polarity.gain.rampTo((track.polarity ? -1 : 1) * (track.mute ? 0 : 1), 0.01);
     if (ch.solo !== track.solo) ch.solo = track.solo;
     this.applyMix(node, track, this.position);
-    const fxSignature = JSON.stringify(track.fx ?? null);
+    // A frozen track's audio has its effects in it already: the chain is bypassed.
+    const frozen = this.frozen.has(track.id);
+    const fxSignature = frozen ? 'frozen' : JSON.stringify(track.fx ?? null);
     if (fxSignature !== node.fxSignature) {
       node.fxSignature = fxSignature;
-      node.fx.update(track.fx);
+      node.fx.update(frozen ? undefined : track.fx);
       // Plugins report their latency once loaded.
       void node.fx.ready.then(() => this.syncPdc());
     }
@@ -433,7 +450,7 @@ class AudioEngine {
   }
 
   private syncParts(p: Project) {
-    const signature = JSON.stringify([p.regions, p.bpm, p.tracks.map((t) => t.id), this.samplesVersion]);
+    const signature = JSON.stringify([p.regions, p.bpm, p.tracks.map((t) => t.id), this.samplesVersion, [...this.frozen], p.tracks.map((t) => t.frozen?.sampleId)]);
     if (signature === this.partsSignature) return;
     this.partsSignature = signature;
     this.parts.forEach((part) => part.dispose());
@@ -441,7 +458,20 @@ class AudioEngine {
     this.players.forEach((pl) => pl.dispose());
     this.players = [];
     const PPQ = transport().PPQ;
+    // Frozen tracks play their render cache from the start of the song instead of their parts.
+    for (const t of p.tracks) {
+      if (!this.frozen.has(t.id) || !t.frozen) continue;
+      const buffer = getBuffer(t.frozen.sampleId);
+      const node = this.nodes.get(t.id);
+      if (!buffer || !node) continue;
+      const player = new Tone.Player({ url: new Tone.ToneAudioBuffer(buffer), fadeOut: 0.01 });
+      // After the instrument (its tone filter is in the frozen audio), into the bypassed chain.
+      player.connect(node.fx.input);
+      player.sync().start(0);
+      this.players.push(player);
+    }
     for (const region of p.regions) {
+      if (this.frozen.has(region.trackId)) continue;
       if (region.audio) {
         this.addAudioClip(region, p.bpm);
         continue;

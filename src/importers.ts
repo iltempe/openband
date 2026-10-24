@@ -1,6 +1,10 @@
 // Importing sounds from outside: sampler instruments, drum kits, SoundFont presets, audio clips,
 // and self-contained project bundles (.openband = zip of project.json + samples).
 import { bpmFromName, detectTempo } from './audio/stretch';
+import { desktopNative } from './audio/native';
+import { t as tr } from './i18n';
+import { nativePluginsOf } from './audio/freeze';
+import { freezeNativeTracks } from './freezeTracks';
 import { exportName } from './journal';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import type { CustomInstrument, Project, Region, SampleZone } from './types';
@@ -195,6 +199,14 @@ function originalTempo(info: SampleInfo): { stretch?: { mode: 'off'; originalBpm
 export async function saveProject() {
   // Plugin states live inside the plugins until captured.
   await captureWamStates();
+  // Desktop app: tracks with native plugins travel with their frozen audio (G8.4).
+  if (desktopNative()) {
+    const p0 = useStore.getState().project;
+    if (p0.tracks.some((t) => nativePluginsOf(p0, t).length)) {
+      useStore.getState().notify(tr('frz.freezing'));
+      await freezeNativeTracks();
+    }
+  }
   const p = useStore.getState().project;
   const safe = p.name.replace(/[^\w\- ]+/g, '').trim() || 'openband';
   if (!hasSamples(p)) {

@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('openbandDesktop', {
     setState: (o) => ipcRenderer.invoke('native-set-state', o),
     gui: (o) => ipcRenderer.invoke('native-gui', o),
     values: (o) => ipcRenderer.invoke('native-values', o),
+    batch: (o) => ipcRenderer.invoke('native-batch', o),
     onEvent: on('native-event'),
     addDir: (d) => ipcRenderer.invoke('native-add-dir', d),
     onCrashed: on('native-crashed'),

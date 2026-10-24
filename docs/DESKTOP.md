@@ -92,8 +92,14 @@ separate process: one that hangs or crashes while being scanned is set aside (*I
 
 - Plugins are programs that run with your permissions: OpenBand says so before the first one, and only
   loads them from the plugin folders, never from the internet.
-- Coming next: exporting songs with native plugins, and playing them in the browser from a "frozen" copy
-  (G8.4 — until then an export plays those tracks without the plugin, and says so); VST3 and AU.
+- **Exports** include native plugins: the export runs them in their offline mode, block by block through
+  their host — two exports of the same song are identical to the bit, and sound like what you heard.
+- **Songs travel**: when you save a song as `.openband`, each track that plays a native plugin keeps its
+  audio "frozen" inside the file. Opened in the browser, in the online studio or on a computer without
+  that plugin, the track plays the frozen audio (**❄ Frozen** next to its name) and you can still mix it;
+  if you change its notes there, the badge says **Out of date** — open the song in the desktop app to freeze
+  it again, or click the badge to choose another instrument.
+- Coming next: VST3 and AU; native windows on Linux.
 
 ## Building it
 

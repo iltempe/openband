@@ -231,6 +231,11 @@ export class FxChain {
     return p instanceof WamEffect ? p.instance : null;
   }
 
+  /** The native plugin effects of the chain (exports flush them). */
+  natives(): NativeEffect[] {
+    return [...this.plugins.values()].filter((p): p is NativeEffect => p instanceof NativeEffect);
+  }
+
   /** A native plugin effect of the chain (G8). */
   native(slotId: string): NativeEffect | null {
     const p = this.plugins.get(slotId);

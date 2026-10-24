@@ -8,6 +8,7 @@
 //   master     — the master chain meets −14 LUFS / −1 dBTP, live = export, sidechain kick → bass
 //   pilot      — the mix pilot: amount 0 changes nothing, 1 twice is idempotent, roles kept, stems = master
 //   pdc        — plugin delay compensation: a track behind a 512-sample plugin stays aligned, live and exported
+//   frozen     — a song with a native plugin opened in the browser plays its render cache, live and exported
 //
 //   node scripts/e2e/run.mjs [first-run|pwa ...]   (CHROME=/path/to/chrome, default: the system Chrome)
 import { spawn } from 'node:child_process';
@@ -419,6 +420,68 @@ tests.pdc = async () => {
     check(r.pdcLatency === 6 * 128 + 512, `live latency compensated: ${r.pdcLatency} samples (6 bridge blocks + 512)`);
     check(Math.abs(r.liveDiff) <= 1, `live: the two tracks line up (${r.liveDiff} samples apart)`);
     check(Math.abs(Math.abs(r.rawDiff) - r.pdcLatency) <= 1, `…and without compensation they would be ${Math.abs(r.rawDiff)} samples apart`);
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
+tests.frozen = async () => {
+  // G8.4: a track that plays a native plugin (CLAP), opened in a browser — where native plugins can't run —
+  // plays its render cache: live and in the export, with a badge; after its notes change, "out of date".
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.keyboard.press('Space');
+    const r = await p.evaluate(async () => {
+      const { engine, useStore, renderBuffer, commands, freeze, samples, encodePcm } = window.openband;
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      await commands.new_project({ name: 'Frozen', bpm: 120, key: 'A' });
+      // The frozen audio: 3 s of a 440 Hz sine at −12 dBFS (what the desktop app would have rendered).
+      const sr = 48000;
+      const sine = Float32Array.from({ length: sr * 3 }, (_, i) => 0.25 * Math.sin((2 * Math.PI * 440 * i) / sr));
+      const wav = encodePcm([sine, sine], sr, 16);
+      const info = await samples.importSample(wav.buffer.slice(0), 'Vital (frozen)', 'audio/wav');
+      useStore.getState().commit((d) => void (d.instruments = [{ id: 'nat_v', name: 'Vital', kind: 'instrument', source: 'native', zones: [], attack: 0, release: 0, format: 'clap', native: { id: 'audio.vital.synth', path_hint: '/Library/Audio/Plug-Ins/CLAP/Vital.clap' } }]));
+      const id = (await commands.add_track({ kind: 'instrument', name: 'Vital' })).track_id;
+      useStore.getState().commit((d) => void (d.tracks.find((t) => t.id === id).instrument = 'nat_v'));
+      await commands.add_region({ track_id: id, start_bar: 1, length_bars: 2, notes: [{ pitch: 'A4', start: 0, duration: 8, velocity: 0.9 }] });
+      await commands.update_track({ track_id: id, reverb: 0, delay: 0 });
+      useStore.getState().commit((d) => {
+        const t = d.tracks.find((x) => x.id === id);
+        t.frozen = { sampleId: info.id, hash: freeze.trackHash(d, t), plugins: ['Vital'], seconds: 3 };
+      });
+      await wait(800);
+      const badge = document.querySelector('.frozen-badge');
+      const badgeText = badge?.textContent ?? null;
+      const rms = (x, from, to, rate) => {
+        const a = x.subarray(Math.floor(from * rate), Math.floor(to * rate));
+        let e = 0;
+        for (const v of a) e += v * v;
+        return 10 * Math.log10(e / a.length + 1e-12);
+      };
+      engine.position = 0;
+      const cap = engine.captureMaster(2.2);
+      await engine.play();
+      const live = await cap;
+      engine.stop();
+      const liveRms = rms(live.channels[0], 0.5, 1.8, live.sampleRate);
+      const exp = await renderBuffer(useStore.getState().project, { sampleRate: sr, tailSeconds: 0.2 });
+      const exportRms = rms(exp.getChannelData(0), 0.5, 1.8, sr);
+      await commands.add_region({ track_id: id, start_bar: 3, length_bars: 1, notes: [{ pitch: 'C5', start: 0, duration: 4, velocity: 0.9 }] });
+      await wait(400);
+      const stale = !!document.querySelector('.frozen-badge.stale');
+      return { badgeText, liveRms, exportRms, sourceRms: rms(sine, 0.5, 1.8, sr), stale };
+    });
+    check(!!r.badgeText && /Frozen/.test(r.badgeText), `the native track shows it plays its render cache ("${r.badgeText?.trim()}")`);
+    // Through the track's channel, like any instrument: the equal-power pan law (−3 dB) at the centre.
+    check(Math.abs(r.liveRms - (r.sourceRms - 3.01)) < 0.5, `live, the render cache plays through the track (${r.liveRms.toFixed(1)} dB; the frozen audio ${r.sourceRms.toFixed(1)} dB, −3 dB centre pan)`);
+    check(Math.abs(r.exportRms - r.liveRms) < 0.5, `the export plays it too (${r.exportRms.toFixed(1)} dB)`);
+    check(r.stale, 'after the notes change, the badge says the frozen audio is out of date');
   } finally {
     await b.close();
     srv.kill();

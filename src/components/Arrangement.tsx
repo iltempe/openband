@@ -23,6 +23,9 @@ import { StructureCorner, StructureLane } from './StructureLane';
 import { LyricsLane } from './Lyrics';
 import { handleDroppedFiles, importAudioFlow } from './ImportUI';
 import { useT } from '../i18n';
+import { desktopNative, useNativeStatus } from '../audio/native';
+import { frozenStale, usesFrozen } from '../audio/freeze';
+import { openPluginBrowser } from './Plugins';
 
 export const HEADER_W = 252;
 export const TRACK_H = 80;
@@ -328,7 +331,10 @@ function TrackHeader({ track, selected }: { track: Track; selected: boolean }) {
             <PeerDots trackId={track.id} />
           </div>
         )}
-        <div className="th-sub">{track.kind === 'audio' ? t('audio.track') : findInstrument(track.instrument)?.name}</div>
+        <div className="th-sub">
+          {track.kind === 'audio' ? t('audio.track') : findInstrument(track.instrument)?.name}
+          <FrozenBadge track={track} />
+        </div>
         <input
           className="th-vol"
           type="range"
@@ -509,3 +515,26 @@ function RemovedGhosts({ trackId }: { trackId: string }) {
     </>
   );
 }
+
+/** The track plays its render cache (G8.4): its native plugins can't run here. */
+function FrozenBadge({ track }: { track: Track }) {
+  const t = useT();
+  const project = useStore((s) => s.project);
+  const status = useNativeStatus();
+  if (!track.frozen || !usesFrozen(project, track, { desktop: !!desktopNative(), failed: (k) => !!status[k]?.error })) return null;
+  const stale = frozenStale(project, track);
+  const plugins = track.frozen.plugins.join(', ');
+  return (
+    <button
+      className={`frozen-badge ${stale ? 'stale' : ''}`}
+      title={stale ? t('frz.staleHint', { plugins }) : t('frz.hint', { plugins })}
+      onClick={(e) => {
+        e.stopPropagation();
+        openPluginBrowser(track.kind === 'instrument' && project.instruments?.some((i) => i.id === track.instrument && i.source === 'native') ? 'instrument' : 'effect', track.id);
+      }}
+    >
+      ❄ {stale ? t('frz.stale') : t('frz.frozen')}
+    </button>
+  );
+}
+

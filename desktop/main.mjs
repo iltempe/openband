@@ -455,8 +455,49 @@ async function smokeNative() {
   const stateNow = () => useStore.getState().project.instruments.find((i) => i.id === 'nat_synth').native.state_b64 ?? null;
   for (let i = 0; i < 50 && stateNow() === before64; i++) await wait(100);
   const saved = atob(useStore.getState().project.instruments.find((i) => i.id === 'nat_synth').native.state_b64 ?? '');
-  const ok = Math.abs(wet - dry + 6) < 1 && latency === 6 * 128 && Math.abs(before - dry) < 1 && !!crashed && Math.abs(after - dry) < 1 && restarted && Math.abs(back - dry) < 1 && plays > -40 && automated < -15 && /^gain=0\.25/.test(saved);
-  return { ok, dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, instrument: +plays.toFixed(1), automation: +automated.toFixed(1), saved: saved.slice(0, 12), crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
+  // G8.4: exports render native plugins through their host (offline, in batches): the same every time,
+  // and like what plays live.
+  step('export');
+  useStore.getState().commit((d) => void (d.instruments.find((i) => i.id === 'nat_synth').native.state_b64 = btoa('gain=0.500000')));
+  await commands.set_automation({ track_id: s2, target: { kind: 'plugin', slot_id: null, param_id: '2' }, points: [{ bar: 1, value: 0.5 }, { bar: 2, value: 0.5 }, { bar: 2.02, value: 0.05 }, { bar: 4, value: 0.05 }] });
+  await wait(1500);
+  const proj = useStore.getState().project;
+  const exp1 = await window.openband.renderBuffer(proj, { sampleRate: 48000, tailSeconds: 0.5 });
+  const exp2 = await window.openband.renderBuffer(proj, { sampleRate: 48000, tailSeconds: 0.5, nonce: 2 });
+  let same = exp1.length === exp2.length;
+  for (let c = 0; c < 2 && same; c++) {
+    const a = exp1.getChannelData(c);
+    const b = exp2.getChannelData(c);
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) { same = false; break; }
+  }
+  engine.position = 0;
+  const cap3 = engine.captureMaster(3.4);
+  await engine.play();
+  const live3 = await cap3;
+  engine.stop();
+  const windows = (x, sr) => {
+    const f = x.findIndex((v) => Math.abs(v) > 1e-3);
+    const n = Math.floor(sr * 0.1);
+    const out = [];
+    for (let i = f; i + n <= x.length && out.length < 30; i += n) {
+      let e = 0;
+      for (let k = 0; k < n; k++) e += x[i + k] ** 2;
+      out.push(10 * Math.log10(e / n + 1e-12));
+    }
+    return out;
+  };
+  const L = windows(live3.channels[0], live3.sampleRate);
+  const E = windows(exp1.getChannelData(0), 48000);
+  // Skip the windows around the automation step (the two can differ by a few ms there).
+  const diffs = L.map((v, i) => Math.abs(v - E[i])).filter((d, i) => Number.isFinite(d) && Math.abs(i - 19) > 1);
+  const liveVsExport = Math.max(...diffs);
+  const exportRms = E.length ? E[5] : -999;
+  step('freeze');
+  const fr = await window.openband.freeze.freezeNativeTracks();
+  const ft = useStore.getState().project.tracks.find((x) => x.id === s2);
+  const frozenOk = !!ft.frozen && ft.frozen.hash === window.openband.freeze.trackHash(useStore.getState().project, ft) && ft.frozen.plugins.includes(synth.name);
+  const ok = Math.abs(wet - dry + 6) < 1 && latency === 6 * 128 && Math.abs(before - dry) < 1 && !!crashed && Math.abs(after - dry) < 1 && restarted && Math.abs(back - dry) < 1 && plays > -40 && automated < -15 && /^gain=0\.25/.test(saved) && same && exportRms > -40 && liveVsExport < 1 && frozenOk;
+  return { ok, dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, instrument: +plays.toFixed(1), automation: +automated.toFixed(1), saved: saved.slice(0, 12), exportsIdentical: same, exportRms: +exportRms.toFixed(1), liveVsExport: +liveVsExport.toFixed(2), frozen: fr.frozen.join('+'), frozenOk, crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
 }
 
 /** OPENBAND_DESKTOP_SHOT=file.png (docs): the studio with the AI panel on the "AI apps" tab, then quit. */

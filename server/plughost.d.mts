@@ -41,6 +41,8 @@ export class PlugHostSession extends EventEmitter {
   alive: boolean;
   load(o: { path: string; id: string; sampleRate?: number; maxBlock?: number }): Promise<LoadedPlugin>;
   process(seq: number, channels: Float32Array[], events?: { offset: number; kind: number; key?: number; id?: number; value?: number }[]): void;
+  setRenderMode(offline: boolean): void;
+  processBatch(blocks: { n: number; data: Float32Array[]; events?: { offset: number; kind: number; key?: number; id?: number; value?: number }[] }[], timeoutMs?: number): Promise<{ n: number; data: Float32Array[] }[]>;
   openGui(title: string): Promise<{ open: boolean; supported?: boolean; error?: string }>;
   closeGui(): Promise<{ open: boolean }>;
   values(): Promise<{ id: number; value: number }[]>;

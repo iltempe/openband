@@ -54,6 +54,8 @@ export function setupNative({ root, getWin }) {
     const session = new PlugHostSession(h);
     const info = await session.load({ path: bundle, id, sampleRate, maxBlock });
     if (state) await session.setState(Buffer.from(state, 'base64')).catch(() => false);
+    // Exports: a host of their own, in the plugin's offline mode, fed in batches (native-batch).
+    if (opts.offline) session.setRenderMode(true);
     const { port1, port2 } = new MessageChannelMain();
     port1.on('message', ({ data }) => {
       if (data?.type === 'block') session.process(data.n, data.data, data.events ?? []);
@@ -115,6 +117,7 @@ export function setupNative({ root, getWin }) {
   };
   ipcMain.handle('native-gui', (e, { key, open, title }) => (open ? live(e, key).openGui(title ?? 'Plugin') : live(e, key).closeGui()));
   ipcMain.handle('native-values', (e, { key }) => live(e, key).values());
+  ipcMain.handle('native-batch', (e, { key, blocks }) => live(e, key).processBatch(blocks));
   ipcMain.handle('native-set-state', (e, { key, state }) => live(e, key).setState(Buffer.from(state, 'base64')));
   ipcMain.handle('native-add-dir', (e, dir) => {
     if (!fromPage(e)) throw new Error('not allowed');

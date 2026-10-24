@@ -1,4 +1,8 @@
 import './audio/context';
+import { freezeNativeTracks } from './freezeTracks';
+import { trackHash } from './audio/freeze';
+import { importSample } from './audio/samples';
+import { encodePcm } from './audio/render';
 import { liveNative, nativeParam, restartNative, testSlot, useNativeStatus } from './audio/native';
 import { loudness, truePeak } from './analysis/loudness';
 import { createRoot } from 'react-dom/client';
@@ -40,7 +44,7 @@ initVersions();
 void initJournal();
 initAutoWrite();
 // ?debug: the engine and the store on window.openband, for diagnostics and end-to-end tests.
-if (new URLSearchParams(location.search).has('debug')) (window as unknown as { openband: unknown }).openband = { engine, useStore, renderBuffer, Tone, commands, analysis: { loudness, truePeak }, native: { testSlot }, nativeStatus: useNativeStatus, restartNative, nativeParam, liveNative };
+if (new URLSearchParams(location.search).has('debug')) (window as unknown as { openband: unknown }).openband = { engine, useStore, renderBuffer, Tone, commands, analysis: { loudness, truePeak }, native: { testSlot }, nativeStatus: useNativeStatus, restartNative, nativeParam, liveNative, freeze: { freezeNativeTracks, trackHash }, samples: { importSample }, encodePcm };
 initJam();
 initFirstRun();
 void loadKeyState();

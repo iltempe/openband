@@ -12,6 +12,8 @@ import { TEST_PLUGINS, TestPlugin } from './worklets/native-dsp.js';
 
 /** Blocks in the jitter buffer of a live bridge: ~16 ms at 48 kHz (the ADR's measurements). */
 export const JITTER_BLOCKS = 6;
+/** Blocks per batch when an export renders native plugins (the render pauses after each batch). */
+export const OFFLINE_BLOCKS = 8;
 /** Longest plugin latency the engine and the render compensate (seconds). */
 export const MAX_PDC_SECONDS = 1;
 export const BLOCK = 128;
@@ -87,7 +89,8 @@ interface HostEvent {
 interface DesktopNative {
   info(): Promise<{ available: boolean }>;
   scan(o?: { retry?: string[] }): Promise<{ plugins: NativePluginInfo[]; failed: { path: string; reason: string }[]; available: boolean }>;
-  open(o: { key: string; path: string; id: string; sampleRate: number; maxBlock: number; state?: string }): Promise<LoadedInfo>;
+  open(o: { key: string; path: string; id: string; sampleRate: number; maxBlock: number; state?: string; offline?: boolean }): Promise<LoadedInfo>;
+  batch(o: { key: string; blocks: { n: number; data: Float32Array[]; events?: unknown[] }[] }): Promise<{ n: number; data: Float32Array[] }[]>;
   restart(o: { key: string; state?: string }): Promise<LoadedInfo>;
   close(o: { key: string }): Promise<void>;
   state(o: { key: string }): Promise<string | null>;
@@ -160,8 +163,6 @@ export const restartNative = (key: string) => liveNatives.get(key)?.restart() ??
 /** Set a parameter of a live native plugin (its host id), at the start of its next block. */
 export const nativeParam = (key: string, id: number, value: number) => liveNatives.get(key)?.setParam(id, value);
 
-let lastOfflineNotice = 0;
-
 export class NativeEffect {
   readonly input = new Tone.Gain(1);
   readonly output = new Tone.Gain(1);
@@ -180,6 +181,12 @@ export class NativeEffect {
   private bypassed = false;
   private hostKey: string | null = null;
   private dirtyTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Exports: blocks from the worklet waiting for the next batch, and the last one received. */
+  private offlineQueue: { n: number; data: Float32Array[]; events: unknown[] }[] = [];
+  private lastBlock = -1;
+  private acks = new Map<number, () => void>();
+  /** Rendering an export (an offline context) through the host. */
+  offline = false;
   private listeners = new Set<() => void>();
 
   /** key: trackId:slotId, for the studio's status and Restart. instrument: no audio input (a synth). */
@@ -202,12 +209,27 @@ export class NativeEffect {
       const dn = desktopNative();
       if (!dn) throw new Error(`${this.slot.name}: ${this.slot.format?.toUpperCase()} plugins need the OpenBand desktop app`);
       if (offline) {
-        // Rendering native plugins offline (freezing them) comes in G8.4: until then exports play the track without it.
-        if (Date.now() - lastOfflineNotice > 60000) {
-          lastOfflineNotice = Date.now();
-          const { useStore } = await import('../store');
-          useStore.getState().notify(`${this.slot.name} is heard live but not in exports yet: native plugins are exported from the next update`);
-        }
+        // Exports (G8.4): a host of its own in the plugin's offline mode; the render pauses every
+        // OFFLINE_BLOCKS blocks and flushOffline() sends them through it before going on.
+        const key = `nat_off_${Math.random().toString(36).slice(2, 10)}`;
+        this.hostKey = key;
+        const port = portFor(key);
+        const info = await dn.open({ key, path: this.slot.native?.path_hint ?? '', id: this.slot.native!.id, sampleRate: raw.sampleRate, maxBlock: BLOCK, state: this.slot.native?.state_b64, offline: true });
+        void port.then((p) => p.close());
+        this.params = info.params;
+        for (const p of info.params) this.values.set(p.id, p.value);
+        const node = new AudioWorkletNode(raw, 'openband-native', { ...opts, processorOptions: { mode: 'port', jitterBlocks: OFFLINE_BLOCKS } });
+        node.port.onmessage = (e) => {
+          const m = e.data as { type: string; n: number; data: Float32Array[]; events: unknown[] };
+          if (m.type === 'block') {
+            this.offlineQueue.push(m);
+            this.lastBlock = Math.max(this.lastBlock, m.n);
+          } else if (m.type === 'ack') this.acks.get(m.n)?.();
+        };
+        this.node = node;
+        this.offline = true;
+        this.latency = OFFLINE_BLOCKS * BLOCK + info.latency;
+        this.route();
         return;
       }
       const key = `nat_${Math.random().toString(36).slice(2, 10)}`;
@@ -328,6 +350,27 @@ export class NativeEffect {
   setParamAt(id: number, value: number, time?: number) {
     this.values.set(id, value);
     this.event(PARAM, { id, value, time });
+  }
+
+  /**
+   * Exports: send the blocks rendered so far (up to block `upTo`) through the host and hand the results to
+   * the worklet, which acknowledges them — the render goes on only then, so the result is the same every
+   * time.
+   */
+  async flushOffline(upTo: number) {
+    const dn = desktopNative();
+    if (!this.offline || !dn || !this.hostKey || !this.node) return;
+    const t0 = Date.now();
+    while (this.lastBlock < upTo - 1 && Date.now() - t0 < 5000) await new Promise((r) => setTimeout(r, 0));
+    const batch = this.offlineQueue.filter((b) => b.n < upTo);
+    this.offlineQueue = this.offlineQueue.filter((b) => b.n >= upTo);
+    if (!batch.length) return;
+    const out = await dn.batch({ key: this.hostKey, blocks: batch });
+    const last = out[out.length - 1].n;
+    const acked = new Promise<void>((r) => this.acks.set(last, r));
+    for (const o of out) this.node.port.postMessage({ type: 'block', n: o.n, data: o.data, ack: o.n === last });
+    await acked;
+    this.acks.delete(last);
   }
 
   /** Start a crashed plugin again, with the state saved in the song. */

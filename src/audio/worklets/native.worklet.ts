@@ -30,8 +30,11 @@ class OpenBandNative extends AudioWorkletProcessor {
     this.w = 0;
     this.port.onmessage = (e) => {
       const m = e.data;
-      if (m.type === 'block') this.jitter && this.jitter.put(m.n, m.data);
-      else if (m.type === 'event') {
+      if (m.type === 'block') {
+        this.jitter && this.jitter.put(m.n, m.data);
+        // Exports: the page waits for this before the render goes on, so no block can arrive late.
+        if (m.ack) this.port.postMessage({ type: 'ack', n: m.n });
+      } else if (m.type === 'event') {
         const ev = { frame: Math.round(m.time * sampleRate), kind: m.kind, key: m.key || 0, id: m.id || 0, value: m.value || 0 };
         let i = this.events.length;
         while (i > 0 && this.events[i - 1].frame > ev.frame) i--;

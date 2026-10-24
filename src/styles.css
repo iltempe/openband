@@ -5564,3 +5564,19 @@ div.ca-steps {
 .native-param input[type='range'] {
   accent-color: var(--accent);
 }
+.frozen-badge {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 0;
+  font: 700 9.5px var(--font);
+  letter-spacing: 0.04em;
+  color: #9fe2ff;
+  background: rgba(60, 200, 255, 0.14);
+  cursor: pointer;
+  vertical-align: 1px;
+}
+.frozen-badge.stale {
+  color: #ffd29a;
+  background: rgba(255, 160, 60, 0.16);
+}

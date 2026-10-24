@@ -2,6 +2,15 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.9 "G8.4: native plugins in exports, and songs that travel"
+
+### G8.4 · Offline export of native plugins, render cache
+- **Exports with native plugins** (desktop app): an export runs each native plugin in a host of its own, in the plugin's **offline mode** (CLAP `render`), and the render pauses every 8 blocks to send them through it and wait for them back (the worklet acknowledges every batch), so no block is ever late: **two exports are identical to the bit**. Plugin latency (8 blocks + the plugin's own) is compensated as live; instruments count too. Native automation is applied in exports as live, on its sample. Until now an export played native tracks without them.
+- **Render cache** (`Track.frozen`, `src/audio/freeze.ts`, `src/freezeTracks.ts`): saving a song as `.openband` in the desktop app freezes each track that plays a native plugin — rendered alone, after its effects and before its channel, at 48 kHz — and keeps it with the song's samples, only for the tracks whose notes, sound (plugin state), effects or automation changed (a fingerprint). Where the plugins can't run (the browser, the online studio, a computer without them), the track plays its frozen audio through its channel — fader, pan, sends and mute stay live — with **❄ Frozen** next to its name; after its notes change, **Out of date**, and the badge opens the plugin browser to pick another instrument. Exports use it too.
+- New render option `tap`: a track after its effects and before its channel (the render cache) — playing it back through the channel sounds like the track itself, not 3 dB under (Tone's channel sums to mono with the equal-power pan law).
+- The spec's FLAC/Opus compression of the cache is not there yet: it is stored as a 16-bit WAV.
+- Tests: the fingerprint (notes and sound in, the mix out), when the frozen audio plays (browser; desktop only if the plugin failed), the freeze view. In the packaged app (`desktop:smoke`): two exports of a song with a native instrument and its automation are **bit-identical**, the export has the instrument (−12 dB) and matches live playback (per-100 ms windows, max 0.00 dB), freezing renders both native tracks with the right fingerprint. In Chrome (`npm run e2e`, *frozen*): a song with a CLAP instrument plays its render cache live and in the export (same level, through the track's channel), shows ❄ Frozen, and *Out of date* after its notes change.
+
 ## v0.6.8 "G8.3: CLAP instruments, plugin windows, sample-accurate automation"
 
 ### G8.3 · Native instruments, windows, parameters, automation, state and undo

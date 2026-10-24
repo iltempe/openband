@@ -16,6 +16,7 @@
 //               7 GUI_OPEN   window title
 //               8 GUI_CLOSE
 //               10 GET_VALUES
+//               11 RENDER_MODE u8 offline (1: faster than real time, for exports; CLAP's render extension)
 //   host → app  1 LOADED     JSON {ok, name, latency, inputs, outputs, gui, params[] | error}
 //               2 BLOCK      u32 seq, u32 frames, u32 channels, float32 planar samples
 //               4 STATE      the plugin's state bytes
@@ -695,6 +696,11 @@ static void gui_open_main(void *ctx) {
   write_json(12, "{\"open\":true}");
 }
 
+static void render_mode_main(void *ctx) {
+  const clap_plugin_render_t *r = (const clap_plugin_render_t *)S.plugin->get_extension(S.plugin, CLAP_EXT_RENDER);
+  if (r) r->set(S.plugin, *(int *)ctx ? CLAP_RENDER_OFFLINE : CLAP_RENDER_REALTIME);
+}
+
 static void on_main_thread(void *ctx) {
   (void)ctx;
   if (S.plugin) S.plugin->on_main_thread(S.plugin);
@@ -753,6 +759,9 @@ static void serve_thread(void *unused) {
       run_on_main(gui_close_main, NULL);
     } else if (type == 10) {
       run_on_main(values_main, NULL);
+    } else if (type == 11 && plen >= 1) {
+      int offline = payload[0] != 0;
+      run_on_main(render_mode_main, &offline);
     }
     if (S.plugin && g_callback_requested) {
       g_callback_requested = 0;

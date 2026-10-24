@@ -118,6 +118,11 @@ export interface Track {
   automation?: AutomationLane[];
   /** The role in the mix, set by the user (G1): the mix pilot classifies the others itself. */
   role?: MixRole;
+  /**
+   * The render cache of a track with native plugins (G8.4): its audio before the fader, played where the
+   * plugins can't run (the browser, a computer without them). hash: of what it was made from.
+   */
+  frozen?: { sampleId: string; hash: string; plugins: string[]; seconds: number };
 }
 
 export type MixRole = 'kick' | 'drums' | 'bass' | 'harmony' | 'lead' | 'vocal' | 'texture' | 'fx';

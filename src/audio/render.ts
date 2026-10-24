@@ -8,7 +8,9 @@ import { clipBuffer, ensureClipBuffer, needsProcessing, processingOf } from './p
 import { createInstrument, makeImpulse, seeded } from './instruments';
 import { FxChain, normalizeFx } from './fx';
 import { MasterChainNode, limiterLatency } from './master';
-import { MAX_PDC_SECONDS } from './native';
+import { MAX_PDC_SECONDS, OFFLINE_BLOCKS, desktopNative, type NativeEffect } from './native';
+import { usesFrozen } from './freeze';
+import { getBuffer } from './samples';
 import { effectiveValue, hasAutomation, isAutomated, mix, valueAt } from '../automation';
 import { applyFxAutomation, automatePlugin } from './automate';
 import type { WamInstance } from './wam';
@@ -34,6 +36,11 @@ export interface RenderOptions {
    * song add up to its master. Needs a master chain.
    */
   linked?: string[];
+  /**
+   * The render cache (G8.4): this track alone, taken after its effects and before its channel (no pan
+   * law, fader or sends), so playing it back through the channel sounds like the track itself.
+   */
+  tap?: string;
   /** Render one track with its FX chain (slotId null) or one plugin bypassed (level match, F20). */
   bypass?: { trackId: string; slotId: string | null };
 }
@@ -107,12 +114,13 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
   const linked = o.linked && chainSpec ? new Set(o.linked) : null;
   // Plugin delay compensation (G8): plugins report their latency once loaded, so with plugins in the
   // song render up to MAX_PDC_SECONDS longer, line the tracks up and trim exactly what they added.
-  const pdcPad = p.tracks.some((t) => (t.fx?.plugins ?? []).some((s) => s.on)) ? Math.ceil(MAX_PDC_SECONDS * sampleRate) : 0;
+  const nativeInstrument = (t: (typeof p.tracks)[number]) => p.instruments?.some((c) => c.id === t.instrument && c.source === 'native');
+  const pdcPad = p.tracks.some((t) => (t.fx?.plugins ?? []).some((s) => s.on) || nativeInstrument(t)) ? Math.ceil(MAX_PDC_SECONDS * sampleRate) : 0;
   const ctx = new Tone.OfflineContext(new OfflineAudioContext(2, Math.ceil((seconds + preRoll) * sampleRate) + latencyMax + pdcPad, sampleRate));
   let chain: MasterChainNode | null = null;
   let keyChain: MasterChainNode | null = null;
   const fxById = new Map<string, FxChain>();
-  const pdcById = new Map<string, { delay: Tone.Delay; audible: boolean }>();
+  const pdcById = new Map<string, { delay: Tone.Delay; audible: boolean; instrument: { latency?: number } }>();
   const loading: Promise<unknown>[] = [];
   const live = Tone.getContext();
   Tone.setContext(ctx);
@@ -156,7 +164,9 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
       if (audible) ch.connect(master);
       if ('ready' in inst) loading.push((inst as { ready: Promise<void> }).ready);
       const fx = new FxChain();
-      fx.update(bypass?.trackId === track.id ? bypassed(track.fx, bypass.slotId) : track.fx);
+      // Where native plugins can't run, the track plays its render cache: effects already in it.
+      const frozen = usesFrozen(p, track, { desktop: !!desktopNative(), failed: () => false }) && track.frozen && getBuffer(track.frozen.sampleId);
+      fx.update(frozen ? undefined : bypass?.trackId === track.id ? bypassed(track.fx, bypass.slotId) : track.fx);
       for (const lane of track.automation ?? []) {
         const tg = lane.target;
         if (tg.kind !== 'plugin' || !lane.points.length) continue;
@@ -167,8 +177,9 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
       inst.output.connect(fx.input);
       // Polarity is part of the mix (exported); mono and dim are monitoring only and never get here.
       const pdc = new Tone.Delay({ delayTime: 0, maxDelay: MAX_PDC_SECONDS });
-      fx.output.chain(pdc, new Tone.Gain(track.polarity ? -1 : 1).connect(ch));
-      pdcById.set(track.id, { delay: pdc, audible });
+      if (o.tap === track.id) fx.output.chain(pdc, master);
+      else fx.output.chain(pdc, new Tone.Gain(track.polarity ? -1 : 1).connect(ch));
+      pdcById.set(track.id, { delay: pdc, audible, instrument: inst as { latency?: number } });
       const revSend = new Tone.Gain(dbToGain(sendToDb(track.reverb)));
       const delSend = new Tone.Gain(dbToGain(sendToDb(track.delay)) * 0.7);
       if (audible) {
@@ -197,6 +208,11 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
         }, '32n', 0);
       }
 
+      if (frozen) {
+        const player = new Tone.Player({ url: new Tone.ToneAudioBuffer(frozen), fadeOut: 0.01 }).connect(fx.input);
+        transport.schedule((time) => player.start(time, secs(fromBeat)), ticks(fromBeat));
+        continue;
+      }
       for (const region of p.regions.filter((r) => r.trackId === track.id)) {
         if (region.start >= toBeat || region.start + region.length <= fromBeat) continue;
         if (region.audio) {
@@ -240,7 +256,7 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
   if (keyChain) chain!.link(keyChain);
   let pdcMax = 0;
   if (pdcPad) {
-    const lat = new Map([...pdcById].filter(([, x]) => x.audible).map(([id]) => [id, fxById.get(id)!.latency]));
+    const lat = new Map([...pdcById].filter(([, x]) => x.audible).map(([id, x]) => [id, fxById.get(id)!.latency + (x.instrument.latency ?? 0)]));
     pdcMax = Math.min(pdcPad, Math.max(0, ...lat.values()));
     for (const [id, l] of lat) pdcById.get(id)!.delay.delayTime.value = (pdcMax - l) / sampleRate;
   }
@@ -251,9 +267,18 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
   // (F22) reaches the plugin's audio thread through its message port. Pause every 20 ms of audio and
   // yield to the main thread so both keep up with the render.
   const wamInstrument = p.instruments?.some((c) => c.source === 'wam' && p.tracks.some((t) => t.instrument === c.id && included(t.id, t.mute, t.solo)));
-  if (wamInstrument || pluginLanes.length) {
+  // Native plugins (G8.4) render through their host in batches: the render pauses after every batch.
+  const natives: NativeEffect[] = [];
+  for (const [id, fx] of fxById) {
+    natives.push(...fx.natives().filter((n) => n.offline));
+    const inst = pdcById.get(id)?.instrument as { fx?: NativeEffect } | undefined;
+    if (inst?.fx?.offline) natives.push(inst.fx);
+  }
+  if (wamInstrument || pluginLanes.length || natives.length) {
     const raw = ctx.rawContext as unknown as OfflineAudioContext;
-    const step = 0.02;
+    // Pauses on block boundaries: every batch of native blocks, or about every 20 ms for WAMs.
+    const stepFrames = natives.length ? OFFLINE_BLOCKS * 128 : Math.round((0.02 * sampleRate) / 128) * 128;
+    const endFrame = natives.length ? raw.length : seconds * sampleRate;
     // Plugin automation: sent at each pause for the render's own time (every 20 ms), the same event the
     // live engine sends. Events scheduled far ahead are not reliable offline.
     const setAutomation = (at: number) => {
@@ -266,15 +291,16 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
     setAutomation(0);
     // Plugins that pass parameter changes on from main-thread timers need a little main-thread time per step.
     const yieldMs = 8;
-    const pause = (at: number) =>
-      raw.suspend(at).then(() =>
-        setTimeout(() => {
-          if (pluginLanes.length) setAutomation(at);
-          if (at + step < seconds) void pause(+(at + step).toFixed(6));
-          void raw.resume();
-        }, pluginLanes.length ? yieldMs : 0),
-      );
-    void pause(step);
+    const pause = (frame: number) =>
+      raw.suspend(frame / sampleRate).then(async () => {
+        if (natives.length) await Promise.all(natives.map((n) => n.flushOffline(frame / 128)));
+        // WAM instruments and plugin automation need a moment of the main thread at every pause.
+        await new Promise((r) => setTimeout(r, pluginLanes.length ? yieldMs : 0));
+        if (pluginLanes.length) setAutomation(frame / sampleRate);
+        if (frame + stepFrames < endFrame) void pause(frame + stepFrames);
+        void raw.resume();
+      });
+    void pause(stepFrames);
   }
   // Tone starts noise sources (snares, hats, claps) at a random point of a noise buffer. Seed it for
   // the duration of the render so the same song always renders to the same audio (stems add up to
@@ -288,7 +314,7 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
   const random = Math.random;
   Math.random = seeded(0x5eed);
   try {
-    const buffer = (await ctx.render()).get() as AudioBuffer;
+    const buffer = (await ctx.render().finally(() => natives.forEach((n) => n.dispose()))).get() as AudioBuffer;
     const latency = (chain as MasterChainNode | null)?.latency ?? 0;
     if (!preRoll && !latencyMax && !pdcPad) return buffer;
     const skip = Math.round(preRoll * sampleRate) + latency + pdcMax;
