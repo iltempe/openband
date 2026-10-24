@@ -18,6 +18,8 @@
 //               8 GUI_CLOSE
 //               10 GET_VALUES
 //               11 RENDER_MODE u8 offline (1: faster than real time, for exports; CLAP's render extension)
+//               12 MONITOR   u8 on, u32 period, u8 null device, u32 lead, f32 gain, f32 pan   (G8.7)
+//               13 LIVE      one event as in PROCESS, played at the next period of the host's own output
 //   host → app  1 LOADED     JSON {ok, name, latency, inputs, outputs, gui, params[] | error}
 //               2 BLOCK      u32 seq, u32 frames, u32 channels, float32 planar samples
 //               4 STATE      the plugin's state bytes
@@ -29,16 +31,25 @@
 //               11 STATE_DIRTY                                   (the plugin's state changed)
 //               12 GUI       JSON {open, supported?, error?}
 //               13 VALUES    JSON [{id, value}]
+//               14 MONITOR   JSON {on, backend, device, period, periods, deviceRate | error}
+//               15 HEARD     JSON {wait, offset, buffer, total}  (frames from a LIVE note to its sound out)
+//
+// Low-latency monitoring (G8.7): with MONITOR on, the host opens the computer's audio output itself with
+// a small buffer and runs the plugin in its callback. LIVE notes (a keyboard) play at the next period;
+// PROCESS blocks (the timeline) are answered with silence, their events played `lead` frames later on
+// the host's output (the time a block takes through the app's bridge), with the track's gain and pan.
 //
 // Threads, as CLAP wants them: the main thread runs the system's event loop (the plugin's window lives
 // there) and everything CLAP marks [main-thread]; the protocol thread is the audio thread and runs
 // process(). No access to the project or the network: only audio, events, parameters and state come in.
 #include <clap/clap.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "platform.h"
+#include "audio_device.h"
 
 #ifdef _WIN32
 #include <fcntl.h>
@@ -545,6 +556,9 @@ static void load_main(void *ctx) {
 static float g_in[MAX_CH][MAX_BLOCK];
 static float g_out[MAX_CH][MAX_BLOCK];
 
+static void monitor_queue(const uint8_t *ev, uint32_t nev, uint64_t lead);
+static volatile int g_mon_on;
+
 static void process(const uint8_t *payload, uint32_t len) {
   if (len < 16) return;
   uint32_t seq, frames, nch, nev;
@@ -554,6 +568,18 @@ static void process(const uint8_t *payload, uint32_t len) {
   memcpy(&nev, payload + 12, 4);
   const uint8_t *evp = payload + 16;
   if (frames > MAX_BLOCK || nch > MAX_CH || nev > MAX_EVENTS || len < 16 + (size_t)nev * 20 + (size_t)frames * nch * 4) return;
+  if (g_mon_on) {
+    // Monitoring: the plugin plays on the host's own output; the block's events go there, silence back.
+    monitor_queue(evp, nev, 0);
+    uint32_t och = nch ? nch : 2;
+    static uint8_t quiet[12 + MAX_CH * MAX_BLOCK * 4];
+    memcpy(quiet, &seq, 4);
+    memcpy(quiet + 4, &frames, 4);
+    memcpy(quiet + 8, &och, 4);
+    memset(quiet + 12, 0, (size_t)och * frames * 4);
+    write_frame(2, quiet, 12 + och * frames * 4);
+    return;
+  }
   if (!S.processing) S.processing = S.plugin->start_processing(S.plugin);
   // Events: the PARAM messages at the start, then the block's own, in time order (the app sends them sorted).
   BLOCK_EVENTS.n = 0;
@@ -612,13 +638,225 @@ static void process(const uint8_t *payload, uint32_t len) {
   flush_out_events();
 }
 
+static void monitor_param(uint32_t id, double v);
 static void queue_param(const uint8_t *payload, uint32_t len) {
   if (len < 12) return;
   uint32_t id;
   double v;
   memcpy(&id, payload, 4);
   memcpy(&v, payload + 4, 8);
-  push_param(&PENDING, 0, id, v);
+  if (g_mon_on) monitor_param(id, v);
+  else push_param(&PENDING, 0, id, v);
+}
+
+// ---- low-latency monitoring (G8.7)
+#ifdef _WIN32
+static SRWLOCK mon_mu = SRWLOCK_INIT;
+#define MON_LOCK() AcquireSRWLockExclusive(&mon_mu)
+#define MON_UNLOCK() ReleaseSRWLockExclusive(&mon_mu)
+static uint64_t now_ns(void) {
+  LARGE_INTEGER f, c;
+  QueryPerformanceFrequency(&f);
+  QueryPerformanceCounter(&c);
+  return (uint64_t)((double)c.QuadPart * 1e9 / (double)f.QuadPart);
+}
+#else
+#include <time.h>
+static pthread_mutex_t mon_mu = PTHREAD_MUTEX_INITIALIZER;
+#define MON_LOCK() pthread_mutex_lock(&mon_mu)
+#define MON_UNLOCK() pthread_mutex_unlock(&mon_mu)
+static uint64_t now_ns(void) {
+  struct timespec t;
+  clock_gettime(CLOCK_MONOTONIC, &t);
+  return (uint64_t)t.tv_sec * 1000000000ull + (uint64_t)t.tv_nsec;
+}
+#endif
+
+typedef struct {
+  uint64_t due; // on the host's output, in frames (0: as soon as possible)
+  uint8_t kind, key;
+  uint32_t id;
+  double value;
+  uint64_t t_ns; // when a LIVE note came in (to measure what the player hears)
+} mon_item_t;
+#define MON_Q 2048
+static mon_item_t MONQ[MON_Q];
+static uint32_t monq_n;
+static uint64_t mon_frames; // frames played by the host's output so far
+static uint32_t mon_lead;
+static float mon_gain = 1, mon_pan = 0;
+static events_t MON_EVENTS;
+static float m_out[MAX_CH][MAX_BLOCK], m_in[MAX_CH][MAX_BLOCK];
+static struct {
+  int on;
+  uint64_t t_ns, wait;
+  uint32_t from;
+} heard; // a LIVE note whose first sound is being looked for
+
+static void mon_push(mon_item_t m) {
+  MON_LOCK();
+  if (monq_n < MON_Q) MONQ[monq_n++] = m;
+  MON_UNLOCK();
+}
+static void monitor_queue(const uint8_t *ev, uint32_t nev, uint64_t t_ns) {
+  uint64_t base = mon_frames + (t_ns ? 0 : mon_lead);
+  for (uint32_t i = 0; i < nev; i++, ev += 20) {
+    mon_item_t m = {0};
+    uint32_t offset;
+    memcpy(&offset, ev, 4);
+    m.kind = ev[4];
+    m.key = ev[5];
+    memcpy(&m.id, ev + 8, 4);
+    memcpy(&m.value, ev + 12, 8);
+    m.due = t_ns ? 0 : base + offset;
+    m.t_ns = t_ns;
+    mon_push(m);
+  }
+}
+static void monitor_param(uint32_t id, double v) {
+  mon_item_t m = {0};
+  m.kind = 2;
+  m.id = id;
+  m.value = v;
+  mon_push(m);
+}
+
+/** The host's output callback: the plugin, with what is due in each piece, at the track's gain and pan. */
+static void monitor_render(float **out, uint32_t frames, void *user) {
+  (void)user;
+  uint64_t cb_ns = now_ns();
+  if (!S.processing) S.processing = S.plugin->start_processing(S.plugin);
+  uint32_t done = 0;
+  while (done < frames) {
+    uint32_t n = frames - done;
+    if (n > S.max_block) n = S.max_block;
+    uint64_t base = mon_frames;
+    MON_EVENTS.n = 0;
+    MON_LOCK();
+    uint32_t keep = 0;
+    for (uint32_t i = 0; i < monq_n; i++) {
+      mon_item_t *m = &MONQ[i];
+      if (m->due >= base + n) {
+        MONQ[keep++] = *m;
+        continue;
+      }
+      uint32_t off = m->due > base ? (uint32_t)(m->due - base) : 0;
+      if (m->kind == 0) push_note(&MON_EVENTS, off, CLAP_EVENT_NOTE_ON, m->key, m->value);
+      else if (m->kind == 1) push_note(&MON_EVENTS, off, CLAP_EVENT_NOTE_OFF, m->key, m->value);
+      else if (m->kind == 2) push_param(&MON_EVENTS, off, m->id, m->value);
+      else if (m->kind == 3)
+        for (int k = 0; k < 128; k++)
+          if (held[k]) push_note(&MON_EVENTS, off, CLAP_EVENT_NOTE_OFF, (int16_t)k, 0);
+      if (m->kind == 0 && m->t_ns && !heard.on) {
+        heard.on = 1;
+        heard.t_ns = m->t_ns;
+        heard.wait = cb_ns > m->t_ns ? (uint64_t)((double)(cb_ns - m->t_ns) * S.sr / 1e9) + done : done;
+        heard.from = off;
+      }
+    }
+    monq_n = keep;
+    MON_UNLOCK();
+    // In time order (timeline events and live ones may interleave).
+    for (uint32_t i = 1; i < MON_EVENTS.n; i++)
+      for (uint32_t j = i; j > 0 && MON_EVENTS.ev[j - 1].h.time > MON_EVENTS.ev[j].h.time; j--) {
+        any_event_t t = MON_EVENTS.ev[j];
+        MON_EVENTS.ev[j] = MON_EVENTS.ev[j - 1];
+        MON_EVENTS.ev[j - 1] = t;
+      }
+    float *ins[MAX_CH], *outs[MAX_CH];
+    for (uint32_t c = 0; c < MAX_CH; c++) {
+      memset(m_in[c], 0, n * 4);
+      memset(m_out[c], 0, n * 4);
+      ins[c] = m_in[c];
+      outs[c] = m_out[c];
+    }
+    clap_audio_buffer_t in = {ins, NULL, S.in_ch, 0, 0};
+    clap_audio_buffer_t ob = {outs, NULL, S.out_ch, 0, 0};
+    clap_input_events_t ievs = {&MON_EVENTS, in_size, in_get};
+    clap_output_events_t oevs = {NULL, out_push};
+    clap_process_t proc;
+    memset(&proc, 0, sizeof proc);
+    proc.steady_time = S.steady;
+    proc.frames_count = n;
+    proc.audio_inputs = S.in_ch ? &in : NULL;
+    proc.audio_inputs_count = S.in_ch ? 1 : 0;
+    proc.audio_outputs = &ob;
+    proc.audio_outputs_count = 1;
+    proc.in_events = &ievs;
+    proc.out_events = &oevs;
+    S.plugin->process(S.plugin, &proc);
+    S.steady += n;
+    // As the studio's channel does: mono, equal-power pan, the fader's gain.
+    const float th = (mon_pan + 1) * 0.78539816f;
+    const float gl = mon_gain * cosf(th), gr = mon_gain * sinf(th);
+    uint32_t r = S.out_ch > 1 ? 1 : 0;
+    for (uint32_t i = 0; i < n; i++) {
+      float m = 0.5f * (m_out[0][i] + m_out[r][i]);
+      out[0][done + i] = m * gl;
+      out[1][done + i] = m * gr;
+    }
+    if (heard.on) {
+      for (uint32_t i = heard.from; i < n; i++)
+        if (m_out[0][i] != 0 || m_out[r][i] != 0) {
+          char j[160];
+          uint32_t buffer = ob_device_buffer();
+          snprintf(j, sizeof j, "{\"wait\":%llu,\"offset\":%llu,\"buffer\":%u,\"total\":%llu}", (unsigned long long)heard.wait, (unsigned long long)(i - heard.from),
+                   buffer, (unsigned long long)(heard.wait + (i - heard.from) + buffer));
+          write_json(15, j);
+          heard.on = 0;
+          break;
+        }
+      heard.from = 0;
+    }
+    flush_out_events();
+    mon_frames += n;
+    done += n;
+  }
+}
+
+static void monitor(const uint8_t *p, uint32_t len) {
+  if (len < 18) return;
+  uint32_t period, lead;
+  float gain, pan;
+  memcpy(&period, p + 1, 4);
+  memcpy(&lead, p + 6, 4);
+  memcpy(&gain, p + 10, 4);
+  memcpy(&pan, p + 14, 4);
+  int on = p[0] != 0, null_device = p[5] != 0;
+  mon_gain = gain;
+  mon_pan = pan < -1 ? -1 : pan > 1 ? 1 : pan;
+  mon_lead = lead;
+  char out[512], info[400];
+  if (on && !g_mon_on) {
+    if (period < 16 || period > 4096) period = 128;
+    // The output's thread becomes the audio thread.
+    if (S.processing) S.plugin->stop_processing(S.plugin);
+    S.processing = 0;
+    MON_LOCK();
+    monq_n = 0;
+    MON_UNLOCK();
+    g_mon_on = 1;
+    if (ob_device_start((uint32_t)S.sr, period, null_device, monitor_render, NULL, info, sizeof info) != 0) {
+      g_mon_on = 0;
+      char msg[420];
+      json_str(msg, sizeof msg, info);
+      snprintf(out, sizeof out, "{\"on\":false,\"error\":%s}", msg);
+      write_json(14, out);
+      return;
+    }
+    snprintf(out, sizeof out, "{\"on\":true,%s}", info);
+    write_json(14, out);
+  } else if (!on && g_mon_on) {
+    ob_device_stop();
+    g_mon_on = 0;
+    if (S.processing) S.plugin->stop_processing(S.plugin);
+    S.processing = 0;
+    // Back to the app's blocks: nothing left hanging.
+    for (int k = 0; k < 128; k++)
+      if (held[k]) push_note(&PENDING, 0, CLAP_EVENT_NOTE_OFF, (int16_t)k, 0);
+    write_json(14, "{\"on\":false}");
+  } else
+    write_json(14, g_mon_on ? "{\"on\":true}" : "{\"on\":false}");
 }
 
 // ---- state
@@ -804,6 +1042,10 @@ static void serve_thread(void *unused) {
       run_on_main(gui_close_main, NULL);
     } else if (type == 10) {
       run_on_main(values_main, NULL);
+    } else if (type == 12) {
+      monitor(payload, plen);
+    } else if (type == 13 && plen >= 20) {
+      if (g_mon_on) monitor_queue(payload, 1, now_ns());
     } else if (type == 11 && plen >= 1) {
       int offline = payload[0] != 0;
       run_on_main(render_mode_main, &offline);
@@ -823,6 +1065,8 @@ static void serve_thread(void *unused) {
       write_json(7, out);
     }
   }
+  if (g_mon_on) ob_device_stop();
+  g_mon_on = 0;
   if (S.plugin && S.processing) S.plugin->stop_processing(S.plugin);
   run_on_main(cleanup_main, NULL);
   platform_quit();

@@ -94,6 +94,14 @@ format — any of them works, and everything below holds for all of them.
 
 ![Vital, a CLAP synth, on a track: its parameters and its own window](native-instrument.png)
 
+- **Low-latency monitoring**: when you play a track with a native instrument (the selected one), the
+  plugin host opens your audio output itself with a small buffer (128 samples, about 2.7 ms ×2 at 48 kHz),
+  and your keyboard's notes go straight to it, so you hear only the device's latency, not the ~16 ms of
+  the bridge. Smart Controls shows *Low-latency monitoring on*, the device and the last key-to-sound
+  time. The rest of the song plays as usual; the track's own timeline notes play there too, in time.
+  While it's on, the track's fader and pan apply, its other effects and the master chain don't. Turn it
+  off with the switch to hear the whole chain.
+
 - Plugins are programs that run with your permissions: OpenBand says so before the first one, and only
   loads them from the plugin folders, never from the internet.
 - **Exports** include native plugins: the export runs them in their offline mode, block by block through

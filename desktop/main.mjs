@@ -371,6 +371,8 @@ async function smokeNative(SOFT_LIVE, IS_MAC) {
   const gain3 = scan.plugins.find((p) => p.format === 'vst3' && p.name === 'OB VST3 Gain');
   if (!gain || !crash || !gain3) return { ok: false, why: 'fixtures not found', scan };
   engine.stop();
+  // Low-latency monitoring takes a selected native instrument off the studio's graph: tested last.
+  window.openband.lowLatency.setLowLatency(false);
   await commands.new_project({ name: 'Native', bpm: 120, key: 'C' });
   const t = (await commands.add_track({ kind: 'instrument', instrument: 'aurora-pad', name: 'Pad' })).track_id;
   await commands.add_region({ track_id: t, start_bar: 1, length_bars: 8, notes: [{ pitch: 'C4', start: 0, duration: 32, velocity: 0.8 }] });
@@ -522,8 +524,24 @@ async function smokeNative(SOFT_LIVE, IS_MAC) {
   const live = plays > -40 && automated < -15 && /^gain=0\.25/.test(saved) && liveVsExport < 1;
   const vst3 = Math.abs(wet3 - dry + 6) < 1.5 && latency3 === 6 * 128 + 256;
   // Levels within 1.5 dB: the pad itself varies a little between captures on a slow runner.
-  const ok = Math.abs(wet - dry + 6) < 1.5 && latency === 6 * 128 && vst3 && auOk && Math.abs(before - dry) < 1.5 && !!crashed && Math.abs(after - dry) < 1.5 && restarted && Math.abs(back - dry) < 1.5 && (live || SOFT_LIVE) && same && exportRms > -40 && frozenOk;
-  return { ok, live, liveWindows: live ? undefined : L.map((v) => Math.round(v)).join(' '), exportWindows: live ? undefined : E.map((v) => Math.round(v)).join(' '), dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, vst3Gain: +(wet3 - dry).toFixed(2), vst3Latency: latency3, au, instrument: +plays.toFixed(1), automation: +automated.toFixed(1), saved: saved.slice(0, 12), exportsIdentical: same, exportRms: +exportRms.toFixed(1), liveVsExport: +liveVsExport.toFixed(2), frozen: fr.frozen.join('+'), frozenOk, crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
+  // G8.7: the selected track's native instrument on the host's own output (the null device here): it
+  // starts, a key pressed is heard there, and it stops.
+  step('monitoring');
+  const ll = window.openband.lowLatency;
+  useStore.getState().set({ selectedTrackId: s2 });
+  ll.setLowLatency(true);
+  for (let i = 0; i < 50 && ll.useLowLatency.getState().trackId !== s2; i++) await wait(100);
+  const mon = ll.useLowLatency.getState().info;
+  engine.noteOn(s2, 72, 0.9);
+  for (let i = 0; i < 50 && !status.getState()[`${s2}:instrument`]?.heard; i++) await wait(100);
+  engine.noteOff(s2, 72);
+  const heard = status.getState()[`${s2}:instrument`]?.heard ?? null;
+  ll.setLowLatency(false);
+  await ll.syncMonitoring();
+  const monitoring = { backend: mon?.backend ?? null, buffer: mon ? mon.period * mon.periods : null, heard, off: ll.useLowLatency.getState().trackId === null };
+  const monOk = monitoring.backend === 'Null' && !!heard && monitoring.off;
+  const ok = monOk && Math.abs(wet - dry + 6) < 1.5 && latency === 6 * 128 && vst3 && auOk && Math.abs(before - dry) < 1.5 && !!crashed && Math.abs(after - dry) < 1.5 && restarted && Math.abs(back - dry) < 1.5 && (live || SOFT_LIVE) && same && exportRms > -40 && frozenOk;
+  return { ok, live, liveWindows: live ? undefined : L.map((v) => Math.round(v)).join(' '), exportWindows: live ? undefined : E.map((v) => Math.round(v)).join(' '), dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, vst3Gain: +(wet3 - dry).toFixed(2), vst3Latency: latency3, au, monitoring, instrument: +plays.toFixed(1), automation: +automated.toFixed(1), saved: saved.slice(0, 12), exportsIdentical: same, exportRms: +exportRms.toFixed(1), liveVsExport: +liveVsExport.toFixed(2), frozen: fr.frozen.join('+'), frozenOk, crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
 }
 
 /** OPENBAND_DESKTOP_SHOT=file.png (docs): the studio with the AI panel on the "AI apps" tab, then quit. */

@@ -137,10 +137,18 @@ export async function scanPlugins({ host = hostBinary(), dirs = pluginDirs(), ca
 
 // ---------------------------------------------------------------- one plugin in a host process
 
-const T = { LOAD: 1, PROCESS: 2, PARAM: 3, GET_STATE: 4, SET_STATE: 5, QUIT: 6, GUI_OPEN: 7, GUI_CLOSE: 8, GET_VALUES: 10, RENDER_MODE: 11 };
-const R = { LOADED: 1, BLOCK: 2, STATE: 4, STATE_SET: 5, LATENCY: 7, ERROR: 8, PARAM_CHANGED: 9, GESTURE: 10, STATE_DIRTY: 11, GUI: 12, VALUES: 13 };
+const T = { LOAD: 1, PROCESS: 2, PARAM: 3, GET_STATE: 4, SET_STATE: 5, QUIT: 6, GUI_OPEN: 7, GUI_CLOSE: 8, GET_VALUES: 10, RENDER_MODE: 11, MONITOR: 12, LIVE: 13 };
+const R = { LOADED: 1, BLOCK: 2, STATE: 4, STATE_SET: 5, LATENCY: 7, ERROR: 8, PARAM_CHANGED: 9, GESTURE: 10, STATE_DIRTY: 11, GUI: 12, VALUES: 13, MONITOR: 14, HEARD: 15 };
 /** Event kinds inside a block (see native/plughost/src/plughost.c). */
 export const EVENT = { NOTE_ON: 0, NOTE_OFF: 1, PARAM: 2, ALL_NOTES_OFF: 3 };
+
+function writeEvent(b, o, e, frames) {
+  b.writeUInt32LE(Math.max(0, Math.min(frames - 1, e.offset | 0)), o);
+  b.writeUInt8(e.kind, o + 4);
+  b.writeUInt8((e.key ?? 0) & 127, o + 5);
+  b.writeUInt32LE(e.id ?? 0, o + 8);
+  b.writeDoubleLE(e.value ?? 0, o + 12);
+}
 
 function frame(type, payload = Buffer.alloc(0)) {
   const b = Buffer.alloc(5 + payload.length);
@@ -153,7 +161,8 @@ function frame(type, payload = Buffer.alloc(0)) {
 /**
  * A host process serving one plugin. Events: 'block' {seq, channels}, 'latency' n, 'param' {id, value}
  * (moved in the plugin's window), 'gesture' {id, begin}, 'dirty' (its state changed), 'gui' {open}
- * (its window opened or closed), 'exit' {code, signal, crashed}. Blocks are planar Float32Arrays.
+ * (its window opened or closed), 'heard' {wait, offset, buffer, total} (a live note reached the output, in
+ * frames — monitoring only), 'exit' {code, signal, crashed}. Blocks are planar Float32Arrays.
  */
 export class PlugHostSession extends EventEmitter {
   constructor(host = hostBinary()) {
@@ -195,6 +204,7 @@ export class PlugHostSession extends EventEmitter {
       else if (type === R.PARAM_CHANGED) this.emit('param', JSON.parse(payload.toString('utf8')));
       else if (type === R.GESTURE) this.emit('gesture', JSON.parse(payload.toString('utf8')));
       else if (type === R.STATE_DIRTY) this.emit('dirty');
+      else if (type === R.HEARD) this.emit('heard', JSON.parse(payload.toString('utf8')));
       else if (type === R.GUI && !this.waiting.some((x) => x.type === R.GUI)) this.emit('gui', JSON.parse(payload.toString('utf8')));
       else {
         const w = this.waiting.find((x) => x.type === type || type === R.ERROR);
@@ -245,17 +255,34 @@ export class PlugHostSession extends EventEmitter {
     b.writeUInt32LE(frames, 4);
     b.writeUInt32LE(channels.length, 8);
     b.writeUInt32LE(ev, 12);
-    events.forEach((e, i) => {
-      const o = 16 + i * 20;
-      b.writeUInt32LE(Math.max(0, Math.min(frames - 1, e.offset | 0)), o);
-      b.writeUInt8(e.kind, o + 4);
-      b.writeUInt8((e.key ?? 0) & 127, o + 5);
-      b.writeUInt32LE(e.id ?? 0, o + 8);
-      b.writeDoubleLE(e.value ?? 0, o + 12);
-    });
+    events.forEach((e, i) => writeEvent(b, 16 + i * 20, e, frames));
     const at = 16 + ev * 20;
     channels.forEach((c, i) => Buffer.from(c.buffer, c.byteOffset, frames * 4).copy(b, at + i * frames * 4));
     this.write(frame(T.PROCESS, b));
+  }
+
+  /**
+   * Low-latency monitoring (G8.7): the host plays the plugin on the computer's audio output itself, with a
+   * buffer of `period` frames (`nullDevice`: no sound, real timing — tests). While it is on, blocks come
+   * back silent and their events play `lead` frames later there, at `gain` and `pan`; live() notes play at
+   * the next period. → {on, backend, device, period, periods, deviceRate} or {on: false, error}.
+   */
+  monitor({ on = true, period = 128, nullDevice = false, lead = 0, gain = 1, pan = 0 } = {}) {
+    const b = Buffer.alloc(18);
+    b.writeUInt8(on ? 1 : 0, 0);
+    b.writeUInt32LE(period, 1);
+    b.writeUInt8(nullDevice ? 1 : 0, 5);
+    b.writeUInt32LE(lead, 6);
+    b.writeFloatLE(gain, 10);
+    b.writeFloatLE(pan, 14);
+    return this.request(T.MONITOR, b, R.MONITOR);
+  }
+
+  /** A note (or parameter) played now, on the host's own output (monitoring): {kind, key?, id?, value?}. */
+  live(e) {
+    const b = Buffer.alloc(20);
+    writeEvent(b, 0, { ...e, offset: 0 }, 1);
+    this.write(frame(T.LIVE, b));
   }
 
   /** Offline rendering (exports): the plugin may work faster than real time, at its best quality. */

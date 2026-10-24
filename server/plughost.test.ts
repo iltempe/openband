@@ -382,3 +382,62 @@ describe.skipIf(!host || process.platform !== 'darwin')('openband-plughost with 
     await expect(s.load({ path: AU, id: 'aufx:nope:none' })).rejects.toThrow(/not an Audio Unit id|cannot create/);
   });
 });
+
+// G8.7: low-latency monitoring — the host plays the plugin on an audio output of its own. On the null
+// device everywhere (real timing, no sound); on this computer's real output, muted, with
+// OPENBAND_TEST_REAL_AUDIO=1 — there the spec's bound holds: key → sound ≤ the device buffer + 2 blocks.
+describe.skipIf(!ready)('low-latency monitoring', () => {
+  const silence = () => [new Float32Array(128), new Float32Array(128)];
+  const play = async (s: PlugHostSession, n: number) => {
+    const got: { wait: number; offset: number; buffer: number; total: number }[] = [];
+    const on = (h: (typeof got)[0]) => got.push(h);
+    s.on('heard', on);
+    for (let k = 0; k < n; k++) {
+      await new Promise((r) => setTimeout(r, 23 + ((k * 7) % 19)));
+      s.live({ kind: EVENT.NOTE_ON, key: 60 + k, value: 1 });
+      await new Promise((r) => setTimeout(r, 25));
+      s.live({ kind: EVENT.NOTE_OFF, key: 60 + k });
+    }
+    await new Promise((r) => setTimeout(r, 300));
+    s.off('heard', on);
+    return got;
+  };
+
+  it('plays live notes on its own output; the blocks come back silent meanwhile, and not after', async () => {
+    const s = new PlugHostSession(host!);
+    await s.load({ path: fixtures, id: 'org.openband.fixture.synth' });
+    const info = await s.monitor({ on: true, period: 64, nullDevice: true });
+    expect(info).toMatchObject({ on: true, backend: 'Null', period: 64, periods: 2 });
+    const heard = await play(s, 6);
+    expect(heard).toHaveLength(6);
+    for (const h of heard) {
+      expect(h.buffer).toBe(128);
+      expect(h.offset).toBeLessThanOrEqual(1); // on the first sample of its piece (sin(0) is 0)
+      expect(h.total).toBe(h.wait + h.offset + h.buffer);
+    }
+    let p = next(s);
+    s.process(0, silence(), [{ offset: 0, kind: EVENT.NOTE_ON, key: 69, value: 1 }]);
+    expect(Math.max(...(await p).channels[0].map(Math.abs))).toBe(0);
+    expect(await s.monitor({ on: false })).toEqual({ on: false });
+    p = next(s);
+    s.process(1, silence(), [{ offset: 0, kind: EVENT.NOTE_ON, key: 69, value: 1 }]);
+    expect(Math.max(...(await p).channels[0].map(Math.abs))).toBeGreaterThan(0.3);
+    s.close();
+  });
+
+  it.skipIf(process.env.OPENBAND_TEST_REAL_AUDIO !== '1')('on the real output: a key is heard within the device buffer + 2 blocks', async () => {
+    const s = new PlugHostSession(host!);
+    await s.load({ path: fixtures, id: 'org.openband.fixture.synth' });
+    for (const period of [64, 128]) {
+      const info = await s.monitor({ on: true, period, gain: 0 });
+      expect(info.on).toBe(true);
+      const heard = await play(s, 8);
+      expect(heard.length).toBe(8);
+      const buffer = info.period! * info.periods!;
+      for (const h of heard) expect(h.total).toBeLessThanOrEqual(buffer + 2 * 128);
+      console.log(`${info.backend} ${info.device}: period ${period}, key → sound ${heard.map((h) => h.total).join(' ')} frames (bound ${buffer + 256})`);
+      await s.monitor({ on: false });
+    }
+    s.close();
+  }, 30000);
+});

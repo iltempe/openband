@@ -24,6 +24,9 @@ contextBridge.exposeInMainWorld('openbandDesktop', {
     gui: (o) => ipcRenderer.invoke('native-gui', o),
     values: (o) => ipcRenderer.invoke('native-values', o),
     batch: (o) => ipcRenderer.invoke('native-batch', o),
+    monitor: (o) => ipcRenderer.invoke('native-monitor', o),
+    // Notes from a keyboard while monitoring: no answer to wait for.
+    live: (host, e) => ipcRenderer.send('native-live', { host, ...e }),
     onEvent: on('native-event'),
     addDir: (d) => ipcRenderer.invoke('native-add-dir', d),
     onCrashed: on('native-crashed'),

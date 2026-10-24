@@ -7,7 +7,7 @@ import type { WamInstance } from './wam';
 import { faderToDb, sendToDb } from '../music';
 import { createInstrument, customById, makeImpulse, type Instrument } from './instruments';
 import { onSamplesChanged } from './samples';
-import { MAX_PDC_SECONDS, desktopNative, useNativeStatus, type NativeEffect } from './native';
+import { MAX_PDC_SECONDS, NativeInstrument, desktopNative, useNativeStatus, type NativeEffect } from './native';
 import { usesFrozen } from './freeze';
 import { getBuffer } from './samples';
 import { FxChain } from './fx';
@@ -235,6 +235,18 @@ class AudioEngine {
   }
 
   // ---------- live playing ----------
+
+  /** The track's native instrument, when it plays one (G8.7 monitoring). */
+  nativeInstrument(trackId: string): NativeInstrument | null {
+    const i = this.nodes.get(trackId)?.instrument;
+    return i instanceof NativeInstrument ? i : null;
+  }
+  /** What the track's channel does to it now: linear gain (0 if muted) and pan. */
+  trackMix(trackId: string): { gain: number; pan: number } {
+    const n = this.nodes.get(trackId);
+    if (!n) return { gain: 0, pan: 0 };
+    return { gain: n.channel.mute ? 0 : Tone.dbToGain(n.channel.volume.value), pan: n.channel.pan.value };
+  }
 
   noteOn(trackId: string, pitch: number, velocity: number) {
     this.nodes.get(trackId)?.instrument.noteOn(pitch, velocity);

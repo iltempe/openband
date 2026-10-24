@@ -1969,6 +1969,24 @@ kbd {
   color: var(--muted);
   font-size: 12px;
 }
+.low-latency {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.low-latency.on {
+  box-shadow: inset 0 0 0 1px #34d39966;
+  background: #34d39912;
+}
+.low-latency label {
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
 .inst-zones {
   display: flex;
   flex-direction: column;

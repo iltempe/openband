@@ -45,6 +45,8 @@ export class PlugHostSession extends EventEmitter {
   load(o: { path: string; id: string; sampleRate?: number; maxBlock?: number }): Promise<LoadedPlugin>;
   process(seq: number, channels: Float32Array[], events?: { offset: number; kind: number; key?: number; id?: number; value?: number }[]): void;
   setRenderMode(offline: boolean): void;
+  monitor(o?: { on?: boolean; period?: number; nullDevice?: boolean; lead?: number; gain?: number; pan?: number }): Promise<{ on: boolean; backend?: string; device?: string; period?: number; periods?: number; deviceRate?: number; error?: string }>;
+  live(e: { kind: number; key?: number; id?: number; value?: number }): void;
   processBatch(blocks: { n: number; data: Float32Array[]; events?: { offset: number; kind: number; key?: number; id?: number; value?: number }[] }[], timeoutMs?: number): Promise<{ n: number; data: Float32Array[] }[]>;
   openGui(title: string): Promise<{ open: boolean; supported?: boolean; error?: string }>;
   closeGui(): Promise<{ open: boolean }>;

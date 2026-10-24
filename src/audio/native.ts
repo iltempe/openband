@@ -80,7 +80,8 @@ interface LoadedInfo {
 /** What the plugin's own window reports (desktop app). */
 interface HostEvent {
   key: string;
-  type: 'param' | 'gesture' | 'dirty' | 'gui';
+  type: 'param' | 'gesture' | 'dirty' | 'gui' | 'heard';
+  total?: number;
   id?: number;
   value?: number;
   begin?: boolean;
@@ -100,6 +101,26 @@ interface DesktopNative {
   gui(o: { key: string; open: boolean; title?: string }): Promise<{ open: boolean; supported?: boolean; error?: string }>;
   values(o: { key: string }): Promise<{ id: number; value: number }[]>;
   onEvent(cb: (e: HostEvent) => void): void;
+  monitor?(o: { key: string } & MonitorOptions): Promise<MonitorInfo>;
+  live?(key: string, e: { kind: number; key?: number; value?: number }): void;
+}
+
+/** Low-latency monitoring (G8.7): the host's own audio output, see openband-plughost MONITOR. */
+export interface MonitorOptions {
+  on: boolean;
+  period?: number;
+  lead?: number;
+  gain?: number;
+  pan?: number;
+}
+export interface MonitorInfo {
+  on: boolean;
+  backend?: string;
+  device?: string;
+  period?: number;
+  periods?: number;
+  deviceRate?: number;
+  error?: string;
 }
 
 /** Event kinds inside a block (as openband-plughost reads them). */
@@ -143,8 +164,8 @@ const portFor = (key: string) =>
   });
 
 /** What the studio shows about each native plugin slot (trackId:slotId). */
-export const useNativeStatus = create<Record<string, { crashed?: string; error?: string; latency?: number; gui?: boolean }>>(() => ({}));
-const setStatus = (key: string | undefined, v: { crashed?: string; error?: string; latency?: number; gui?: boolean }) => key && useNativeStatus.setState((s) => ({ ...s, [key]: v }));
+export const useNativeStatus = create<Record<string, { crashed?: string; error?: string; latency?: number; gui?: boolean; heard?: number }>>(() => ({}));
+const setStatus = (key: string | undefined, v: { crashed?: string; error?: string; latency?: number; gui?: boolean; heard?: number }) => key && useNativeStatus.setState((s) => ({ ...s, [key]: v }));
 /** Live native effects by trackId:slotId, for Restart. */
 const liveNatives = new Map<string, NativeEffect>();
 /** The same plugins by the key of their host process, for its events. */
@@ -284,6 +305,17 @@ export class NativeEffect {
   }
 
   /** From the host: the plugin's window moved a control, grabbed one, changed its state, closed. */
+  /** Low-latency monitoring (G8.7): the host plays this plugin on the computer's audio output itself. */
+  monitor(o: MonitorOptions): Promise<MonitorInfo> {
+    const dn = desktopNative();
+    if (!dn?.monitor || !this.hostKey || this.offline || this.error) return Promise.resolve({ on: false, error: 'not available' });
+    return dn.monitor({ key: this.hostKey, ...o });
+  }
+  /** A note played now (a keyboard), straight to the host's output while monitoring. */
+  live(kind: number, key?: number, value?: number) {
+    if (this.hostKey) desktopNative()?.live?.(this.hostKey, { kind, key, value });
+  }
+
   hostEvent(e: HostEvent) {
     if (e.type === 'param' && e.id !== undefined && e.value !== undefined) {
       this.values.set(e.id, e.value);
@@ -296,6 +328,8 @@ export class NativeEffect {
       if (this.dirtyTimer) clearTimeout(this.dirtyTimer);
       this.dirtyTimer = setTimeout(() => void this.captureState(), 400);
     } else if (e.type === 'gui') setStatus(this.key, { ...(useNativeStatus.getState()[this.key ?? ''] ?? {}), gui: !!e.open });
+    // Monitoring: frames from a key pressed to its sound leaving the computer.
+    else if (e.type === 'heard') setStatus(this.key, { ...(useNativeStatus.getState()[this.key ?? ''] ?? {}), heard: e.total });
   }
 
   private async captureState() {
@@ -433,6 +467,8 @@ export class NativeInstrument {
   readonly fx: NativeEffect;
   ready: Promise<void>;
   private held = new Set<number>();
+  /** Low-latency monitoring on (G8.7): live notes go straight to the host's own output. */
+  monitoring = false;
 
   constructor(custom: CustomInstrument, key?: string) {
     this.fx = new NativeEffect({ id: 'instrument', url: '', name: custom.name, on: true, format: custom.format, native: custom.native }, key, { instrument: true });
@@ -456,17 +492,20 @@ export class NativeInstrument {
   }
   noteOn(pitch: number, velocity: number, time?: number) {
     this.held.add(pitch);
-    this.fx.event(NOTE_ON, { key: pitch, value: velocity, time: time ?? this.now() });
+    if (this.monitoring && time === undefined) this.fx.live(NOTE_ON, pitch, velocity);
+    else this.fx.event(NOTE_ON, { key: pitch, value: velocity, time: time ?? this.now() });
   }
   noteOff(pitch: number, time?: number) {
     this.held.delete(pitch);
-    this.fx.event(NOTE_OFF, { key: pitch, time: time ?? this.now() });
+    if (this.monitoring && time === undefined) this.fx.live(NOTE_OFF, pitch, 0);
+    else this.fx.event(NOTE_OFF, { key: pitch, time: time ?? this.now() });
   }
   setCutoff(v: number, time?: number) {
     this.output.frequency.rampTo(cutoffToHz(v), 0.05, time);
   }
   releaseAll() {
     this.held.clear();
+    if (this.monitoring) this.fx.live(ALL_NOTES_OFF);
     this.fx.event(ALL_NOTES_OFF, { time: this.now() });
   }
   dispose() {

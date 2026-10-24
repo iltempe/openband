@@ -2,6 +2,15 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.14 "G8.7: low-latency monitoring"
+
+### G8.7 · Monitoring a native instrument with only the device's latency
+- **Low-latency monitoring** (desktop app): when the track you play (the selected one) has a native instrument, `openband-plughost` opens the computer's audio output itself — CoreAudio, WASAPI, ALSA / PulseAudio, through [miniaudio](https://github.com/mackron/miniaudio) (public domain / MIT-0) — with a 128-frame period, and runs the plugin in its callback. The keyboard's notes go straight to it (a message from the page to the host, no audio bridge), so the player hears the device's latency instead of the bridge's ~16 ms. The track's timeline notes play there too, scheduled later by what a block takes through the bridge and the studio's output, so they stay in time with the rest of the song; the blocks the studio receives come back silent meanwhile. The track's fader (mute included) and pan apply, as the studio's channel does them (mono, equal-power); its other effects and the master chain don't while it's on.
+- Smart Controls of a native instrument: a **Low-latency monitoring** switch (on by default, remembered), *Low-latency monitoring on* with the device and its buffer, and the last measured key-to-sound time. It follows the selected track, its fader and pan, and a plugin restarted after a crash.
+- The host measures every live note: frames from its arrival to its first sample (`wait` + `offset`), plus the device buffer (`total`), sent as `HEARD`.
+- Spec deviation: CPAL is a Rust library, and the host is C/C++ (the Rust toolchain is not used here), so the device layer is miniaudio. The MIDI keyboard still reaches the host through the page (Web MIDI → IPC → host, well under a millisecond) rather than by the host opening MIDI itself; the rest of the mix is not routed into the host's output (the system mixes the two outputs).
+- Tests: on miniaudio's null device (every platform, CI included) live notes are heard on the first sample of their period, the blocks come back silent while monitoring and with sound after; in the packaged app (`desktop:smoke`) monitoring starts for the selected native instrument on the null device, a key is heard, and it stops. On this Mac's real output (`OPENBAND_TEST_REAL_AUDIO=1`, muted), key → sound measured **133–173 frames with a 64-frame period (bound: buffer 128 + 2 blocks = 384)** and **257–380 frames with 128 (bound 512)** — the spec's acceptance.
+
 ## v0.6.13 "G8.6: Audio Units"
 
 ### G8.6 · AU (macOS)

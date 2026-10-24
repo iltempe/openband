@@ -27,6 +27,7 @@ import { getConfig, loadConfig } from './config';
 import { savedLanguage, useLang } from './i18n';
 import { initJournal } from './journal';
 import { initAutoWrite } from './autoWrite';
+import { setLowLatency, startMonitoring as startLowLatency, syncMonitoring, useLowLatency } from './lowLatency';
 import { renderBuffer } from './audio/render';
 import { commands } from './commands';
 import * as Tone from 'tone';
@@ -43,8 +44,9 @@ initReference();
 initVersions();
 void initJournal();
 initAutoWrite();
+startLowLatency();
 // ?debug: the engine and the store on window.openband, for diagnostics and end-to-end tests.
-if (new URLSearchParams(location.search).has('debug')) (window as unknown as { openband: unknown }).openband = { engine, useStore, renderBuffer, Tone, commands, analysis: { loudness, truePeak }, native: { testSlot }, nativeStatus: useNativeStatus, restartNative, nativeParam, liveNative, freeze: { freezeNativeTracks, trackHash }, samples: { importSample }, encodePcm };
+if (new URLSearchParams(location.search).has('debug')) (window as unknown as { openband: unknown }).openband = { engine, useStore, renderBuffer, Tone, commands, analysis: { loudness, truePeak }, native: { testSlot }, nativeStatus: useNativeStatus, restartNative, nativeParam, liveNative, freeze: { freezeNativeTracks, trackHash }, samples: { importSample }, encodePcm, lowLatency: { setLowLatency, syncMonitoring, useLowLatency } };
 initJam();
 initFirstRun();
 void loadKeyState();

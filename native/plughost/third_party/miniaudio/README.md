@@ -1,0 +1,1 @@
+miniaudio 0.11.21 (https://github.com/mackron/miniaudio, tag 0.11.21), unmodified: public domain or MIT No Attribution — see LICENSE. The audio output of low-latency monitoring (G8.7): CoreAudio, WASAPI, ALSA / PulseAudio.

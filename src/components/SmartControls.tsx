@@ -7,6 +7,34 @@ import * as I from './Icons';
 import { InstrumentEditor } from './ImportUI';
 import { openPluginBrowser } from './Plugins';
 import { categoryLabel, presetDescription, useT } from '../i18n';
+import { setLowLatency, useLowLatency } from '../lowLatency';
+import { desktopNative, useNativeStatus } from '../audio/native';
+import { engine } from '../audio/engine';
+
+/** Low-latency monitoring (G8.7): on for the selected track's native instrument, with what it measures. */
+function LowLatency({ trackId }: { trackId: string }) {
+  const t = useT();
+  const { enabled, trackId: on, info, error } = useLowLatency();
+  const heard = useNativeStatus((s) => s[`${trackId}:instrument`]?.heard);
+  if (!desktopNative()?.monitor) return null;
+  const active = on === trackId && info;
+  const ms = (frames: number) => ((frames / engine.sampleRateNow()) * 1000).toFixed(1);
+  return (
+    <div className={`low-latency${active ? ' on' : ''}`}>
+      <label className="row">
+        <input type="checkbox" checked={enabled} onChange={(e) => setLowLatency(e.target.checked)} />
+        <span>{t('ll.toggle')}</span>
+      </label>
+      <div className="inst-note">
+        {active
+          ? t('ll.on', { buffer: ms((info.period ?? 128) * (info.periods ?? 2)), device: info.device ?? '' }) + (heard ? ' ' + t('ll.heard', { ms: ms(heard) }) : '')
+          : error
+            ? t('ll.error', { error })
+            : t('ll.off')}
+      </div>
+    </div>
+  );
+}
 
 export function useTrackUpdater(trackId: string) {
   const commit = useStore((s) => s.commit);
@@ -79,6 +107,7 @@ function TrackControls({ track }: { track: Track }) {
             <span className="smart-kicker">{preset.custom.source === 'native' ? (preset.custom.format ?? 'native').toUpperCase() : 'WAM'}</span>
           </div>
           <div className="inst-note">{preset.custom.source === 'native' ? t('nat.instrumentNote') : t('plug.instrumentNote')}</div>
+          {preset.custom.source === 'native' && <LowLatency trackId={track.id} />}
           <div className="row">
             <button className="btn primary" onClick={() => useStore.getState().set({ pluginWindow: { trackId: track.id, slotId: null } })}>
               <I.Fx width={14} height={14} /> {t('plug.open')}

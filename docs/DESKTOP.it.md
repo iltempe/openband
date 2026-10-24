@@ -97,6 +97,14 @@ formato: va bene uno qualsiasi, e tutto quello che segue vale per tutti.
 
 ![Vital, un synth CLAP, su una traccia: i suoi parametri e la sua finestra](native-instrument.png)
 
+- **Monitoraggio a bassa latenza**: quando suoni una traccia con uno strumento nativo (quella selezionata),
+  l'host dei plugin apre lui stesso l'uscita audio con un buffer piccolo (128 campioni, circa 2,7 ms ×2 a
+  48 kHz) e le note della tastiera gli arrivano direttamente: senti solo la latenza del dispositivo, non i
+  ~16 ms del bridge. Gli Smart Controls mostrano *Monitoraggio a bassa latenza attivo*, il dispositivo e il
+  tempo dall'ultimo tasto al suono. Il resto della canzone suona come sempre; anche le note della traccia
+  sulla timeline suonano lì, a tempo. Finché è attivo valgono il fader e il pan della traccia, non gli
+  altri effetti né la catena del master. Spegnilo con l'interruttore per sentire tutta la catena.
+
 - I plugin sono programmi che girano con i tuoi permessi: OpenBand lo dice prima del primo, e li carica
   solo dalle cartelle dei plugin, mai da internet.
 - Gli **export** includono i plugin nativi: l'export li fa girare nella loro modalità offline, blocco per

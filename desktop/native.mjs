@@ -70,6 +70,7 @@ export function setupNative({ root, getWin }) {
     session.on('gesture', toPage('gesture'));
     session.on('dirty', toPage('dirty'));
     session.on('gui', toPage('gui'));
+    session.on('heard', toPage('heard'));
     session.on('exit', ({ crashed, signal, code }) => {
       if (!crashed) return;
       const reason = signal ? `crashed (${signal})` : `stopped (exit ${code})`;
@@ -118,6 +119,14 @@ export function setupNative({ root, getWin }) {
   ipcMain.handle('native-gui', (e, { key, open, title }) => (open ? live(e, key).openGui(title ?? 'Plugin') : live(e, key).closeGui()));
   ipcMain.handle('native-values', (e, { key }) => live(e, key).values());
   ipcMain.handle('native-batch', (e, { key, blocks }) => live(e, key).processBatch(blocks));
+  // Low-latency monitoring (G8.7): the host plays the plugin on the computer's output itself. Tests and
+  // smoke runs use the null device (OPENBAND_MONITOR_NULL=1): real timing, no sound.
+  ipcMain.handle('native-monitor', (e, { key, on, period, lead, gain, pan }) => live(e, key).monitor({ on, period, lead, gain, pan, nullDevice: process.env.OPENBAND_MONITOR_NULL === '1' }));
+  ipcMain.on('native-live', (e, { host: key, ...ev }) => {
+    if (!fromPage(e)) return;
+    const s = sessions.get(key);
+    if (s?.session.alive) s.session.live(ev);
+  });
   ipcMain.handle('native-set-state', (e, { key, state }) => live(e, key).setState(Buffer.from(state, 'base64')));
   ipcMain.handle('native-add-dir', (e, dir) => {
     if (!fromPage(e)) throw new Error('not allowed');
