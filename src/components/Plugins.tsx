@@ -1,13 +1,13 @@
 // Web Audio Module plugins: browser (catalog + URL), floating plugin window, effect slots.
 import { usePluginSync } from '../pluginHistory';
 import { LevelMatchControl } from './LevelMatch';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { create } from 'zustand';
 import type { Track } from '../types';
 import { getTrack, useStore } from '../store';
 import { wamCatalog, type WamCatalogEntry } from '../audio/wam';
-import { addNativeEffect, addPluginEffect, addPluginInstrument, captureWamStates, livePlugin, removePluginEffect, searchPlugins, updateSlot } from '../plugins';
-import { desktopNative, restartNative, useNativeStatus, type NativePluginInfo } from '../audio/native';
+import { addNativeEffect, addNativeInstrument, addPluginEffect, addPluginInstrument, captureWamStates, livePlugin, pluginSync, removePluginEffect, searchPlugins, updateSlot } from '../plugins';
+import { desktopNative, liveNative, restartNative, useNativeStatus, type NativePluginInfo } from '../audio/native';
 import { t, useT } from '../i18n';
 import { engine } from '../audio/engine';
 import * as I from './Icons';
@@ -71,6 +71,13 @@ function InstalledPlugins({ kind, query, trackId, onAdded }: { kind: Mode; query
     const s = useStore.getState();
     const target = getTrack(s.project, trackId ?? s.selectedTrackId);
     try {
+      if (p.kind === 'instrument') {
+        // On the track the browser was opened for (an instrument track), otherwise on a new one.
+        const r = addNativeInstrument(p, trackId && target?.kind === 'instrument' ? target.id : undefined);
+        s.set({ pluginWindow: { trackId: r.track_id!, slotId: null } });
+        notify(tr('plug.added', { name: r.name }));
+        return onAdded();
+      }
       if (!target) throw new Error(t('plug.needTrack'));
       const r = addNativeEffect(target.id, p);
       s.set({ bottom: 'fx', selectedTrackId: target.id });
@@ -100,7 +107,7 @@ function InstalledPlugins({ kind, query, trackId, onAdded }: { kind: Mode; query
               {p.vendor} {p.version} · {p.features.join(', ')}
             </div>
           </div>
-          <button className="mini" disabled={p.kind === 'instrument'} title={p.kind === 'instrument' ? tr('nat.instrumentsSoon') : undefined} onClick={() => add(p)}>
+          <button className="mini" onClick={() => add(p)}>
             {tr('sf.add')}
           </button>
         </div>
@@ -229,6 +236,72 @@ export function PluginBrowser() {
   );
 }
 
+/**
+ * A native plugin (G8): its own window, opened by the host and floating above the studio, and its
+ * parameters as sliders here — the same everywhere, also where the plugin has no window (Linux for now).
+ */
+function NativePanel({ pluginKey, name }: { pluginKey: string; name: string }) {
+  const tr = useT();
+  const [, redraw] = useReducer((x: number) => x + 1, 0);
+  const [query, setQuery] = useState('');
+  const [busy, setBusy] = useState(false);
+  const status = useNativeStatus((s) => s[pluginKey]);
+  const [n, setN] = useState(() => liveNative(pluginKey));
+  useEffect(() => {
+    // It may still be loading: look again until it is there.
+    if (n) return;
+    const t = setInterval(() => setN(liveNative(pluginKey)), 300);
+    return () => clearInterval(t);
+  }, [n, pluginKey]);
+  useEffect(() => {
+    if (!n) return;
+    void n.refreshValues();
+    return n.subscribe(redraw);
+  }, [n]);
+  if (!n) return <div className="ai-log-empty">{desktopNative() ? tr('plug.loadingGui') : tr('nat.needDesktop')}</div>;
+  if (n.error) return <div className="wave-missing">{n.error}</div>;
+  const q = query.trim().toLowerCase();
+  const params = n.params.filter((p) => !q || p.name.toLowerCase().includes(q)).slice(0, 80);
+  const save = () => void n.getState().then((b64) => b64 && pluginSync.recordEdit(pluginKey, name, b64));
+  const toggleGui = async () => {
+    setBusy(true);
+    try {
+      const r = await n.gui(!status?.gui);
+      if (!r.open && r.supported === false) notify(tr('nat.noWindow'));
+      else if (r.error) notify(r.error);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="native-panel">
+      <div className="native-head">
+        {n.hasGui && (
+          <button className="btn primary" disabled={busy} onClick={() => void toggleGui()}>
+            <I.Fx width={14} height={14} /> {status?.gui ? tr('nat.closeWindow') : tr('nat.openWindow')}
+          </button>
+        )}
+        <input className="native-search" placeholder={tr('nat.searchParams', { n: n.params.length })} value={query} onChange={(e) => setQuery(e.target.value)} />
+      </div>
+      {!n.params.length && <div className="ai-log-empty">{tr('nat.noParams')}</div>}
+      <div className="native-params">
+        {params.map((p) => {
+          const v = n.values.get(p.id) ?? p.value;
+          return (
+            <label key={p.id} className="native-param">
+              <span className="native-param-name" title={p.name}>
+                {p.name}
+              </span>
+              <input type="range" min={p.min} max={p.max} step={p.stepped ? 1 : (p.max - p.min) / 1000 || 0.001} value={v} onChange={(e) => n.setParam(p.id, Number(e.target.value))} onPointerUp={save} onKeyUp={save} />
+              <span className="native-param-value">{p.stepped ? Math.round(v) : +v.toFixed(3)}</span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /** Floating window with the plugin's own GUI. */
 export function PluginWindow() {
   const win = useStore((s) => s.pluginWindow);
@@ -241,10 +314,13 @@ export function PluginWindow() {
 
   const track = win ? getTrack(project, win.trackId) : undefined;
   const slot = win?.slotId ? track?.fx?.plugins?.find((p) => p.id === win.slotId) : undefined;
-  const name = slot?.name ?? project.instruments?.find((i) => i.id === track?.instrument)?.name ?? '';
+  const instrument = project.instruments?.find((i) => i.id === track?.instrument);
+  const name = slot?.name ?? instrument?.name ?? '';
+  // Native plugins (G8) have their own window, opened by the host, and a panel of parameters here.
+  const native = win ? (slot ? (slot.format ?? 'wam') !== 'wam' : instrument?.source === 'native') : false;
 
   useEffect(() => {
-    if (!win) return;
+    if (!win || native) return;
     let gui: HTMLElement | null = null;
     let destroy: (() => void) | null = null;
     let alive = true;
@@ -294,9 +370,15 @@ export function PluginWindow() {
         </button>
       </div>
       <div className="plugin-window-body">
-        {status === 'loading' && <div className="ai-log-empty">{tr('plug.loadingGui')}</div>}
-        {status === 'error' && <div className="wave-missing">{message}</div>}
-        <div ref={mount} />
+        {native ? (
+          <NativePanel pluginKey={`${win.trackId}:${win.slotId ?? 'instrument'}`} name={name} />
+        ) : (
+          <>
+            {status === 'loading' && <div className="ai-log-empty">{tr('plug.loadingGui')}</div>}
+            {status === 'error' && <div className="wave-missing">{message}</div>}
+            <div ref={mount} />
+          </>
+        )}
       </div>
     </div>
   );
@@ -372,7 +454,7 @@ export function PluginSlots({ track }: { track: Track }) {
             <span className="plug-slot-name">{s.name}</span>
             {s.format && s.format !== 'wam' && <span className={`plug-format f-${s.format}`}>{s.format.toUpperCase()}</span>}
             <SlotLatency trackId={track.id} slotId={s.id} />
-            {(s.format ?? 'wam') === 'wam' && (
+            {s.format !== 'test' && (
               <button className="mini" onClick={() => set({ pluginWindow: { trackId: track.id, slotId: s.id } })}>
                 {tr('plug.edit')}
               </button>

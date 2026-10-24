@@ -45,7 +45,7 @@ const fixtures = path.join(root, 'build', 'plughost');
 if (fs.existsSync(path.join(fixtures, 'ob-fixtures.clap'))) {
   const n = spawnSync(exe, ['--smoke', ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], { env: { ...env, OPENBAND_SMOKE_NATIVE: '1', OPENBAND_PLUGIN_DIRS: fixtures }, encoding: 'utf8', timeout: 120000 });
   const res = `${n.stdout}${n.stderr}`.split('\n').find((l) => l.startsWith('SMOKE-NATIVE')) ?? `exit ${n.status}`;
-  check(n.status === 0, `a CLAP effect plays in the app, and a crashing one leaves the track playing (${res.trim()})`);
+  check(n.status === 0, `CLAP in the app: an effect, a crash that leaves the track playing, an instrument with automation and saved state (${res.trim()})`);
   if (n.status !== 0) console.log(`${n.stderr}`.split('\n').slice(-15).join('\n'));
 } else console.log('- native plugins: no fixtures (node scripts/build-plughost.mjs)');
 

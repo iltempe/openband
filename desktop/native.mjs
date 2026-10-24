@@ -56,12 +56,18 @@ export function setupNative({ root, getWin }) {
     if (state) await session.setState(Buffer.from(state, 'base64')).catch(() => false);
     const { port1, port2 } = new MessageChannelMain();
     port1.on('message', ({ data }) => {
-      if (data?.type === 'block') session.process(data.n, data.data);
+      if (data?.type === 'block') session.process(data.n, data.data, data.events ?? []);
       else if (data?.type === 'param') session.setParam(data.id, data.value);
     });
     port1.start();
     session.on('block', ({ seq, channels }) => port1.postMessage({ type: 'block', n: seq, data: channels }));
     session.on('latency', (latency) => port1.postMessage({ type: 'latency', latency }));
+    // What happens in the plugin's own window: values, gestures (Touch/Latch), state changes (undo).
+    const toPage = (type) => (e) => getWin()?.webContents.send('native-event', { key, type, ...(e && typeof e === 'object' ? e : {}) });
+    session.on('param', toPage('param'));
+    session.on('gesture', toPage('gesture'));
+    session.on('dirty', toPage('dirty'));
+    session.on('gui', toPage('gui'));
     session.on('exit', ({ crashed, signal, code }) => {
       if (!crashed) return;
       const reason = signal ? `crashed (${signal})` : `stopped (exit ${code})`;
@@ -101,6 +107,15 @@ export function setupNative({ root, getWin }) {
     if (!s?.session.alive) return null;
     return (await s.session.getState()).toString('base64');
   });
+  const live = (e, key) => {
+    if (!fromPage(e)) throw new Error('not allowed');
+    const s = sessions.get(key);
+    if (!s?.session.alive) throw new Error('This plugin is not running');
+    return s.session;
+  };
+  ipcMain.handle('native-gui', (e, { key, open, title }) => (open ? live(e, key).openGui(title ?? 'Plugin') : live(e, key).closeGui()));
+  ipcMain.handle('native-values', (e, { key }) => live(e, key).values());
+  ipcMain.handle('native-set-state', (e, { key, state }) => live(e, key).setState(Buffer.from(state, 'base64')));
   ipcMain.handle('native-add-dir', (e, dir) => {
     if (!fromPage(e)) throw new Error('not allowed');
     const list = [...new Set([...userDirs(), String(dir)])];

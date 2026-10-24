@@ -231,6 +231,12 @@ export class FxChain {
     return p instanceof WamEffect ? p.instance : null;
   }
 
+  /** A native plugin effect of the chain (G8). */
+  native(slotId: string): NativeEffect | null {
+    const p = this.plugins.get(slotId);
+    return p instanceof NativeEffect ? p : null;
+  }
+
   /** Samples of delay one plugin adds (0 when bypassed or not loaded). */
   slotLatency(slotId: string) {
     return this.plugins.get(slotId)?.activeLatency ?? 0;

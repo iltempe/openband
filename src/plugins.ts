@@ -1,7 +1,8 @@
 // Web Audio Module plugins in the project: adding/removing them, finding them from a plain-language
 // description, reading and writing their parameters, and saving their state into the project.
 import type { CustomInstrument, PluginSlot } from './types';
-import type { NativePluginInfo } from './audio/native';
+import { allLiveNatives, liveNative, nativeHooks, type NativeEffect, type NativePluginInfo } from './audio/native';
+import { setProjectPluginState } from './pluginHistory';
 import { getTrack, makeTrack, useStore } from './store';
 import { uid } from './music';
 import { normalizeFx } from './audio/fx';
@@ -113,6 +114,26 @@ export async function addPluginEffect(trackId: string, ref: string) {
   return { track_id: trackId, slot_id: slot.id, name: plugin.name, url: plugin.url };
 }
 
+/** A native plugin instrument (G8, desktop app) found by the scan: on a new track, or on trackId. */
+export function addNativeInstrument(p: NativePluginInfo, trackId?: string) {
+  if (p.kind !== 'instrument') throw new Error(`“${p.name}” is an effect`);
+  const inst: CustomInstrument = { id: uid('nat'), name: p.name, kind: 'instrument', source: 'native', zones: [], attack: 0, release: 0, format: p.format, native: { id: p.id, vendor: p.vendor, version: p.version, path_hint: p.path } };
+  const s = st();
+  if (trackId && getTrack(s.project, trackId)?.kind !== 'instrument') throw new Error('Plugin instruments go on instrument tracks');
+  s.commit((d) => {
+    d.instruments = [...(d.instruments ?? []), inst];
+    if (trackId) d.tracks.find((t) => t.id === trackId)!.instrument = inst.id;
+  });
+  let id = trackId;
+  if (!id) {
+    const track = makeTrack(st().project, 'instrument', inst.id, p.name);
+    st().commit((d) => void d.tracks.push(track));
+    st().set({ selectedTrackId: track.id });
+    id = track.id;
+  }
+  return { instrument_id: inst.id, track_id: id, name: p.name, format: p.format };
+}
+
 /** A native plugin effect (G8, desktop app) found by the scan, at the end of a track's chain. */
 export function addNativeEffect(trackId: string, p: NativePluginInfo) {
   const track = getTrack(st().project, trackId);
@@ -157,7 +178,34 @@ export async function livePlugin(trackId: string, slotId?: string, timeoutMs = 2
   throw new Error(slotId ? `Plugin ${slotId} on track ${trackId} is not loaded (failed or still loading)` : `Track ${trackId} has no loaded plugin instrument`);
 }
 
+/** A live native plugin (G8) of a track, once loaded; null when that slot isn't a native plugin. */
+async function liveNativeOf(trackId: string, slotId?: string, timeoutMs = 20000): Promise<NativeEffect | null> {
+  const p = st().project;
+  const t = getTrack(p, trackId);
+  const native = slotId ? (t?.fx?.plugins?.find((s) => s.id === slotId)?.format ?? 'wam') !== 'wam' : p.instruments?.find((i) => i.id === t?.instrument)?.source === 'native';
+  if (!native) return null;
+  const key = `${trackId}:${slotId ?? 'instrument'}`;
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    const n = liveNative(key);
+    if (n?.error) throw new Error(`The plugin failed to load: ${n.error}`);
+    if (n?.params.length || (n && n.activeLatency)) return n;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`The native plugin of track ${trackId} is not running (it needs the desktop app)`);
+}
+
 export async function getPluginParams(trackId: string, slotId?: string) {
+  const n = await liveNativeOf(trackId, slotId);
+  if (n)
+    return n.params.map((p) => ({
+      id: String(p.id),
+      label: p.name,
+      value: +(n.values.get(p.id) ?? p.value).toFixed(4),
+      min: p.min,
+      max: p.max,
+      ...(p.stepped ? { stepped: true } : {}),
+    }));
   const node = (await livePlugin(trackId, slotId)).audioNode;
   const [info, values] = await Promise.all([node.getParameterInfo(), node.getParameterValues(false)]);
   return Object.values(info).map((p) => ({
@@ -172,6 +220,22 @@ export async function getPluginParams(trackId: string, slotId?: string) {
 }
 
 export async function setPluginParams(trackId: string, slotId: string | undefined, values: Record<string, number>) {
+  const n = await liveNativeOf(trackId, slotId);
+  if (n) {
+    const set: string[] = [];
+    for (const [id, v] of Object.entries(values)) {
+      const p = n.params.find((x) => String(x.id) === id) ?? n.params.find((x) => x.name.toLowerCase() === id.toLowerCase());
+      if (!p) throw new Error(`Unknown parameter "${id}". Call get_plugin_params.`);
+      n.setParam(p.id, Math.min(p.max, Math.max(p.min, Number(v))));
+      set.push(String(p.id));
+    }
+    // The plugin applies them at its next block; then its state goes into the project, undoable.
+    await new Promise((r) => setTimeout(r, 60));
+    const key = `${trackId}:${slotId ?? 'instrument'}`;
+    const state = await n.getState().catch(() => null);
+    if (state) pluginSync.recordEdit(key, pluginName(key), state, { own: false });
+    return set;
+  }
   const node = (await livePlugin(trackId, slotId)).audioNode;
   const info = await node.getParameterInfo();
   const data: Record<string, { id: string; value: number; normalized: boolean }> = {};
@@ -210,10 +274,20 @@ export async function captureWamStates() {
       }
     }
   }
-  if (!instStates.size && !slotStates.size) return;
+  // Native plugins (desktop app): their state, as the host saves it.
+  const nativeStates = new Map<string, string>();
+  for (const [key, n] of allLiveNatives()) {
+    const state = await n.getState().catch(() => null);
+    if (state) {
+      nativeStates.set(key, state);
+      pluginSync.noteCaptured(key, state);
+    }
+  }
+  if (!instStates.size && !slotStates.size && !nativeStates.size) return;
   st().commit((d) => {
     for (const i of d.instruments ?? []) if (instStates.has(i.id) && i.wam) i.wam.state = instStates.get(i.id);
     for (const t of d.tracks) for (const s of t.fx?.plugins ?? []) if (slotStates.has(s.id)) s.state = slotStates.get(s.id);
+    for (const [key, state] of nativeStates) setProjectPluginState(d, key, state);
   }, { history: false });
 }
 
@@ -227,6 +301,8 @@ export const pluginSync = new PluginStateSync({
   live: () => {
     const m = new Map<string, LivePlugin>();
     for (const [key, inst] of liveWams) m.set(key, { name: pluginName(key), getState: () => inst.audioNode.getState(), setState: (s) => inst.audioNode.setState(s) });
+    // Native plugins: their state travels as base64 through the host.
+    for (const [key, n] of allLiveNatives()) m.set(key, { name: n.slot.name, getState: () => n.getState(), setState: (s) => n.setState(s as string) });
     return m;
   },
   project: () => st().project,
@@ -239,7 +315,9 @@ export const pluginSync = new PluginStateSync({
   endEdit: (id) => void st().endTransaction(id),
   isOpen: (id) => st().activeTransaction?.id === id,
   notify: (msg) => st().notify(msg),
-});
+});// A native plugin's window changed its state: one undo step, like a WAM's (but told, not polled).
+nativeHooks.onDirty = (key, name, b64) => pluginSync.recordEdit(key, name, b64);
+
 
 // Undo, redo, checkout, load: plugins follow the project.
 useStore.subscribe((s, prev) => {

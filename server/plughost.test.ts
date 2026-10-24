@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { PlugHostSession, clapDirs, findBundles, hostBinary, scanBundle, scanPlugins } from './plughost.mjs';
+import { EVENT, PlugHostSession, clapDirs, findBundles, hostBinary, scanBundle, scanPlugins } from './plughost.mjs';
 
 const build = path.resolve(__dirname, '..', 'build', 'plughost');
 const host = hostBinary();
@@ -38,7 +38,8 @@ describe('plugin folders', () => {
 describe.skipIf(!ready)('openband-plughost with the fixtures', () => {
   it('scans a bundle: ids, names, kinds', async () => {
     const list = await scanBundle(host!, fixtures);
-    expect(list.map((p) => p.id)).toEqual(['org.openband.fixture.gain', 'org.openband.fixture.delay', 'org.openband.fixture.crash']);
+    expect(list.map((p) => p.id)).toEqual(['org.openband.fixture.gain', 'org.openband.fixture.delay', 'org.openband.fixture.crash', 'org.openband.fixture.synth']);
+    expect(list[3].kind).toBe('instrument');
     expect(list[0]).toMatchObject({ format: 'clap', name: 'OB Fixture Gain', vendor: 'OpenBand', kind: 'effect', path: fixtures });
   });
 
@@ -119,4 +120,69 @@ describe.skipIf(!ready)('openband-plughost with the fixtures', () => {
     const s = new PlugHostSession(host!);
     await expect(s.load({ path: fixtures, id: 'org.openband.nope' })).rejects.toThrow(/cannot create org.openband.nope/);
   });
+
+  it('plays notes on the exact sample of their event, and parameters too (sample-accurate)', async () => {
+    const s = new PlugHostSession(host!);
+    const info = await s.load({ path: fixtures, id: 'org.openband.fixture.synth' });
+    expect(info).toMatchObject({ inputs: 0, outputs: 2, gui: false });
+    expect(info.params).toEqual([expect.objectContaining({ id: 2, name: 'Level', value: 0.5 })]);
+    const silence = () => [new Float32Array(128), new Float32Array(128)];
+    let p = next(s);
+    s.process(0, silence(), [{ offset: 37, kind: EVENT.NOTE_ON, key: 69, value: 1 }]);
+    let out = (await p).channels[0];
+    expect(out.findIndex((v) => v !== 0)).toBe(38); // sin(0) = 0 on the note's first sample
+    expect(Math.max(...out.map(Math.abs))).toBeGreaterThan(0.3);
+    // Level 0.5 → 0.1 at sample 64 of the next block.
+    p = next(s);
+    s.process(1, silence(), [{ offset: 64, kind: EVENT.PARAM, id: 2, value: 0.1 }]);
+    out = (await p).channels[0];
+    expect(Math.max(...out.slice(0, 64).map(Math.abs))).toBeGreaterThan(0.4);
+    expect(Math.max(...out.slice(64).map(Math.abs))).toBeLessThan(0.11);
+    p = next(s);
+    s.process(2, silence(), [{ offset: 0, kind: EVENT.ALL_NOTES_OFF }]);
+    out = (await p).channels[0];
+    expect(Math.max(...out.map(Math.abs))).toBe(0);
+    s.close();
+  });
+
+  it("says when the plugin's own controls move: value, gesture, state changed", async () => {
+    const s = new PlugHostSession(host!);
+    await s.load({ path: fixtures, id: 'org.openband.fixture.synth' });
+    const got: string[] = [];
+    s.on('gesture', (g) => got.push(`gesture ${g.id} ${g.begin}`));
+    s.on('param', (v) => got.push(`param ${v.id} ${v.value}`));
+    const dirty = new Promise<void>((r) => s.once('dirty', () => r()));
+    const p = next(s);
+    s.process(0, [new Float32Array(128), new Float32Array(128)], [{ offset: 0, kind: EVENT.NOTE_ON, key: 127, value: 1 }]);
+    await p;
+    await dirty;
+    expect(got).toEqual(['gesture 2 true', 'param 2 0.25', 'gesture 2 false']);
+    expect(await s.values()).toEqual([{ id: 2, value: 0.25 }]);
+    expect((await s.getState()).toString()).toMatch(/^gain=0\.25/);
+    s.close();
+  });
+
+  it('says when a plugin has no window of its own', async () => {
+    const s = new PlugHostSession(host!);
+    await s.load({ path: fixtures, id: 'org.openband.fixture.gain' });
+    expect(await s.openGui('Gain')).toEqual({ open: false, supported: false });
+    s.close();
+  });
+});
+
+const vital = '/Library/Audio/Plug-Ins/CLAP/Vital.clap';
+describe.skipIf(!ready || !fs.existsSync(vital))('a real CLAP instrument (Vital, when installed)', () => {
+  it('plays a note', async () => {
+    const s = new PlugHostSession(host!);
+    const info = await s.load({ path: vital, id: 'audio.vital.synth' });
+    expect(info.params.length).toBeGreaterThan(100);
+    let peak = 0;
+    for (let k = 0; k < 120; k++) {
+      const p = next(s);
+      s.process(k, [new Float32Array(128), new Float32Array(128)], k === 0 ? [{ offset: 0, kind: EVENT.NOTE_ON, key: 60, value: 0.9 }] : []);
+      peak = Math.max(peak, ...(await p).channels[0].map(Math.abs));
+    }
+    expect(peak).toBeGreaterThan(0.05);
+    s.close();
+  }, 30000);
 });

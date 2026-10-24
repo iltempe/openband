@@ -3,6 +3,7 @@ import type { Track } from '../types';
 import { lanesOf, valueAt } from '../automation';
 import type { FxChain } from './fx';
 import type { WamInstance } from './wam';
+import type { NativeEffect } from './native';
 
 /**
  * A plugin parameter at an audio time: a scheduled `wam-automation` event where the plugin takes
@@ -15,13 +16,19 @@ export function automatePlugin(inst: WamInstance, paramId: string, value: number
 }
 
 /** Effect and plugin lanes of a track at `beat`, scheduled at `time`. Mix lanes are handled by the callers. */
-export function applyFxAutomation(track: Track, beat: number, time: number, fx: FxChain, instrument: { instance?: WamInstance | null } | undefined, o: { plugins?: boolean } = {}) {
+export function applyFxAutomation(track: Track, beat: number, time: number, fx: FxChain, instrument: { instance?: WamInstance | null; fx?: NativeEffect } | undefined, o: { plugins?: boolean } = {}) {
   for (const lane of lanesOf(track)) {
     if (lane.target.kind === 'mix' || !lane.points.length) continue;
     if (lane.target.kind === 'plugin' && o.plugins === false) continue;
     const v = valueAt(lane.points, beat)!;
     if (lane.target.kind === 'fx') fx.setParam(lane.target.unit, lane.target.param, v, time);
     else {
+      // Native plugins (G8): the value lands on its sample inside the block.
+      const native = lane.target.slotId === null ? instrument?.fx : fx.native(lane.target.slotId);
+      if (native) {
+        native.setParamAt(Number(lane.target.paramId), v, time);
+        continue;
+      }
       const inst = lane.target.slotId === null ? instrument?.instance : fx.plugin(lane.target.slotId);
       if (inst) automatePlugin(inst, lane.target.paramId, v, time);
     }

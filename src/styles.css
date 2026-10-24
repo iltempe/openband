@@ -5515,3 +5515,52 @@ div.ca-steps {
 .plug-crash.crashed {
   color: var(--rec);
 }
+.native-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  width: min(560px, 80vw);
+  max-height: 60vh;
+}
+.native-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.native-search {
+  flex: 1;
+  background: var(--panel-3);
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 6px 9px;
+  font-size: 12px;
+}
+.native-params {
+  overflow: auto;
+  display: grid;
+  gap: 4px;
+  padding-right: 4px;
+}
+.native-param {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) 2fr 56px;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+}
+.native-param-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.native-param-value {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: right;
+}
+.native-param input[type='range'] {
+  accent-color: var(--accent);
+}

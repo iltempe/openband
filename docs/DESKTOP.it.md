@@ -68,7 +68,7 @@ collegarla: le app AI ricordano dove si trova. Usa l'app oppure l'estensione per
 
 ## Plugin nativi
 
-Gli **effetti CLAP** installati sul computer funzionano nell'app: *Plugin* (nella libreria, o *+ Plugin*
+Gli **strumenti e gli effetti CLAP** installati sul computer funzionano nell'app: *Plugin* (nella libreria, o *+ Plugin*
 negli effetti di una traccia) li elenca in *Installati su questo computer*, accanto ai plugin web. OpenBand
 li cerca nelle cartelle standard (macOS `~/Library/Audio/Plug-Ins/CLAP` e `/Library/Audio/Plug-Ins/CLAP`;
 Windows `Common Files\CLAP`; Linux `~/.clap`, `/usr/lib/clap`), un plugin alla volta in un processo a
@@ -82,11 +82,21 @@ parte: uno che si blocca o si chiude durante la ricerca viene messo da parte (*I
 - **A tempo con tutto il resto**: l'audio va al plugin e torna a blocchi, circa 16 ms più la latenza del
   plugin, e OpenBand ritarda altrettanto le altre tracce (compensazione della latenza), dal vivo e negli
   export. Lo slot mostra la latenza.
+- **Strumenti**: aggiungine uno da *Plugin* (su una traccia nuova, o sulla traccia strumento da cui hai
+  aperto la finestra); suona le note della timeline, una tastiera MIDI e le parti dell'AI. **Modifica** (o
+  *Apri plugin* negli Smart Controls) mostra i suoi parametri, con la ricerca, e **Apri la finestra del
+  plugin** apre la sua interfaccia, sospesa sopra lo studio (macOS e Windows; su Linux per ora i parametri).
+- L'**automazione** di qualsiasi parametro arriva sul campione esatto dentro il blocco audio, e muovere un
+  controllo nella finestra del plugin viene registrato in Touch / Latch come qualsiasi manopola dello
+  studio. Ogni modifica nella finestra del plugin è un passo di annullamento, e le impostazioni si salvano
+  con la canzone.
+
+![Vital, un synth CLAP, su una traccia: i suoi parametri e la sua finestra](native-instrument.png)
+
 - I plugin sono programmi che girano con i tuoi permessi: OpenBand lo dice prima del primo, e li carica
   solo dalle cartelle dei plugin, mai da internet.
-- Prossimi passi: strumenti CLAP, finestre dei plugin, automazione e annullamento dei parametri (G8.3);
-  export delle canzoni con plugin nativi e ascolto nel browser da una copia "congelata" (G8.4 — fino ad
-  allora un export suona quelle tracce senza il plugin, e lo dice); VST3 e AU.
+- Prossimi passi: export delle canzoni con plugin nativi e ascolto nel browser da una copia "congelata"
+  (G8.4 — fino ad allora un export suona quelle tracce senza il plugin, e lo dice); VST3 e AU.
 
 ## Compilarla
 

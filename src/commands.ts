@@ -524,7 +524,7 @@ export const commands: Record<string, (args: P) => unknown> = {
     const fx = normalizeFx(t.fx);
     const auto = (tg: Parameters<typeof targetKey>[0]) => (isAutomated(t, tg) ? { automated: true } : {});
     const plugins: { target: unknown; key: string; label: string; plugin: string; min: number; max: number; value: number; automated?: boolean }[] = [];
-    const custom = st().project.instruments?.find((i) => i.id === t.instrument && i.source === 'wam');
+    const custom = st().project.instruments?.find((i) => i.id === t.instrument && (i.source === 'wam' || i.source === 'native'));
     const slots: { slotId: string | null; name: string }[] = [...(custom ? [{ slotId: null, name: custom.name }] : []), ...(fx.plugins ?? []).map((s) => ({ slotId: s.id, name: s.name }))];
     for (const s of slots) {
       try {

@@ -5,7 +5,8 @@
 // run behind the same bridge — and inline, in the worklet, for offline renders.
 import * as Tone from 'tone';
 import { create } from 'zustand';
-import type { PluginSlot } from '../types';
+import type { CustomInstrument, PluginSlot } from '../types';
+import { cutoffToHz } from '../music';
 import { nativeWorkletSource } from './worklets/native.worklet';
 import { TEST_PLUGINS, TestPlugin } from './worklets/native-dsp.js';
 
@@ -71,7 +72,17 @@ export interface HostParam {
 interface LoadedInfo {
   name: string;
   latency: number;
-  params: HostParam[];
+  gui: boolean;
+  params: (HostParam & { value: number })[];
+}
+/** What the plugin's own window reports (desktop app). */
+interface HostEvent {
+  key: string;
+  type: 'param' | 'gesture' | 'dirty' | 'gui';
+  id?: number;
+  value?: number;
+  begin?: boolean;
+  open?: boolean;
 }
 interface DesktopNative {
   info(): Promise<{ available: boolean }>;
@@ -82,7 +93,28 @@ interface DesktopNative {
   state(o: { key: string }): Promise<string | null>;
   addDir(dir: string): Promise<string[]>;
   onCrashed(cb: (e: { key: string; name: string; reason: string }) => void): void;
+  setState(o: { key: string; state: string }): Promise<boolean>;
+  gui(o: { key: string; open: boolean; title?: string }): Promise<{ open: boolean; supported?: boolean; error?: string }>;
+  values(o: { key: string }): Promise<{ id: number; value: number }[]>;
+  onEvent(cb: (e: HostEvent) => void): void;
 }
+
+/** Event kinds inside a block (as openband-plughost reads them). */
+export const NOTE_ON = 0;
+export const NOTE_OFF = 1;
+export const PARAM = 2;
+export const ALL_NOTES_OFF = 3;
+
+/**
+ * What the rest of the studio wants to know about native plugins, set by plugins.ts and autoWrite.ts
+ * (no imports from here into them: they import this module).
+ */
+export const nativeHooks: {
+  /** The plugin's state changed in its window: record it (one undo step). */
+  onDirty?: (key: string, name: string, stateB64: string) => void;
+  /** A parameter moved in the plugin's window; gesture = a control grabbed (true) or let go (false). */
+  onParam?: (key: string, id: number, value: number, gesture?: boolean) => void;
+} = {};
 export const desktopNative = (): DesktopNative | null => (typeof window !== 'undefined' ? ((window as unknown as { openbandDesktop?: { native?: DesktopNative } }).openbandDesktop?.native ?? null) : null);
 
 // The audio port of each opened plugin arrives as a window message (see desktop/preload.cjs).
@@ -108,10 +140,22 @@ const portFor = (key: string) =>
   });
 
 /** What the studio shows about each native plugin slot (trackId:slotId). */
-export const useNativeStatus = create<Record<string, { crashed?: string; error?: string; latency?: number }>>(() => ({}));
-const setStatus = (key: string | undefined, v: { crashed?: string; error?: string; latency?: number }) => key && useNativeStatus.setState((s) => ({ ...s, [key]: v }));
+export const useNativeStatus = create<Record<string, { crashed?: string; error?: string; latency?: number; gui?: boolean }>>(() => ({}));
+const setStatus = (key: string | undefined, v: { crashed?: string; error?: string; latency?: number; gui?: boolean }) => key && useNativeStatus.setState((s) => ({ ...s, [key]: v }));
 /** Live native effects by trackId:slotId, for Restart. */
 const liveNatives = new Map<string, NativeEffect>();
+/** The same plugins by the key of their host process, for its events. */
+const byHost = new Map<string, NativeEffect>();
+let listening = false;
+function listen() {
+  const dn = desktopNative();
+  if (listening || !dn?.onEvent) return;
+  listening = true;
+  dn.onEvent((e) => byHost.get(e.key)?.hostEvent(e));
+}
+/** A live native plugin by trackId:slotId (slotId "instrument" for the track's instrument). */
+export const liveNative = (key: string) => liveNatives.get(key) ?? null;
+export const allLiveNatives = () => liveNatives;
 export const restartNative = (key: string) => liveNatives.get(key)?.restart() ?? Promise.reject(new Error('This plugin is not running'));
 /** Set a parameter of a live native plugin (its host id), at the start of its next block. */
 export const nativeParam = (key: string, id: number, value: number) => liveNatives.get(key)?.setParam(id, value);
@@ -127,14 +171,20 @@ export class NativeEffect {
   error: string | null = null;
   /** Blocks the host didn't return in time (live). */
   underruns = 0;
-  params: HostParam[] = [];
+  params: (HostParam & { value: number })[] = [];
+  /** Current parameter values, as the host last reported them (window moves included). */
+  values = new Map<number, number>();
+  /** Has the plugin a window of its own? */
+  hasGui = false;
   private node: AudioWorkletNode | null = null;
   private bypassed = false;
   private hostKey: string | null = null;
+  private dirtyTimer: ReturnType<typeof setTimeout> | null = null;
+  private listeners = new Set<() => void>();
 
-  /** key: trackId:slotId, for the studio's status and Restart. */
-  constructor(readonly slot: PluginSlot, private key?: string) {
-    this.input.connect(this.output);
+  /** key: trackId:slotId, for the studio's status and Restart. instrument: no audio input (a synth). */
+  constructor(readonly slot: PluginSlot, private key?: string, private opts: { instrument?: boolean } = {}) {
+    if (!opts.instrument) this.input.connect(this.output);
     if (key) liveNatives.set(key, this);
     this.ready = this.load().catch((e) => {
       this.error = (e as Error).message;
@@ -163,10 +213,19 @@ export class NativeEffect {
       const key = `nat_${Math.random().toString(36).slice(2, 10)}`;
       this.hostKey = key;
       const port = portFor(key);
+      listen();
+      byHost.set(key, this);
       const info = await dn.open({ key, path: this.slot.native?.path_hint ?? '', id: this.slot.native!.id, sampleRate: raw.sampleRate, maxBlock: BLOCK, state: this.slot.native?.state_b64 });
       this.params = info.params;
+      this.hasGui = !!info.gui;
+      for (const p of info.params) this.values.set(p.id, p.value);
       const node = new AudioWorkletNode(raw, 'openband-native', { ...opts, processorOptions: { mode: 'port', jitterBlocks: JITTER_BLOCKS } });
       node.port.onmessage = (e) => this.fromWorklet(e.data);
+      // A processor that throws stops for good: say so instead of going silent.
+      node.onprocessorerror = (e) => {
+        this.error = `${this.slot.name}: the audio bridge stopped (${(e as ErrorEvent).message ?? 'processor error'})`;
+        setStatus(this.key, { error: this.error });
+      };
       node.port.postMessage({ type: 'transport', pluginLatency: info.latency }, [await port]);
       this.node = node;
       this.latency = JITTER_BLOCKS * BLOCK + info.latency;
@@ -202,6 +261,75 @@ export class NativeEffect {
     if (m.type === 'crashed') setStatus(this.key, { crashed: `${this.slot.name} ${m.reason ?? 'stopped'}`, latency: this.latency });
   }
 
+  /** From the host: the plugin's window moved a control, grabbed one, changed its state, closed. */
+  hostEvent(e: HostEvent) {
+    if (e.type === 'param' && e.id !== undefined && e.value !== undefined) {
+      this.values.set(e.id, e.value);
+      this.changed();
+      if (this.key) nativeHooks.onParam?.(this.key, e.id, e.value);
+    } else if (e.type === 'gesture' && e.id !== undefined) {
+      if (this.key) nativeHooks.onParam?.(this.key, e.id, this.values.get(e.id) ?? 0, !!e.begin);
+    } else if (e.type === 'dirty') {
+      // Settle first: a knob turned sends many; one undo step when it stops.
+      if (this.dirtyTimer) clearTimeout(this.dirtyTimer);
+      this.dirtyTimer = setTimeout(() => void this.captureState(), 400);
+    } else if (e.type === 'gui') setStatus(this.key, { ...(useNativeStatus.getState()[this.key ?? ''] ?? {}), gui: !!e.open });
+  }
+
+  private async captureState() {
+    const b64 = await this.getState().catch(() => null);
+    if (b64 && this.key) nativeHooks.onDirty?.(this.key, this.slot.name, b64);
+  }
+
+  /** The plugin's state (its format's own chunk), base64. */
+  async getState(): Promise<string | null> {
+    const dn = desktopNative();
+    if (!dn || !this.hostKey) return this.slot.native?.state_b64 ?? null;
+    return dn.state({ key: this.hostKey });
+  }
+
+  async setState(b64: string) {
+    const dn = desktopNative();
+    if (dn && this.hostKey) await dn.setState({ key: this.hostKey, state: b64 });
+  }
+
+  /** Open (or close) the plugin's own window, floating above the studio. */
+  async gui(open: boolean) {
+    const dn = desktopNative();
+    if (!dn || !this.hostKey) return { open: false, supported: false };
+    const r = await dn.gui({ key: this.hostKey, open, title: this.slot.name });
+    setStatus(this.key, { ...(useNativeStatus.getState()[this.key ?? ''] ?? {}), gui: r.open });
+    return r;
+  }
+
+  /** Read every value again from the plugin. */
+  async refreshValues() {
+    const dn = desktopNative();
+    if (!dn || !this.hostKey) return;
+    for (const v of await dn.values({ key: this.hostKey })) this.values.set(v.id, v.value);
+    this.changed();
+  }
+
+  /** Subscribe to value changes (UI). */
+  subscribe(fn: () => void) {
+    this.listeners.add(fn);
+    return () => void this.listeners.delete(fn);
+  }
+  private changed() {
+    for (const fn of this.listeners) fn();
+  }
+
+  /** A note or a parameter change at an audio time: the worklet puts it on its sample. */
+  event(kind: number, o: { key?: number; id?: number; value?: number; time?: number } = {}) {
+    this.node?.port.postMessage({ type: 'event', kind, key: o.key ?? 0, id: o.id ?? 0, value: o.value ?? 0, time: o.time ?? this.input.context.currentTime });
+  }
+
+  /** A parameter at an audio time (automation, sample-accurate). */
+  setParamAt(id: number, value: number, time?: number) {
+    this.values.set(id, value);
+    this.event(PARAM, { id, value, time });
+  }
+
   /** Start a crashed plugin again, with the state saved in the song. */
   async restart() {
     const dn = desktopNative();
@@ -213,7 +341,9 @@ export class NativeEffect {
   }
 
   setParam(id: number, value: number) {
+    this.values.set(id, value);
     this.node?.port.postMessage({ type: 'param', id, value });
+    this.changed();
   }
 
   setBypass(off: boolean) {
@@ -229,20 +359,75 @@ export class NativeEffect {
   private route() {
     this.input.disconnect();
     if (!this.node || this.bypassed) {
-      this.input.connect(this.output);
+      if (!this.opts.instrument) this.input.connect(this.output);
       return;
     }
     this.node.disconnect();
-    Tone.connect(this.input, this.node);
+    if (!this.opts.instrument) Tone.connect(this.input, this.node);
     Tone.connect(this.node, this.output);
   }
 
   dispose() {
     if (this.key && liveNatives.get(this.key) === this) liveNatives.delete(this.key);
-    if (this.hostKey) void desktopNative()?.close({ key: this.hostKey });
+    if (this.hostKey) {
+      byHost.delete(this.hostKey);
+      void desktopNative()?.close({ key: this.hostKey });
+    }
+    if (this.dirtyTimer) clearTimeout(this.dirtyTimer);
     this.node?.port.close();
     this.node?.disconnect();
     this.input.dispose();
+    this.output.dispose();
+  }
+}
+
+/**
+ * A native instrument (G8.3): notes go to the plugin at their audio time, placed on their sample inside
+ * the block; its output passes the track's tone filter like the other instruments.
+ */
+export class NativeInstrument {
+  readonly output = new Tone.Filter({ type: 'lowpass', frequency: 20000, rolloff: -12, Q: 0.5 });
+  readonly fx: NativeEffect;
+  ready: Promise<void>;
+  private held = new Set<number>();
+
+  constructor(custom: CustomInstrument, key?: string) {
+    this.fx = new NativeEffect({ id: 'instrument', url: '', name: custom.name, on: true, format: custom.format, native: custom.native }, key, { instrument: true });
+    this.fx.output.connect(this.output);
+    this.ready = this.fx.ready;
+  }
+
+  /** Samples between a note's time and its sound: compensated like an effect's. */
+  get latency() {
+    return this.fx.activeLatency;
+  }
+  get error() {
+    return this.fx.error;
+  }
+  private now() {
+    return this.output.context.currentTime;
+  }
+  trigger(pitch: number, duration: number, time: number, velocity: number) {
+    this.fx.event(NOTE_ON, { key: pitch, value: velocity, time });
+    this.fx.event(NOTE_OFF, { key: pitch, time: time + Math.max(0.02, duration) });
+  }
+  noteOn(pitch: number, velocity: number, time?: number) {
+    this.held.add(pitch);
+    this.fx.event(NOTE_ON, { key: pitch, value: velocity, time: time ?? this.now() });
+  }
+  noteOff(pitch: number, time?: number) {
+    this.held.delete(pitch);
+    this.fx.event(NOTE_OFF, { key: pitch, time: time ?? this.now() });
+  }
+  setCutoff(v: number, time?: number) {
+    this.output.frequency.rampTo(cutoffToHz(v), 0.05, time);
+  }
+  releaseAll() {
+    this.held.clear();
+    this.fx.event(ALL_NOTES_OFF, { time: this.now() });
+  }
+  dispose() {
+    this.fx.dispose();
     this.output.dispose();
   }
 }

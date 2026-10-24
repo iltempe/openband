@@ -10,6 +10,7 @@ import { useStore, isAiCommand } from './store';
 import { engine } from './audio/engine';
 import { AUTO_PARAMS, FX_PARAMS, mix, pointsOf, setPoints, targetKey, touchRelease, writeSpan, type WriteMode } from './automation';
 import { normalizeFx } from './audio/fx';
+import { nativeHooks } from './audio/native';
 
 export const useAutoWrite = create<{ mode: WriteMode }>(() => ({ mode: 'off' }));
 export const setWriteMode = (mode: WriteMode) => useAutoWrite.setState({ mode });
@@ -100,6 +101,35 @@ export function release(key: string) {
   }
 }
 
+/**
+ * A parameter moved in a native plugin's own window (G8): written into its lane like any control of the
+ * studio. gesture true / false = the control was grabbed / let go (from the plugin), undefined = a move.
+ */
+export function pluginMoved(trackId: string, slotId: string | null, paramId: string, value: number, gesture?: boolean) {
+  const target: AutoTarget = { kind: 'plugin', slotId, paramId };
+  const key = `${trackId}|${targetKey(target)}`;
+  if (gesture === false) return release(key);
+  const mode = useAutoWrite.getState().mode;
+  if (mode === 'off' || !engine.playing) return;
+  const at = engine.position;
+  let x = touches.get(key);
+  if (!x) {
+    const t = useStore.getState().project.tracks.find((tr) => tr.id === trackId);
+    if (!t) return;
+    const existing = pointsOf(t, target);
+    x = { trackId, target, before: existing ? existing.map((p) => ({ ...p })) : undefined, last: at, value, base: value };
+    touches.set(key, x);
+    latched = latched.filter((l) => !(l.trackId === trackId && targetKey(l.target) === targetKey(target)));
+  }
+  if (gesture) return;
+  writing = true;
+  try {
+    useStore.getState().commit((d) => write(d, x!, value, at), { history: false });
+  } finally {
+    writing = false;
+  }
+}
+
 /** Playback stopped: latched values are written up to here. */
 function onStop() {
   if (!latched.length) return;
@@ -117,6 +147,10 @@ function onStop() {
 }
 
 export function initAutoWrite() {
+  nativeHooks.onParam = (key, id, value, gesture) => {
+    const [trackId, slot] = key.split(':');
+    pluginMoved(trackId, slot === 'instrument' ? null : slot, String(id), value, gesture);
+  };
   useStore.subscribe((s, prev) => {
     if (prev.isPlaying && !s.isPlaying) onStop();
     onChange(s, prev);

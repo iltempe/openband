@@ -66,7 +66,7 @@ would both add the OpenBand tools.
 
 ## Native plugins
 
-**CLAP effects** installed on your computer work in the app: *Plugins* (in the library, or *+ Plugin* in a
+**CLAP instruments and effects** installed on your computer work in the app: *Plugins* (in the library, or *+ Plugin* in a
 track's effects) lists them under *Installed on this computer*, next to the web plugins. OpenBand looks in
 the standard folders (macOS `~/Library/Audio/Plug-Ins/CLAP` and `/Library/Audio/Plug-Ins/CLAP`; Windows
 `Common Files\CLAP`; Linux `~/.clap`, `/usr/lib/clap`). Each folder is scanned plugin by plugin in a
@@ -80,11 +80,20 @@ separate process: one that hangs or crashes while being scanned is set aside (*I
 - **In time with everything else**: the audio goes to the plugin and back in blocks, about 16 ms plus the
   plugin's own latency, and OpenBand delays the other tracks by as much (plugin delay compensation), live
   and in exports. The slot shows the latency.
+- **Instruments**: add one from *Plugins* (a new track, or the instrument track the browser was opened
+  for); it plays the notes of the timeline, a MIDI keyboard and the AI's parts. **Edit** (or *Open plugin*
+  in Smart Controls) shows its parameters, searchable, and **Open the plugin window** opens the plugin's own
+  interface, floating above the studio (macOS and Windows; on Linux the parameters for now).
+- **Automation** of any plugin parameter lands on its exact sample inside the audio block, and moving a
+  control in the plugin's own window is recorded in Touch / Latch like any knob of the studio. Every change
+  you make in the plugin's window is one undo step, and its settings are saved with the song.
+
+![Vital, a CLAP synth, on a track: its parameters and its own window](native-instrument.png)
+
 - Plugins are programs that run with your permissions: OpenBand says so before the first one, and only
   loads them from the plugin folders, never from the internet.
-- Coming next: CLAP instruments, plugin windows, automation and undo of plugin parameters (G8.3);
-  exporting songs with native plugins, and playing them in the browser from a "frozen" copy (G8.4 —
-  until then an export plays those tracks without the plugin, and says so); VST3 and AU.
+- Coming next: exporting songs with native plugins, and playing them in the browser from a "frozen" copy
+  (G8.4 — until then an export plays those tracks without the plugin, and says so); VST3 and AU.
 
 ## Building it
 

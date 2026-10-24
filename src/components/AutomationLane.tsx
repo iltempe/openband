@@ -26,7 +26,7 @@ interface PluginParam {
 function usePluginParams(track: Track): PluginParam[] {
   const project = useStore((s) => s.project);
   const [list, setList] = useState<PluginParam[]>([]);
-  const custom = project.instruments?.find((i) => i.id === track.instrument && i.source === 'wam');
+  const custom = project.instruments?.find((i) => i.id === track.instrument && (i.source === 'wam' || i.source === 'native'));
   const slots = [...(custom ? [{ slotId: null as string | null, name: custom.name }] : []), ...(track.fx?.plugins ?? []).map((s) => ({ slotId: s.id as string | null, name: s.name }))];
   const sig = slots.map((s) => s.slotId ?? 'i').join(',');
   useEffect(() => {

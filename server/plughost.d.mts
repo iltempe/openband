@@ -26,8 +26,10 @@ export interface LoadedPlugin {
   latency: number;
   inputs: number;
   outputs: number;
-  params: HostParam[];
+  gui: boolean;
+  params: (HostParam & { value: number })[];
 }
+export const EVENT: { NOTE_ON: 0; NOTE_OFF: 1; PARAM: 2; ALL_NOTES_OFF: 3 };
 export function hostBinary(extra?: string[]): string | null;
 export function clapDirs(platform?: string, env?: Record<string, string | undefined>, home?: string): string[];
 export function findBundles(dirs: string[]): string[];
@@ -38,7 +40,10 @@ export class PlugHostSession extends EventEmitter {
   constructor(host?: string | null);
   alive: boolean;
   load(o: { path: string; id: string; sampleRate?: number; maxBlock?: number }): Promise<LoadedPlugin>;
-  process(seq: number, channels: Float32Array[]): void;
+  process(seq: number, channels: Float32Array[], events?: { offset: number; kind: number; key?: number; id?: number; value?: number }[]): void;
+  openGui(title: string): Promise<{ open: boolean; supported?: boolean; error?: string }>;
+  closeGui(): Promise<{ open: boolean }>;
+  values(): Promise<{ id: number; value: number }[]>;
   setParam(id: number, value: number): void;
   getState(): Promise<Buffer>;
   setState(bytes: Uint8Array): Promise<boolean>;

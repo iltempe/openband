@@ -73,12 +73,12 @@ function TrackControls({ track }: { track: Track }) {
         <Knob label={t('sc.reverb')} value={track.reverb} defaultValue={0.2} color="#a78bfa" onStart={checkpoint} onChange={(v) => update((t) => void (t.reverb = v))} size={64} />
         <Knob label={t('sc.echo')} value={track.delay} defaultValue={0} color="#22d3ee" onStart={checkpoint} onChange={(v) => update((t) => void (t.delay = v))} size={64} />
       </div>
-      {preset?.custom?.source === 'wam' ? (
+      {preset?.custom?.source === 'wam' || preset?.custom?.source === 'native' ? (
         <div className="inst-editor">
           <div className="inst-head">
-            <span className="smart-kicker">WAM</span>
+            <span className="smart-kicker">{preset.custom.source === 'native' ? (preset.custom.format ?? 'native').toUpperCase() : 'WAM'}</span>
           </div>
-          <div className="inst-note">{t('plug.instrumentNote')}</div>
+          <div className="inst-note">{preset.custom.source === 'native' ? t('nat.instrumentNote') : t('plug.instrumentNote')}</div>
           <div className="row">
             <button className="btn primary" onClick={() => useStore.getState().set({ pluginWindow: { trackId: track.id, slotId: null } })}>
               <I.Fx width={14} height={14} /> {t('plug.open')}

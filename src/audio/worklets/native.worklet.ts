@@ -23,12 +23,20 @@ class OpenBandNative extends AudioWorkletProcessor {
     this.missing = 0;
     this.answered = false;
     // The last inputs, to play the track bypassed with the same latency if the plugin crashes.
+    // Notes and parameter changes at an audio time, placed at their sample inside the block they fall in.
+    this.events = [];
     this.ring = [];
     for (let c = 0; c < this.channels; c++) this.ring.push(new Float32Array(65536));
     this.w = 0;
     this.port.onmessage = (e) => {
       const m = e.data;
       if (m.type === 'block') this.jitter && this.jitter.put(m.n, m.data);
+      else if (m.type === 'event') {
+        const ev = { frame: Math.round(m.time * sampleRate), kind: m.kind, key: m.key || 0, id: m.id || 0, value: m.value || 0 };
+        let i = this.events.length;
+        while (i > 0 && this.events[i - 1].frame > ev.frame) i--;
+        this.events.splice(i, 0, ev);
+      }
       else if (m.type === 'param') {
         if (this.plugin) this.plugin.setParam(m.id, m.value);
         else if (this.transport) this.transport.postMessage(m);
@@ -62,6 +70,11 @@ class OpenBandNative extends AudioWorkletProcessor {
     for (let c = 0; c < this.channels; c++) block.push(input ? Float32Array.from(input[Math.min(c, input.length - 1)]) : new Float32Array(n));
     const mask = 65535;
     for (let c = 0; c < this.channels; c++) for (let i = 0; i < n; i++) this.ring[c][(this.w + i) & mask] = block[c][i];
+    // This block's events, with their offset (late ones at the start).
+    const end = currentFrame + n;
+    let k = 0;
+    while (k < this.events.length && this.events[k].frame < end) k++;
+    const events = this.events.splice(0, k).map((e) => ({ offset: Math.max(0, e.frame - currentFrame), kind: e.kind, key: e.key, id: e.id, value: e.value }));
     const { n: seq, data } = this.jitter.next();
     if (this.crashed) {
       // Bypassed, as late as the plugin was: the track stays in time with the others.
@@ -72,8 +85,8 @@ class OpenBandNative extends AudioWorkletProcessor {
       }
     } else {
       // The desktop app's port (Electron's MessagePortMain) doesn't take transferred buffers: copy there.
-      if (this.transport) this.transport.postMessage({ type: 'block', n: seq, data: block });
-      else this.port.postMessage({ type: 'block', n: seq, data: block }, block.map((b) => b.buffer));
+      if (this.transport) this.transport.postMessage({ type: 'block', n: seq, data: block, events });
+      else this.port.postMessage({ type: 'block', n: seq, data: block, events }, block.map((b) => b.buffer));
       for (let c = 0; c < output.length; c++) {
         const src = data ? data[Math.min(c, data.length - 1)] : null;
         if (src) output[c].set(src.subarray(0, n));

@@ -58,7 +58,7 @@
     'feat.togetherp': "Condividi un link e modificate la stessa canzone dal vivo, con i commenti, e l'AI come terzo musicista.",
     'feat.desktop': 'App desktop',
     'feat.plugins': 'I tuoi plugin',
-    'feat.pluginsp': 'Plugin web open source ovunque, e i plugin CLAP installati sul computer, ognuno nel suo processo: un crash non ferma mai la musica.',
+    'feat.pluginsp': 'Plugin web open source ovunque, e i synth e gli effetti CLAP installati sul computer, con le loro finestre e l’automazione al campione, ognuno nel suo processo: un crash non ferma mai la musica.',
     'feat.master': 'Suona come un disco',
     'feat.masterp': 'Limiter true-peak, sidechain, misuratori di loudness ed export per ogni piattaforma, con stem che sommati tornano al master.',
     'ai.eyebrow': 'Qualsiasi AI',

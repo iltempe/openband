@@ -366,6 +366,7 @@ async function smokeNative() {
   step('scan');
   const scan = await dn.scan();
   const gain = scan.plugins.find((p) => p.id === 'org.openband.fixture.gain');
+  const synth = scan.plugins.find((p) => p.id === 'org.openband.fixture.synth');
   const crash = scan.plugins.find((p) => p.id === 'org.openband.fixture.crash');
   if (!gain || !crash) return { ok: false, why: 'fixtures not found', scan };
   engine.stop();
@@ -417,8 +418,45 @@ async function smokeNative() {
   await wait(1500);
   const restarted = !window.openband.nativeStatus.getState()[`${t}:n1`]?.crashed;
   const back = await rms();
-  const ok = Math.abs(wet - dry + 6) < 1 && latency === 6 * 128 && Math.abs(before - dry) < 1 && !!crashed && Math.abs(after - dry) < 1 && restarted && Math.abs(back - dry) < 1;
-  return { ok, dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
+  // G8.3: a native instrument plays the timeline; a parameter follows its automation; the plugin's own
+  // controls land in the song (undo).
+  step('instrument');
+  useStore.getState().commit((d) => {
+    d.tracks.find((x) => x.id === t).mute = true;
+    d.instruments = [...(d.instruments ?? []), { id: 'nat_synth', name: synth.name, kind: 'instrument', source: 'native', zones: [], attack: 0, release: 0, format: 'clap', native: { id: synth.id, vendor: synth.vendor, version: synth.version, path_hint: synth.path } }];
+  });
+  const s2 = (await commands.add_track({ kind: 'instrument', name: 'Synth' })).track_id;
+  useStore.getState().commit((d) => void (d.tracks.find((x) => x.id === s2).instrument = 'nat_synth'));
+  await commands.add_region({ track_id: s2, start_bar: 1, length_bars: 4, notes: [{ pitch: 'A4', start: 0, duration: 16, velocity: 0.9 }] });
+  await commands.update_track({ track_id: s2, reverb: 0, delay: 0 });
+  await commands.set_automation({ track_id: s2, target: { kind: 'plugin', slot_id: null, param_id: '2' }, points: [{ bar: 1, value: 0.5 }, { bar: 2, value: 0.5 }, { bar: 2.02, value: 0.05 }, { bar: 4, value: 0.05 }] });
+  for (let i = 0; i < 150 && !status.getState()[`${s2}:instrument`]?.latency; i++) await wait(100);
+  await wait(400);
+  engine.position = 0;
+  const cap2 = engine.captureMaster(3.4);
+  await engine.play();
+  const c2 = await cap2;
+  engine.stop();
+  const rmsAt = (from, to) => {
+    const x = c2.channels[0].subarray(Math.floor(from * c2.sampleRate), Math.floor(to * c2.sampleRate));
+    let s = 0;
+    for (const v of x) s += v * v;
+    return 10 * Math.log10(s / x.length + 1e-12);
+  };
+  // 120 BPM: bar 2 starts at 2 s; the latency of the bridge is compensated by the engine.
+  const plays = rmsAt(0.6, 1.8);
+  const automated = rmsAt(2.4, 3.3) - plays;
+  // Without automation (which would set Level again), the knob the plugin turns is what gets saved.
+  await commands.clear_automation({ track_id: s2 });
+  await wait(300);
+  const before64 = useStore.getState().project.instruments.find((i) => i.id === 'nat_synth').native.state_b64 ?? null;
+  // As if the user turned Level in the plugin's own window (the fixture does it on note 127).
+  window.openband.liveNative(`${s2}:instrument`).event(0, { key: 127, value: 1 });
+  const stateNow = () => useStore.getState().project.instruments.find((i) => i.id === 'nat_synth').native.state_b64 ?? null;
+  for (let i = 0; i < 50 && stateNow() === before64; i++) await wait(100);
+  const saved = atob(useStore.getState().project.instruments.find((i) => i.id === 'nat_synth').native.state_b64 ?? '');
+  const ok = Math.abs(wet - dry + 6) < 1 && latency === 6 * 128 && Math.abs(before - dry) < 1 && !!crashed && Math.abs(after - dry) < 1 && restarted && Math.abs(back - dry) < 1 && plays > -40 && automated < -15 && /^gain=0\.25/.test(saved);
+  return { ok, dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, instrument: +plays.toFixed(1), automation: +automated.toFixed(1), saved: saved.slice(0, 12), crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
 }
 
 /** OPENBAND_DESKTOP_SHOT=file.png (docs): the studio with the AI panel on the "AI apps" tab, then quit. */
@@ -432,6 +470,18 @@ async function shot(file) {
       enter.click();
       setTimeout(() => {
         [...document.querySelectorAll('.tour-card button')].at(-1)?.click();
+        if (${JSON.stringify(process.env.OPENBAND_DESKTOP_SHOT_VIEW === 'native-instrument')}) {
+          // Docs: the first installed native instrument, added from the plugin browser, with its panel.
+          localStorage.setItem('openband.nativeWarned', '1');
+          [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Plugins')?.click();
+          const pick = () => {
+            const row = [...document.querySelectorAll('.plug-native .plug-item')].find((r) => /instrument/i.test(r.textContent));
+            if (!row) return setTimeout(pick, 300);
+            row.querySelector('button').click();
+            setTimeout(resolve, 6000);
+          };
+          return setTimeout(pick, 500);
+        }
         if (${JSON.stringify(process.env.OPENBAND_DESKTOP_SHOT_VIEW === 'plugins')}) {
           [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Plugins')?.click();
           return setTimeout(resolve, 14000);

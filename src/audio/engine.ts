@@ -7,7 +7,7 @@ import type { WamInstance } from './wam';
 import { faderToDb, sendToDb } from '../music';
 import { createInstrument, customById, makeImpulse, type Instrument } from './instruments';
 import { onSamplesChanged } from './samples';
-import { MAX_PDC_SECONDS } from './native';
+import { MAX_PDC_SECONDS, type NativeEffect } from './native';
 import { FxChain } from './fx';
 import { MasterChainNode, loadMasterWorklets } from './master';
 import { attachMeter, detachMeter } from './meters';
@@ -299,7 +299,7 @@ class AudioEngine {
     // Imported instruments are rebuilt when their definition (zones, envelope) changes.
     const custom = customById(track.instrument);
     // Plugin state changes all the time while it's being played with: only its URL forces a reload.
-    const signature = custom ? `${track.instrument}:${custom.source === 'wam' ? custom.wam?.url : JSON.stringify(custom)}` : track.instrument;
+    const signature = custom ? `${track.instrument}:${custom.source === 'wam' ? custom.wam?.url : custom.source === 'native' ? `${custom.format}:${custom.native?.id}:${custom.native?.path_hint}` : JSON.stringify(custom)}` : track.instrument;
     if (!node) {
       const channel = new Tone.Channel().connect(this.master);
       const meter = new Tone.Meter({ smoothing: 0.8 });
@@ -315,6 +315,8 @@ class AudioEngine {
       void attachMeter(track.id, channel);
       const instrument = createInstrument(track.instrument, undefined, `${track.id}:instrument`);
       instrument.output.connect(fx.input);
+      const ready = (instrument as { ready?: Promise<void> }).ready;
+      if (ready) void ready.then(() => this.syncPdc());
       node = { presetId: signature, instrument, fx, fxSignature: '', channel, meter, reverbSend, delaySend, polarity, pdc };
       this.nodes.set(track.id, node);
     } else if (node.presetId !== signature) {
@@ -324,6 +326,8 @@ class AudioEngine {
       node.instrument = createInstrument(track.instrument, undefined, `${track.id}:instrument`);
       node.instrument.output.connect(node.fx.input);
       node.presetId = signature;
+      const ready = (node.instrument as { ready?: Promise<void> }).ready;
+      if (ready) void ready.then(() => this.syncPdc());
     }
     const ch = node.channel;
     // Mute is a gain of its own (with polarity, after the effects): Tone.Channel's mute sets the volume
@@ -359,7 +363,8 @@ class AudioEngine {
   /** Plugin delay compensation (G8): every track is delayed to line up with the slowest one. */
   syncPdc() {
     const sr = Tone.getContext().sampleRate;
-    const lat = new Map([...this.nodes].map(([id, n]) => [id, this.pdcEnabled ? n.fx.latency : 0]));
+    // A track is as late as its instrument (a native one, behind the bridge) plus its effects.
+    const lat = new Map([...this.nodes].map(([id, n]) => [id, this.pdcEnabled ? n.fx.latency + ((n.instrument as { latency?: number }).latency ?? 0) : 0]));
     const max = Math.min(MAX_PDC_SECONDS * sr, Math.max(0, ...lat.values()));
     this.pdcLatency = max;
     for (const [id, n] of this.nodes) {
@@ -418,7 +423,7 @@ class AudioEngine {
       const node = this.nodes.get(track.id);
       if (!node) continue;
       this.applyMix(node, track, beat, time, true);
-      applyFxAutomation(track, beat, time, node.fx, node.instrument as { instance?: WamInstance | null });
+      applyFxAutomation(track, beat, time, node.fx, node.instrument as { instance?: WamInstance | null; fx?: NativeEffect });
     }
   }
 

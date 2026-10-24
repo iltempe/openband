@@ -115,8 +115,10 @@ export async function scanPlugins({ host = hostBinary(), dirs = clapDirs(), cach
 
 // ---------------------------------------------------------------- one plugin in a host process
 
-const T = { LOAD: 1, PROCESS: 2, PARAM: 3, GET_STATE: 4, SET_STATE: 5, QUIT: 6 };
-const R = { LOADED: 1, BLOCK: 2, STATE: 4, STATE_SET: 5, LATENCY: 7, ERROR: 8 };
+const T = { LOAD: 1, PROCESS: 2, PARAM: 3, GET_STATE: 4, SET_STATE: 5, QUIT: 6, GUI_OPEN: 7, GUI_CLOSE: 8, GET_VALUES: 10 };
+const R = { LOADED: 1, BLOCK: 2, STATE: 4, STATE_SET: 5, LATENCY: 7, ERROR: 8, PARAM_CHANGED: 9, GESTURE: 10, STATE_DIRTY: 11, GUI: 12, VALUES: 13 };
+/** Event kinds inside a block (see native/plughost/src/plughost.c). */
+export const EVENT = { NOTE_ON: 0, NOTE_OFF: 1, PARAM: 2, ALL_NOTES_OFF: 3 };
 
 function frame(type, payload = Buffer.alloc(0)) {
   const b = Buffer.alloc(5 + payload.length);
@@ -127,8 +129,9 @@ function frame(type, payload = Buffer.alloc(0)) {
 }
 
 /**
- * A host process serving one plugin. Events: 'block' {seq, channels}, 'latency' n, 'exit' {code, signal,
- * crashed}. Blocks are sent and received as planar Float32Arrays.
+ * A host process serving one plugin. Events: 'block' {seq, channels}, 'latency' n, 'param' {id, value}
+ * (moved in the plugin's window), 'gesture' {id, begin}, 'dirty' (its state changed), 'gui' {open}
+ * (its window opened or closed), 'exit' {code, signal, crashed}. Blocks are planar Float32Arrays.
  */
 export class PlugHostSession extends EventEmitter {
   constructor(host = hostBinary()) {
@@ -167,6 +170,10 @@ export class PlugHostSession extends EventEmitter {
         const channels = Array.from({ length: nch }, (_, c) => all.slice(c * frames, (c + 1) * frames));
         this.emit('block', { seq, channels });
       } else if (type === R.LATENCY) this.emit('latency', JSON.parse(payload.toString('utf8')).latency);
+      else if (type === R.PARAM_CHANGED) this.emit('param', JSON.parse(payload.toString('utf8')));
+      else if (type === R.GESTURE) this.emit('gesture', JSON.parse(payload.toString('utf8')));
+      else if (type === R.STATE_DIRTY) this.emit('dirty');
+      else if (type === R.GUI && !this.waiting.some((x) => x.type === R.GUI)) this.emit('gui', JSON.parse(payload.toString('utf8')));
       else {
         const w = this.waiting.find((x) => x.type === type || type === R.ERROR);
         if (w) {
@@ -204,15 +211,43 @@ export class PlugHostSession extends EventEmitter {
     return r;
   }
 
-  /** Send a block (planar channels); the answer comes as a 'block' event with the same seq. */
-  process(seq, channels) {
-    const frames = channels[0]?.length ?? 0;
-    const b = Buffer.alloc(12 + channels.length * frames * 4);
+  /**
+   * Send a block (planar channels) with its events — notes and parameter changes at a sample offset, in
+   * time order: {offset, kind (EVENT), key?, id?, value?}. The answer comes as a 'block' event, same seq.
+   */
+  process(seq, channels, events = []) {
+    const frames = channels[0]?.length ?? 128;
+    const ev = events.length;
+    const b = Buffer.alloc(16 + ev * 20 + channels.length * frames * 4);
     b.writeUInt32LE(seq, 0);
     b.writeUInt32LE(frames, 4);
     b.writeUInt32LE(channels.length, 8);
-    channels.forEach((c, i) => Buffer.from(c.buffer, c.byteOffset, frames * 4).copy(b, 12 + i * frames * 4));
+    b.writeUInt32LE(ev, 12);
+    events.forEach((e, i) => {
+      const o = 16 + i * 20;
+      b.writeUInt32LE(Math.max(0, Math.min(frames - 1, e.offset | 0)), o);
+      b.writeUInt8(e.kind, o + 4);
+      b.writeUInt8((e.key ?? 0) & 127, o + 5);
+      b.writeUInt32LE(e.id ?? 0, o + 8);
+      b.writeDoubleLE(e.value ?? 0, o + 12);
+    });
+    const at = 16 + ev * 20;
+    channels.forEach((c, i) => Buffer.from(c.buffer, c.byteOffset, frames * 4).copy(b, at + i * frames * 4));
     this.write(frame(T.PROCESS, b));
+  }
+
+  /** Open the plugin's own window (floating above the app) → {open, supported?, error?}. */
+  openGui(title) {
+    return this.request(T.GUI_OPEN, Buffer.from(String(title), 'utf8'), R.GUI);
+  }
+
+  closeGui() {
+    return this.request(T.GUI_CLOSE, Buffer.alloc(0), R.GUI).catch(() => ({ open: false }));
+  }
+
+  /** Current values of every parameter → [{id, value}]. */
+  values() {
+    return this.request(T.GET_VALUES, Buffer.alloc(0), R.VALUES);
   }
 
   setParam(id, value) {

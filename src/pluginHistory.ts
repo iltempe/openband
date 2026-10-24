@@ -23,9 +23,11 @@ export interface LivePlugin {
 export function projectPluginStates(p: Project): Map<PluginKey, { state: unknown; name: string }> {
   const out = new Map<PluginKey, { state: unknown; name: string }>();
   for (const t of p.tracks) {
-    const inst = p.instruments?.find((i) => i.id === t.instrument && i.source === 'wam');
+    const inst = p.instruments?.find((i) => i.id === t.instrument && (i.source === 'wam' || i.source === 'native'));
     if (inst?.wam) out.set(`${t.id}:instrument`, { state: inst.wam.state, name: inst.name });
-    for (const s of t.fx?.plugins ?? []) out.set(`${t.id}:${s.id}`, { state: s.state, name: s.name });
+    // Native plugins (G8): their state is the format's own chunk, base64.
+    else if (inst?.native) out.set(`${t.id}:instrument`, { state: inst.native.state_b64, name: inst.name });
+    for (const s of t.fx?.plugins ?? []) out.set(`${t.id}:${s.id}`, { state: (s.format ?? 'wam') === 'wam' ? s.state : s.native?.state_b64, name: s.name });
   }
   return out;
 }
@@ -38,10 +40,12 @@ export function setProjectPluginState(d: Project, key: PluginKey, state: unknown
   if (slot === 'instrument') {
     const inst = d.instruments?.find((i) => i.id === t.instrument);
     if (inst?.wam) inst.wam.state = state;
+    else if (inst?.native) inst.native.state_b64 = state as string;
     return;
   }
   const s = t.fx?.plugins?.find((x) => x.id === slot);
-  if (s) s.state = state;
+  if (s && (s.format ?? 'wam') !== 'wam' && s.native) s.native.state_b64 = state as string;
+  else if (s) s.state = state;
 }
 
 // ---------------------------------------------------------------- hashing

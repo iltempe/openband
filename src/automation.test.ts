@@ -136,10 +136,21 @@ describe('set_automation targets and live writing', () => {
     const fxSet: unknown[] = [];
     const withEvents = { audioNode: { scheduleEvents: (e: unknown) => events.push(e), setParameterValues: async () => {} } };
     const withoutEvents = { audioNode: { setParameterValues: async (v: unknown) => void direct.push(v) } };
-    const fx = { setParam: (...a: unknown[]) => fxSet.push(a), plugin: (id: string) => (id === 'fx_a' ? withEvents : null) };
+    const fx = { setParam: (...a: unknown[]) => fxSet.push(a), plugin: (id: string) => (id === 'fx_a' ? withEvents : null), native: () => null };
     applyFxAutomation(t, 2, 1.5, fx as never, { instance: withoutEvents as never });
     expect(fxSet).toEqual([['comp', 'threshold', -20, 1.5]]);
     expect(events).toEqual([{ type: 'wam-automation', data: { id: 'cutoff', value: 2550, normalized: false }, time: 1.5 }]);
     expect(direct).toEqual([{ gain: { id: 'gain', value: 1, normalized: false } }]);
+    // Native plugins (G8.3): the value goes to the plugin with its audio time (placed on its sample).
+    const nat: unknown[] = [];
+    const nativeFx = { setParamAt: (...a: unknown[]) => nat.push(a) };
+    const fx2 = { ...fx, plugin: () => null, native: (id: string) => (id === 'fx_a' ? nativeFx : null) };
+    const t2 = structuredClone(t);
+    t2.automation = [
+      { target: { kind: 'plugin', slotId: 'fx_a', paramId: '7' }, points: [{ beat: 0, value: 100 }, { beat: 4, value: 5000 }] },
+      { target: { kind: 'plugin', slotId: null, paramId: '2' }, points: [{ beat: 0, value: 0.5 }] },
+    ];
+    applyFxAutomation(t2, 2, 1.5, fx2 as never, { fx: nativeFx as never });
+    expect(nat).toEqual([[7, 2550, 1.5], [2, 0.5, 1.5]]);
   });
 });

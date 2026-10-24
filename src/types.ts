@@ -80,7 +80,7 @@ export interface CustomInstrument {
   id: string;
   name: string;
   kind: 'instrument' | 'drums';
-  source: 'sampler' | 'soundfont' | 'wam';
+  source: 'sampler' | 'soundfont' | 'wam' | 'native';
   zones: SampleZone[];
   /** Web Audio Module plugin instrument: where to load it from and its saved state. */
   wam?: { url: string; state?: unknown };
