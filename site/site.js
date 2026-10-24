@@ -82,7 +82,7 @@
     'dl.linreq': 'AppImage, o .deb per Debian / Ubuntu',
     'dl.linarm': 'ARM64:',
     'dl.web': 'Senza installare',
-    'dl.webp': 'Apri lo studio in Chrome, Edge o Safari, e installalo come app dal browser per usarlo offline. <a href="../">Apri lo studio →</a>',
+    'dl.webp': 'Apri lo studio in Chrome, Edge o Safari, e installalo come app dal browser per usarlo offline. <a href="https://iltempe.github.io/openband/">Apri lo studio →</a>',
     'dl.claude': 'Per Claude Desktop',
     'dl.claudep': 'Un file, doppio clic per installarlo: <a href="https://github.com/iltempe/openband/releases/latest/download/openband.mcpb">openband.mcpb</a>. Poi chiedi a Claude di fare musica.',
     'dl.npx': 'Da un terminale',

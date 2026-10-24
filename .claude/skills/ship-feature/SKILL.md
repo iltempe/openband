@@ -63,8 +63,12 @@ git tag vX.Y.Z && git push origin main && git push origin vX.Y.Z
 
 ## 5. Website
 
-The site is `site/` (published at `https://iltempe.github.io/openband/about/` by `pages.yml` through
-`scripts/build-site.mjs`). Update it when the feature deserves a place there:
+The site is `site/` in this repository, served at **https://www.openband.it**: on every push to `main`,
+`pages.yml` builds it (`scripts/build-site.mjs` → `build/site/`, self-contained, with `CNAME`) and pushes it
+to the repository **iltempe/openband-site** (GitHub Pages, deploy key in the `SITE_DEPLOY_KEY` secret). Never
+edit openband-site directly. The old address `iltempe.github.io/openband/about/` redirects to the domain once
+it is live. The studio stays at `iltempe.github.io/openband/`: links from the site to it are absolute.
+Update the site when the feature deserves a place there:
 - a feature card on `site/index.html` (with a screenshot listed in `scripts/build-site.mjs`), the facts strip
   (tool count, platforms), the AI section;
 - EN text in the HTML and its IT translation in `site/site.js`;

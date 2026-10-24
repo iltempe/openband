@@ -29,8 +29,25 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      # The website, next to the studio: /openband/about/
+      # The website: build/site (for www.openband.it) and the old address next to the studio, /openband/about/.
       - run: node scripts/build-site.mjs
+      # www.openband.it is served by iltempe/openband-site: publish build/site there (deploy key with write
+      # access to that repository only). Forks without the secret skip it.
+      - name: Publish the website to iltempe/openband-site
+        if: github.repository == 'iltempe/openband'
+        env:
+          SITE_DEPLOY_KEY: ${{ secrets.SITE_DEPLOY_KEY }}
+        run: |
+          [ -n "$SITE_DEPLOY_KEY" ] || { echo "No SITE_DEPLOY_KEY: the website is not published."; exit 0; }
+          mkdir -p ~/.ssh && printf '%s\n' "$SITE_DEPLOY_KEY" > ~/.ssh/site && chmod 600 ~/.ssh/site
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/site -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone -q --depth 1 git@github.com:iltempe/openband-site.git "$RUNNER_TEMP/site"
+          rsync -a --delete --exclude .git --exclude README.md build/site/ "$RUNNER_TEMP/site/"
+          cd "$RUNNER_TEMP/site"
+          git add -A
+          if git diff --cached --quiet; then echo "The website is unchanged."; exit 0; fi
+          git -c user.name="openband-pages" -c user.email="openband@users.noreply.github.com" commit -q -m "Website from iltempe/openband@${GITHUB_SHA::7}"
+          git push -q origin main
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
