@@ -20,9 +20,13 @@ struct gui_window {
 }
 @end
 
+static id activity;
+
 void platform_init(void) {
   [NSApplication sharedApplication];
   [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+  // Audio can't wait: no App Nap or timer throttling for this process, even with no window on screen.
+  activity = [[NSProcessInfo processInfo] beginActivityWithOptions:NSActivityUserInitiated | NSActivityLatencyCritical reason:@"OpenBand plays audio through this plugin"];
 }
 
 void platform_run(void) { [NSApp run]; }
@@ -48,6 +52,8 @@ typedef struct {
   void *ctx;
 } start_t;
 static void *thread_main(void *p) {
+  // The protocol thread is the audio thread: the highest quality of service.
+  pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
   start_t s = *(start_t *)p;
   free(p);
   s.fn(s.ctx);

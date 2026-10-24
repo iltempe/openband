@@ -329,7 +329,7 @@ typedef struct {
   any_event_t ev[MAX_EVENTS];
   uint32_t n;
 } events_t;
-static events_t IN;          // this block's events
+static events_t BLOCK_EVENTS; // this block's events (not IN: windows.h defines IN and OUT as nothing)
 static events_t PENDING;     // PARAM messages since the last block (at its start)
 static uint8_t held[128];    // notes on, for "all notes off"
 
@@ -511,8 +511,8 @@ static void process(const uint8_t *payload, uint32_t len) {
   if (frames > MAX_BLOCK || nch > MAX_CH || nev > MAX_EVENTS || len < 16 + (size_t)nev * 20 + (size_t)frames * nch * 4) return;
   if (!S.processing) S.processing = S.plugin->start_processing(S.plugin);
   // Events: the PARAM messages at the start, then the block's own, in time order (the app sends them sorted).
-  IN.n = 0;
-  for (uint32_t i = 0; i < PENDING.n; i++) IN.ev[IN.n++] = PENDING.ev[i];
+  BLOCK_EVENTS.n = 0;
+  for (uint32_t i = 0; i < PENDING.n; i++) BLOCK_EVENTS.ev[BLOCK_EVENTS.n++] = PENDING.ev[i];
   PENDING.n = 0;
   for (uint32_t i = 0; i < nev; i++, evp += 20) {
     uint32_t offset, id;
@@ -522,12 +522,12 @@ static void process(const uint8_t *payload, uint32_t len) {
     memcpy(&id, evp + 8, 4);
     memcpy(&value, evp + 12, 8);
     if (offset >= frames) offset = frames - 1;
-    if (kind == 0) push_note(&IN, offset, CLAP_EVENT_NOTE_ON, key, value);
-    else if (kind == 1) push_note(&IN, offset, CLAP_EVENT_NOTE_OFF, key, value);
-    else if (kind == 2) push_param(&IN, offset, id, value);
+    if (kind == 0) push_note(&BLOCK_EVENTS, offset, CLAP_EVENT_NOTE_ON, key, value);
+    else if (kind == 1) push_note(&BLOCK_EVENTS, offset, CLAP_EVENT_NOTE_OFF, key, value);
+    else if (kind == 2) push_param(&BLOCK_EVENTS, offset, id, value);
     else if (kind == 3)
       for (int k = 0; k < 128; k++)
-        if (held[k]) push_note(&IN, offset, CLAP_EVENT_NOTE_OFF, (int16_t)k, 0);
+        if (held[k]) push_note(&BLOCK_EVENTS, offset, CLAP_EVENT_NOTE_OFF, (int16_t)k, 0);
   }
   const float *src = (const float *)(payload + 16 + (size_t)nev * 20);
   float *ins[MAX_CH], *outs[MAX_CH];
@@ -541,7 +541,7 @@ static void process(const uint8_t *payload, uint32_t len) {
   }
   clap_audio_buffer_t in = {ins, NULL, S.in_ch, 0, 0};
   clap_audio_buffer_t out = {outs, NULL, S.out_ch, 0, 0};
-  clap_input_events_t ievs = {&IN, in_size, in_get};
+  clap_input_events_t ievs = {&BLOCK_EVENTS, in_size, in_get};
   clap_output_events_t oevs = {NULL, out_push};
   clap_process_t proc;
   memset(&proc, 0, sizeof proc);

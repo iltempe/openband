@@ -2,6 +2,10 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.10 "Native plugins on macOS and Windows again"
+
+- Fixed: v0.6.8 and v0.6.9 have no macOS and Windows installers. On Windows the plugin host didn't compile — `windows.h` defines `IN` and `OUT` as empty macros, and the host had a variable named `IN`. On macOS the host is now a Cocoa app (for plugin windows) and, with no window of its own on screen, macOS throttled it (App Nap): blocks came back too late and native plugins fell back to bypass. The host now declares latency-critical work (no App Nap, no timer throttling) and runs its audio thread at the highest quality of service — which also matters when the studio is minimised.
+
 ## v0.6.9 "G8.4: native plugins in exports, and songs that travel"
 
 ### G8.4 · Offline export of native plugins, render cache
