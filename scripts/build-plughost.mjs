@@ -3,7 +3,7 @@
 //   node scripts/build-plughost.mjs [--arch x64|arm64] [--no-fixtures]
 // macOS: one universal binary (arm64 + x86_64) in build/plughost. Windows and Linux: build/plughost for
 // this machine's architecture, build/plughost-<arch> for the other one (Linux needs a cross compiler,
-// e.g. gcc-aarch64-linux-gnu). The test fixtures are built for this machine only and never shipped.
+// e.g. gcc-aarch64-linux-gnu and g++-aarch64-linux-gnu). The test fixtures are built for this machine only and never shipped.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,7 +20,7 @@ const EXE = process.platform === 'win32' ? 'openband-plughost.exe' : 'openband-p
 const args = ['-S', path.join(root, 'native', 'plughost'), '-B', dir, '-DCMAKE_BUILD_TYPE=Release', `-DOPENBAND_FIXTURES=${fixtures ? 'ON' : 'OFF'}`];
 if (process.platform === 'darwin') args.push('-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64', '-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0');
 if (process.platform === 'win32') args.push('-A', arch === 'arm64' ? 'ARM64' : 'x64');
-if (process.platform === 'linux' && !native) args.push(`-DCMAKE_C_COMPILER=${arch === 'arm64' ? 'aarch64-linux-gnu-gcc' : 'x86_64-linux-gnu-gcc'}`, `-DCMAKE_SYSTEM_PROCESSOR=${arch === 'arm64' ? 'aarch64' : 'x86_64'}`, '-DCMAKE_SYSTEM_NAME=Linux');
+if (process.platform === 'linux' && !native) args.push(`-DCMAKE_C_COMPILER=${arch === 'arm64' ? 'aarch64-linux-gnu-gcc' : 'x86_64-linux-gnu-gcc'}`, `-DCMAKE_CXX_COMPILER=${arch === 'arm64' ? 'aarch64-linux-gnu-g++' : 'x86_64-linux-gnu-g++'}`, `-DCMAKE_SYSTEM_PROCESSOR=${arch === 'arm64' ? 'aarch64' : 'x86_64'}`, '-DCMAKE_SYSTEM_NAME=Linux');
 execFileSync('cmake', args, { stdio: 'inherit' });
 execFileSync('cmake', ['--build', dir, '--config', 'Release'], { stdio: 'inherit' });
 
