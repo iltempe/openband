@@ -39,7 +39,16 @@ function server(env = {}) {
   return new Promise((resolve) => p.stderr.on('data', (d) => String(d).includes('bridge on') && resolve(p)));
 }
 // A fake audio output: the audio clock runs the same with or without (or with a stalled) sound device.
-const launch = () => puppeteer.launch({ executablePath: chrome, headless: true, args: ['--autoplay-policy=no-user-gesture-required', '--no-sandbox', '--disable-audio-output'] });
+// Chrome sometimes takes long to start on a busy runner: wait longer, and try again.
+const launch = async (tries = 3) => {
+  try {
+    return await puppeteer.launch({ executablePath: chrome, headless: true, timeout: 60000, args: ['--autoplay-policy=no-user-gesture-required', '--no-sandbox', '--disable-audio-output'] });
+  } catch (e) {
+    if (tries <= 1) throw e;
+    console.log(`  (Chrome did not start: ${e.message.split('\n')[0]}; trying again)`);
+    return launch(tries - 1);
+  }
+};
 
 const tests = {
   async 'first-run'() {
