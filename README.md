@@ -50,7 +50,7 @@ Then restart your AI client and ask it for a song: the studio opens in your brow
 
 - **A complete small studio**: instrument, drum and audio tracks, piano roll, step sequencer, mixer with sends, effects (amp, EQ, compressor), automation of any parameter, open-standard [WAM](https://www.webaudiomodules.com) plugins, your own samples and SoundFonts, MIDI controllers and musical typing.
 - **Mix and master in one gesture** (Mix Pilot): pick a genre and a platform; OpenBand balances, EQs, pans, sidechains and masters the song to Spotify's −14 LUFS (or Apple, YouTube, club, CD), every change explained, dosed with one knob, then exports masters, stems and instrumental in one zip. See [Mixing](docs/MIXING.md).
-- **The AI plays, listens and explains**: 141 MCP tools to compose, arrange, mix and export; `analyze_mix` measures loudness, balance and masking and suggests fixes; *Explain* pins comments to the song; a drummer that follows your sections.
+- **The AI plays, listens and explains**: 142 MCP tools to compose, arrange, mix and export; `analyze_mix` measures loudness, balance and masking and suggests fixes; *Explain* pins comments to the song; a drummer that follows your sections.
 - **Create a part in words** (✦ Create): *“funk drums”*, *“arpeggiated piano”* — OpenBand's own engines or the music models you install play it, fitted to the song's tempo, key and bars, with a ledger of who played what. See [Ensemble](docs/ENSEMBLE.md).
 - **Jam with the AI**: play a phrase and it answers on the next bar, as ghost notes you can keep.
 - **Record like a studio**: microphone or interface, several inputs at once, punch-in with pre-roll, takes and comping, blind A/B tests, flub markers, hum-to-MIDI.

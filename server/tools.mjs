@@ -210,6 +210,14 @@ tool('duplicate_region', 'Repeat a region right after itself `times` times (defa
 
 tool('get_region_notes', 'Get all notes of a region (beats relative to region start).', { region_id: z.string() }, readOnly);
 
+tool('suggest_continuation', 'Ghost notes: OpenBand\'s own musical autocomplete — local, instant, no LLM. For a region it suggests (best first, with the reasons): continue the melody (the rest of the bar and the next), a bass line under the chords, harmonize a melody (3 progressions, for a new harmony track), a counter-melody, a variation of the track\'s motif for an empty section, or for drums the rest of the groove / a fill. kind is chosen from the context when omitted. Use them as a quick draft to refine, then add_notes.', {
+  region_id: z.string(),
+  kind: z.enum(['continue', 'bass', 'harmonize', 'counter', 'variation', 'drum_fill']).optional(),
+  count: z.number().int().min(1).max(8).optional(),
+  seed: z.number().int().optional().describe('Another seed gives other ideas'),
+  note_ids: z.array(z.string()).optional().describe('Harmonize / counter: only these notes (a selection)'),
+}, readOnly);
+
 tool('add_notes', 'Add notes to an existing region (replace: true to overwrite all notes). The region grows to fit unless extend is false.', {
   region_id: z.string(),
   notes: z.array(NoteSchema),

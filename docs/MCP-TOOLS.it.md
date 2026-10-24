@@ -31,7 +31,7 @@ Gli stessi strumenti servono ai client MCP e alla chat dentro la pagina (sono de
 | Plugin | `add_plugin` (da una descrizione a parole; nell'app desktop prima i plugin installati), `search_plugins`, `list_plugins`, `list_native_plugins` e `rescan_plugins` (app desktop: i plugin VST3 / CLAP / AU del computer), `add_plugin_instrument`, `add_plugin_effect`, `remove_plugin_effect`, `set_plugin_bypass`, `get_plugin_params`, `set_plugin_params`, `show_plugin` |
 | File | `export_wav`, `export_midi` (con `save_to` per salvarli in un percorso), `import_midi` |
 | Regioni | `add_region`, `update_region` (per le clip audio anche `stretch_mode` follow_tempo / fixed con `ratio`, e `pitch` in semitoni), `delete_region`, `duplicate_region`, `open_editor` |
-| Note | `get_region_notes`, `add_notes`, `remove_notes`, `transpose_region`, `quantize_region` |
+| Note | `get_region_notes`, `add_notes`, `remove_notes`, `transpose_region`, `quantize_region`, `suggest_continuation` (note fantasma: suggerimenti locali per continuare, linea di basso, armonizzare, contromelodia, variazione, fill di batteria) |
 | Composizione | `add_drum_pattern` (stringhe di step tipo `"x...x...x...x..."`), `add_chord_progression` (`["Am7","Fmaj7","C","G"]`, stile block, arpeggio o stabs), `add_drummer` (stile, complessità, intensità, swing, fill, seed; segue le sezioni), `regenerate_drummer` (nuovo seed, anche come take) |
 | Loop | `search_loops` (parole, tempo, tonalità), `add_loop` (segue tempo e tonalità della canzone; `repeat`) — una libreria CC0 fatta con OpenBand |
 | Trasporto | `transport` (play, stop, toggle, rewind), `set_loop`, `set_metronome`, `open_studio` |

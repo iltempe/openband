@@ -2,6 +2,14 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.18 "G3a: ghost notes, the engine"
+
+### G3 (part 1) · A musical autocomplete, local and instant
+- **`suggest_continuation`** (MCP, **142** tools): for a region, OpenBand suggests what comes next — continue a melody (the rest of the bar and the next), a **bass line** under the chords (roots, root–fifth, walking with passing notes, octaves), **harmonize** a melody (3 chord progressions, voiced for a new harmony track), a **counter-melody** (contrary motion, never doubling the melody, no parallel fifths or octaves), a **variation** of the track's motif for an empty section (a third higher, a step lower, inverted, a fourth higher — same rhythm), and for drums the **rest of the groove** or a **fill** with a crash after it. The kind is picked from the context when not given; every suggestion says why ("chord tones of Am on the strong beats", "repeats the rhythm of bar 2").
+- **No LLM, no network, no key**: harmonic rules (chord tones on beats 1 and 3, scale tones in between, the chords read from the other tracks) and light variable-order Markov models — (interval, duration) for melodies, scale degrees for chords — trained on the song itself first (×5), then on a small corpus written for OpenBand and released as CC0 (40 melodies, 30 progressions; key-free, in scale steps). Ranking: model probability + harmony + singable range (leaps over a fifth and spans over an octave and a half cost) + variety; the motif of the last bar is repeated with variation in half the candidates.
+- Spec deviations, for now: it runs in the page, not in a worker (3 ms at p95 — a worker would add its round trip); the user's other songs are not part of the training yet; the piano roll UI (ghost notes, Tab / ⇧Tab / Esc, learning from your choices) is part 2.
+- Tests (the spec's acceptance): **p95 3.0 ms** for 3 suggestions on a 64-note region (bound 50 ms); over 30 seeds on a harmonic fixture **126 of 126** strong-beat notes are chord tones (bound 90 %); **no fetch** while suggesting, for every kind; the same seed gives the same ideas, three different ones; the bass follows A F C G on the downbeats; harmonizations keep each bar's downbeat note in its chord; the variation keeps the rhythm; the drums continue the groove and fill.
+
 ## v0.6.17 "G8.9b: DAWproject with your plugins"
 
 ### G8.9 (part 2) · DAWproject keeps native plugins and their state
