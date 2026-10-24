@@ -46,7 +46,7 @@ Prefer few, musically complete calls (e.g. a whole 4-bar melody in one add_regio
 
 Imported sounds: import_sample loads an audio file (local path or URL) and returns a sample_id. Use it to build instruments with create_sampler_instrument (melodic sampler or drum kit), or put it on the timeline with add_audio_region (audio tracks). import_soundfont lists the presets of a .sf2 file, then imports one as an instrument. Imported instruments get ids like "usr_..." that work in add_track / update_track.
 
-Mixing: set_track_effects adds an amp sim, 3-band EQ and compressor to a track; set_automation draws curves for volume, pan, tone, reverb or echo over time (e.g. fades, filter sweeps, auto-pan).
+Mixing: set_track_effects adds a high-pass, amp sim, 3-band EQ and compressor to a track (compressor.sidechain ducks it under another track, e.g. the bass under the kick); set_master_chain is the mastering chain (EQ, glue, width, true-peak limiter) and reaches a platform's loudness target (platform "spotify", "apple", "club"…) on its own; set_automation draws curves for volume, pan, tone, reverb or echo over time (e.g. fades, filter sweeps, auto-pan).
 Recording: record_audio records the user's microphone after they confirm (mode "hum" turns a hummed melody into MIDI); audio_to_midi converts an existing monophonic audio region into notes.
 Files: export_wav and export_midi download in the browser, or write to disk with save_to; import_midi turns a .mid file into tracks.
 Other DAWs: import_dawproject/export_dawproject move songs to and from Bitwig, Studio One and Cubase; report what could not be converted.
@@ -104,16 +104,25 @@ tool('update_track', 'Change a track: name, instrument preset (same kind), volum
 
 tool(
   'set_track_effects',
-  'Set a track\'s insert effects (chain: amp → eq → compressor). Passing a section turns it on unless on:false. amp: drive/tone/level 0..1 (guitar amp + cabinet sim). eq: low/mid/high in dB −15..15, mid_freq 200..6000 Hz. compressor: threshold dB −60..0, ratio 1..20, attack 0.001..0.2 s, release 0.02..1 s, makeup dB 0..24.',
+  'Set a track\'s insert effects (chain: amp → eq → compressor). Passing a section turns it on unless on:false. amp: drive/tone/level 0..1 (guitar amp + cabinet sim). eq: low/mid/high in dB −15..15, mid_freq 200..6000 Hz. compressor: threshold dB −60..0, ratio 1..20, attack 0.001..0.2 s, release 0.02..1 s, makeup dB 0..24. eq.hpf: a 12 dB/oct high-pass before the EQ (works with the EQ bands off; null removes it). compressor.sidechain: key the compressor with another track (kick → bass), before that track\'s fader and mute; amount 0..1 scales the reduction; null removes it.',
   {
     track_id: z.string(),
     amp: z.object({ on: z.boolean().optional(), drive: z.number().min(0).max(1).optional(), tone: z.number().min(0).max(1).optional(), level: z.number().min(0).max(1).optional() }).optional(),
-    eq: z.object({ on: z.boolean().optional(), low: z.number().min(-15).max(15).optional(), mid: z.number().min(-15).max(15).optional(), high: z.number().min(-15).max(15).optional(), mid_freq: z.number().min(200).max(6000).optional() }).optional(),
+    eq: z.object({ on: z.boolean().optional(), low: z.number().min(-15).max(15).optional(), mid: z.number().min(-15).max(15).optional(), high: z.number().min(-15).max(15).optional(), mid_freq: z.number().min(200).max(6000).optional(), hpf: z.object({ on: z.boolean().optional(), hz: z.number().min(20).max(2000).optional() }).nullable().optional() }).optional(),
     compressor: z
-      .object({ on: z.boolean().optional(), threshold: z.number().min(-60).max(0).optional(), ratio: z.number().min(1).max(20).optional(), attack: z.number().min(0.001).max(0.2).optional(), release: z.number().min(0.02).max(1).optional(), makeup: z.number().min(0).max(24).optional() })
+      .object({ on: z.boolean().optional(), threshold: z.number().min(-60).max(0).optional(), ratio: z.number().min(1).max(20).optional(), attack: z.number().min(0.001).max(0.2).optional(), release: z.number().min(0.02).max(1).optional(), makeup: z.number().min(0).max(24).optional(), sidechain: z.object({ source_track_id: z.string(), amount: z.number().min(0).max(1).optional() }).nullable().optional() })
       .optional(),
   },
 );
+
+tool('set_master_chain', 'The master chain, in order: EQ (tilt dB/oct around 1 kHz, low/high shelves, peaking bands) → glue compressor → stereo width (M/S, with everything below mono_below_hz in mono) → true-peak limiter (ceiling in dBTP, loudness target in LUFS). Passing a section turns it on unless on:false. With the limiter on, OpenBand renders the song to find the limiter gain that meets the target (±0.3 LU) and reports loudness and true peak; it says when a target is out of reach. platform sets the target and ceiling: spotify −14/−1, apple −16/−1, youtube −14/−1, soundcloud −11/−1, club −8/−1, cd −9/−0.5. Applies live and to every export.', {
+  on: z.boolean().optional(),
+  eq: z.object({ on: z.boolean().optional(), tilt: z.number().min(-3).max(3).optional(), low: z.number().min(-12).max(12).optional(), high: z.number().min(-12).max(12).optional(), bands: z.array(z.object({ hz: z.number().min(20).max(20000), gain: z.number().min(-12).max(12), q: z.number().min(0.1).max(10).optional() })).max(8).optional() }).optional(),
+  glue: z.object({ on: z.boolean().optional(), threshold: z.number().min(-40).max(0).optional(), ratio: z.number().min(1).max(10).optional(), attack: z.number().min(0.001).max(0.2).optional(), release: z.number().min(0.02).max(1.5).optional(), makeup: z.number().min(0).max(12).optional() }).optional(),
+  width: z.object({ on: z.boolean().optional(), amount: z.number().min(0).max(2).optional(), mono_below_hz: z.number().min(20).max(400).optional() }).optional(),
+  limiter: z.object({ on: z.boolean().optional(), ceiling_dbtp: z.number().min(-6).max(0).optional(), target_lufs: z.number().min(-30).max(-4).optional(), release_ms: z.number().min(10).max(1000).optional() }).optional(),
+  platform: z.enum(['spotify', 'apple', 'youtube', 'soundcloud', 'club', 'cd']).optional(),
+}, { timeout: 600000 });
 
 const AutoTargetArg = z
   .union([

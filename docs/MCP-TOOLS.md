@@ -26,7 +26,7 @@ The same tools are used by MCP clients and by the chat inside the page (they are
 | Flubs | `add_flub` (playhead or bar/beat; kinds flub / good / note), `list_flubs`, `resolve_flub`, `delete_flub`, `replace_with_best_take`; `flub` events as the user marks |
 | Reference | `import_reference` (path or URL, optional excerpt), `compare_to_reference` (loudness-matched differences and suggestions), `clear_reference` |
 | Recording | `record_audio` (microphone or interface, count-in, mode `audio` or `hum`; armed tracks together, punch with pre-roll, cycle passes as takes; the user confirms), `arm_track` (input channel per track), `set_punch` (in/out bars, pre-roll), `audio_to_midi` (monophonic audio → notes, snap to key, quantize with strength) |
-| Mix | `set_track_effects` (amp, EQ, compressor), `set_automation` (mix, effect or plugin parameter), `clear_automation`, `list_automatable` |
+| Mix | `set_track_effects` (high-pass, amp, EQ, compressor with sidechain), `set_master_chain` (master EQ, glue, width, true-peak limiter, loudness per platform), `set_automation` (mix, effect or plugin parameter), `clear_automation`, `list_automatable` |
 | Plugins | `add_plugin` (from a plain-language description), `search_plugins`, `list_plugins`, `add_plugin_instrument`, `add_plugin_effect`, `remove_plugin_effect`, `set_plugin_bypass`, `get_plugin_params`, `set_plugin_params`, `show_plugin` |
 | Files | `export_wav`, `export_midi` (optionally `save_to` a path), `import_midi` |
 | Regions | `add_region`, `update_region` (for audio clips also `stretch_mode` follow_tempo / fixed with `ratio`, and `pitch` in semitones), `delete_region`, `duplicate_region`, `open_editor` |

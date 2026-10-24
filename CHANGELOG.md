@@ -2,6 +2,19 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.2 "G1a: a master chain that hits the target"
+
+### G1 (part 1) · Master chain, true-peak limiter, sidechain, high-pass
+- **Master chain** (Mixer, `set_master_chain`): EQ (tilt in dB/octave around 1 kHz, low and high shelves, peaking bands) → **glue** compressor → **width** (mid/side, with everything below *Mono below* kept in mono) → **true-peak limiter**. Stages that are off leave the signal path. One class (`src/audio/master.ts`) runs live and in the offline render, so what you hear is what you export.
+- **True-peak limiter** (`src/audio/worklets/master-dsp.js`, an AudioWorklet): 4× oversampled peak detection, 5 ms lookahead, a gain ramp that reaches full reduction exactly when the peak plays (sliding minimum + moving average, so the ceiling holds), release that slows down when the reduction lasts. Its latency (5 ms + 12 samples) is compensated exactly in exports. Gain-reduction meter in the panel.
+- **Set loudness / platform targets**: Spotify −14, Apple −16, YouTube −14, SoundCloud −11 LUFS at −1 dBTP, Club −8, CD −9 at −0.5. OpenBand renders the song and finds the limiter gain that lands within ±0.3 LU (secant method: under heavy limiting a dB in is less than a dB out; at most 4 renders), and says when a target is out of reach for the material.
+- **Sidechain** (`set_track_effects` → `compressor.sidechain`, and *Sidechain from* in the compressor): a track's compressor keyed by another track, pre-fader and pre-mute — the bass ducks under the kick even with the kick muted, live and in exports (sources that aren't audible are still rendered as keys).
+- **High-pass** per track (12 dB/oct, before the EQ; `eq.hpf`).
+- **A deterministic compressor**: track compressors and the glue now run OpenBand's own compressor (soft knee, peak detector, no hidden make-up gain) instead of the browser's DynamicsCompressor, whose automatic make-up and block-dependent behaviour made live and export differ. **Songs that use the compressor export at a different level than before** (usually a few dB quieter: what *Makeup* says is now what you get).
+- **Fixed: mute during playback.** Muting a track live had stopped working (a volume change undid it); mute now acts on the track's own gain stage. Exports were not affected.
+- The live master capture (`captureMaster`, used by tests and level matching) runs on an AudioWorklet instead of a ScriptProcessor that dropped blocks under load.
+- Tests: the limiter on three fixtures (EDM, pad, pluck) with per-genre targets — ceiling never passed on the 4× true peak, LUFS within tolerance, transparent below threshold, exact latency, no clicks; compressor static curve and make-up; ducking; independence from the block size. In Chrome (`npm run e2e`, *master*): `set_master_chain` for Spotify measured independently on the export (−14.2 LUFS, −1.0 dBTP), live mute silent, live = export within 1 dB, the kick ducking the bass by 16 dB in a stem without the kick; and through the UI, *Set loudness* → −14.0 LUFS, −1.0 dBTP.
+
 ## v0.6.1 "Ensemble E1: OpenBand plays with engines"
 
 ### E1 · Engine host, router, conformance, ledger, builtin engines

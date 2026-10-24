@@ -93,7 +93,10 @@ import { MAX_ANNOTATION, checkTarget, matchesTarget } from './annotations';
 import { useTeachMode } from './events';
 import { clearReference, compareToReference, importReference } from './reference';
 import { armTrack, audioRegionToMidi, audioToMidi, recordFromMic, requestRecording, setPunch, useMic, useRecSetup } from './recording';
-import { download, renderProject } from './audio/render';
+import { download, renderBuffer, renderProject } from './audio/render';
+import { PLATFORM_TARGETS, mergeMaster, type Platform } from './audio/master';
+import { reachLoudness } from './audio/loudnessTarget';
+import { loudness as measureLoudness, truePeak } from './analysis/loudness';
 import { t as tr, useLang } from './i18n';
 
 const useLangOf = () => useLang.getState().lang;
@@ -244,6 +247,7 @@ function summarize(p: Project, includeNotes = false) {
     loop: { enabled: p.loop.enabled, start_bar: beatToBar(p.loop.start), end_bar: beatToBar(p.loop.end) },
     metronome: p.metronome,
     master_volume: p.masterVolume,
+    ...(p.master ? { master_chain: p.master } : {}),
     tracks: p.tracks.map((t) => ({
       id: t.id,
       name: t.name,
@@ -288,8 +292,8 @@ function describeFx(t: Track) {
   const fx = normalizeFx(t.fx);
   return {
     amp: fx.amp,
-    eq: { on: fx.eq.on, low: fx.eq.low, mid: fx.eq.mid, high: fx.eq.high, mid_freq: fx.eq.midFreq },
-    compressor: fx.comp,
+    eq: { on: fx.eq.on, low: fx.eq.low, mid: fx.eq.mid, high: fx.eq.high, mid_freq: fx.eq.midFreq, ...(fx.eq.hpf ? { hpf: fx.eq.hpf } : {}) },
+    compressor: { ...fx.comp, ...(fx.comp.sidechain ? { sidechain: { source_track_id: fx.comp.sidechain.sourceTrackId, amount: fx.comp.sidechain.amount } } : {}) },
   };
 }
 
@@ -460,7 +464,10 @@ export const commands: Record<string, (args: P) => unknown> = {
         fx.eq.mid = num(eq.mid, -15, 15) ?? fx.eq.mid;
         fx.eq.high = num(eq.high, -15, 15) ?? fx.eq.high;
         fx.eq.midFreq = num(eq.mid_freq, 200, 6000) ?? fx.eq.midFreq;
-        if (eq.on === undefined) fx.eq.on = true;
+        if (eq.hpf === null) delete fx.eq.hpf;
+        else if (eq.hpf) fx.eq.hpf = { on: eq.hpf.on !== false, hz: num(eq.hpf.hz, 20, 2000) ?? fx.eq.hpf?.hz ?? 80 };
+        // The high-pass alone doesn't switch the EQ bands on.
+        if (eq.on === undefined && Object.keys(eq).some((k) => k !== 'hpf')) fx.eq.on = true;
       }
       if (compressor) {
         const c = compressor;
@@ -470,6 +477,12 @@ export const commands: Record<string, (args: P) => unknown> = {
         fx.comp.attack = num(c.attack, 0.001, 0.2) ?? fx.comp.attack;
         fx.comp.release = num(c.release, 0.02, 1) ?? fx.comp.release;
         fx.comp.makeup = num(c.makeup, 0, 24) ?? fx.comp.makeup;
+        if (c.sidechain === null) delete fx.comp.sidechain;
+        else if (c.sidechain) {
+          const src = requireTrack(st().project, c.sidechain.source_track_id);
+          if (src.id === t.id) throw new Error('A track can’t key its own compressor');
+          fx.comp.sidechain = { sourceTrackId: src.id, amount: num(c.sidechain.amount, 0, 1) ?? fx.comp.sidechain?.amount ?? 1 };
+        }
         if (c.on === undefined) fx.comp.on = true;
       }
       tr.fx = fx;
@@ -1429,6 +1442,47 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   add_loop: async ({ loop_id, track_id, start_bar, repeat, follow_tempo, match_key }) =>
     addLoop(String(loop_id ?? ''), { trackId: track_id ? requireTrack(st().project, track_id).id : undefined, startBar: start_bar, repeat, followTempo: follow_tempo, matchKey: match_key }),
+
+  // ---- master chain (G1)
+  set_master_chain: async ({ on, eq, glue, width, limiter, platform }) => {
+    const p = st().project;
+    const target = platform ? PLATFORM_TARGETS[platform as Platform] : undefined;
+    if (platform && !target) throw new Error(`Unknown platform "${platform}". Platforms: ${Object.keys(PLATFORM_TARGETS).join(', ')}`);
+    const n = (v: unknown, lo: number, hi: number) => (v === undefined || v === null ? undefined : clamp(Number(v), lo, hi));
+    const strip = <T extends object>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
+    const m = mergeMaster(p.master, {
+      ...(on !== undefined ? { on: !!on } : {}),
+      ...(eq ? { eq: strip({ on: eq.on ?? true, tilt: n(eq.tilt, -3, 3), low: n(eq.low, -12, 12), high: n(eq.high, -12, 12), bands: eq.bands?.map((x: { hz: number; gain: number; q?: number }) => ({ hz: clamp(Number(x.hz), 20, 20000), gain: clamp(Number(x.gain), -12, 12), q: clamp(Number(x.q ?? 1), 0.1, 10) })) }) } : {}),
+      ...(glue ? { glue: strip({ on: glue.on ?? true, threshold: n(glue.threshold, -40, 0), ratio: n(glue.ratio, 1, 10), attack: n(glue.attack, 0.001, 0.2), release: n(glue.release, 0.02, 1.5), makeup: n(glue.makeup, 0, 12) }) } : {}),
+      ...(width ? { width: strip({ on: width.on ?? true, amount: n(width.amount, 0, 2), monoBelowHz: n(width.mono_below_hz, 20, 400) }) } : {}),
+      ...(limiter || target ? { limiter: strip({ on: limiter?.on ?? true, ceilingDbtp: n(limiter?.ceiling_dbtp, -6, 0) ?? target?.ceiling, targetLufs: n(limiter?.target_lufs, -30, -4) ?? target?.lufs, release: n(limiter?.release_ms, 10, 1000) }) } : {}),
+    });
+    let report: Record<string, unknown> = {};
+    if (m.on && m.limiter.on) {
+      // Find the limiter's input gain by rendering: the loudness target is a specification, met within ±0.3 LU.
+      const sr = 48000;
+      const measure = async (chain: typeof m) => {
+        const buf = await renderBuffer({ ...p, master: chain }, { sampleRate: sr, tailSeconds: 1 });
+        const chs = [buf.getChannelData(0), buf.getChannelData(Math.min(1, buf.numberOfChannels - 1))];
+        return { lufs: measureLoudness(chs, sr).integrated, tp: 20 * Math.log10(Math.max(...chs.map((c) => truePeak(c)), 1e-9)) };
+      };
+      const before = await measure({ ...m, limiter: { ...m.limiter, on: false } });
+      let tp = -Infinity;
+      const r = await reachLoudness(async (gainDb) => {
+        const x = await measure({ ...m, limiter: { ...m.limiter, inputGainDb: gainDb } });
+        tp = x.tp;
+        return x.lufs;
+      }, before.lufs, m.limiter.targetLufs);
+      m.limiter.inputGainDb = +r.gainDb.toFixed(2);
+      const reached = Math.abs(r.lufs - m.limiter.targetLufs) <= 0.3;
+      report = {
+        loudness: { before_lufs: +before.lufs.toFixed(1), after_lufs: +r.lufs.toFixed(1), target_lufs: m.limiter.targetLufs, true_peak_dbtp: +tp.toFixed(2), ceiling_dbtp: m.limiter.ceilingDbtp, limiter_gain_db: m.limiter.inputGainDb, renders: r.iterations + 1 },
+        ...(reached ? {} : { warning: `The target ${m.limiter.targetLufs} LUFS is out of reach without crushing the music: ${r.lufs.toFixed(1)} LUFS is as loud as the limiter goes. Choose a quieter target, or compress the mix first.` }),
+      };
+    }
+    st().commit((d) => void (d.master = m), { label: 'Master chain' });
+    return { master: m, ...report };
+  },
 
   // ---- Ensemble (SPEC v0.6)
   create: (args) => createPart(args as CreateArgs),

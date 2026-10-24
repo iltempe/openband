@@ -7,6 +7,7 @@ import { ensureSamples } from './samples';
 import { clipBuffer, ensureClipBuffer, needsProcessing, processingOf } from './processed';
 import { createInstrument, makeImpulse, seeded } from './instruments';
 import { FxChain, normalizeFx } from './fx';
+import { MasterChainNode, limiterLatency } from './master';
 import { effectiveValue, hasAutomation, isAutomated, mix, valueAt } from '../automation';
 import { applyFxAutomation, automatePlugin } from './automate';
 import type { WamInstance } from './wam';
@@ -19,8 +20,10 @@ export interface RenderOptions {
   toBeat?: number;
   /** Only these tracks (stems), ignoring mute/solo. Default: the mix, respecting mute/solo. */
   tracks?: string[];
-  /** Apply the master volume (default true). */
+  /** Apply the master volume and the master chain (default true). */
   includeMaster?: boolean;
+  /** Render with this master chain instead of the song's (null: none) — e.g. to find the limiter gain. */
+  masterChain?: import('../types').MasterChain | null;
   sampleRate?: number;
   /** Extra seconds after toBeat for reverb/delay tails (default 3; 0 for section analysis). */
   tailSeconds?: number;
@@ -91,7 +94,11 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
   // Automated plugins get a short lead-in, trimmed afterwards: they start from their saved state and
   // glide to the automated value, and some need a moment to start listening.
   const preRoll = p.tracks.some((t) => included(t.id, t.mute, t.solo) && (t.automation ?? []).some((l) => l.target.kind === 'plugin' && l.points.length)) ? 0.5 : 0;
-  const ctx = new Tone.OfflineContext(new OfflineAudioContext(2, Math.ceil((seconds + preRoll) * sampleRate), sampleRate));
+  // The master chain's limiter delays everything by a few ms: render that much longer and trim it.
+  const chainSpec = o.includeMaster === false ? null : o.masterChain !== undefined ? o.masterChain : (p.master ?? null);
+  const latencyMax = chainSpec?.on && chainSpec.limiter.on ? limiterLatency(sampleRate) : 0;
+  const ctx = new Tone.OfflineContext(new OfflineAudioContext(2, Math.ceil((seconds + preRoll) * sampleRate) + latencyMax, sampleRate));
+  let chain: MasterChainNode | null = null;
   const loading: Promise<unknown>[] = [];
   const live = Tone.getContext();
   Tone.setContext(ctx);
@@ -101,15 +108,28 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
     const PPQ = transport.PPQ;
     const ticks = (beat: number) => `${Math.round(beat * PPQ)}i`;
     const secs = (beats: number) => (beats * 60) / p.bpm;
-    const master = new Tone.Gain(o.includeMaster === false ? 1 : dbToGain(faderToDb(p.masterVolume))).toDestination();
+    const master = new Tone.Gain(o.includeMaster === false ? 1 : dbToGain(faderToDb(p.masterVolume)));
+    if (chainSpec) {
+      chain = new MasterChainNode();
+      master.connect(chain.input);
+      chain.output.toDestination();
+      chain.update(chainSpec);
+      loading.push(chain.ready());
+    } else master.toDestination();
+    // Sidechain sources (G1) play into the key of their target even when they aren't heard (muted, or
+    // outside a stem): the key is pre-fader and pre-mute, as live.
+    const keySources = new Set(p.tracks.filter((t) => included(t.id, t.mute, t.solo) && t.fx?.comp.on && t.fx.comp.sidechain).map((t) => t.fx!.comp.sidechain!.sourceTrackId));
+    const fxById = new Map<string, FxChain>();
     const reverb = new Tone.Convolver(makeImpulse(2.8, 3.2)).connect(master);
     const delay = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.34, wet: 1 }).connect(master);
 
     for (const track of p.tracks) {
-      if (!included(track.id, track.mute, track.solo)) continue;
+      const audible = included(track.id, track.mute, track.solo);
+      if (!audible && !keySources.has(track.id)) continue;
       const inst = createInstrument(track.instrument, p.instruments?.find((c) => c.id === track.instrument));
       inst.setCutoff(track.cutoff);
-      const ch = new Tone.Channel({ volume: faderToDb(track.volume), pan: track.pan }).connect(master);
+      const ch = new Tone.Channel({ volume: faderToDb(track.volume), pan: track.pan });
+      if (audible) ch.connect(master);
       if ('ready' in inst) loading.push((inst as { ready: Promise<void> }).ready);
       const fx = new FxChain();
       fx.update(bypass?.trackId === track.id ? bypassed(track.fx, bypass.slotId) : track.fx);
@@ -119,11 +139,16 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
         pluginLanes.push({ points: lane.points, paramId: tg.paramId, instance: () => (tg.slotId === null ? (inst as { instance?: WamInstance | null }).instance ?? null : fx.plugin(tg.slotId)) });
       }
       loading.push(fx.ready);
+      fxById.set(track.id, fx);
       inst.output.connect(fx.input);
       // Polarity is part of the mix (exported); mono and dim are monitoring only and never get here.
       fx.output.connect(new Tone.Gain(track.polarity ? -1 : 1).connect(ch));
-      const revSend = new Tone.Gain(dbToGain(sendToDb(track.reverb))).connect(reverb);
-      const delSend = new Tone.Gain(dbToGain(sendToDb(track.delay)) * 0.7).connect(delay);
+      const revSend = new Tone.Gain(dbToGain(sendToDb(track.reverb)));
+      const delSend = new Tone.Gain(dbToGain(sendToDb(track.delay)) * 0.7);
+      if (audible) {
+        revSend.connect(reverb);
+        delSend.connect(delay);
+      }
       ch.connect(revSend);
       ch.connect(delSend);
       if (hasAutomation(track)) {
@@ -169,6 +194,12 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
           }, ticks(from));
         }
       }
+    }
+    for (const t of p.tracks) {
+      const side = t.fx?.comp.on ? t.fx.comp.sidechain : undefined;
+      const src = side && fxById.get(side.sourceTrackId);
+      const dst = fxById.get(t.id);
+      if (src && dst && included(t.id, t.mute, t.solo)) src.output.connect(dst.key);
     }
     transport.start(preRoll, ticks(fromBeat));
   } finally {
@@ -220,10 +251,12 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
   Math.random = seeded(0x5eed);
   try {
     const buffer = (await ctx.render()).get() as AudioBuffer;
-    if (!preRoll) return buffer;
-    const skip = Math.round(preRoll * sampleRate);
-    const out = new AudioBuffer({ numberOfChannels: buffer.numberOfChannels, length: buffer.length - skip, sampleRate });
-    for (let c = 0; c < buffer.numberOfChannels; c++) out.copyToChannel(buffer.getChannelData(c).subarray(skip), c);
+    const latency = (chain as MasterChainNode | null)?.latency ?? 0;
+    if (!preRoll && !latencyMax) return buffer;
+    const skip = Math.round(preRoll * sampleRate) + latency;
+    const length = buffer.length - skip - (latencyMax - latency);
+    const out = new AudioBuffer({ numberOfChannels: buffer.numberOfChannels, length, sampleRate });
+    for (let c = 0; c < buffer.numberOfChannels; c++) out.copyToChannel(buffer.getChannelData(c).subarray(skip, skip + length), c);
     return out;
   } finally {
     Math.random = random;

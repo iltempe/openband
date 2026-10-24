@@ -52,6 +52,7 @@ function GrMeter({ trackId }: { trackId: string }) {
 }
 
 function TrackEffects({ track }: { track: Track }) {
+  const project = useStore((s) => s.project);
   const commit = useStore((s) => s.commit);
   const checkpoint = useStore((s) => s.checkpoint);
   const t = useT();
@@ -95,12 +96,49 @@ function TrackEffects({ track }: { track: Track }) {
         />
         <Knob {...k} label={t('fx.high')} value={fx.eq.high} min={-15} max={15} bipolar defaultValue={0} color="#f472b6" onChange={(v) => update((f) => void (f.eq.high = v))} format={db} />
       </Unit>
+      <Unit title={t('fx.hpf')} on={!!fx.eq.hpf?.on} onToggle={() => update((f) => void (f.eq.hpf = { on: !f.eq.hpf?.on, hz: f.eq.hpf?.hz ?? 80 }), true)}>
+        <Knob
+          {...k}
+          label={t('fx.hpfFreq')}
+          value={Math.log2((fx.eq.hpf?.hz ?? 80) / 20) / Math.log2(50)}
+          defaultValue={Math.log2(4) / Math.log2(50)}
+          color="#94a3b8"
+          onChange={(v) => update((f) => void (f.eq.hpf = { on: f.eq.hpf?.on ?? true, hz: Math.round(20 * Math.pow(50, v)) }))}
+          format={(v) => `${Math.round(20 * Math.pow(50, v))} Hz`}
+        />
+      </Unit>
       <Unit title={t('fx.comp')} on={fx.comp.on} onToggle={() => update((f) => void (f.comp.on = !f.comp.on), true)} extra={fx.comp.on ? <GrMeter trackId={track.id} /> : undefined}>
         <Knob {...k} label={t('fx.threshold')} value={fx.comp.threshold} min={-60} max={0} defaultValue={-18} color="#a78bfa" onChange={(v) => update((f) => void (f.comp.threshold = v))} format={(v) => `${v.toFixed(0)} dB`} />
         <Knob {...k} label={t('fx.ratio')} value={fx.comp.ratio} min={1} max={20} defaultValue={4} color="#a78bfa" onChange={(v) => update((f) => void (f.comp.ratio = v))} format={(v) => `${v.toFixed(1)}:1`} />
         <Knob {...k} label={t('fx.attack')} value={fx.comp.attack} min={0.001} max={0.2} defaultValue={0.01} onChange={(v) => update((f) => void (f.comp.attack = v))} format={(v) => `${Math.round(v * 1000)} ms`} />
         <Knob {...k} label={t('fx.release')} value={fx.comp.release} min={0.02} max={1} defaultValue={0.18} onChange={(v) => update((f) => void (f.comp.release = v))} format={(v) => `${Math.round(v * 1000)} ms`} />
         <Knob {...k} label={t('fx.makeup')} value={fx.comp.makeup} min={0} max={24} defaultValue={4} color="#22d3ee" onChange={(v) => update((f) => void (f.comp.makeup = v))} format={(v) => `+${v.toFixed(1)} dB`} />
+        <div className="fx-side">
+          <label>
+            <span>{t('fx.sidechain')}</span>
+            <select
+              value={fx.comp.sidechain?.sourceTrackId ?? ''}
+              onChange={(e) =>
+                update((f) => {
+                  if (!e.target.value) delete f.comp.sidechain;
+                  else f.comp.sidechain = { sourceTrackId: e.target.value, amount: f.comp.sidechain?.amount ?? 1 };
+                }, true)
+              }
+            >
+              <option value="">{t('fx.sideNone')}</option>
+              {project.tracks
+                .filter((x) => x.id !== track.id)
+                .map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          {fx.comp.sidechain && (
+            <Knob {...k} label={t('fx.sideAmount')} value={fx.comp.sidechain.amount} defaultValue={1} color="#a78bfa" onChange={(v) => update((f) => void (f.comp.sidechain = { ...f.comp.sidechain!, amount: v }))} format={(v) => `${Math.round(v * 100)}%`} />
+          )}
+        </div>
       </Unit>
       <PluginSlots track={track} />
     </div>

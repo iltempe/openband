@@ -8,6 +8,7 @@ import { faderToDb, sendToDb } from '../music';
 import { createInstrument, customById, makeImpulse, type Instrument } from './instruments';
 import { onSamplesChanged } from './samples';
 import { FxChain } from './fx';
+import { MasterChainNode, loadMasterWorklets } from './master';
 import { attachMeter, detachMeter } from './meters';
 import { clipBuffer, ensureClipBuffer, needsProcessing, onProcessed, processingOf } from './processed';
 
@@ -42,6 +43,10 @@ class AudioEngine {
   private samplesVersion = 0;
   private lastProject: Project | null = null;
   private master!: Tone.Gain;
+  /** The master chain (G1) after the master gain: what the speakers, the meters and exports get. */
+  private masterChain!: MasterChainNode;
+  /** Track id → the source track keying its compressor (sidechain, G1). */
+  private sidechains = new Map<string, string>();
   private masterMeter!: Tone.Meter;
   private reverb!: Tone.Convolver;
   private delay!: Tone.FeedbackDelay;
@@ -72,11 +77,13 @@ class AudioEngine {
     this.dimGain = new Tone.Gain(1).toDestination();
     this.monoSum = new Tone.Mono();
     this.monitor = new Tone.Gain(1).connect(this.dimGain);
-    this.master = new Tone.Gain(1).connect(this.monitor);
-    void attachMeter('master', this.master);
+    this.masterChain = new MasterChainNode();
+    this.masterChain.output.connect(this.monitor);
+    this.master = new Tone.Gain(1).connect(this.masterChain.input);
+    void attachMeter('master', this.masterChain.output);
     this.applyMonitoring();
     this.masterMeter = new Tone.Meter({ smoothing: 0.85 });
-    this.master.connect(this.masterMeter);
+    this.masterChain.output.connect(this.masterMeter);
     this.reverb = new Tone.Convolver(makeImpulse(2.8, 3.2)).connect(this.master);
     this.delay = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.34, wet: 1 }).connect(this.master);
     this.click = new Tone.Synth({
@@ -255,6 +262,7 @@ class AudioEngine {
       t.loopEnd = `${Math.round(p.loop.end * t.PPQ)}i`;
     }
     this.master.gain.rampTo(Math.pow(10, faderToDb(p.masterVolume) / 20) || 0, 0.05);
+    this.masterChain.update(p.master);
     this.metronomeOn = p.metronome;
 
     const alive = new Set(p.tracks.map((tr) => tr.id));
@@ -266,6 +274,7 @@ class AudioEngine {
       }
     }
     for (const track of p.tracks) this.syncTrack(track);
+    this.syncSidechains(p);
     this.syncParts(p);
   }
 
@@ -300,8 +309,10 @@ class AudioEngine {
       node.presetId = signature;
     }
     const ch = node.channel;
-    node.polarity.gain.value = track.polarity ? -1 : 1;
-    if (ch.mute !== track.mute) ch.mute = track.mute;
+    // Mute is a gain of its own (with polarity, after the effects): Tone.Channel's mute sets the volume
+    // to −∞, which the very next volume update (fader, automation) undid — the M button did nothing live.
+    // After the effects means a muted track still keys a sidechain, as in the export.
+    node.polarity.gain.rampTo((track.polarity ? -1 : 1) * (track.mute ? 0 : 1), 0.01);
     if (ch.solo !== track.solo) ch.solo = track.solo;
     this.applyMix(node, track, this.position);
     const fxSignature = JSON.stringify(track.fx ?? null);
@@ -309,6 +320,35 @@ class AudioEngine {
       node.fxSignature = fxSignature;
       node.fx.update(track.fx);
     }
+  }
+
+  /** Sidechain keys (G1): the source's signal after its effects, before its fader and mute — a muted
+   *  kick still ducks the bass, as in the export. */
+  private syncSidechains(p: Project) {
+    for (const t of p.tracks) {
+      const want = t.fx?.comp.on && t.fx.comp.sidechain && p.tracks.some((x) => x.id === t.fx!.comp.sidechain!.sourceTrackId) ? t.fx.comp.sidechain.sourceTrackId : null;
+      const have = this.sidechains.get(t.id) ?? null;
+      if (want === have) continue;
+      const target = this.nodes.get(t.id);
+      if (have) {
+        const old = this.nodes.get(have);
+        if (old && target) old.fx.output.disconnect(target.fx.key);
+        this.sidechains.delete(t.id);
+      }
+      if (want && target) {
+        const src = this.nodes.get(want);
+        if (src) {
+          src.fx.output.connect(target.fx.key);
+          this.sidechains.set(t.id, want);
+        }
+      }
+    }
+    for (const id of [...this.sidechains.keys()]) if (!p.tracks.some((t) => t.id === id)) this.sidechains.delete(id);
+  }
+
+  /** Gain reduction of the master limiter (dB ≤ 0). */
+  get limiterReduction() {
+    return this.masterChain?.reductionDb ?? 0;
   }
 
   /** Volume, pan, sends and tone at a song position (automation curves or static values). */
@@ -416,35 +456,27 @@ class AudioEngine {
    * the offline render). Resolves with the samples and the audio time of the first one.
    */
   captureMaster(seconds: number): Promise<{ channels: Float32Array[]; startTime: number; sampleRate: number }> {
+    // An AudioWorklet recorder on the audio thread: a ScriptProcessor (main thread) drops blocks when the
+    // page is busy, which made live and export look different when they weren't.
     const ctx = this.master.context.rawContext as unknown as AudioContext;
-    const sp = ctx.createScriptProcessor(4096, 2, 2);
-    const chunks: Float32Array[][] = [];
-    let startTime = -1;
-    const total = Math.ceil(seconds * ctx.sampleRate);
-    let got = 0;
-    return new Promise((resolve) => {
-      sp.onaudioprocess = (e) => {
-        if (startTime < 0) startTime = e.playbackTime;
-        chunks.push([0, 1].map((c) => new Float32Array(e.inputBuffer.getChannelData(Math.min(c, e.inputBuffer.numberOfChannels - 1)))));
-        got += e.inputBuffer.length;
-        if (got >= total) {
-          sp.disconnect();
-          Tone.disconnect(this.master, sp);
-          const channels = [0, 1].map((c) => {
-            const out = new Float32Array(got);
-            let o = 0;
-            for (const ch of chunks) {
-              out.set(ch[c], o);
-              o += ch[c].length;
-            }
-            return out;
-          });
-          resolve({ channels, startTime, sampleRate: ctx.sampleRate });
-        }
-      };
-      Tone.connect(this.master, sp);
-      sp.connect(ctx.destination);
-    });
+    const frames = Math.ceil(seconds * ctx.sampleRate);
+    return loadMasterWorklets(ctx).then(
+      (ok) =>
+        new Promise((resolve, reject) => {
+          if (!ok) return reject(new Error('AudioWorklet unavailable'));
+          const node = new AudioWorkletNode(ctx, 'openband-capture', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], channelCount: 2, channelCountMode: 'explicit', processorOptions: { frames } });
+          node.port.onmessage = (e) => {
+            Tone.disconnect(this.masterChain.output, node);
+            node.disconnect();
+            resolve({ channels: [e.data.l, e.data.r], startTime: e.data.startTime, sampleRate: ctx.sampleRate });
+          };
+          Tone.connect(this.masterChain.output, node);
+          // Pulled by the graph through a silent output.
+          const mute = ctx.createGain();
+          mute.gain.value = 0;
+          node.connect(mute).connect(ctx.destination);
+        }),
+    );
   }
 
   /** The FX chain of a track (level-matched A/B). */

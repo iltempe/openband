@@ -1,4 +1,5 @@
 import { useRef, type CSSProperties } from 'react';
+import { MasterChainPanel } from './MasterChain';
 import type { Track } from '../types';
 import { useStore } from '../store';
 import { engine } from '../audio/engine';
@@ -145,6 +146,7 @@ export function Mixer() {
       </div>
       <ReferenceStrip />
       <LoudnessPanel />
+      <MasterChainPanel />
       <div className="strip master">
         <div className="strip-knobs master-title">
           {t('mix.master')}

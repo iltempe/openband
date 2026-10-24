@@ -1,4 +1,5 @@
 import './audio/context';
+import { loudness, truePeak } from './analysis/loudness';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import { App } from './App';
@@ -38,7 +39,7 @@ initVersions();
 void initJournal();
 initAutoWrite();
 // ?debug: the engine and the store on window.openband, for diagnostics and end-to-end tests.
-if (new URLSearchParams(location.search).has('debug')) (window as unknown as { openband: unknown }).openband = { engine, useStore, renderBuffer, Tone, commands };
+if (new URLSearchParams(location.search).has('debug')) (window as unknown as { openband: unknown }).openband = { engine, useStore, renderBuffer, Tone, commands, analysis: { loudness, truePeak } };
 initJam();
 initFirstRun();
 void loadKeyState();

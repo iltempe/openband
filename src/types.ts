@@ -140,8 +140,25 @@ export interface AutoPoint {
 
 export interface TrackFx {
   amp: { on: boolean; /** 0..1 */ drive: number; /** cabinet brightness 0..1 */ tone: number; /** output 0..1 */ level: number };
-  eq: { on: boolean; /** dB −15..15 */ low: number; mid: number; high: number; /** Hz */ midFreq: number };
-  comp: { on: boolean; /** dB −60..0 */ threshold: number; /** 1..20 */ ratio: number; /** seconds */ attack: number; release: number; /** dB 0..24 */ makeup: number };
+  eq: {
+    on: boolean;
+    /** dB −15..15 */ low: number;
+    mid: number;
+    high: number;
+    /** Hz */ midFreq: number;
+    /** High-pass filter, 12 dB/oct, before the EQ (G1); works with the EQ off too. */
+    hpf?: { on: boolean; hz: number };
+  };
+  comp: {
+    on: boolean;
+    /** dB −60..0 */ threshold: number;
+    /** 1..20 */ ratio: number;
+    /** seconds */ attack: number;
+    release: number;
+    /** dB 0..24 */ makeup: number;
+    /** Keyed by another track, before its fader (G1): kick → bass. amount 0..1 scales the reduction. */
+    sidechain?: { sourceTrackId: string; amount: number };
+  };
   /** Web Audio Module effect plugins, after the built-in units, in order. */
   plugins?: PluginSlot[];
   /** Output trim of the chain in dB (a level-match compensation made permanent, F20). */
@@ -188,9 +205,24 @@ export interface Project {
   lint?: LintConfig;
   /** Marks left while recording (F18): mistakes to fix, good parts, notes. */
   flubs?: Flub[];
+  /** The master chain (G1): EQ, glue compressor, stereo width, true-peak limiter. Missing = no processing. */
+  master?: MasterChain;
   /** Who made what (SPEC v0.6 §6): one entry per engine contribution. */
   ledger?: LedgerEntry[];
   meta?: ProjectMeta;
+}
+
+export interface MasterChain {
+  on: boolean;
+  /** tilt: dB/oct around 1 kHz (−3..+3); low / high: shelves at 100 Hz / 8 kHz in dB; bands: peaking filters. */
+  eq: { on: boolean; tilt: number; low: number; high: number; bands?: { hz: number; gain: number; q: number }[] };
+  /** A gentle bus compressor (dB, ratio, seconds, makeup dB). */
+  glue: { on: boolean; threshold: number; ratio: number; attack: number; release: number; makeup: number };
+  /** M/S width: 0..2 (1 = unchanged); everything below monoBelowHz in mono. */
+  width: { on: boolean; amount: number; monoBelowHz: number };
+  /** True-peak limiter: ceiling in dBTP, loudness target in LUFS, release in ms; inputGainDb is found by
+   *  rendering until the target is met (set_master_chain does it), and kept for live playback. */
+  limiter: { on: boolean; ceilingDbtp: number; targetLufs: number; release: number; inputGainDb?: number };
 }
 
 export interface LedgerEntry {

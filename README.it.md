@@ -49,7 +49,7 @@ Poi riavvia il client AI e chiedigli una canzone: lo studio si apre da solo nel 
 ## Cosa fa
 
 - **Un piccolo studio completo**: tracce di strumenti, batteria e audio, piano roll, step sequencer, mixer con mandate, effetti (ampli, EQ, compressore), automazione di qualsiasi parametro, plugin [WAM](https://www.webaudiomodules.com) a standard aperto, i tuoi campioni e SoundFont, controller MIDI e tastiera musicale.
-- **L'AI suona, ascolta e spiega**: 129 strumenti MCP per comporre, arrangiare, mixare ed esportare; `analyze_mix` misura loudness, bilanciamento e mascheramenti e suggerisce correzioni; *Spiega* appunta commenti sulla canzone; un batterista che segue le tue sezioni.
+- **L'AI suona, ascolta e spiega**: 134 strumenti MCP per comporre, arrangiare, mixare ed esportare; `analyze_mix` misura loudness, bilanciamento e mascheramenti e suggerisce correzioni; *Spiega* appunta commenti sulla canzone; un batterista che segue le tue sezioni.
 - **Crea una parte a parole** (✦ Crea): *«batteria funk»*, *«piano arpeggiato»*: la suonano i motori di OpenBand o i modelli musicali che installi, adattata a tempo, tonalità e battute della canzone, con il registro di chi ha suonato cosa. Vedi [Ensemble](docs/ENSEMBLE.it.md).
 - **Jam con l'AI**: suoni una frase e lei risponde alla battuta dopo, con note fantasma che puoi tenere.
 - **Registra come in studio**: microfono o scheda audio, più ingressi insieme, punch-in con pre-roll, take e comping, test A/B alla cieca, segnalini degli errori, dalla voce al MIDI.

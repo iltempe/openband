@@ -26,7 +26,7 @@ Gli stessi strumenti servono ai client MCP e alla chat dentro la pagina (sono de
 | Errori | `add_flub` (playhead o battuta/beat; tipi flub / good / note), `list_flubs`, `resolve_flub`, `delete_flub`, `replace_with_best_take`; eventi `flub` mentre l'utente segna |
 | Reference | `import_reference` (percorso o URL, estratto opzionale), `compare_to_reference` (differenze a loudness pareggiata e suggerimenti), `clear_reference` |
 | Registrazione | `record_audio` (microfono o interfaccia, conteggio, modo `audio` o `hum`; tracce armate insieme, punch con pre-roll, giri del ciclo come take; l'utente conferma), `arm_track` (canale d'ingresso per traccia), `set_punch` (battute di in/out, pre-roll), `audio_to_midi` (audio monofonico → note, aggancio alla tonalità, quantizzazione con intensità) |
-| Mix | `set_track_effects` (amp, EQ, compressore), `set_automation` (parametro di mix, effetto o plugin), `clear_automation`, `list_automatable` |
+| Mix | `set_track_effects` (passa-alto, amp, EQ, compressore con sidechain), `set_master_chain` (EQ master, glue, ampiezza, limiter true-peak, loudness per piattaforma), `set_automation` (parametro di mix, effetto o plugin), `clear_automation`, `list_automatable` |
 | Plugin | `add_plugin` (da una descrizione a parole), `search_plugins`, `list_plugins`, `add_plugin_instrument`, `add_plugin_effect`, `remove_plugin_effect`, `set_plugin_bypass`, `get_plugin_params`, `set_plugin_params`, `show_plugin` |
 | File | `export_wav`, `export_midi` (con `save_to` per salvarli in un percorso), `import_midi` |
 | Regioni | `add_region`, `update_region` (per le clip audio anche `stretch_mode` follow_tempo / fixed con `ratio`, e `pitch` in semitoni), `delete_region`, `duplicate_region`, `open_editor` |
