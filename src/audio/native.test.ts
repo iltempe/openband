@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { JitterBuffer, TestPlugin, TEST_PLUGINS } from './worklets/native-dsp.js';
+import { bridgeStats } from './native';
 import { migrate } from '../migrations';
 import { emptyProject } from '../store';
 
@@ -44,6 +45,19 @@ describe('native plugins: the in-process test host (G8.1)', () => {
     }
     expect(played).toEqual([null, null, null, 0, 1, 2, 3, null]);
     expect(j.underruns).toBe(1);
+  });
+
+  it('measures how many blocks each one takes to come back (G8.8)', () => {
+    const j = new JitterBuffer(6);
+    // Each block comes back 1 block after it went out, one in ten 3 blocks after.
+    const queue: { at: number; n: number }[] = [];
+    for (let i = 0; i < 200; i++) {
+      const { n } = j.next();
+      for (const q of queue.filter((q) => q.at === n)) j.put(q.n, [Float32Array.of(q.n)]);
+      queue.push({ at: n + (n % 10 === 0 ? 3 : 1), n });
+    }
+    expect(bridgeStats(j.late)).toMatchObject({ p50: 1, p99: 3, max: 3 });
+    expect(bridgeStats([])).toEqual({ blocks: 0, p50: 0, p99: 0, max: 0 });
   });
 });
 

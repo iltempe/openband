@@ -105,7 +105,7 @@ class OpenBandNative extends AudioWorkletProcessor {
     }
     this.w = (this.w + n) & mask;
     this.frames += n;
-    if (this.frames >= 48000) { this.frames = 0; this.port.postMessage({ type: 'stats', underruns: this.jitter.underruns }); }
+    if (this.frames >= 48000) { this.frames = 0; this.port.postMessage({ type: 'stats', underruns: this.jitter.underruns, late: this.jitter.late.slice() }); }
     return true;
   }
 }

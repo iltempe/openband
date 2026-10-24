@@ -184,6 +184,19 @@ export const restartNative = (key: string) => liveNatives.get(key)?.restart() ??
 /** Set a parameter of a live native plugin (its host id), at the start of its next block. */
 export const nativeParam = (key: string, id: number, value: number) => liveNatives.get(key)?.setParam(id, value);
 
+/** Percentiles of a lateness histogram (blocks): what the jitter buffer must cover. */
+export function bridgeStats(late: number[]) {
+  const total = late.reduce((a, b) => a + b, 0);
+  const at = (p: number) => {
+    let acc = 0;
+    for (let i = 0; i < late.length; i++) if ((acc += late[i]) >= p * total) return i;
+    return late.length - 1;
+  };
+  let max = 0;
+  late.forEach((v, i) => v && (max = i));
+  return { blocks: total, p50: total ? at(0.5) : 0, p99: total ? at(0.99) : 0, max };
+}
+
 export class NativeEffect {
   readonly input = new Tone.Gain(1);
   readonly output = new Tone.Gain(1);
@@ -193,6 +206,8 @@ export class NativeEffect {
   error: string | null = null;
   /** Blocks the host didn't return in time (live). */
   underruns = 0;
+  /** Round trips through the bridge, in blocks: how many came back 0, 1, 2… blocks after going out. */
+  late: number[] = [];
   params: (HostParam & { value: number })[] = [];
   /** Current parameter values, as the host last reported them (window moves included). */
   values = new Map<number, number>();
@@ -298,13 +313,21 @@ export class NativeEffect {
     this.route();
   }
 
-  private fromWorklet(m: { type: string; underruns?: number; reason?: string; latency?: number }) {
-    if (m.type === 'stats') this.underruns = m.underruns ?? 0;
+  private fromWorklet(m: { type: string; underruns?: number; reason?: string; latency?: number; late?: number[] }) {
+    if (m.type === 'stats') {
+      this.underruns = m.underruns ?? 0;
+      if (m.late) this.late = m.late;
+    }
     // The worklet already plays the track bypassed, as late as before: only the studio needs telling.
     if (m.type === 'crashed') setStatus(this.key, { crashed: `${this.slot.name} ${m.reason ?? 'stopped'}`, latency: this.latency });
   }
 
   /** From the host: the plugin's window moved a control, grabbed one, changed its state, closed. */
+  /** The bridge's round trip so far, in blocks of 128 frames (p50, p99, max) and how many were measured. */
+  bridgeStats() {
+    return bridgeStats(this.late);
+  }
+
   /** Low-latency monitoring (G8.7): the host plays this plugin on the computer's audio output itself. */
   monitor(o: MonitorOptions): Promise<MonitorInfo> {
     const dn = desktopNative();

@@ -405,6 +405,8 @@ async function smokeNative(SOFT_LIVE, IS_MAC) {
   step('gain');
   const wet = await rms();
   const latency = engine.pdcLatency;
+  // G8.8: the bridge's round trip during that, in blocks of 128 frames (what the jitter buffer covers).
+  const bridge = window.openband.liveNative(`${t}:n1`)?.bridgeStats() ?? null;
   // G8.5: a VST3 effect behind the same bridge — −6 dB, and its 256 samples of latency compensated too.
   step('vst3');
   status.setState({}, true);
@@ -541,7 +543,7 @@ async function smokeNative(SOFT_LIVE, IS_MAC) {
   const monitoring = { backend: mon?.backend ?? null, buffer: mon ? mon.period * mon.periods : null, heard, off: ll.useLowLatency.getState().trackId === null };
   const monOk = monitoring.backend === 'Null' && !!heard && monitoring.off;
   const ok = monOk && Math.abs(wet - dry + 6) < 1.5 && latency === 6 * 128 && vst3 && auOk && Math.abs(before - dry) < 1.5 && !!crashed && Math.abs(after - dry) < 1.5 && restarted && Math.abs(back - dry) < 1.5 && (live || SOFT_LIVE) && same && exportRms > -40 && frozenOk;
-  return { ok, live, liveWindows: live ? undefined : L.map((v) => Math.round(v)).join(' '), exportWindows: live ? undefined : E.map((v) => Math.round(v)).join(' '), dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, vst3Gain: +(wet3 - dry).toFixed(2), vst3Latency: latency3, au, monitoring, instrument: +plays.toFixed(1), automation: +automated.toFixed(1), saved: saved.slice(0, 12), exportsIdentical: same, exportRms: +exportRms.toFixed(1), liveVsExport: +liveVsExport.toFixed(2), frozen: fr.frozen.join('+'), frozenOk, crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
+  return { ok, live, liveWindows: live ? undefined : L.map((v) => Math.round(v)).join(' '), exportWindows: live ? undefined : E.map((v) => Math.round(v)).join(' '), dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, vst3Gain: +(wet3 - dry).toFixed(2), vst3Latency: latency3, au, monitoring, bridge, instrument: +plays.toFixed(1), automation: +automated.toFixed(1), saved: saved.slice(0, 12), exportsIdentical: same, exportRms: +exportRms.toFixed(1), liveVsExport: +liveVsExport.toFixed(2), frozen: fr.frozen.join('+'), frozenOk, crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
 }
 
 /** OPENBAND_DESKTOP_SHOT=file.png (docs): the studio with the AI panel on the "AI apps" tab, then quit. */

@@ -77,10 +77,14 @@ export class JitterBuffer {
     this.ready = new Map();
     this.n = 0;
     this.underruns = 0;
+    /** How many blocks after it went out each block came back (the bridge's round trip, G8.8). */
+    this.late = new Array(32).fill(0);
   }
 
   /** Store a block the host returned. */
   put(n, data) {
+    const late = this.n - 1 - n;
+    if (late >= 0) this.late[Math.min(31, late)]++;
     if (n >= this.n - this.blocks) this.ready.set(n, data);
   }
 

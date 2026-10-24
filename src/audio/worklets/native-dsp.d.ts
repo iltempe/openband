@@ -20,6 +20,8 @@ export declare class JitterBuffer {
   constructor(blocks: number);
   readonly blocks: number;
   underruns: number;
+  /** Blocks that came back 0, 1, 2… blocks after going out. */
+  late: number[];
   put(n: number, data: Float32Array[]): void;
   next(): { n: number; data: Float32Array[] | null };
 }
