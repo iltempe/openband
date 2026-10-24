@@ -2,6 +2,10 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.11 "macOS installers for v0.6.10"
+
+- Fixed: v0.6.10 has no macOS installers. The packaged-app smoke test failed on the macOS CI runner, not in the app: in that virtual machine Chromium's fake audio output doesn't keep real-time pace, the native instrument drops out, and the live-playback checks (the instrument heard live, its automation, live vs export, a control turned in the plugin) fail. On a CI macOS runner those checks are now reported, with the live and export levels per 100 ms, but not required. Every other check still has to pass there (the effect's gain, latency, crash isolation and restart, bit-identical exports, the render cache). On a real Mac, and on Windows and Linux runners, all checks are required, and they pass. The smoke also waits for a restart and for the plugin's state instead of a fixed time.
+
 ## v0.6.10 "Native plugins on macOS and Windows again"
 
 - Fixed: v0.6.8 and v0.6.9 have no macOS and Windows installers. On Windows the plugin host didn't compile — `windows.h` defines `IN` and `OUT` as empty macros, and the host had a variable named `IN`. On macOS the host is now a Cocoa app (for plugin windows) and, with no window of its own on screen, macOS throttled it (App Nap): blocks came back too late and native plugins fell back to bypass. The host now declares latency-critical work (no App Nap, no timer throttling) and runs its audio thread at the highest quality of service — which also matters when the studio is minimised.
