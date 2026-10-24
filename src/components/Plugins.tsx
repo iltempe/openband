@@ -6,7 +6,8 @@ import { create } from 'zustand';
 import type { Track } from '../types';
 import { getTrack, useStore } from '../store';
 import { wamCatalog, type WamCatalogEntry } from '../audio/wam';
-import { addPluginEffect, addPluginInstrument, captureWamStates, livePlugin, removePluginEffect, searchPlugins, updateSlot } from '../plugins';
+import { addNativeEffect, addPluginEffect, addPluginInstrument, captureWamStates, livePlugin, removePluginEffect, searchPlugins, updateSlot } from '../plugins';
+import { desktopNative, restartNative, useNativeStatus, type NativePluginInfo } from '../audio/native';
 import { t, useT } from '../i18n';
 import { engine } from '../audio/engine';
 import * as I from './Icons';
@@ -30,6 +31,96 @@ async function addEntry(url: string, kind: WamCatalogEntry['kind'] | 'other', tr
   const r = await addPluginEffect(target.id, url);
   s.set({ pluginWindow: { trackId: target.id, slotId: r.slot_id }, bottom: 'fx' });
   return r.name;
+}
+
+/** Native plugins installed on this computer (desktop app, G8), effects for now. */
+function InstalledPlugins({ kind, query, trackId, onAdded }: { kind: Mode; query: string; trackId?: string; onAdded: () => void }) {
+  const tr = useT();
+  const dn = desktopNative();
+  const [found, setFound] = useState<{ plugins: NativePluginInfo[]; failed: { path: string; reason: string }[] } | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const scan = async (retry: string[] = []) => {
+    if (!dn) return;
+    setScanning(true);
+    try {
+      setFound(await dn.scan({ retry }));
+    } catch (e) {
+      notify(tr('imp.failed', { error: (e as Error).message }));
+    } finally {
+      setScanning(false);
+    }
+  };
+  useEffect(() => {
+    void scan();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!dn) return null;
+  const q = query.trim().toLowerCase();
+  const shown = (found?.plugins ?? []).filter((p) => p.kind !== 'note-effect' && (kind === 'any' || p.kind === kind) && (!q || `${p.name} ${p.vendor} ${p.features.join(' ')} ${p.description}`.toLowerCase().includes(q)));
+  const add = (p: NativePluginInfo) => {
+    // Native plugins run with the user's privileges: say so once, before the first one.
+    let warned = false;
+    try {
+      warned = localStorage.getItem('openband.nativeWarned') === '1';
+    } catch {}
+    if (!warned) {
+      if (!window.confirm(tr('nat.warning'))) return;
+      try {
+        localStorage.setItem('openband.nativeWarned', '1');
+      } catch {}
+    }
+    const s = useStore.getState();
+    const target = getTrack(s.project, trackId ?? s.selectedTrackId);
+    try {
+      if (!target) throw new Error(t('plug.needTrack'));
+      const r = addNativeEffect(target.id, p);
+      s.set({ bottom: 'fx', selectedTrackId: target.id });
+      notify(tr('plug.added', { name: r.name }));
+      onAdded();
+    } catch (e) {
+      notify(tr('imp.failed', { error: (e as Error).message }));
+    }
+  };
+  return (
+    <div className="plug-native">
+      <div className="plug-native-head">
+        <span className="smart-kicker">{tr('nat.installed')}</span>
+        <button className="mini" disabled={scanning} onClick={() => void scan()}>
+          {scanning ? tr('nat.scanning') : tr('nat.rescan')}
+        </button>
+      </div>
+      {found && !shown.length && <div className="ai-log-empty">{tr('nat.none')}</div>}
+      {shown.map((p) => (
+        <div key={`${p.path}:${p.id}`} className="plug-item">
+          <div className="plug-thumb native">{p.format.toUpperCase()}</div>
+          <div className="plug-text">
+            <div className="plug-name">
+              {p.name} <span className="plug-kind">{tr(`plug.kind.${p.kind}` as 'plug.kind.any')}</span>
+            </div>
+            <div className="plug-desc">
+              {p.vendor} {p.version} · {p.features.join(', ')}
+            </div>
+          </div>
+          <button className="mini" disabled={p.kind === 'instrument'} title={p.kind === 'instrument' ? tr('nat.instrumentsSoon') : undefined} onClick={() => add(p)}>
+            {tr('sf.add')}
+          </button>
+        </div>
+      ))}
+      {!!found?.failed.length && (
+        <details className="plug-ignored">
+          <summary>{tr('nat.ignored', { n: found.failed.length })}</summary>
+          {found.failed.map((f) => (
+            <div key={f.path} className="plug-ignored-row">
+              <span title={f.path}>{f.path.split(/[\\/]/).pop()}</span>
+              <span className="plug-desc">{f.reason}</span>
+              <button className="mini" disabled={scanning} onClick={() => void scan([f.path])}>
+                {tr('nat.retry')}
+              </button>
+            </div>
+          ))}
+        </details>
+      )}
+    </div>
+  );
 }
 
 export function PluginBrowser() {
@@ -99,6 +190,7 @@ export function PluginBrowser() {
         </div>
         <input className="modal-search" autoFocus placeholder={tr('plug.search')} value={query} onChange={(e) => setQuery(e.target.value)} />
         <div className="modal-list">
+          <InstalledPlugins kind={kind} query={query} trackId={trackId} onAdded={close} />
           {error && <div className="wave-missing">{error}</div>}
           {!all && !error && <div className="ai-log-empty">{tr('imp.loading')}</div>}
           {shown.map((p) => (
@@ -211,6 +303,33 @@ export function PluginWindow() {
 }
 
 /** Effect plugin slots shown in the Effects panel. */
+/** A native plugin that crashed (or couldn't load): the track plays bypassed; Restart or Remove. */
+function NativeSlotStatus({ trackId, slotId }: { trackId: string; slotId: string }) {
+  const tr = useT();
+  const st = useNativeStatus((s) => s[`${trackId}:${slotId}`]);
+  const [busy, setBusy] = useState(false);
+  if (!st?.crashed && !st?.error) return null;
+  return (
+    <span className={`plug-crash ${st.crashed ? 'crashed' : ''}`} role="status" title={st.crashed ?? st.error}>
+      {st.crashed ? tr('nat.crashed') : tr('nat.error')}
+      {st.crashed && (
+        <button
+          className="mini"
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            restartNative(`${trackId}:${slotId}`)
+              .catch((e: Error) => notify(e.message))
+              .finally(() => setBusy(false));
+          }}
+        >
+          {tr('nat.restart')}
+        </button>
+      )}
+    </span>
+  );
+}
+
 /** The latency a plugin adds, compensated by the engine (G8): shown when there is some. */
 function SlotLatency({ trackId, slotId }: { trackId: string; slotId: string }) {
   const tr = useT();
@@ -249,6 +368,7 @@ export function PluginSlots({ track }: { track: Track }) {
             <button className={`fx-power ${s.on ? 'on' : ''}`} onClick={() => updateSlot(track.id, s.id, (x) => void (x.on = !x.on))}>
               <span className="dot" />
             </button>
+            <NativeSlotStatus trackId={track.id} slotId={s.id} />
             <span className="plug-slot-name">{s.name}</span>
             {s.format && s.format !== 'wam' && <span className={`plug-format f-${s.format}`}>{s.format.toUpperCase()}</span>}
             <SlotLatency trackId={track.id} slotId={s.id} />

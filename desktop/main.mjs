@@ -13,12 +13,15 @@ import { BrowserWindow, Menu, app, dialog, ipcMain, net, protocol, session, shel
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { setupNative } from './native.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // Packaged and staged builds keep dist/ and server/ next to this file; in the checkout they are one up.
 const ROOT = fs.existsSync(path.join(here, 'dist')) ? here : path.resolve(here, '..');
 const DIST = path.join(ROOT, 'dist');
 const SMOKE = process.argv.includes('--smoke');
+/** --smoke with OPENBAND_SMOKE_NATIVE=1 (and the fixtures in OPENBAND_PLUGIN_DIRS): native plugins too. */
+const SMOKE_NATIVE = SMOKE && process.env.OPENBAND_SMOKE_NATIVE === '1';
 /** Tests: never show a window (OPENBAND_DESKTOP_HIDDEN=1). */
 const HIDDEN = SMOKE || process.env.OPENBAND_DESKTOP_HIDDEN === '1' || !!process.env.OPENBAND_DESKTOP_SHOT;
 const FILE_RE = /\.(openband|openband\.json|midi?|dawproject)$/i;
@@ -29,6 +32,8 @@ const exe = () => process.env.APPIMAGE || app.getPath('exe');
 // CI containers (and some AppImage setups) can't use Chromium's sandbox; never set by default. (On Linux
 // --no-sandbox must also be on the command line: Chromium checks before this code runs.)
 if (process.env.OPENBAND_NO_SANDBOX === '1') app.commandLine.appendSwitch('no-sandbox');
+// Smoke tests measure the audio: a fake output keeps the audio clock running without a sound device.
+if (SMOKE_NATIVE) app.commandLine.appendSwitch('disable-audio-output');
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'openband', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true, codeCache: true } },
@@ -141,7 +146,8 @@ function createWindow(port) {
       if (/^https?:/.test(url)) void shell.openExternal(url);
     }
   });
-  void win.loadURL(`openband://app/index.html${port ? `?mcp=${port}` : ''}`);
+  const q = [port ? `mcp=${port}` : '', SMOKE_NATIVE ? 'debug' : ''].filter(Boolean).join('&');
+  void win.loadURL(`openband://app/index.html${q ? `?${q}` : ''}`);
 }
 
 // ---------------------------------------------------------------- the studio's files
@@ -286,6 +292,7 @@ ipcMain.handle('local-fetch', async (e, url, init = {}) => {
   return { status: res.status, statusText: res.statusText, body: await res.text() };
 });
 ipcMain.handle('connect-clients', (e) => (e.sender === win?.webContents ? connectClients() : []));
+setupNative({ root: ROOT, getWin: () => win });
 
 app.setAboutPanelOptions?.({ applicationName: 'OpenBand', applicationVersion: version, copyright: 'MIT license' });
 
@@ -318,7 +325,7 @@ async function smoke() {
     console.error(`SMOKE FAIL ${m}`);
     app.exit(1);
   };
-  const timer = setTimeout(() => fail('timeout'), 60000);
+  const timer = setTimeout(async () => fail(`timeout${SMOKE_NATIVE ? ` at ${await win.webContents.executeJavaScript('window.__smokeStep').catch(() => '?')}` : ''}`), SMOKE_NATIVE ? 110000 : 60000);
   try {
     await new Promise((r) => (win.webContents.isLoading() ? win.webContents.once('did-finish-load', r) : r()));
     const ok = await win.webContents.executeJavaScript(`new Promise((resolve) => {
@@ -332,13 +339,78 @@ async function smoke() {
       };
       step();
     })`, true);
-    clearTimeout(timer);
     if (!ok.playing || !ok.desktop) return fail(JSON.stringify(ok));
     console.log(`SMOKE OK ${version} ${ok.origin} song="${ok.song}"`);
+    if (SMOKE_NATIVE) {
+      const r = await win.webContents.executeJavaScript(`(${smokeNative.toString()})()`, true);
+      console.log(`SMOKE-NATIVE ${JSON.stringify(r)}`);
+      clearTimeout(timer);
+      return app.exit(r.ok ? 0 : 1);
+    }
+    clearTimeout(timer);
     app.exit(0);
   } catch (e) {
     fail(e.message);
   }
+}
+
+/**
+ * Runs in the page (G8.2): scan the fixture plugins, put the CLAP gain on a track and hear it, then crash
+ * the crash fixture and hear the track go on bypassed, restart it.
+ */
+async function smokeNative() {
+  const { engine, useStore, commands } = window.openband;
+  const dn = window.openbandDesktop.native;
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const step = (x) => (window.__smokeStep = x);
+  step('scan');
+  const scan = await dn.scan();
+  const gain = scan.plugins.find((p) => p.id === 'org.openband.fixture.gain');
+  const crash = scan.plugins.find((p) => p.id === 'org.openband.fixture.crash');
+  if (!gain || !crash) return { ok: false, why: 'fixtures not found', scan };
+  engine.stop();
+  await commands.new_project({ name: 'Native', bpm: 120, key: 'C' });
+  const t = (await commands.add_track({ kind: 'instrument', instrument: 'aurora-pad', name: 'Pad' })).track_id;
+  await commands.add_region({ track_id: t, start_bar: 1, length_bars: 8, notes: [{ pitch: 'C4', start: 0, duration: 32, velocity: 0.8 }] });
+  await commands.update_track({ track_id: t, reverb: 0, delay: 0 });
+  const rms = async () => {
+    engine.position = 0;
+    const cap = engine.captureMaster(1.5);
+    await engine.play();
+    const c = await cap;
+    engine.stop();
+    await wait(200);
+    const x = c.channels[0].subarray(Math.floor(c.sampleRate * 0.5));
+    let s = 0;
+    for (const v of x) s += v * v;
+    return 10 * Math.log10(s / x.length + 1e-12);
+  };
+  step('dry');
+  const dry = await rms();
+  const slot = (p) => ({ id: 'n1', url: '', name: p.name, on: true, format: 'clap', native: { id: p.id, vendor: p.vendor, version: p.version, path_hint: p.path } });
+  const setSlot = (p) => useStore.getState().commit((d) => { const tr = d.tracks.find((x) => x.id === t); tr.fx = { amp: { on: false, drive: 0, tone: 0, level: 0.7 }, eq: { on: false, low: 0, mid: 0, high: 0, midFreq: 1000 }, comp: { on: false, threshold: -18, ratio: 4, attack: 0.01, release: 0.18, makeup: 0 }, plugins: [slot(p)] }; });
+  setSlot(gain);
+  await wait(1500);
+  step('gain');
+  const wet = await rms();
+  const latency = engine.pdcLatency;
+  setSlot(crash);
+  await wait(1500);
+  step('crash fixture');
+  const before = await rms();
+  // The crash fixture aborts at its next block once its "Crash" parameter is on: reach its port through the worklet.
+  window.openband.nativeParam(`${t}:n1`, 1, 1);
+  await wait(1000);
+  const crashed = window.openband.nativeStatus.getState()[`${t}:n1`]?.crashed ?? null;
+  step('bypassed');
+  const after = await rms();
+  step('restart');
+  await window.openband.restartNative(`${t}:n1`);
+  await wait(1000);
+  const restarted = !window.openband.nativeStatus.getState()[`${t}:n1`]?.crashed;
+  const back = await rms();
+  const ok = Math.abs(wet - dry + 6) < 1 && latency === 6 * 128 && Math.abs(before - dry) < 1 && !!crashed && Math.abs(after - dry) < 1 && restarted && Math.abs(back - dry) < 1;
+  return { ok, dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
 }
 
 /** OPENBAND_DESKTOP_SHOT=file.png (docs): the studio with the AI panel on the "AI apps" tab, then quit. */
@@ -352,6 +424,10 @@ async function shot(file) {
       enter.click();
       setTimeout(() => {
         [...document.querySelectorAll('.tour-card button')].at(-1)?.click();
+        if (${JSON.stringify(process.env.OPENBAND_DESKTOP_SHOT_VIEW === 'plugins')}) {
+          [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Plugins')?.click();
+          return setTimeout(resolve, 14000);
+        }
         document.querySelector('.ai-pill')?.click();
         setTimeout(resolve, 1200);
       }, 400);

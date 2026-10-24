@@ -12,4 +12,17 @@ contextBridge.exposeInMainWorld('openbandDesktop', {
   connectClients: () => ipcRenderer.invoke('connect-clients'),
   localFetch: (url, init) => ipcRenderer.invoke('local-fetch', url, init),
   ready: () => ipcRenderer.send('ready'),
+  // Native plugins (G8): the audio of each plugin travels on a MessagePort handed to the page below.
+  native: {
+    info: () => ipcRenderer.invoke('native-info'),
+    scan: (o) => ipcRenderer.invoke('native-scan', o),
+    open: (o) => ipcRenderer.invoke('native-open', o),
+    restart: (o) => ipcRenderer.invoke('native-restart', o),
+    close: (o) => ipcRenderer.invoke('native-close', o),
+    state: (o) => ipcRenderer.invoke('native-state', o),
+    addDir: (d) => ipcRenderer.invoke('native-add-dir', d),
+    onCrashed: on('native-crashed'),
+  },
 });
+// MessagePorts can't cross contextBridge: they reach the page as a window message.
+ipcRenderer.on('native-port', (e, msg) => window.postMessage({ openbandNativePort: msg.key, info: msg.info }, '*', e.ports));

@@ -40,6 +40,15 @@ const line = `${smoke.stdout}${smoke.stderr}`.split('\n').find((l) => l.startsWi
 check(smoke.status === 0 && line.startsWith('SMOKE OK'), `the app starts and plays (${line.trim()})`);
 if (smoke.status !== 0) console.log(`${smoke.stderr}`.split('\n').slice(-15).join('\n'));
 
+// Native plugins (G8.2): the CLAP fixtures (built by scripts/build-plughost.mjs, never shipped) on a track.
+const fixtures = path.join(root, 'build', 'plughost');
+if (fs.existsSync(path.join(fixtures, 'ob-fixtures.clap'))) {
+  const n = spawnSync(exe, ['--smoke', ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], { env: { ...env, OPENBAND_SMOKE_NATIVE: '1', OPENBAND_PLUGIN_DIRS: fixtures }, encoding: 'utf8', timeout: 120000 });
+  const res = `${n.stdout}${n.stderr}`.split('\n').find((l) => l.startsWith('SMOKE-NATIVE')) ?? `exit ${n.status}`;
+  check(n.status === 0, `a CLAP effect plays in the app, and a crashing one leaves the track playing (${res.trim()})`);
+  if (n.status !== 0) console.log(`${n.stderr}`.split('\n').slice(-15).join('\n'));
+} else console.log('- native plugins: no fixtures (node scripts/build-plughost.mjs)');
+
 const c = new Client({ name: 'desktop-smoke', version: '1' });
 // A throwaway profile: the test's songs must not end up in the user's app.
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'openband-smoke-'));

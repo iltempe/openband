@@ -118,10 +118,13 @@ export class FxChain {
       if (!slots.some((s) => s.id === id && same(s, p))) {
         p.dispose();
         this.plugins.delete(id);
+        // A plugin replaced in the same slot keeps the slot ids: rewire anyway.
+        this.routing = '';
       }
     }
     for (const s of slots) {
-      if (!this.plugins.has(s.id)) this.plugins.set(s.id, (s.format ?? 'wam') === 'wam' ? new WamEffect(s.url, s.state, this.keyPrefix && `${this.keyPrefix}:${s.id}`) : new NativeEffect(s));
+      if (!this.plugins.has(s.id)) this.routing = '';
+      if (!this.plugins.has(s.id)) this.plugins.set(s.id, (s.format ?? 'wam') === 'wam' ? new WamEffect(s.url, s.state, this.keyPrefix && `${this.keyPrefix}:${s.id}`) : new NativeEffect(s, this.keyPrefix && `${this.keyPrefix}:${s.id}`));
       this.plugins.get(s.id)!.setBypass(!s.on);
     }
     this.last = raw;

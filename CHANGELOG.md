@@ -2,6 +2,18 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.5 "G8.2: CLAP effects in the desktop app"
+
+### G8.2 · openband-plughost, plugin scan, CLAP effects, crash isolation
+- **`openband-plughost`** (`native/plughost`, C11 + the CLAP 1.2.6 headers, MIT): the native plugin host, one process per plugin instance (the spec's safe mode). A framed binary protocol over stdin/stdout — load, 128-frame blocks, parameters, state save/load, latency changes — and a `scan` mode that lists the plugins of a bundle. Built with CMake by `scripts/build-plughost.mjs` (macOS: one universal binary; Windows and Linux: x64 and arm64) and shipped inside the desktop installers. Written in C rather than Rust (the ADR allows either): it builds on every CI runner and the VST3 SDK it will meet next is C++.
+- **Scan** (`server/plughost.mjs`): the standard CLAP folders of each system plus folders the user adds; every bundle in a process of its own with a timeout, so a plugin that hangs or crashes lands on the ignore list with the reason and a *Retry*; cache by path and modification time.
+- **CLAP effects on a track** (desktop app): the plugin browser lists the installed plugins (*Installed on this computer*, with a format badge and search) next to the WAM catalog. The main process runs each plugin's host and hands its audio a MessagePort straight to the plugin's AudioWorklet, so blocks never pass through the page's main thread; latency = 6 blocks + the plugin's own, compensated (G8.1). Plugins load only from the plugin folders, never from a URL, and a warning comes before the first one.
+- **Crash isolation**: when a plugin crashes — or stops answering for more than 2× the jitter buffer — the worklet plays the track bypassed **with the same latency**, so it stays in time and the audio never stops; the slot says *Closed* and **Restart** starts the plugin again with the state saved in the song.
+- Fixed: replacing a plugin in the same effect slot left the old one wired in (the chain only rewired when the slot ids changed).
+- The plugin browser is just *Plugins* now (WAM and native).
+- Not yet: exporting native effects (G8.4: until then an export plays the track without them and says so), CLAP instruments, plugin windows and parameter automation (G8.3).
+- Tests: the host against small CLAP fixtures built for the tests and never shipped (`native/plughost/test/fixtures.c`: a gain with state, a 256-sample latency, a plugin that crashes on demand, a bundle that hangs) instead of free-audio/clap-plugins, whose build needs Qt: scan, timeout and ignore list, cache and retry, gain and parameters, state, latency, a crash that takes down only its process, errors. In the packaged app (`desktop:smoke`, macOS here, all three systems in CI): a CLAP gain on a track plays −6.4 dB (the fixture's −6) with 768 samples compensated; the crash fixture plays through, then crashes (`SIGABRT`): the track goes on at the same level (−0.13 dB) and comes back after *Restart*. Also scanned on this machine: Vital 1.5.5 (an instrument, for G8.3).
+
 ## v0.6.4 "G8.1: plugin delay compensation"
 
 The native plugins of the desktop app (G8) come in phases; this one makes room for them in the engine.

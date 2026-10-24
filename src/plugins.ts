@@ -1,6 +1,7 @@
 // Web Audio Module plugins in the project: adding/removing them, finding them from a plain-language
 // description, reading and writing their parameters, and saving their state into the project.
 import type { CustomInstrument, PluginSlot } from './types';
+import type { NativePluginInfo } from './audio/native';
 import { getTrack, makeTrack, useStore } from './store';
 import { uid } from './music';
 import { normalizeFx } from './audio/fx';
@@ -110,6 +111,20 @@ export async function addPluginEffect(trackId: string, ref: string) {
     t.fx.plugins = [...(t.fx.plugins ?? []), slot];
   });
   return { track_id: trackId, slot_id: slot.id, name: plugin.name, url: plugin.url };
+}
+
+/** A native plugin effect (G8, desktop app) found by the scan, at the end of a track's chain. */
+export function addNativeEffect(trackId: string, p: NativePluginInfo) {
+  const track = getTrack(st().project, trackId);
+  if (!track) throw new Error(`Track "${trackId}" not found`);
+  if (p.kind === 'instrument') throw new Error(`“${p.name}” is an instrument`);
+  const slot: PluginSlot = { id: uid('fx'), url: '', name: p.name, on: true, format: p.format, native: { id: p.id, vendor: p.vendor, version: p.version, path_hint: p.path } };
+  st().commit((d) => {
+    const t = d.tracks.find((x) => x.id === trackId)!;
+    t.fx = normalizeFx(t.fx);
+    t.fx.plugins = [...(t.fx.plugins ?? []), slot];
+  });
+  return { track_id: trackId, slot_id: slot.id, name: p.name, format: p.format };
 }
 
 export function removePluginEffect(trackId: string, slotId: string) {

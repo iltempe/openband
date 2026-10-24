@@ -104,6 +104,12 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix desktop
       - run: npm run build
+      # The native plugin host (G8), both architectures (macOS: one universal binary).
+      - if: runner.os == 'Linux'
+        run: sudo apt-get install -y gcc-aarch64-linux-gnu
+      - run: node scripts/build-plughost.mjs
+      - if: runner.os != 'macOS'
+        run: node scripts/build-plughost.mjs --arch ${{ runner.arch == 'ARM64' && 'x64' || 'arm64' }}
       - run: node scripts/build-desktop.mjs
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}

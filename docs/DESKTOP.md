@@ -61,10 +61,30 @@ would both add the OpenBand tools.
 - **Updates**: the app checks GitHub for a new version once a day and offers the download (*Check for
   Updates…* in the menu). Installing over the old version keeps your songs.
 - **Plugins**: the web plugins (WAM) work as in the browser. Native VST3 / CLAP / AU plugins are being
-  built in phases ([SPEC v0.6, G8](SPEC-v0.6.md), [ADR 0001](adr/0001-desktop.md)). Done so far: **plugin
-  delay compensation** — a plugin that delays the sound (a WAM with lookahead now, a native plugin behind
-  the audio bridge next) delays every other track as much, live and in exports, so everything stays in
-  time; the effect slot shows how much (*26.7 ms*). Next: the plugin host for CLAP effects.
+  built in phases ([SPEC v0.6, G8](SPEC-v0.6.md), [ADR 0001](adr/0001-desktop.md)); see
+  [Native plugins](#native-plugins) below.
+
+## Native plugins
+
+**CLAP effects** installed on your computer work in the app: *Plugins* (in the library, or *+ Plugin* in a
+track's effects) lists them under *Installed on this computer*, next to the web plugins. OpenBand looks in
+the standard folders (macOS `~/Library/Audio/Plug-Ins/CLAP` and `/Library/Audio/Plug-Ins/CLAP`; Windows
+`Common Files\CLAP`; Linux `~/.clap`, `/usr/lib/clap`). Each folder is scanned plugin by plugin in a
+separate process: one that hangs or crashes while being scanned is set aside (*Ignored*, with *Retry*).
+
+![Installed CLAP plugins in the plugin browser](native-plugins.png)
+
+- **Each plugin runs in its own process** (`openband-plughost`): if it crashes, only it stops. The track
+  keeps playing without it, in time, the slot says *Closed*, and **Restart** starts it again with the state
+  saved in the song.
+- **In time with everything else**: the audio goes to the plugin and back in blocks, about 16 ms plus the
+  plugin's own latency, and OpenBand delays the other tracks by as much (plugin delay compensation), live
+  and in exports. The slot shows the latency.
+- Plugins are programs that run with your permissions: OpenBand says so before the first one, and only
+  loads them from the plugin folders, never from the internet.
+- Coming next: CLAP instruments, plugin windows, automation and undo of plugin parameters (G8.3);
+  exporting songs with native plugins, and playing them in the browser from a "frozen" copy (G8.4 —
+  until then an export plays those tracks without the plugin, and says so); VST3 and AU.
 
 ## Building it
 

@@ -15,6 +15,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      # The plugin host and its test fixtures, for server/plughost.test.ts.
+      - run: node scripts/build-plughost.mjs
       - run: npm test
 
   # The Open Music Engine Profile: the reference mock engine passes the conformance suite.
@@ -103,6 +105,12 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix desktop
       - run: npm run build
+      # The native plugin host (G8), both architectures (macOS: one universal binary).
+      - if: runner.os == 'Linux'
+        run: sudo apt-get install -y gcc-aarch64-linux-gnu
+      - run: node scripts/build-plughost.mjs
+      - if: runner.os != 'macOS'
+        run: node scripts/build-plughost.mjs --arch ${{ runner.arch == 'ARM64' && 'x64' || 'arm64' }}
       # Both architectures, as the release does (the second build once failed on a reused config).
       - run: node scripts/build-desktop.mjs --dir
       - if: runner.os == 'Linux'

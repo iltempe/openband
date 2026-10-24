@@ -63,11 +63,30 @@ collegarla: le app AI ricordano dove si trova. Usa l'app oppure l'estensione per
 - **Aggiornamenti**: una volta al giorno l'app controlla su GitHub se c'è una nuova versione e ti
   propone di scaricarla (*Check for Updates…* nel menu). Installandola sopra la vecchia, le canzoni restano.
 - **Plugin**: i plugin web (WAM) funzionano come nel browser. I plugin nativi VST3 / CLAP / AU si
-  costruiscono per fasi ([SPEC v0.6, G8](SPEC-v0.6.md), [ADR 0001](adr/0001-desktop.md)). Fatto finora: la
-  **compensazione della latenza dei plugin**: un plugin che ritarda il suono (oggi un WAM con lookahead,
-  presto un plugin nativo dietro il ponte audio) ritarda altrettanto tutte le altre tracce, dal vivo e
-  negli export, così tutto resta a tempo; lo slot dell'effetto mostra di quanto (*26,7 ms*). Prossimo
-  passo: l'host dei plugin per gli effetti CLAP.
+  costruiscono per fasi ([SPEC v0.6, G8](SPEC-v0.6.md), [ADR 0001](adr/0001-desktop.md)); vedi
+  [Plugin nativi](#plugin-nativi) qui sotto.
+
+## Plugin nativi
+
+Gli **effetti CLAP** installati sul computer funzionano nell'app: *Plugin* (nella libreria, o *+ Plugin*
+negli effetti di una traccia) li elenca in *Installati su questo computer*, accanto ai plugin web. OpenBand
+li cerca nelle cartelle standard (macOS `~/Library/Audio/Plug-Ins/CLAP` e `/Library/Audio/Plug-Ins/CLAP`;
+Windows `Common Files\CLAP`; Linux `~/.clap`, `/usr/lib/clap`), un plugin alla volta in un processo a
+parte: uno che si blocca o si chiude durante la ricerca viene messo da parte (*Ignorati*, con *Riprova*).
+
+![Plugin CLAP installati nella finestra dei plugin](native-plugins.png)
+
+- **Ogni plugin gira in un processo suo** (`openband-plughost`): se va in crash, si ferma solo lui. La
+  traccia continua a suonare senza, a tempo, lo slot dice *Si è chiuso*, e **Riavvia** lo riapre con lo
+  stato salvato nella canzone.
+- **A tempo con tutto il resto**: l'audio va al plugin e torna a blocchi, circa 16 ms più la latenza del
+  plugin, e OpenBand ritarda altrettanto le altre tracce (compensazione della latenza), dal vivo e negli
+  export. Lo slot mostra la latenza.
+- I plugin sono programmi che girano con i tuoi permessi: OpenBand lo dice prima del primo, e li carica
+  solo dalle cartelle dei plugin, mai da internet.
+- Prossimi passi: strumenti CLAP, finestre dei plugin, automazione e annullamento dei parametri (G8.3);
+  export delle canzoni con plugin nativi e ascolto nel browser da una copia "congelata" (G8.4 — fino ad
+  allora un export suona quelle tracce senza il plugin, e lo dice); VST3 e AU.
 
 ## Compilarla
 

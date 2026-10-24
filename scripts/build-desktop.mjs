@@ -41,6 +41,7 @@ copy('omep');
 for (const f of fs.readdirSync(path.join(root, 'server'))) if (f.endsWith('.mjs')) copy(`server/${f}`);
 copy('desktop/main.mjs', 'main.mjs');
 copy('desktop/preload.cjs', 'preload.cjs');
+copy('desktop/native.mjs', 'native.mjs');
 copy('LICENSE');
 // How to open an unsigned app on macOS: shown in the disk image, not part of the app itself.
 const OPEN_HELP = "If it won't open - Se non si apre.txt";
@@ -74,8 +75,12 @@ const assoc = [
   { ext: ['mid', 'midi'], name: 'MIDI file', role: 'Viewer', mimeType: 'audio/midi' },
   { ext: 'dawproject', name: 'DAWproject', role: 'Editor', mimeType: 'application/x-dawproject' },
 ];
+// The native plugin host (G8) for an architecture: macOS has one universal binary.
+const HOST_EXE = process.platform === 'win32' ? 'openband-plughost.exe' : 'openband-plughost';
+const hostFor = (a) => [process.platform === 'darwin' || a === process.arch ? 'plughost' : `plughost-${a}`].map((d) => path.join(root, 'build', d, HOST_EXE)).find((p) => fs.existsSync(p));
 // A fresh object per build: electron-builder normalizes (and mutates) the one it is given.
-const makeConfig = () => ({
+const makeConfig = (a) => ({
+  extraResources: hostFor(a) ? [{ from: hostFor(a), to: `plughost/${HOST_EXE}` }] : [],
   appId: 'io.github.iltempe.openband',
   productName: 'OpenBand',
   copyright: 'MIT license — OpenBand contributors',
@@ -134,6 +139,7 @@ const platform = { darwin: builder.Platform.MAC, win32: builder.Platform.WINDOWS
 const archs = arch ? [arch] : ['x64', 'arm64'];
 // One architecture at a time: a single NSIS call with two would make one combined installer.
 for (const a of archs) {
-  const out = await builder.build({ targets: platform.createTarget(null, builder.Arch[a]), config: makeConfig(), projectDir: stage });
+  if (!hostFor(a)) console.warn(`No plugin host for ${a} (node scripts/build-plughost.mjs --arch ${a}): this build has no native plugins.`);
+  const out = await builder.build({ targets: platform.createTarget(null, builder.Arch[a]), config: makeConfig(a), projectDir: stage });
   for (const f of out) console.log(path.relative(root, f));
 }

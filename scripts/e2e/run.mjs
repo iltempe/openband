@@ -37,7 +37,8 @@ function server(env = {}) {
   const p = spawn(process.execPath, [path.join(root, 'bin', 'openband.mjs'), 'start'], { env: { ...process.env, OPENBAND_PORT: String(PORT), OPENBAND_OPEN_BROWSER: '0', ...env }, stdio: ['ignore', 'ignore', 'pipe'] });
   return new Promise((resolve) => p.stderr.on('data', (d) => String(d).includes('bridge on') && resolve(p)));
 }
-const launch = () => puppeteer.launch({ executablePath: chrome, headless: true, args: ['--autoplay-policy=no-user-gesture-required', '--no-sandbox'] });
+// A fake audio output: the audio clock runs the same with or without (or with a stalled) sound device.
+const launch = () => puppeteer.launch({ executablePath: chrome, headless: true, args: ['--autoplay-policy=no-user-gesture-required', '--no-sandbox', '--disable-audio-output'] });
 
 const tests = {
   async 'first-run'() {
