@@ -112,3 +112,30 @@ version mismatch) and repairing it would have changed the system; the CLAP calls
 - An effect plugin on a track end to end (spec's prototype), with plugin delay compensation.
 - VST3 hosting; plugin GUIs in native windows; plugin state in the project (like WAM state today).
 - Crash isolation (one process per plugin or per track), and a scan of installed plugins.
+
+## Update, October 2026 (SPEC v0.6 G8.8): the bridge, measured; shared memory not adopted
+
+What shipped: Electron (not Tauri), and `openband-plughost` in C/C++ (CLAP, VST3 through an adapter, AU
+on macOS), one process per plugin, spoken to over stdin/stdout by the main process; the page's
+AudioWorklet reaches the main process over a MessagePort. The jitter buffer is 6 blocks (16 ms).
+
+G8.8 asked for a shared-memory ring buffer in place of this transport, kept only if it improves the
+p99 round trip on macOS, Windows and Linux. Measured first:
+
+| Leg | How | p50 | p99 | max |
+|---|---|---|---|---|
+| main process ↔ host (pipes) | 3000 blocks at real-time pace, M1 Pro | 0.06 ms | 0.36 ms | 3 ms |
+| the whole bridge, in blocks of 128 frames (2.7 ms) | worklet: blocks between sending one and getting it back, in the packaged app (`desktop:smoke`) | | | |
+| — this Mac (M1 Pro) | | 0 | 1 | 1 |
+| — CI macOS runner | | 1 | 1 | 2 |
+| — CI Windows runner | | 1 | 3 | 3 |
+| — CI Linux runner | | 1 | 3 | 3 |
+
+Shared memory between the main process and the host could only remove the pipe leg: 0.36 ms at p99,
+about a tenth of a block, so it cannot move a p99 measured in whole blocks. The rest of the round trip
+is the page ↔ main process hop and the audio thread's scheduling. Shared memory there means a
+`SharedArrayBuffer` backed by memory mapped from the host process (a V8 addon built for each Electron
+version and platform) and a cross-origin-isolated page, which would stop web plugins loading from
+their CDNs. Not adopted. What the numbers do say: the 6-block jitter buffer is twice what the worst
+platform needs; sizing it from these measurements (per platform, or adaptively per session) is the
+cheaper way to lower the bridge's latency, and the measurement is now built in (`bridgeStats()`).

@@ -2,6 +2,14 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.15 "G8.8: the bridge, measured"
+
+### G8.8 · Shared memory for the bridge — measured, not adopted
+- The native plugin bridge now measures itself: the jitter buffer counts how many blocks each block takes to come back (the round trip, in blocks of 128 frames), and `bridgeStats()` gives p50, p99 and max. The packaged-app smoke test reports it on every platform.
+- **Measured** (packaged app, a CLAP effect): this Mac p50 0 / p99 1 / max 1 block; CI macOS 1 / 1 / 2; CI Windows 1 / 3 / 3; CI Linux 1 / 3 / 3 (one block is 2.7 ms at 48 kHz). The pipes between the main process and the plugin host, alone: p50 0.06 ms, p99 0.36 ms (3000 blocks at real-time pace).
+- **Not adopted**, as the spec allows ("kept only if it improves p99"): shared memory between the main process and the host can only remove the pipe leg — a tenth of a block at p99 — so it cannot improve a p99 measured in blocks. Shared memory all the way to the AudioWorklet needs a SharedArrayBuffer over memory mapped from the host (a V8 addon per Electron version and platform) and a cross-origin-isolated page, which would stop web plugins loading from their CDNs. The numbers show where the latency is instead: the 6-block jitter buffer is twice what the slowest platform needs. Details in [ADR 0001](docs/adr/0001-desktop.md).
+- Tests: the lateness histogram and its percentiles (unit); the smoke reports `bridge` on macOS, Windows and Linux.
+
 ## v0.6.14 "G8.7: low-latency monitoring"
 
 ### G8.7 · Monitoring a native instrument with only the device's latency
