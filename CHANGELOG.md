@@ -2,6 +2,10 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.6 "Windows installer again"
+
+- Fixed: v0.6.5 has no Windows installer — the app's test failed on Windows when it looked for native plugins, because it loaded the plugin module from a bare `d:\…` path, which Node only accepts as a `file://` URL. The plugin host itself built fine with MSVC (x64 and ARM64). Same fix for the host's own path in `server/plughost.mjs`.
+
 ## v0.6.5 "G8.2: CLAP effects in the desktop app"
 
 ### G8.2 · openband-plughost, plugin scan, CLAP effects, crash isolation

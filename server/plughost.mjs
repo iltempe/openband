@@ -8,12 +8,13 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const EXE = process.platform === 'win32' ? 'openband-plughost.exe' : 'openband-plughost';
 
 /** Where the host binary is: OPENBAND_PLUGHOST, the app's resources, or a development build. */
 export function hostBinary(extra = []) {
-  const candidates = [process.env.OPENBAND_PLUGHOST, ...extra, path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', 'build', 'plughost', EXE)].filter(Boolean);
+  const candidates = [process.env.OPENBAND_PLUGHOST, ...extra, path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'build', 'plughost', EXE)].filter(Boolean);
   return candidates.find((p) => fs.existsSync(p)) ?? null;
 }
 

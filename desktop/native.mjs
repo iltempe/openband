@@ -5,12 +5,14 @@
 import { MessageChannelMain, app, ipcMain } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const EXE = process.platform === 'win32' ? 'openband-plughost.exe' : 'openband-plughost';
 
 export function setupNative({ root, getWin }) {
   let mod = null;
-  const load = async () => (mod ??= await import(path.join(root, 'server', 'plughost.mjs')));
+  // A file:// URL: on Windows a bare path (d:\…) is not a module specifier.
+  const load = async () => (mod ??= await import(pathToFileURL(path.join(root, 'server', 'plughost.mjs')).href));
   const host = () => {
     const packaged = path.join(process.resourcesPath ?? '', 'plughost', EXE);
     return [process.env.OPENBAND_PLUGHOST, packaged, path.join(root, 'build', 'plughost', EXE)].find((p) => p && fs.existsSync(p)) ?? null;
