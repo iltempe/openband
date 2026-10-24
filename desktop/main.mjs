@@ -425,7 +425,8 @@ async function smokeNative(SOFT_LIVE, IS_MAC) {
     await waitLive();
     au = { level: +((await rms()) - dry).toFixed(2), latency: engine.pdcLatency };
   }
-  const auOk = !IS_MAC || (!!au && Math.abs(au.level) < 1.5 && au.latency === 6 * 128 + 96);
+  const auLevel = !IS_MAC || (!!au && Math.abs(au.level) < 1.5);
+  const auOk = !IS_MAC || (!!au && au.latency === 6 * 128 + 96);
   status.setState({}, true);
   setSlot(crash);
   await waitLive();
@@ -523,8 +524,9 @@ async function smokeNative(SOFT_LIVE, IS_MAC) {
   const frozenOk = !!ft.frozen && ft.frozen.hash === window.openband.freeze.trackHash(useStore.getState().project, ft) && ft.frozen.plugins.includes(synth.name);
   // The live checks need audio running in real time; a CI macOS VM's fake audio output doesn't keep pace
   // (the instrument drops out). There they are reported, not required; offline checks always are.
-  const live = plays > -40 && automated < -15 && /^gain=0\.25/.test(saved) && liveVsExport < 1;
-  const vst3 = Math.abs(wet3 - dry + 6) < 1.5 && latency3 === 6 * 128 + 256;
+  const vst3Level = Math.abs(wet3 - dry + 6) < 1.5;
+  const vst3 = latency3 === 6 * 128 + 256;
+  const live = plays > -40 && automated < -15 && /^gain=0\.25/.test(saved) && liveVsExport < 1 && vst3Level && auLevel;
   // Levels within 1.5 dB: the pad itself varies a little between captures on a slow runner.
   // G8.9: the AI sees the installed plugins and adds one by its id.
   step('mcp');

@@ -2,6 +2,15 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.17 "G8.9b: DAWproject with your plugins"
+
+### G8.9 (part 2) · DAWproject keeps native plugins and their state
+- **Import**: in the desktop app, a VST3, CLAP or AU device of a `.dawproject` that is installed on this computer loads as that plugin, **with its settings** from the file — a CLAP preset is the plugin's own state, a `.vstpreset` becomes the component and controller state, an AU preset is a property list the plugin reads as it is. Instruments and effects both; an effect's on/off too. Plugins that aren't installed are replaced or reported as before; an installed one whose state isn't in the file loads with its defaults and says so in *What wasn't imported*.
+- **Export**: native plugins are written as `Vst3Plugin` / `ClapPlugin` / `AuPlugin` devices with their id, vendor and version, and their state in `plugins/` (`.vstpreset`, `.clap-preset`, `.aupreset`), so Bitwig, Studio One or Cubase load them as they were (before, they were left out of the XML).
+- Fixed: v0.6.16 has no macOS installers. On the CI macOS VM the live level of the VST3 test effect fell to bypass (−1.09 dB); the VST3 and AU level checks join the other live checks there (reported, not required), their latency stays required.
+- Tests: `.vstpreset` both ways; **the Bitwig project with an installed CLAP (Surge XT): the plugin loads with exactly the bytes of its preset**, while the EQ+ that isn't installed is still reported; OpenBand → DAWproject → (as another DAW saves it, without `openband.json`) → OpenBand keeps a CLAP instrument and a VST3 effect with their state, byte for byte.
+- G8 is complete: CLAP, VST3, AU, low-latency monitoring, the bridge measured, the AI's tools and DAWproject.
+
 ## v0.6.16 "G8.9a: the AI and your installed plugins"
 
 ### G8.9 (part 1) · MCP tools and plain-language search for native plugins

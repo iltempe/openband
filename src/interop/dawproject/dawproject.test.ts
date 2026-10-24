@@ -211,3 +211,61 @@ describe('DAWproject export and round trip', () => {
     }
   });
 });
+
+// G8.9: VST3 / CLAP / AU devices with their state, when the plugin is installed on this computer.
+import { stateToVstPreset, vstPresetToState } from './vstpreset';
+import type { NativePluginInfo } from '../../audio/native';
+import { emptyProject, makeTrack } from '../../store';
+
+describe('DAWproject and native plugins (G8.9)', () => {
+  const surge: NativePluginInfo = { format: 'clap', id: 'org.surge-synth-team.surge-xt', name: 'Surge XT', vendor: 'Surge Synth Team', version: '1.3.4', description: '', features: ['instrument', 'synthesizer'], kind: 'instrument', path: '/Library/Audio/Plug-Ins/CLAP/Surge XT.clap' };
+  const eq: NativePluginInfo = { format: 'vst3', id: 'ABCDEF019182FAEB4B4D4B4B4B4B4B4B', name: 'EQ+', vendor: 'Bitwig', version: '1.0', description: 'Fx|EQ', features: ['audio-effect'], kind: 'effect', path: '/Library/Audio/Plug-Ins/VST3/EQ+.vst3' };
+
+  it('a .vstpreset carries the component and the controller state, both ways', () => {
+    const state = new Uint8Array([8, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9]);
+    const file = stateToVstPreset(eq.id, state);
+    expect(strFromU8(file.subarray(0, 4))).toBe('VST3');
+    expect(vstPresetToState(file)).toEqual({ classId: eq.id, state });
+    expect(vstPresetToState(new Uint8Array(10))).toBeNull();
+  });
+
+  it('a Bitwig project with an installed CLAP: the plugin loads with the state of its preset file', () => {
+    const files = unzipSync(load('bitwig-5.dawproject'));
+    const preset = new Uint8Array([0x53, 0x75, 0x72, 0x67, 0x65, 1, 2, 3, 250]);
+    files['plugins/d19b1f6e-bbb6-42fe-a6c9-54b41d97a05d.clap-preset'] = preset;
+    const { project, report } = dawprojectToProject(zipSync(files), [surge]);
+    const bass = project.tracks.find((t) => t.name === 'Bass')!;
+    const inst = project.instruments!.find((i) => i.id === bass.instrument)!;
+    expect(inst).toMatchObject({ source: 'native', format: 'clap', name: 'Surge XT', native: { id: surge.id, path_hint: surge.path } });
+    expect(Buffer.from(inst.native!.state_b64!, 'base64')).toEqual(Buffer.from(preset));
+    // Not replaced by a preset, but EQ+ (not installed here) is still reported.
+    expect(report.items.some((i) => i.code === 'instrument_replaced' && i.track === 'Bass')).toBe(false);
+    expect(report.items.some((i) => i.code === 'plugin' && /EQ\+/.test(i.detail ?? ''))).toBe(true);
+    // Without Surge XT installed: replaced, as before.
+    const without = dawprojectToProject(zipSync(files)).project;
+    expect(without.instruments?.some((i) => i.source === 'native') ?? false).toBe(false);
+  });
+
+  it('OpenBand → DAWproject → another DAW → OpenBand keeps native plugins and their state', () => {
+    const p = emptyProject();
+    p.instruments = [{ id: 'nat_s', name: 'Surge XT', kind: 'instrument', source: 'native', zones: [], attack: 0, release: 0, format: 'clap', native: { id: surge.id, vendor: surge.vendor, version: surge.version, path_hint: surge.path, state_b64: Buffer.from('surge-state').toString('base64') } }];
+    const t = makeTrack(p, 'instrument', undefined, 'Synth');
+    t.instrument = 'nat_s';
+    t.fx = { amp: { on: false, drive: 0, tone: 0, level: 0.7 }, eq: { on: false, low: 0, mid: 0, high: 0, midFreq: 1000 }, comp: { on: false, threshold: -18, ratio: 4, attack: 0.01, release: 0.18, makeup: 0 }, plugins: [{ id: 'fx1', url: '', name: 'EQ+', on: false, format: 'vst3', native: { id: eq.id, vendor: eq.vendor, version: eq.version, path_hint: eq.path, state_b64: Buffer.from([4, 0, 0, 0, 7, 7, 7, 7, 1, 2]).toString('base64') } }] };
+    p.tracks = [t];
+    const { zip, report } = projectToDawproject(p, {});
+    expect(report.filter((i) => /plugin/.test(i.detail ?? ''))).toEqual([]);
+    const files = unzipSync(zip);
+    const xml = strFromU8(files['project.xml']);
+    expect(xml).toMatch(/<ClapPlugin deviceID="org\.surge-synth-team\.surge-xt"[^>]*deviceRole="instrument"/);
+    expect(xml).toMatch(/<Vst3Plugin deviceID="ABCDEF019182FAEB4B4D4B4B4B4B4B4B"[^>]*deviceRole="audioFX"/);
+    expect(Object.keys(files).filter((f) => f.startsWith('plugins/')).sort()).toEqual([`plugins/${t.id}_fx1.vstpreset`, `plugins/${t.id}_inst.clap-preset`]);
+    // As another DAW would save it: no openband.json.
+    delete files[OPENBAND_JSON];
+    const back = dawprojectToProject(zipSync(files), [surge, eq]).project;
+    const bt = back.tracks[0];
+    const bi = back.instruments!.find((i) => i.id === bt.instrument)!;
+    expect(Buffer.from(bi.native!.state_b64!, 'base64').toString()).toBe('surge-state');
+    expect(bt.fx!.plugins![0]).toMatchObject({ name: 'EQ+', format: 'vst3', on: false, native: { id: eq.id, state_b64: t.fx.plugins![0].native!.state_b64 } });
+  });
+});

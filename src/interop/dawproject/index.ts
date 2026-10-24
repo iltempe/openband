@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import type { Project } from '../../types';
 import { useStore } from '../../store';
 import { ensureSamples, getStoredSample, importSample, useSamples } from '../../audio/samples';
-import { captureWamStates } from '../../plugins';
+import { captureWamStates, nativePlugins } from '../../plugins';
 import { autoVersion } from '../../versioning';
 import { exportName } from '../../journal';
 import { download } from '../../audio/render';
@@ -25,7 +25,9 @@ const typeOf = (name: string) => (/\.mp3$/i.test(name) ? 'audio/mpeg' : /\.ogg$/
 
 /** Import a .dawproject: replace the song (default; a version of the old one is saved first) or add its tracks. */
 export async function importDawproject(bytes: Uint8Array, filename: string, replace = true, author: 'user' | 'ai' = 'user', showReport = false) {
-  const { project, samples, report } = dawprojectToProject(bytes);
+  // In the desktop app, VST3 / CLAP / AU devices installed on this computer load with their state (G8.9).
+  const installed = (await nativePlugins().catch(() => ({ plugins: [] }))).plugins;
+  const { project, samples, report } = dawprojectToProject(bytes, installed);
   // Store the audio files and point the regions at them.
   const ids = new Map<string, string>();
   for (const s of samples) {

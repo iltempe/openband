@@ -3,7 +3,7 @@
 // annotations, flubs, WAM plugins, the amp sim…) travels in openband.json: other DAWs ignore it, and
 // OpenBand restores it on import, so OpenBand → DAWproject → OpenBand loses nothing.
 import { strToU8, zipSync } from 'fflate';
-import type { Project, Track } from '../../types';
+import type { PluginSlot, Project, Track } from '../../types';
 import { normalizeFx } from '../../audio/fx';
 import { findInstrument } from '../../audio/instruments';
 import { lanesOf, mix, pointsOf, targetKey } from '../../automation';
@@ -11,6 +11,7 @@ import { stretchFactor } from '../../audio/stretch';
 import { BEATS_PER_BAR } from '../../music';
 import { writeXml, x, type XNode } from './xml';
 import type { ReportItem } from './report';
+import { stateToVstPreset } from './vstpreset';
 
 export interface ExportSample {
   name: string;
@@ -48,12 +49,30 @@ export function projectToDawproject(p: Project, samples: Record<string, ExportSa
   const spb = 60 / p.bpm;
   const files: Record<string, Uint8Array> = {};
 
+  /**
+   * A native plugin (G8.9) as DAWproject writes it: Vst3Plugin / ClapPlugin / AuPlugin with its id and its
+   * state in plugins/ (.vstpreset, .clap-preset, .aupreset), so Bitwig, Studio One or Cubase load it.
+   */
+  const nativeDevice = (id: string, role: 'instrument' | 'audioFX', name: string, format: string, native: NonNullable<PluginSlot['native']>, on = true): XNode => {
+    const tag = format === 'vst3' ? 'Vst3Plugin' : format === 'au' ? 'AuPlugin' : 'ClapPlugin';
+    let state: XNode | null = null;
+    if (native.state_b64) {
+      const bytes = Uint8Array.from(atob(native.state_b64), (c) => c.charCodeAt(0));
+      const path = `plugins/${id}.${format === 'vst3' ? 'vstpreset' : format === 'au' ? 'aupreset' : 'clap-preset'}`;
+      files[path] = format === 'vst3' ? stateToVstPreset(native.id, bytes) : bytes;
+      state = x('State', { path });
+    }
+    return x(tag, { deviceID: native.id, deviceName: name, deviceRole: role, deviceVendor: native.vendor, pluginVersion: native.version, loaded: true, id, name }, [x('Enabled', { value: on, id: `${id}_on`, name: 'On/Off' }), state]);
+  };
+  const isNative = (format?: string) => format === 'clap' || format === 'vst3' || format === 'au';
+
   const channelOf = (t: Track): XNode => {
     const fx = normalizeFx(t.fx);
     const devices: XNode[] = [];
     const preset = findInstrument(t.instrument);
     const custom = p.instruments?.find((i) => i.id === t.instrument);
-    if (t.kind !== 'audio') devices.push(x('BuiltinDevice', { deviceName: custom?.name ?? preset?.name ?? t.instrument, deviceRole: 'instrument', deviceVendor: 'OpenBand', id: `${xid(t.id)}_inst`, name: custom?.name ?? preset?.name ?? t.instrument }));
+    if (t.kind !== 'audio' && custom?.source === 'native' && custom.native && isNative(custom.format)) devices.push(nativeDevice(`${xid(t.id)}_inst`, 'instrument', custom.name, custom.format!, custom.native));
+    else if (t.kind !== 'audio') devices.push(x('BuiltinDevice', { deviceName: custom?.name ?? preset?.name ?? t.instrument, deviceRole: 'instrument', deviceVendor: 'OpenBand', id: `${xid(t.id)}_inst`, name: custom?.name ?? preset?.name ?? t.instrument }));
     if (fx.eq.on) {
       const band = (type: string, freq: number, gain: number, order: number) =>
         x('Band', { type, order }, [x('Freq', { unit: 'hertz', value: freq }), x('Gain', { unit: 'decibel', value: gain }), x('Q', { unit: 'linear', value: 0.7 }), x('Enabled', { value: true })]);
@@ -73,7 +92,10 @@ export function projectToDawproject(p: Project, samples: Record<string, ExportSa
       );
     }
     if (fx.amp.on) report.push({ code: 'export_skipped', track: t.name, detail: 'amp simulator' });
-    for (const s of fx.plugins ?? []) report.push({ code: 'export_skipped', track: t.name, detail: `${(s.format ?? 'wam').toUpperCase()} plugin ${s.name}` });
+    for (const s of fx.plugins ?? []) {
+      if (s.native && isNative(s.format)) devices.push(nativeDevice(`${xid(t.id)}_${xid(s.id)}`, 'audioFX', s.name, s.format!, s.native, s.on));
+      else report.push({ code: 'export_skipped', track: t.name, detail: `${(s.format ?? 'wam').toUpperCase()} plugin ${s.name}` });
+    }
     if (custom?.source === 'wam') report.push({ code: 'export_skipped', track: t.name, detail: `WAM instrument ${custom.name}` });
     const other = lanesOf(t).filter((l) => l.points.length && !(l.target.kind === 'mix' && (l.target.param === 'volume' || l.target.param === 'pan')));
     if (other.length) report.push({ code: 'export_skipped', track: t.name, detail: `automation of ${other.map((l) => targetKey(l.target)).join(', ')}` });

@@ -5,6 +5,7 @@ export type ReportCode =
   | 'meter' // not 4/4
   | 'plugin' // a VST/CLAP/AU/built-in device that has no OpenBand equivalent
   | 'instrument_replaced' // instrument plugin replaced by the closest preset
+  | 'plugin_state' // an installed native plugin loaded, but its state wasn't in the file
   | 'automation' // automation of another parameter
   | 'group' // folder/group track flattened
   | 'warp' // a warp map with several markers, simplified to one stretch ratio
@@ -44,6 +45,8 @@ export function reportLine(i: ReportItem): string {
       return `Plugin not portable${on}: ${i.detail}`;
     case 'instrument_replaced':
       return `Instrument plugin replaced by a preset${on}: ${i.detail}`;
+    case 'plugin_state':
+      return `Installed plugin loaded without its settings${on}: ${i.detail}`;
     case 'automation':
       return `Automation not imported${on}: ${i.detail}`;
     case 'group':

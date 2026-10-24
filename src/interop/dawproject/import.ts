@@ -3,7 +3,9 @@
 // compressor → OpenBand's; everything else goes into the report. An archive made by OpenBand and not
 // changed since is restored exactly from its openband.json.
 import { strFromU8, unzipSync } from 'fflate';
-import type { AutoPoint, Note, Project, Region, Section, Track, TrackFx } from '../../types';
+import type { AutoPoint, CustomInstrument, Note, PluginSlot, Project, Region, Section, Track, TrackFx } from '../../types';
+import type { NativePluginInfo } from '../../audio/native';
+import { vstPresetToState } from './vstpreset';
 import { emptyProject, makeTrack } from '../../store';
 import { PRESETS } from '../../audio/instruments';
 import { defaultFx } from '../../audio/fx';
@@ -83,7 +85,32 @@ interface TrackInfo {
   path: string[];
 }
 
-export function dawprojectToProject(zip: Uint8Array): DawprojectImport {
+const NATIVE_FORMAT: Record<string, 'vst3' | 'clap' | 'au'> = { Vst3Plugin: 'vst3', ClapPlugin: 'clap', AuPlugin: 'au' };
+
+const b64 = (b: Uint8Array) => {
+  let s = '';
+  for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+
+/**
+ * A VST3 / CLAP / AU device of the file that is installed on this computer (G8.9), with its state from
+ * the archive: a CLAP preset is the plugin's own state, a .vstpreset becomes the component and controller
+ * state, an AU preset is a property list the plugin reads as it is.
+ */
+function installedDevice(d: Element, files: Record<string, Uint8Array>, installed: NativePluginInfo[]) {
+  const format = NATIVE_FORMAT[d.tagName];
+  const id = attr(d, 'deviceID');
+  if (!format || !id) return null;
+  const info = installed.find((p) => p.format === format && (format === 'vst3' ? p.id.toLowerCase() === id.toLowerCase() : p.id === id));
+  if (!info) return null;
+  const file = files[attr(kid(d, 'State'), 'path') ?? ''];
+  const state = file ? (format === 'vst3' ? (vstPresetToState(file)?.state ?? null) : file) : null;
+  return { info, native: { id: info.id, vendor: info.vendor, version: info.version, path_hint: info.path, ...(state ? { state_b64: b64(state) } : {}) }, stateMissing: !state };
+}
+
+/** installed: the native plugins of this computer (desktop app) — devices of the file found there load with their state. */
+export function dawprojectToProject(zip: Uint8Array, installed: NativePluginInfo[] = []): DawprojectImport {
   const files = unzipSync(zip);
   const xmlBytes = files['project.xml'];
   if (!xmlBytes) throw new Error('Not a DAWproject file: project.xml is missing');
@@ -187,8 +214,16 @@ export function dawprojectToProject(zip: Uint8Array): DawprojectImport {
     t.pan = panOf(kid(ch, 'Pan'));
     t.mute = bool(kid(ch, 'Mute'), 'value') ?? false;
     t.solo = bool(ch, 'solo') ?? false;
+    const nativeInst = instrument && kind !== 'audio' ? installedDevice(instrument, files, installed) : null;
+    if (nativeInst) {
+      const inst: CustomInstrument = { id: uid('nat'), name: nativeInst.info.name, kind: 'instrument', source: 'native', zones: [], attack: 0, release: 0, format: nativeInst.info.format, native: nativeInst.native };
+      p.instruments = [...(p.instruments ?? []), inst];
+      t.kind = 'instrument';
+      t.instrument = inst.id;
+      if (nativeInst.stateMissing) report.items.push({ code: 'plugin_state', track: info.name, detail: `${nativeInst.info.name}: loaded without its settings (not in the file)` });
+    }
     // OpenBand-made instruments are built-in devices with an OpenBand vendor: no report for them.
-    if (instrument && attr(instrument, 'deviceVendor') !== 'OpenBand') {
+    else if (instrument && attr(instrument, 'deviceVendor') !== 'OpenBand') {
       report.items.push({ code: 'instrument_replaced', track: info.name, detail: `${attr(instrument, 'deviceName')} (${FORMAT[instrument.tagName] ?? instrument.tagName}) → ${PRESETS.find((x) => x.id === preset)?.name ?? preset}` });
     }
     // Sends: the biggest one to a return track becomes the reverb send, a second one the echo.
@@ -224,6 +259,14 @@ export function dawprojectToProject(zip: Uint8Array): DawprojectImport {
         continue;
       }
       if (attr(d, 'deviceVendor') === 'OpenBand') continue;
+      const nat = installedDevice(d, files, installed);
+      if (nat) {
+        const slot: PluginSlot = { id: uid('fx'), url: '', name: nat.info.name, on: bool(kid(d, 'Enabled'), 'value') ?? true, format: nat.info.format, native: nat.native };
+        fx.plugins = [...(fx.plugins ?? []), slot];
+        fxUsed = true;
+        if (nat.stateMissing) report.items.push({ code: 'plugin_state', track: info.name, detail: `${nat.info.name}: loaded without its settings (not in the file)` });
+        continue;
+      }
       report.items.push({ code: 'plugin', track: info.name, detail: `${attr(d, 'deviceName') ?? attr(d, 'name') ?? d.tagName} (${FORMAT[d.tagName] ?? d.tagName})` });
     }
     if (fxUsed) t.fx = fx;
