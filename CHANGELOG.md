@@ -2,6 +2,15 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.16 "G8.9a: the AI and your installed plugins"
+
+### G8.9 (part 1) · MCP tools and plain-language search for native plugins
+- New MCP tools (**141** in all): **`list_native_plugins`** `{kind?, query?}` — the VST3, CLAP and AU plugins installed on the computer (desktop app), each named `native:<format>:<id>`, ranked by a plain-language description when `query` is given — and **`rescan_plugins`** (look at the folders again, retry the ignored ones). In the browser they say native plugins need the desktop app.
+- `search_plugins` and **`add_plugin`** search the installed plugins too, with the same English and Italian vocabulary as the WAM collection (*"riverbero ampio"*, *"warm tube drive"*, *"sintetizzatore wavetable"*) over their CLAP features, VST3 subcategories, AU type and vendor; **installed plugins rank first** when they fit (×1.5). `add_plugin_instrument` and `add_plugin_effect` take an installed plugin by its `native:` id, id or name; all three take an optional `format` (`wam`, `clap`, `vst3`, `au`). The AI never installs or downloads plugins.
+- The plugin browser ranks *Installed on this computer* by the same search instead of matching letters.
+- Tests: the search finds a reverb by its VST3 category (in Italian too), a synth only among instruments, both distortions by name or category; `native:` ids. In the packaged app (`desktop:smoke`): `list_native_plugins` with a query finds the VST3 test plugin and `add_plugin_effect` puts it on a track by its id.
+- Next (G8.9 part 2): DAWproject import and export with the native plugins' state.
+
 ## v0.6.15 "G8.8: the bridge, measured"
 
 ### G8.8 · Shared memory for the bridge — measured, not adopted

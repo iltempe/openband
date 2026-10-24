@@ -50,7 +50,7 @@ Mixing: set_track_effects adds a high-pass, amp sim, 3-band EQ and compressor to
 Recording: record_audio records the user's microphone after they confirm (mode "hum" turns a hummed melody into MIDI); audio_to_midi converts an existing monophonic audio region into notes.
 Files: export_wav and export_midi download in the browser, or write to disk with save_to; import_midi turns a .mid file into tracks.
 Other DAWs: import_dawproject/export_dawproject move songs to and from Bitwig, Studio One and Cubase; report what could not be converted.
-Plugins: Web Audio Modules (WAM 2.0) instruments and effects. When the user describes a sound or effect in words, call add_plugin with that description (or search_plugins first to compare options); then get_plugin_params / set_plugin_params to dial it in.
+Plugins: Web Audio Modules (WAM 2.0) instruments and effects, and in the desktop app the user's installed VST3 / CLAP / AU plugins (list_native_plugins). When the user describes a sound or effect in words, call add_plugin with that description (or search_plugins first to compare options) — installed plugins come first when they fit; then get_plugin_params / set_plugin_params to dial it in. Never install or download plugins: use what is there.
 
 Ensemble: to add a part (drums, an accompaniment, an audio layer) you can describe it with create instead of writing every note: OpenBand picks the engine (its own drummer, chords and CC0 loops, or the OMEP engines the user installed) within the user's licence and privacy policy, sends it the song's tempo, key, sections and harmony, and fits the result to the song. Do not pin an engine unless the user asks. Ask for variants when taste matters: they arrive as takes, offer a blind test (start_ab_test). Report which engine played and what OpenBand corrected. get_ledger tells who made what; never describe engine-made parts as the user's own playing.`;
 
@@ -649,10 +649,17 @@ tool('list_plugins', 'List the Web Audio Module plugins available from the commu
   kind: z.enum(['instrument', 'effect']).optional(),
 }, { ...readOnly, timeout: 30000 });
 
-tool('search_plugins', 'Find WAM plugins from a plain-language description in English or Italian (e.g. "warm tube overdrive for guitar", "riverbero ampio e scuro", "monophonic analog synth"). Returns ranked matches with a score.', {
+tool('search_plugins', 'Find plugins from a plain-language description in English or Italian (e.g. "warm tube overdrive for guitar", "riverbero ampio e scuro", "monophonic analog synth"): the WAM collection, and in the desktop app the VST3 / CLAP / AU plugins installed on the computer, which rank first when they fit. Returns ranked matches with id, format and score.', {
   description: z.string(),
   kind: z.enum(['instrument', 'effect']).optional(),
 }, { ...readOnly, timeout: 30000 });
+
+tool('list_native_plugins', 'Desktop app: the VST3, CLAP and Audio Unit plugins installed on this computer (id "native:<format>:<id>", name, vendor, version, format, kind, features). query ranks them by a plain-language description. In the browser: available:false.', {
+  kind: z.enum(['instrument', 'effect']).optional(),
+  query: z.string().optional(),
+}, { ...readOnly, timeout: 60000 });
+
+tool('rescan_plugins', 'Desktop app: look at the plugin folders again (new or updated plugins; ignored ones are retried). Returns how many plugins were found and which were set aside, with the reason.', {}, { timeout: 120000 });
 
 tool(
   'add_plugin',
@@ -662,18 +669,21 @@ tool(
     plugin: z.string().optional().describe('Exact plugin id, name or index.js URL instead of a description'),
     track_id: z.string().optional(),
     kind: z.enum(['instrument', 'effect']).optional(),
+    format: z.enum(['wam', 'clap', 'vst3', 'au']).optional().describe('Only this format; without it installed plugins are preferred'),
   },
   { timeout: 60000 },
 );
 
-tool('add_plugin_instrument', 'Load a WAM instrument plugin (id, name or index.js URL). Creates a track, or replaces the instrument of track_id. Returns instrument_id and track_id.', {
+tool('add_plugin_instrument', 'Load an instrument plugin: an installed one (desktop app: its "native:…" id, id or name) or a WAM (id, name or index.js URL). Creates a track, or replaces the instrument of track_id. Returns instrument_id and track_id.', {
   plugin: z.string(),
   track_id: z.string().optional(),
+  format: z.enum(['wam', 'clap', 'vst3', 'au']).optional(),
 }, { timeout: 60000 });
 
-tool('add_plugin_effect', 'Append a WAM effect plugin (id, name or index.js URL) to a track\'s effect chain. Returns slot_id.', {
+tool('add_plugin_effect', 'Append an effect plugin to a track\'s effect chain: an installed one (desktop app: its "native:…" id, id or name) or a WAM (id, name or index.js URL). Returns slot_id.', {
   track_id: z.string(),
   plugin: z.string(),
+  format: z.enum(['wam', 'clap', 'vst3', 'au']).optional(),
 }, { timeout: 60000 });
 
 tool('remove_plugin_effect', 'Remove a WAM effect from a track.', { track_id: z.string(), slot_id: z.string() });

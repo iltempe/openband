@@ -10,7 +10,7 @@ import { AUTO_PARAMS, FX_PARAMS, hasAutomation, isAutomated, lanesOf, mix, parse
 import type { Annotation, AutoTarget } from './types';
 import type { AutoParam } from './types';
 import { presetForProgram, readMidi, writeMidi, type MidiSong } from './midi';
-import { addPluginEffect, addPluginInstrument, captureWamStates, getPluginParams, removePluginEffect, searchPlugins, setPluginParams, updateSlot } from './plugins';
+import { addNativeEffect, addNativeInstrument, addPluginEffect, addPluginInstrument, captureWamStates, findNativePlugin, getPluginParams, nativePlugins, nativeRef, rankNativePlugins, removePluginEffect, searchAllPlugins, setPluginParams, updateSlot } from './plugins';
 import { wamCatalog } from './audio/wam';
 import { analyzeHarmony, analyzeMix, detectKey, spectrogram } from './mixAnalysis';
 import { lint } from './lint/engine';
@@ -1717,19 +1717,41 @@ export const commands: Record<string, (args: P) => unknown> = {
   }),
 
   search_plugins: async ({ description, kind }) => ({
-    matches: (await searchPlugins(String(description), kind)).map((p) => ({ id: p.identifier, name: p.name, kind: p.kind, score: p.score, description: p.description.slice(0, 160) })),
+    // In the desktop app the plugins installed on the computer come first when they fit (G8.9).
+    matches: (await searchAllPlugins(String(description), kind)).map(({ native: _n, ...p }) => p),
   }),
 
-  add_plugin: async ({ description, plugin, track_id, kind }) => {
+  list_native_plugins: async ({ kind, query }) => {
+    const { plugins, failed, available } = await nativePlugins();
+    if (!available) return { available: false, plugins: [], note: 'Native plugins (VST3, CLAP, AU) are available in the OpenBand desktop app only.' };
+    const list = query ? rankNativePlugins(plugins, String(query), kind) : plugins.filter((p) => !kind || p.kind === kind);
+    return { available: true, plugins: list.map((p) => ({ id: nativeRef(p), name: p.name, vendor: p.vendor, version: p.version, format: p.format, kind: p.kind, features: p.features })), ignored: failed.length };
+  },
+
+  rescan_plugins: async () => {
+    const { plugins, failed, available } = await nativePlugins({ rescan: true });
+    if (!available) return { available: false, plugins: 0, note: 'Native plugins (VST3, CLAP, AU) are available in the OpenBand desktop app only.' };
+    return { available: true, plugins: plugins.length, ignored: failed.map((f) => ({ path: f.path, reason: f.reason })) };
+  },
+
+  add_plugin: async ({ description, plugin, track_id, kind, format }) => {
     let ref = plugin as string | undefined;
-    let alternatives: { id: string; name: string; kind: string }[] = [];
-    if (!ref) {
-      const found = await searchPlugins(String(description ?? ''), kind);
-      if (!found.length) throw new Error(`No plugin matches "${description}". Call list_plugins to see them all.`);
-      ref = found[0].identifier;
-      alternatives = found.slice(1, 4).map((p) => ({ id: p.identifier, name: p.name, kind: p.kind }));
-    }
+    let alternatives: { id: string; name: string; kind: string; format: string }[] = [];
     const target = track_id ? requireTrack(st().project, track_id) : getTrack(st().project, st().selectedTrackId);
+    let native = ref && format !== 'wam' ? await findNativePlugin(ref, format) : null;
+    if (!ref) {
+      const found = (await searchAllPlugins(String(description ?? ''), kind)).filter((p) => !format || p.format === format);
+      if (!found.length) throw new Error(`No plugin matches "${description}". Call list_plugins (or list_native_plugins) to see them.`);
+      native = found[0].native ?? null;
+      ref = found[0].id;
+      alternatives = found.slice(1, 4).map((p) => ({ id: p.id, name: p.name, kind: p.kind, format: p.format }));
+    }
+    if (native) {
+      const more = alternatives.length ? { alternatives } : {};
+      if (native.kind === 'instrument') return { added_as: 'instrument', ...addNativeInstrument(native, target?.kind === 'instrument' && track_id ? target.id : undefined), ...more };
+      if (!target) throw new Error('Effects need a track: pass track_id');
+      return { added_as: 'effect', ...addNativeEffect(target.id, native), ...more };
+    }
     const entry = (await wamCatalog()).find((p) => p.identifier === ref || p.url === ref);
     const isInstrument = entry ? entry.kind === 'instrument' : kind === 'instrument';
     const added = isInstrument
@@ -1741,9 +1763,17 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { added_as: isInstrument ? 'instrument' : 'effect', ...added, ...(alternatives.length ? { alternatives } : {}) };
   },
 
-  add_plugin_instrument: ({ plugin, track_id }) => addPluginInstrument(String(plugin), track_id ? requireTrack(st().project, track_id).id : undefined),
+  add_plugin_instrument: async ({ plugin, track_id, format }) => {
+    const id = track_id ? requireTrack(st().project, track_id).id : undefined;
+    const native = format !== 'wam' ? await findNativePlugin(String(plugin), format) : null;
+    return native ? addNativeInstrument(native, id) : addPluginInstrument(String(plugin), id);
+  },
 
-  add_plugin_effect: ({ track_id, plugin }) => addPluginEffect(requireTrack(st().project, track_id).id, String(plugin)),
+  add_plugin_effect: async ({ track_id, plugin, format }) => {
+    const id = requireTrack(st().project, track_id).id;
+    const native = format !== 'wam' ? await findNativePlugin(String(plugin), format) : null;
+    return native ? addNativeEffect(id, native) : addPluginEffect(id, String(plugin));
+  },
 
   remove_plugin_effect: ({ track_id, slot_id }) => {
     removePluginEffect(requireTrack(st().project, track_id).id, String(slot_id));
@@ -1801,7 +1831,7 @@ export const commands: Record<string, (args: P) => unknown> = {
 /** Commands that never change the project: they don't open an undo step. */
 const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi', 'export_dawproject', 'export_for_platforms',
-  'list_samples', 'list_plugins', 'search_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
+  'list_samples', 'list_plugins', 'search_plugins', 'list_native_plugins', 'rescan_plugins', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
   'list_engines', 'get_ledger', 'set_engine_policy',
   'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',

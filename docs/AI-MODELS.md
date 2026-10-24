@@ -4,7 +4,7 @@
 
 OpenBand is not tied to one AI. The studio speaks the open [Model Context Protocol](https://modelcontextprotocol.io)
 (MCP) to AI apps, and its chat in the page can run Claude, OpenAI's models, Gemini, or a model on your
-own computer with Ollama. Every AI gets the same 139 tools (134 in the page, where there are no files or
+own computer with Ollama. Every AI gets the same 141 tools (136 in the page, where there are no files or
 event stream).
 
 | AI | In the page (your key) | AI app on your computer (MCP) | On the web (remote MCP) |

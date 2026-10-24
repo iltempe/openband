@@ -526,6 +526,13 @@ async function smokeNative(SOFT_LIVE, IS_MAC) {
   const live = plays > -40 && automated < -15 && /^gain=0\.25/.test(saved) && liveVsExport < 1;
   const vst3 = Math.abs(wet3 - dry + 6) < 1.5 && latency3 === 6 * 128 + 256;
   // Levels within 1.5 dB: the pad itself varies a little between captures on a slow runner.
+  // G8.9: the AI sees the installed plugins and adds one by its id.
+  step('mcp');
+  const listed = await commands.list_native_plugins({ kind: 'effect', query: 'gain' });
+  const ref = listed.plugins.find((p) => p.name === 'OB VST3 Gain')?.id;
+  const addedFx = ref ? await commands.add_plugin_effect({ track_id: t, plugin: ref }) : null;
+  const mcp = { listed: listed.plugins.length, ref: ref ?? null, added: addedFx?.format ?? null };
+  const mcpOk = ref === `native:vst3:${gain3.id}` && mcp.added === 'vst3';
   // G8.7: the selected track's native instrument on the host's own output (the null device here): it
   // starts, a key pressed is heard there, and it stops.
   step('monitoring');
@@ -542,8 +549,8 @@ async function smokeNative(SOFT_LIVE, IS_MAC) {
   await ll.syncMonitoring();
   const monitoring = { backend: mon?.backend ?? null, buffer: mon ? mon.period * mon.periods : null, heard, off: ll.useLowLatency.getState().trackId === null };
   const monOk = monitoring.backend === 'Null' && !!heard && monitoring.off;
-  const ok = monOk && Math.abs(wet - dry + 6) < 1.5 && latency === 6 * 128 && vst3 && auOk && Math.abs(before - dry) < 1.5 && !!crashed && Math.abs(after - dry) < 1.5 && restarted && Math.abs(back - dry) < 1.5 && (live || SOFT_LIVE) && same && exportRms > -40 && frozenOk;
-  return { ok, live, liveWindows: live ? undefined : L.map((v) => Math.round(v)).join(' '), exportWindows: live ? undefined : E.map((v) => Math.round(v)).join(' '), dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, vst3Gain: +(wet3 - dry).toFixed(2), vst3Latency: latency3, au, monitoring, bridge, instrument: +plays.toFixed(1), automation: +automated.toFixed(1), saved: saved.slice(0, 12), exportsIdentical: same, exportRms: +exportRms.toFixed(1), liveVsExport: +liveVsExport.toFixed(2), frozen: fr.frozen.join('+'), frozenOk, crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
+  const ok = monOk && mcpOk && Math.abs(wet - dry + 6) < 1.5 && latency === 6 * 128 && vst3 && auOk && Math.abs(before - dry) < 1.5 && !!crashed && Math.abs(after - dry) < 1.5 && restarted && Math.abs(back - dry) < 1.5 && (live || SOFT_LIVE) && same && exportRms > -40 && frozenOk;
+  return { ok, live, liveWindows: live ? undefined : L.map((v) => Math.round(v)).join(' '), exportWindows: live ? undefined : E.map((v) => Math.round(v)).join(' '), dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, vst3Gain: +(wet3 - dry).toFixed(2), vst3Latency: latency3, au, monitoring, bridge, mcp, instrument: +plays.toFixed(1), automation: +automated.toFixed(1), saved: saved.slice(0, 12), exportsIdentical: same, exportRms: +exportRms.toFixed(1), liveVsExport: +liveVsExport.toFixed(2), frozen: fr.frozen.join('+'), frozenOk, crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
 }
 
 /** OPENBAND_DESKTOP_SHOT=file.png (docs): the studio with the AI panel on the "AI apps" tab, then quit. */

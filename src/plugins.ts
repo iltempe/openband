@@ -1,7 +1,7 @@
 // Web Audio Module plugins in the project: adding/removing them, finding them from a plain-language
 // description, reading and writing their parameters, and saving their state into the project.
 import type { CustomInstrument, PluginSlot } from './types';
-import { allLiveNatives, liveNative, nativeHooks, type NativeEffect, type NativePluginInfo } from './audio/native';
+import { allLiveNatives, desktopNative, liveNative, nativeHooks, type NativeEffect, type NativePluginInfo } from './audio/native';
 import { setProjectPluginState } from './pluginHistory';
 import { getTrack, makeTrack, useStore } from './store';
 import { uid } from './music';
@@ -44,8 +44,16 @@ export interface PluginMatch extends WamCatalogEntry {
   score: number;
 }
 
-export async function searchPlugins(query: string, kind?: 'instrument' | 'effect', limit = 5): Promise<PluginMatch[]> {
-  const list = await wamCatalog();
+interface Rankable {
+  name: string;
+  description: string;
+  keywords: string[];
+  categories: string[];
+  kind: string;
+}
+
+/** Score plugins against a plain-language description (English or Italian), best first. */
+export function rankPlugins<T extends Rankable>(list: T[], query: string, kind?: 'instrument' | 'effect'): (T & { score: number })[] {
   const q = norm(query);
   const wantKind = kind ?? (INSTRUMENT_WORDS.test(q) && !EFFECT_WORDS.test(q) ? 'instrument' : EFFECT_WORDS.test(q) && !INSTRUMENT_WORDS.test(q) ? 'effect' : undefined);
   const words = q.split(/[^a-z0-9#+-]+/).filter((w) => w.length > 1 && !STOP.has(w));
@@ -55,7 +63,7 @@ export async function searchPlugins(query: string, kind?: 'instrument' | 'effect
     const synWeight = WEAK.has(w) ? 0.35 : 0.9;
     for (const syn of SYNONYMS[w] ?? []) terms.set(syn, Math.max(terms.get(syn) ?? 0, synWeight));
   }
-  const scored = list
+  return list
     .filter((p) => !wantKind || p.kind === wantKind)
     .map((p) => {
       const name = norm(p.name);
@@ -76,7 +84,73 @@ export async function searchPlugins(query: string, kind?: 'instrument' | 'effect
     })
     .filter((p) => p.score > 0)
     .sort((a, b) => b.score - a.score);
-  return scored.slice(0, limit);
+}
+
+export async function searchPlugins(query: string, kind?: 'instrument' | 'effect', limit = 5): Promise<PluginMatch[]> {
+  return rankPlugins(await wamCatalog(), query, kind).slice(0, limit);
+}
+
+// ---------- native plugins installed on this computer (G8, desktop app) ----------
+
+let nativeScan: Promise<{ plugins: NativePluginInfo[]; failed: { path: string; reason: string }[] }> | null = null;
+
+/** The installed native plugins (scanned once, cached; rescan: look at the folders again, retry the ignored). */
+export function nativePlugins(o: { rescan?: boolean } = {}) {
+  const dn = desktopNative();
+  if (!dn) return Promise.resolve({ plugins: [] as NativePluginInfo[], failed: [] as { path: string; reason: string }[], available: false });
+  if (!nativeScan || o.rescan) {
+    const before = nativeScan;
+    nativeScan = (async () => {
+      const retry = o.rescan ? ((await before?.catch(() => null))?.failed ?? []).map((f) => f.path) : [];
+      const r = await dn.scan({ retry });
+      return { plugins: r.plugins.filter((p) => p.kind !== 'note-effect'), failed: r.failed };
+    })();
+    nativeScan.catch(() => (nativeScan = null));
+  }
+  return nativeScan.then((r) => ({ ...r, available: true }));
+}
+
+/** A native plugin as the search sees it: its features (CLAP), subcategories (VST3) or type (AU), its vendor. */
+const rankableNative = (p: NativePluginInfo) => ({ ...p, keywords: [...p.features, p.vendor, p.format], categories: p.description.split('|') });
+
+export function rankNativePlugins(list: NativePluginInfo[], query: string, kind?: 'instrument' | 'effect') {
+  return rankPlugins(list.map(rankableNative), query, kind);
+}
+
+/** A plugin found by a search: installed (native) or from the WAM collection. */
+export interface AnyPluginMatch {
+  id: string;
+  name: string;
+  kind: string;
+  format: string;
+  vendor: string;
+  score: number;
+  description: string;
+  native?: NativePluginInfo;
+}
+
+/** Installed plugins first when they fit as well (×1.5), then the WAM collection. */
+export async function searchAllPlugins(query: string, kind?: 'instrument' | 'effect', limit = 5): Promise<AnyPluginMatch[]> {
+  const natives = rankNativePlugins((await nativePlugins()).plugins, query, kind).map(({ keywords: _k, categories: _c, score, ...p }) => ({ id: nativeRef(p), name: p.name, kind: p.kind, format: p.format, vendor: p.vendor, score: +(score * 1.5).toFixed(2), description: p.description, native: p as NativePluginInfo }));
+  const wams = (await searchPlugins(query, kind, limit)).map((p) => ({ id: p.identifier, name: p.name, kind: p.kind, format: 'wam', vendor: p.vendor, score: p.score, description: p.description.slice(0, 160) }));
+  return [...natives, ...wams].sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+/** How a native plugin is named to the AI: "native:<format>:<id>". */
+export const nativeRef = (p: { format: string; id: string }) => `native:${p.format}:${p.id}`;
+
+/** An installed plugin by its ref, its id or its name (format: prefer that one). */
+export async function findNativePlugin(ref: string, format?: string): Promise<NativePluginInfo | null> {
+  const { plugins } = await nativePlugins();
+  const r = ref.trim();
+  const lower = r.toLowerCase();
+  const fits = (p: NativePluginInfo) => !format || p.format === format;
+  return (
+    plugins.find((p) => nativeRef(p) === r) ??
+    plugins.find((p) => fits(p) && p.id === r) ??
+    plugins.find((p) => fits(p) && p.name.toLowerCase() === lower) ??
+    null
+  );
 }
 
 // ---------- adding and removing ----------

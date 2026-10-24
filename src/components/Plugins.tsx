@@ -6,7 +6,7 @@ import { create } from 'zustand';
 import type { Track } from '../types';
 import { getTrack, useStore } from '../store';
 import { wamCatalog, type WamCatalogEntry } from '../audio/wam';
-import { addNativeEffect, addNativeInstrument, addPluginEffect, addPluginInstrument, captureWamStates, livePlugin, pluginSync, removePluginEffect, searchPlugins, updateSlot } from '../plugins';
+import { addNativeEffect, addNativeInstrument, addPluginEffect, addPluginInstrument, captureWamStates, livePlugin, pluginSync, rankNativePlugins, removePluginEffect, searchPlugins, updateSlot } from '../plugins';
 import { desktopNative, liveNative, restartNative, useNativeStatus, type NativePluginInfo } from '../audio/native';
 import { t, useT } from '../i18n';
 import { engine } from '../audio/engine';
@@ -55,7 +55,12 @@ function InstalledPlugins({ kind, query, trackId, onAdded }: { kind: Mode; query
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (!dn) return null;
   const q = query.trim().toLowerCase();
-  const shown = (found?.plugins ?? []).filter((p) => p.kind !== 'note-effect' && (kind === 'any' || p.kind === kind) && (!q || `${p.name} ${p.vendor} ${p.features.join(' ')} ${p.description}`.toLowerCase().includes(q)));
+  const usable = (found?.plugins ?? []).filter((p) => p.kind !== 'note-effect' && (kind === 'any' || p.kind === kind));
+  // A description ("riverbero ampio", "warm tube drive") ranks them as the WAM list is ranked; a name still matches.
+  const keyOf = (p: { path: string; id: string }) => `${p.path}:${p.id}`;
+  const order = q ? rankNativePlugins(usable, query, kind === 'any' ? undefined : kind).map(keyOf) : [];
+  const byName = q ? usable.filter((p) => !order.includes(keyOf(p)) && `${p.name} ${p.vendor}`.toLowerCase().includes(q)) : [];
+  const shown = q ? [...order.map((k) => usable.find((p) => keyOf(p) === k)!), ...byName] : usable;
   const add = (p: NativePluginInfo) => {
     // Native plugins run with the user's privileges: say so once, before the first one.
     let warned = false;
