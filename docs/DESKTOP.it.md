@@ -68,14 +68,15 @@ collegarla: le app AI ricordano dove si trova. Usa l'app oppure l'estensione per
 
 ## Plugin nativi
 
-Gli **strumenti e gli effetti CLAP e VST3** installati sul computer funzionano nell'app: *Plugin* (nella libreria, o *+ Plugin*
+Gli **strumenti e gli effetti CLAP, VST3 e Audio Unit** installati sul computer funzionano nell'app: *Plugin* (nella libreria, o *+ Plugin*
 negli effetti di una traccia) li elenca in *Installati su questo computer*, accanto ai plugin web. OpenBand
 li cerca nelle cartelle standard: CLAP in macOS `~/Library/Audio/Plug-Ins/CLAP` e `/Library/Audio/Plug-Ins/CLAP`,
 Windows `Common Files\CLAP`, Linux `~/.clap`, `/usr/lib/clap`; VST3 in macOS `~/Library/Audio/Plug-Ins/VST3` e
-`/Library/Audio/Plug-Ins/VST3`, Windows `Common Files\VST3`, Linux `~/.vst3`, `/usr/lib/vst3`. Le esamina un plugin alla volta, ognuno in un processo a
+`/Library/Audio/Plug-Ins/VST3`, Windows `Common Files\VST3`, Linux `~/.vst3`, `/usr/lib/vst3`. Su Mac, gli Audio
+Unit sono quelli che il sistema conosce (come in Logic o GarageBand), compresi quelli di Apple. Le esamina un plugin alla volta, ognuno in un processo a
 parte: uno che si blocca o si chiude durante la ricerca viene messo da parte (*Ignorati*, con *Riprova*).
-Ogni plugin mostra il suo formato (CLAP, VST3); un plugin installato in entrambi i formati compare due volte:
-vanno bene tutti e due, e tutto quello che segue vale per entrambi.
+Ogni plugin mostra il suo formato (CLAP, VST3, AU); un plugin installato in più formati compare una volta per
+formato: va bene uno qualsiasi, e tutto quello che segue vale per tutti.
 
 ![Plugin CLAP e VST3 installati nella finestra dei plugin](native-plugins.png)
 
@@ -106,7 +107,7 @@ vanno bene tutti e due, e tutto quello che segue vale per entrambi.
   computer senza quel plugin, la traccia suona l'audio congelato (**❄ Congelata** accanto al nome) e puoi
   comunque mixarla; se lì cambi le sue note, il badge dice **Non aggiornata**: apri la canzone nell'app
   desktop per congelarla di nuovo, o clicca il badge per scegliere un altro strumento.
-- Prossimi passi: AU (macOS); finestre native su Linux.
+- Prossimi passi: finestre native su Linux; gli Audio Unit v3 che girano solo come estensioni di app non sono ancora provati.
 
 ## Compilarla
 

@@ -342,7 +342,7 @@ async function smoke() {
     if (!ok.playing || !ok.desktop) return fail(JSON.stringify(ok));
     console.log(`SMOKE OK ${version} ${ok.origin} song="${ok.song}"`);
     if (SMOKE_NATIVE) {
-      const r = await win.webContents.executeJavaScript(`(${smokeNative.toString()})(${JSON.stringify(!!process.env.CI && process.platform === 'darwin')})`, true);
+      const r = await win.webContents.executeJavaScript(`(${smokeNative.toString()})(${JSON.stringify(!!process.env.CI && process.platform === 'darwin')}, ${JSON.stringify(process.platform === 'darwin')})`, true);
       console.log(`SMOKE-NATIVE ${JSON.stringify(r)}`);
       clearTimeout(timer);
       return app.exit(r.ok ? 0 : 1);
@@ -358,7 +358,7 @@ async function smoke() {
  * Runs in the page (G8.2): scan the fixture plugins, put the CLAP gain on a track and hear it, then crash
  * the crash fixture and hear the track go on bypassed, restart it.
  */
-async function smokeNative(SOFT_LIVE) {
+async function smokeNative(SOFT_LIVE, IS_MAC) {
   const { engine, useStore, commands } = window.openband;
   const dn = window.openbandDesktop.native;
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -410,6 +410,18 @@ async function smokeNative(SOFT_LIVE) {
   await waitLive();
   const wet3 = await rms();
   const latency3 = engine.pdcLatency;
+  // G8.6 (macOS): an Audio Unit from the system's registry — Apple's peak limiter, which leaves a quiet
+  // pad as it is and reports 96 samples of lookahead, compensated too.
+  let au = null;
+  const limiter = scan.plugins.find((p) => p.format === 'au' && p.id === 'aufx:lmtr:appl');
+  if (limiter) {
+    step('au');
+    status.setState({}, true);
+    setSlot(limiter);
+    await waitLive();
+    au = { level: +((await rms()) - dry).toFixed(2), latency: engine.pdcLatency };
+  }
+  const auOk = !IS_MAC || (!!au && Math.abs(au.level) < 1.5 && au.latency === 6 * 128 + 96);
   status.setState({}, true);
   setSlot(crash);
   await waitLive();
@@ -510,8 +522,8 @@ async function smokeNative(SOFT_LIVE) {
   const live = plays > -40 && automated < -15 && /^gain=0\.25/.test(saved) && liveVsExport < 1;
   const vst3 = Math.abs(wet3 - dry + 6) < 1.5 && latency3 === 6 * 128 + 256;
   // Levels within 1.5 dB: the pad itself varies a little between captures on a slow runner.
-  const ok = Math.abs(wet - dry + 6) < 1.5 && latency === 6 * 128 && vst3 && Math.abs(before - dry) < 1.5 && !!crashed && Math.abs(after - dry) < 1.5 && restarted && Math.abs(back - dry) < 1.5 && (live || SOFT_LIVE) && same && exportRms > -40 && frozenOk;
-  return { ok, live, liveWindows: live ? undefined : L.map((v) => Math.round(v)).join(' '), exportWindows: live ? undefined : E.map((v) => Math.round(v)).join(' '), dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, vst3Gain: +(wet3 - dry).toFixed(2), vst3Latency: latency3, instrument: +plays.toFixed(1), automation: +automated.toFixed(1), saved: saved.slice(0, 12), exportsIdentical: same, exportRms: +exportRms.toFixed(1), liveVsExport: +liveVsExport.toFixed(2), frozen: fr.frozen.join('+'), frozenOk, crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
+  const ok = Math.abs(wet - dry + 6) < 1.5 && latency === 6 * 128 && vst3 && auOk && Math.abs(before - dry) < 1.5 && !!crashed && Math.abs(after - dry) < 1.5 && restarted && Math.abs(back - dry) < 1.5 && (live || SOFT_LIVE) && same && exportRms > -40 && frozenOk;
+  return { ok, live, liveWindows: live ? undefined : L.map((v) => Math.round(v)).join(' '), exportWindows: live ? undefined : E.map((v) => Math.round(v)).join(' '), dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, vst3Gain: +(wet3 - dry).toFixed(2), vst3Latency: latency3, au, instrument: +plays.toFixed(1), automation: +automated.toFixed(1), saved: saved.slice(0, 12), exportsIdentical: same, exportRms: +exportRms.toFixed(1), liveVsExport: +liveVsExport.toFixed(2), frozen: fr.frozen.join('+'), frozenOk, crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
 }
 
 /** OPENBAND_DESKTOP_SHOT=file.png (docs): the studio with the AI panel on the "AI apps" tab, then quit. */

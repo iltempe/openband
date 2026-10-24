@@ -5495,6 +5495,9 @@ div.ca-steps {
 .plug-thumb.native.f-vst3 {
   color: #60a5fa;
 }
+.plug-thumb.native.f-au {
+  color: #f472b6;
+}
 .plug-ignored {
   font-size: 11px;
   color: var(--muted);

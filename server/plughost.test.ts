@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { EVENT, PlugHostSession, clapDirs, findBundles, hostBinary, pluginDirs, scanBundle, scanPlugins, vst3Dirs } from './plughost.mjs';
+import { AU, EVENT, PlugHostSession, clapDirs, findBundles, hostBinary, pluginDirs, scanBundle, scanPlugins, vst3Dirs } from './plughost.mjs';
 
 const build = path.resolve(__dirname, '..', 'build', 'plughost');
 const host = hostBinary();
@@ -45,7 +45,7 @@ describe.skipIf(!ready)('openband-plughost with the fixtures', () => {
 
   it('a bundle that hangs times out and lands on the ignore list, the others are still found', async () => {
     const t0 = Date.now();
-    const r = await scanPlugins({ host: host!, dirs: [build], timeoutMs: 1500 });
+    const r = await scanPlugins({ host: host!, dirs: [build], audioUnits: false, timeoutMs: 1500 });
     expect(Date.now() - t0).toBeLessThan(8000);
     expect(r.plugins.map((p) => p.id)).toContain('org.openband.fixture.gain');
     expect(r.failed).toEqual([{ path: hang, reason: 'did not answer in 2 s' }]);
@@ -53,12 +53,12 @@ describe.skipIf(!ready)('openband-plughost with the fixtures', () => {
 
   it('caches by modification time and retries the ignored bundle on request', async () => {
     const cacheFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'clapcache-')), 'plugins.json');
-    await scanPlugins({ host: host!, dirs: [build], timeoutMs: 1000, cacheFile });
+    await scanPlugins({ host: host!, dirs: [build], audioUnits: false, timeoutMs: 1000, cacheFile });
     const t0 = Date.now();
-    const again = await scanPlugins({ host: host!, dirs: [build], timeoutMs: 1000, cacheFile });
+    const again = await scanPlugins({ host: host!, dirs: [build], audioUnits: false, timeoutMs: 1000, cacheFile });
     expect(Date.now() - t0).toBeLessThan(500);
     expect(again.failed.length).toBe(1);
-    const retried = await scanPlugins({ host: host!, dirs: [build], timeoutMs: 1000, cacheFile, retry: [hang] });
+    const retried = await scanPlugins({ host: host!, dirs: [build], audioUnits: false, timeoutMs: 1000, cacheFile, retry: [hang] });
     expect(retried.failed[0].reason).toMatch(/did not answer/);
   }, 20000);
 
@@ -308,3 +308,77 @@ for (const [file, kind] of [['/Library/Audio/Plug-Ins/VST3/ValhallaSupermassive.
     }, 30000);
   });
 }
+
+// G8.6: Audio Units (macOS), from the system's registry, with Apple's own AUs (on every Mac).
+describe.skipIf(!host || process.platform !== 'darwin')('openband-plughost with Audio Units', () => {
+  const silence = () => [new Float32Array(128), new Float32Array(128)];
+  type Block = [Float32Array[], Parameters<PlugHostSession['process']>[2]?];
+  const run = async (s: PlugHostSession, from: number, n: number, blocks: (k: number) => Block) => {
+    const out: number[] = [];
+    for (let k = 0; k < n; k++) {
+      const [x, ev] = blocks(k);
+      const p = next(s);
+      s.process(from + k, x, ev ?? []);
+      out.push(...(await p).channels[0]);
+    }
+    return out;
+  };
+
+  it('lists the effects and instruments of the registry, without loading them', async () => {
+    const { plugins } = await scanPlugins({ host: host!, dirs: [], audioUnits: true });
+    const apple = plugins.filter((p) => p.format === 'au' && p.vendor === 'Apple');
+    expect(apple.find((p) => p.id === 'aufx:dely:appl')).toMatchObject({ name: 'AUDelay', kind: 'effect', path: AU });
+    expect(apple.find((p) => p.id === 'aumu:dls :appl')).toMatchObject({ name: 'DLSMusicDevice', kind: 'instrument' });
+  });
+
+  it('runs an effect to the sample: its latency, parameters on their sample, state', async () => {
+    const s = new PlugHostSession(host!);
+    const info = await s.load({ path: AU, id: 'aufx:lmtr:appl', sampleRate: 48000, maxBlock: 128 });
+    expect(info).toMatchObject({ name: 'AUPeakLimiter', inputs: 2, outputs: 2, gui: true });
+    const impulse = () => { const a = new Float32Array(128); a[5] = 0.5; return [a, a.slice()]; };
+    const out = await run(s, 0, 3, (k) => [k === 0 ? impulse() : silence()]);
+    expect(out.findIndex((v) => v !== 0)).toBe(5 + info.latency); // as late as it says
+    s.close();
+
+    const d = new PlugHostSession(host!);
+    const di = await d.load({ path: AU, id: 'aufx:sdly:appl', sampleRate: 48000, maxBlock: 128 });
+    expect(di.params[0]).toMatchObject({ id: 0, min: 0, max: 4410, default: 0 }); // the AU's own range
+    // Delay 0 → 10 frames at sample 64 of the block: an impulse at 70 comes out at 80.
+    const x = new Float32Array(128);
+    x[20] = 1;
+    x[70] = 1;
+    const o = await run(d, 0, 1, () => [[x, x.slice()], [{ offset: 64, kind: EVENT.PARAM, id: 0, value: 10 }]]);
+    expect([...o.keys()].filter((i) => o[i] > 0.5)).toEqual([20, 80]);
+    const state = await d.getState();
+    expect(state.subarray(0, 8).toString()).toBe('bplist00');
+    d.setParam(0, 0);
+    expect(await d.setState(state)).toBe(true);
+    expect(await d.values()).toEqual([{ id: 0, value: 10 }]);
+    d.close();
+  });
+
+  it('plays an instrument from notes on their sample, and offline the same twice', async () => {
+    const s = new PlugHostSession(host!);
+    const info = await s.load({ path: AU, id: 'aumu:dls :appl' });
+    expect(info).toMatchObject({ inputs: 0, outputs: 2 });
+    const notes = (k: number): Block => [silence(), k === 0 ? [{ offset: 40, kind: EVENT.NOTE_ON, key: 60, value: 0.9 }] : k === 20 ? [{ offset: 0, kind: EVENT.ALL_NOTES_OFF }] : []];
+    const live = await run(s, 0, 30, notes);
+    expect(live.findIndex((v) => v !== 0)).toBeGreaterThanOrEqual(40);
+    expect(Math.max(...live.map(Math.abs))).toBeGreaterThan(0.05);
+    s.close();
+    const render = async () => {
+      const r = new PlugHostSession(host!);
+      await r.load({ path: AU, id: 'aumu:dls :appl' });
+      r.setRenderMode(true);
+      const o = await run(r, 0, 30, notes);
+      r.close();
+      return o;
+    };
+    expect(await render()).toEqual(await render());
+  });
+
+  it('says when an Audio Unit is not there', async () => {
+    const s = new PlugHostSession(host!);
+    await expect(s.load({ path: AU, id: 'aufx:nope:none' })).rejects.toThrow(/not an Audio Unit id|cannot create/);
+  });
+});

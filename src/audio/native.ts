@@ -1,6 +1,6 @@
 // Native plugins in the Web Audio graph (G8): NativePluginNode is an AudioWorklet that exchanges
 // 128-frame blocks with a plugin host through a jitter buffer, and reports its latency so the engine can
-// compensate it (PDC). In the desktop app the host is openband-plughost (CLAP, VST3), reached over a
+// compensate it (PDC). In the desktop app the host is openband-plughost (CLAP, VST3, AU), reached over a
 // MessagePort straight from the main process; everywhere, the in-process test plugins of native-dsp.js
 // run behind the same bridge — and inline, in the worklet, for offline renders.
 import * as Tone from 'tone';
@@ -52,7 +52,7 @@ export function testSlot(id: string, pluginId: string, params: Record<string, nu
 
 /** The desktop app's native plugin bridge (preload), when there is one. */
 export interface NativePluginInfo {
-  format: 'clap' | 'vst3';
+  format: 'clap' | 'vst3' | 'au';
   id: string;
   name: string;
   vendor: string;

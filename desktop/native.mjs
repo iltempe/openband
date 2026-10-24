@@ -29,7 +29,7 @@ export function setupNative({ root, getWin }) {
   const envDirs = () => (process.env.OPENBAND_PLUGIN_DIRS ?? '').split(path.delimiter).filter(Boolean);
   const dirs = async () => [...(await load()).pluginDirs(), ...userDirs(), ...envDirs()];
   /** Bundles a plugin may be loaded from: only what is in the plugin folders. */
-  const allowed = async (p) => (await load()).findBundles(await dirs()).includes(p);
+  const allowed = async (p) => (p === (await load()).AU && process.platform === 'darwin') || (await load()).findBundles(await dirs()).includes(p);
 
   const sessions = new Map(); // key → { session, port, opts, info }
   const fromPage = (e) => e.sender === getWin()?.webContents;

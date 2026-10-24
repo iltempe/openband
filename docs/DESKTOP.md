@@ -66,14 +66,15 @@ would both add the OpenBand tools.
 
 ## Native plugins
 
-**CLAP and VST3 instruments and effects** installed on your computer work in the app: *Plugins* (in the library, or *+ Plugin* in a
+**CLAP, VST3 and Audio Unit instruments and effects** installed on your computer work in the app: *Plugins* (in the library, or *+ Plugin* in a
 track's effects) lists them under *Installed on this computer*, next to the web plugins. OpenBand looks in
 the standard folders: CLAP in macOS `~/Library/Audio/Plug-Ins/CLAP` and `/Library/Audio/Plug-Ins/CLAP`, Windows
 `Common Files\CLAP`, Linux `~/.clap`, `/usr/lib/clap`; VST3 in macOS `~/Library/Audio/Plug-Ins/VST3` and
-`/Library/Audio/Plug-Ins/VST3`, Windows `Common Files\VST3`, Linux `~/.vst3`, `/usr/lib/vst3`. Each folder is scanned plugin by plugin in a
+`/Library/Audio/Plug-Ins/VST3`, Windows `Common Files\VST3`, Linux `~/.vst3`, `/usr/lib/vst3`. On a Mac, the Audio
+Units are the ones the system knows (as in Logic or GarageBand), Apple's own included. Each folder is scanned plugin by plugin in a
 separate process: one that hangs or crashes while being scanned is set aside (*Ignored*, with *Retry*).
-Each plugin shows its format (CLAP, VST3); a plugin installed in both formats is listed twice — either works,
-and everything below holds for both.
+Each plugin shows its format (CLAP, VST3, AU); a plugin installed in more than one format is listed once per
+format — any of them works, and everything below holds for all of them.
 
 ![Installed CLAP and VST3 plugins in the plugin browser](native-plugins.png)
 
@@ -102,7 +103,7 @@ and everything below holds for both.
   that plugin, the track plays the frozen audio (**❄ Frozen** next to its name) and you can still mix it;
   if you change its notes there, the badge says **Out of date** — open the song in the desktop app to freeze
   it again, or click the badge to choose another instrument.
-- Coming next: AU (macOS); native windows on Linux.
+- Coming next: native windows on Linux; Audio Units v3 that only run as app extensions are not tested yet.
 
 ## Building it
 

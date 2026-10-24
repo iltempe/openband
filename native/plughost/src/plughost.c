@@ -185,13 +185,29 @@ static int is_vst3(const char *path) {
   return n >= 5 && !strncmp(path + n - 5, ".vst3", 5);
 }
 
+// ---------------------------------------------------------------- Audio Units (au.mm, macOS)
+
+#ifdef __APPLE__
+int ob_is_au(const char *path);
+int ob_au_scan(char *out, size_t cap);
+const clap_plugin_t *ob_au_create(const char *uid, const clap_host_t *host, char *err, size_t cap);
+#else
+static int ob_is_au(const char *path) { (void)path; return 0; }
+static int ob_au_scan(char *out, size_t cap) { snprintf(out, cap, "Audio Units are macOS only"); return -1; }
+static const clap_plugin_t *ob_au_create(const char *uid, const clap_host_t *host, char *err, size_t cap) {
+  (void)uid, (void)host;
+  snprintf(err, cap, "Audio Units are macOS only");
+  return NULL;
+}
+#endif
+
 // ---------------------------------------------------------------- scan
 
 static int scan(const char *path) {
   char err[1024];
-  if (is_vst3(path)) {
-    static char list[65536];
-    if (ob_vst3_scan(path, list, sizeof list) < 0) {
+  if (is_vst3(path) || ob_is_au(path)) {
+    static char list[1 << 20];
+    if ((ob_is_au(path) ? ob_au_scan(list, sizeof list) : ob_vst3_scan(path, list, sizeof list)) < 0) {
       fprintf(stderr, "%s\n", list);
       return 2;
     }
@@ -488,8 +504,8 @@ static void load_main(void *ctx) {
     return;
   }
   char err[1024];
-  if (is_vst3(fields[0])) {
-    S.plugin = ob_vst3_create(fields[0], fields[1], &HOST, err, sizeof err);
+  if (is_vst3(fields[0]) || ob_is_au(fields[0])) {
+    S.plugin = ob_is_au(fields[0]) ? ob_au_create(fields[1], &HOST, err, sizeof err) : ob_vst3_create(fields[0], fields[1], &HOST, err, sizeof err);
     if (!S.plugin) {
       error_json(1, err);
       return;

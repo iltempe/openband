@@ -10,6 +10,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+/** The "path" of every Audio Unit (G8.6): they live in the system's registry, not in files. */
+export const AU = 'au:';
 const EXE = process.platform === 'win32' ? 'openband-plughost.exe' : 'openband-plughost';
 
 /** Where the host binary is: OPENBAND_PLUGHOST, the app's resources, or a development build. */
@@ -78,7 +80,7 @@ export function scanBundle(host, bundle, timeoutMs = 10000) {
       }
       try {
         const { plugins } = JSON.parse(stdout);
-        resolve(plugins.map((p) => ({ format: /\.vst3$/i.test(bundle) ? 'vst3' : 'clap', ...p, kind: kindOf(p.features), path: bundle })));
+        resolve(plugins.map((p) => ({ format: bundle === AU ? 'au' : /\.vst3$/i.test(bundle) ? 'vst3' : 'clap', ...p, kind: kindOf(p.features), path: bundle })));
       } catch {
         reject(new Error('the scan returned something that is not a plugin list'));
       }
@@ -89,9 +91,10 @@ export function scanBundle(host, bundle, timeoutMs = 10000) {
 
 /**
  * Scan the folders, reusing what didn't change (cache by path + modification time). Bundles that hang or
- * crash go on the ignore list with the reason, until `retry` names them.
+ * crash go on the ignore list with the reason, until `retry` names them. On macOS the Audio Units come from
+ * the system's registry (path "au:"), listed without being loaded, every time.
  */
-export async function scanPlugins({ host = hostBinary(), dirs = pluginDirs(), cacheFile = null, timeoutMs = 10000, retry = [] } = {}) {
+export async function scanPlugins({ host = hostBinary(), dirs = pluginDirs(), cacheFile = null, timeoutMs = 10000, retry = [], audioUnits = process.platform === 'darwin' } = {}) {
   if (!host) throw new Error('The plugin host (openband-plughost) is not installed');
   let cache = { bundles: {} };
   if (cacheFile)
@@ -119,6 +122,12 @@ export async function scanPlugins({ host = hostBinary(), dirs = pluginDirs(), ca
     if (entry.failed) failed.push({ path: b, reason: entry.failed });
     else plugins.push(...entry.plugins);
   }
+  if (audioUnits)
+    try {
+      plugins.push(...(await scanBundle(host, AU, timeoutMs)));
+    } catch (e) {
+      failed.push({ path: AU, reason: e.message });
+    }
   if (cacheFile) {
     fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
     fs.writeFileSync(cacheFile, JSON.stringify(next));

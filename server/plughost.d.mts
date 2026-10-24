@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 export interface NativePluginInfo {
-  format: 'clap' | 'vst3';
+  format: 'clap' | 'vst3' | 'au';
   id: string;
   name: string;
   vendor: string;
@@ -37,7 +37,8 @@ export function pluginDirs(platform?: string, env?: Record<string, string | unde
 export function findBundles(dirs: string[]): string[];
 export function stopScans(): void;
 export function scanBundle(host: string, bundle: string, timeoutMs?: number): Promise<NativePluginInfo[]>;
-export function scanPlugins(o?: { host?: string | null; dirs?: string[]; cacheFile?: string | null; timeoutMs?: number; retry?: string[] }): Promise<{ plugins: NativePluginInfo[]; failed: { path: string; reason: string }[] }>;
+export const AU: 'au:';
+export function scanPlugins(o?: { host?: string | null; dirs?: string[]; cacheFile?: string | null; timeoutMs?: number; retry?: string[]; audioUnits?: boolean }): Promise<{ plugins: NativePluginInfo[]; failed: { path: string; reason: string }[] }>;
 export class PlugHostSession extends EventEmitter {
   constructor(host?: string | null);
   alive: boolean;

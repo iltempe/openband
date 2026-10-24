@@ -2,6 +2,15 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.13 "G8.6: Audio Units"
+
+### G8.6 · AU (macOS)
+- **Audio Unit instruments and effects** work in the desktop app on a Mac, like CLAP and VST3 and behind the same bridge: the plugin browser lists the AUs the system knows (as Logic or GarageBand see them, Apple's own included) with an **AU** badge — read from the component registry, without loading any of them, so a broken AU can't hang the scan. Each runs in its own process, with its latency compensated (`kAudioUnitProperty_Latency`), MIDI notes on their sample, parameters in the AU's own ranges and units, automation, the AU's own view (or the system's generic one) as the plugin window, its controls recorded in Touch / Latch and undo (`AUEventListener`), its state saved with the song (ClassInfo, a binary property list), offline exports (`kAudioUnitProperty_OfflineRender`) and the render cache.
+- **Sample-accurate even when the AU isn't**: many AUs apply a parameter for a whole render call (Apple's AUSampleDelay does), so the host renders each block in pieces, cut where a parameter changes.
+- How: `native/plughost/src/au.mm` wraps an AU as a CLAP plugin inside `openband-plughost`, as `vst3.cpp` does for VST3; AUs have the path `au:` and the id `type:subtype:manufacturer` (e.g. `aufx:dely:appl`).
+- Tests (on every Mac, CI included, with Apple's AUs): the registry lists AUDelay and DLSMusicDevice without loading them; AUPeakLimiter's impulse comes out exactly as late as its reported latency (96 samples); AUSampleDelay's delay changed at sample 64 leaves an impulse at 20 alone and moves the one at 70 to 80; state round trip; DLSMusicDevice plays a note from its sample on, and twice the same offline; an unknown id. In the packaged app (`desktop:smoke`, macOS): AUPeakLimiter on a track, level unchanged (0.05 dB), latency compensated (768 + 96).
+- Not yet: AUv3 plugins that run only as app extensions are untested.
+
 ## v0.6.12 "G8.5: VST3 plugins"
 
 ### G8.5 · VST3
