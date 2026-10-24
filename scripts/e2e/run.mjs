@@ -497,6 +497,73 @@ tests.frozen = async () => {
   }
 };
 
+tests.ghosts = async () => {
+  // G3: ghost notes in the piano roll — they appear after a pause, ⇧Tab shows the next, Esc dismisses, Tab
+  // accepts as one undo step.
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.setViewport({ width: 1440, height: 900 });
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.evaluate(() => [...document.querySelectorAll('.tour-card button')].at(-1)?.click());
+    await p.keyboard.press('Space');
+    const ids = await p.evaluate(async () => {
+      const { useStore, commands, ghost } = window.openband;
+      await commands.new_project({ name: 'Ghosts', bpm: 96, key: 'Am' });
+      const keys = (await commands.add_track({ kind: 'instrument', instrument: 'felt-piano', name: 'Keys' })).track_id;
+      const chord = (names, bar) => names.map((pitch) => ({ pitch, start: 0, duration: 4, velocity: 0.6 })).map((n) => ({ ...n, start: (bar - 1) * 4 }));
+      await commands.add_region({ track_id: keys, start_bar: 1, length_bars: 4, notes: [...chord(['A3', 'C4', 'E4'], 1), ...chord(['F3', 'A3', 'C4'], 2), ...chord(['C4', 'E4', 'G4'], 3), ...chord(['G3', 'B3', 'D4'], 4)] });
+      const lead = (await commands.add_track({ kind: 'instrument', instrument: 'neon-lead', name: 'Lead' })).track_id;
+      const r = await commands.add_region({ track_id: lead, start_bar: 1, length_bars: 4, notes: [{ pitch: 'A4', start: 0, duration: 1 }, { pitch: 'C5', start: 1, duration: 1 }, { pitch: 'E5', start: 2, duration: 1.5 }, { pitch: 'D5', start: 3.5, duration: 0.5 }, { pitch: 'C5', start: 4, duration: 1 }, { pitch: 'A4', start: 5, duration: 1 }] });
+      useStore.getState().set({ selectedTrackId: lead, selectedRegionId: r.region_id, bottom: 'editor' });
+      return { region: r.region_id, enabled: ghost.useGhost.getState().enabled };
+    });
+    const shown = await p.waitForSelector('.pr-suggest', { timeout: 4000 }).then(() => true, () => false);
+    const tag1 = await p.$eval('.pr-suggest-tag b', (e) => e.textContent).catch(() => null);
+    check(ids.enabled && shown && tag1 === '1/3', `after a pause the piano roll shows a suggestion in grey (${tag1})`);
+    await p.click('.pr-suggest-why');
+    const why = await p.$eval('.pr-suggest-explain', (e) => e.textContent).catch(() => '');
+    check(/chord|accordo/i.test(why), `"?" says why (${why.trim().slice(0, 60)}…)`);
+    // For the docs: E2E_SHOTS=dir saves what the piano roll looks like.
+    if (process.env.E2E_SHOTS) await p.screenshot({ path: path.join(process.env.E2E_SHOTS, 'ghost-notes.png') });
+    await p.keyboard.down('Shift');
+    await p.keyboard.press('Tab');
+    await p.keyboard.up('Shift');
+    const tag2 = await p.$eval('.pr-suggest-tag b', (e) => e.textContent).catch(() => null);
+    check(tag2 === '2/3', `⇧Tab shows the next one (${tag2})`);
+    await p.keyboard.press('Escape');
+    const gone = !(await p.$('.pr-suggest'));
+    await new Promise((r) => setTimeout(r, 900));
+    check(gone && !(await p.$('.pr-suggest')), 'Esc dismisses it, and it stays away until the region changes');
+    await p.evaluate((id) => window.openband.commands.add_notes({ region_id: id, notes: [{ pitch: 'F4', start: 6, duration: 2 }] }), ids.region);
+    const back = await p.waitForSelector('.pr-suggest', { timeout: 4000 }).then(() => true, () => false);
+    const before = await p.evaluate((id) => window.openband.useStore.getState().project.regions.find((r) => r.id === id).notes.length, ids.region);
+    await p.keyboard.press('Tab');
+    const after = await p.evaluate((id) => window.openband.useStore.getState().project.regions.find((r) => r.id === id).notes.length, ids.region);
+    await p.keyboard.down('Control');
+    await p.keyboard.press('z');
+    await p.keyboard.up('Control');
+    const undone = await p.evaluate((id) => window.openband.useStore.getState().project.regions.find((r) => r.id === id).notes.length, ids.region);
+    check(back && after > before && undone === before, `an edit brings a new one; Tab accepts it (${before} → ${after} notes) and one undo takes it back (${undone})`);
+    // Harmonize, asked for right after an edit: the automatic suggestion must not replace it.
+    await p.evaluate((id) => window.openband.commands.add_notes({ region_id: id, notes: [{ pitch: 'E4', start: 8, duration: 1 }] }), ids.region);
+    await p.evaluate(() => [...document.querySelectorAll('.ghost-tools button')].find((x) => /Harmoni|Armonizza/.test(x.textContent))?.click());
+    await new Promise((r) => setTimeout(r, 1000));
+    const harmony = await p.$$eval('.pr-suggest.harmony', (x) => x.length);
+    const tracksBefore = await p.evaluate(() => window.openband.useStore.getState().project.tracks.length);
+    await p.keyboard.press('Tab');
+    const added = await p.evaluate(() => window.openband.useStore.getState().project.tracks.at(-1).name);
+    const tracksAfter = await p.evaluate(() => window.openband.useStore.getState().project.tracks.length);
+    check(harmony > 0 && tracksAfter === tracksBefore + 1 && added === 'Harmony', `Harmonize shows the chords (${harmony} notes) and Tab puts them on a new "${added}" track`);
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);

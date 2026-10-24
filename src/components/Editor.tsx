@@ -11,7 +11,9 @@ import { commands } from '../commands';
 import * as I from './Icons';
 import { AudioClipEditor } from './Audio';
 import { useSyllablesByNote } from './Lyrics';
-import { drumLabel, useT } from '../i18n';
+import { drumLabel, useLang, useT } from '../i18n';
+import { forgetLearning, reasonText, requestGhosts, setGhostsEnabled, useGhost } from '../ghost';
+import type { SuggestKind } from '../suggest/engine';
 
 export function Editor() {
   const project = useStore((s) => s.project);
@@ -266,6 +268,7 @@ function PianoRoll({ region, track }: { region: Region; track: Track }) {
         </select>
         <label>{t('ed.zoom')}</label>
         <input type="range" min={30} max={240} value={ppb} onChange={(e) => setPpb(Number(e.target.value))} />
+        <GhostTools region={region} track={track} />
         <span className="hint">{t('ed.prHint')}</span>
       </div>
       <div className="pr-scroll" ref={scrollRef}>
@@ -307,6 +310,7 @@ function PianoRoll({ region, track }: { region: Region; track: Track }) {
               </div>
               <div className="pr-region-end" style={{ left: region.length * ppb }} />
               <GhostNotes region={region} ppb={ppb} />
+              <Suggestions region={region} ppb={ppb} />
               <JamGhosts region={region} ppb={ppb} high={HIGH} rowH={ROW_H} />
               {region.notes.map((n) => (
                 <div
@@ -360,6 +364,8 @@ function StepSequencer({ region, track }: { region: Region; track: Track }) {
   const t = useT();
   const steps = Math.round(region.length / STEP);
   const [current, setCurrent] = useState(-1);
+  const ghost = useGhost((g) => (g.regionId === region.id ? g.suggestions[g.index] : null));
+  const ghostAt = new Set((ghost?.notes ?? []).map((n) => `${n.pitch}:${Math.round(n.start / STEP)}`));
   useFrame(() => {
     const rel = engine.position - region.start;
     const step = engine.playing && rel >= 0 && rel < region.length ? Math.floor(rel / STEP) : -1;
@@ -405,6 +411,7 @@ function StepSequencer({ region, track }: { region: Region; track: Track }) {
   return (
     <div className="seq">
       <div className="pr-tools">
+        <GhostTools region={region} track={track} />
         <span className="hint">{t('ed.seqHint')}</span>
       </div>
       <div className="seq-scroll">
@@ -427,7 +434,7 @@ function StepSequencer({ region, track }: { region: Region; track: Track }) {
                 return (
                   <div
                     key={s}
-                    className={`seq-cell ${Math.floor(s / 4) % 2 ? 'alt' : ''} ${vel ? 'on' : ''} ${s === current ? 'now' : ''}`}
+                    className={`seq-cell ${Math.floor(s / 4) % 2 ? 'alt' : ''} ${vel ? 'on' : ''} ${s === current ? 'now' : ''} ${!vel && ghostAt.has(`${piece.pitch}:${s}`) ? 'ghost' : ''}`}
                     style={vel ? ({ '--vel': vel } as CSSProperties) : undefined}
                     onPointerDown={(e) => onCellDown(e, piece.pitch, s)}
                     onPointerEnter={() => paint.current && apply(piece.pitch, s, paint.current)}
@@ -484,6 +491,72 @@ function GhostNotes({ region, ppb }: { region: Region; ppb: number }) {
       {other.notes.filter(differs).map((n) => (
         <div key={`g${n.id}`} className="pr-ghost" style={{ left: n.start * ppb, top: (HIGH - n.pitch) * ROW_H, width: Math.max(4, n.duration * ppb - 1), height: ROW_H - 1 }} />
       ))}
+    </>
+  );
+}
+
+/** Ghost notes (G3): the switch, and asking for a kind of suggestion now. */
+function GhostTools({ region, track }: { region: Region; track: Track }) {
+  const t = useT();
+  const { enabled, learned } = useGhost();
+  const drums = track.kind === 'drums';
+  const ask: [SuggestKind, string][] = drums
+    ? [['continue', t('gh.groove')], ['drum_fill', t('gh.fill')]]
+    : [['continue', t('gh.continue')], ['harmonize', t('gh.harmonize')], ['counter', t('gh.counter')], ['bass', t('gh.bass')]];
+  return (
+    <div className="ghost-tools">
+      <label className="ghost-switch" title={t('gh.switchHint')}>
+        <input type="checkbox" checked={enabled} onChange={(e) => setGhostsEnabled(e.target.checked)} />
+        {t('gh.switch')}
+      </label>
+      {enabled && (
+        <>
+          {ask.map(([k, label]) => (
+            <button key={k} className="btn tiny" onClick={() => requestGhosts(region.id, k)}>
+              {label}
+            </button>
+          ))}
+          {learned.accepted + learned.dismissed > 0 && (
+            <button className="btn tiny ghost-forget" title={t('gh.forgetHint', { n: learned.accepted + learned.dismissed })} onClick={forgetLearning}>
+              {t('gh.forget')}
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** The suggestion in grey over the piano roll, with "1/3", the keys, and why. */
+function Suggestions({ region, ppb }: { region: Region; ppb: number }) {
+  const t = useT();
+  const g = useGhost();
+  const lang = useLang((l) => l.lang);
+  const s = g.regionId === region.id ? g.suggestions[g.index] : null;
+  if (!s || !s.notes.length) return null;
+  const first = s.notes.reduce((a, b) => (b.start < a.start ? b : a));
+  const top = Math.max(...s.notes.map((n) => n.pitch));
+  return (
+    <>
+      {s.notes.map((n, i) => (
+        <div key={`s${i}`} className={`pr-suggest ${s.newTrack ? 'harmony' : ''}`} style={{ left: n.start * ppb, top: (HIGH - n.pitch) * ROW_H, width: Math.max(4, n.duration * ppb - 1), height: ROW_H - 1 }} />
+      ))}
+      <div className="pr-suggest-tag" style={{ left: first.start * ppb, top: Math.max(0, (HIGH - top) * ROW_H - 26) }}>
+        <b>
+          {g.index + 1}/{g.suggestions.length}
+        </b>
+        <span>{s.newTrack ? t('gh.tagHarmony', { chords: s.chords?.join(' – ') ?? '' }) : t('gh.tag')}</span>
+        <button className="pr-suggest-why" onPointerDown={(e) => e.stopPropagation()} onClick={() => useGhost.setState({ explain: !g.explain })} title={t('gh.why')}>
+          ?
+        </button>
+        {g.explain && (
+          <div className="pr-suggest-explain" onPointerDown={(e) => e.stopPropagation()}>
+            {s.reasons.map((r) => (
+              <div key={r}>· {reasonText(r, lang)}</div>
+            ))}
+          </div>
+        )}
+      </div>
     </>
   );
 }

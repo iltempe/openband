@@ -31,6 +31,7 @@ import { DawReportDialog } from './components/DawReport';
 import { CreateDialog, EnsemblePanel } from './components/Ensemble';
 import { ExportPlatformsDialog, PilotPanel } from './components/Pilot';
 import { isRecordingTake, jumpToFlub, markFlub } from './flubLive';
+import { acceptGhost, dismissGhosts, ghostsShown, nextGhost } from './ghost';
 
 function useShortcuts() {
   useEffect(() => {
@@ -41,6 +42,17 @@ function useShortcuts() {
       const s = useStore.getState();
       const key = e.key.toLowerCase();
       const mod = e.metaKey || e.ctrlKey;
+
+      // Ghost notes (G3): Tab accepts, ⇧Tab shows the next one, Esc dismisses.
+      if (ghostsShown() && !mod) {
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          if (e.shiftKey) nextGhost();
+          else acceptGhost();
+          return;
+        }
+        if (e.key === 'Escape') return dismissGhosts();
+      }
 
       if (mod) {
         if (key === 'z') {

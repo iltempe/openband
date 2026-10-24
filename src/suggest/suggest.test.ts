@@ -166,3 +166,34 @@ describe('the variable-order Markov model', () => {
     expect([...m.predict(['zz']).values()].reduce((a, b) => a + b, 0)).toBeCloseTo(1, 5);
   });
 });
+
+describe('the reasons, in Italian too', () => {
+  it('every reason the engine gives has a translation', async () => {
+    const { reasonText } = await import('../ghost');
+    const p = song(MELODY);
+    p.regions.push({ id: 'v2', trackId: p.tracks[1].id, name: 'Verse 2', start: 32, length: 8, notes: [] });
+    const beat = p.regions.find((r) => r.id === 'beat')!;
+    beat.length = 8;
+    beat.notes = [note(36, 0, 0.25), note(38, 1, 0.25), note(36, 2, 0.25), note(38, 3, 0.25)];
+    const all = new Set<string>();
+    for (const [id, kind] of [['mel', 'continue'], ['bassline', 'bass'], ['mel', 'harmonize'], ['mel', 'counter'], ['v2', 'variation'], ['beat', 'continue'], ['beat', 'drum_fill']] as const)
+      for (const s of suggest(p, id, { kind, count: 4 }).suggestions) for (const r of s.reasons) all.add(r);
+    const missing = [...all].filter((r) => reasonText(r, 'it') === r);
+    expect(missing).toEqual([]);
+  });
+});
+
+describe('jam mode: an instant local answer (G3)', () => {
+  it('continues the phrase on the bar after it, from its bar line, in the chords', async () => {
+    const { localAnswer } = await import('../jamMode');
+    const p = song([]);
+    const lead = p.tracks[1];
+    const ans = localAnswer(p, lead.id, { start_bar: 1, notes: MELODY.slice(0, 4).map(({ pitch, start, duration, velocity }) => ({ pitch, start, duration, velocity })) }, 3)!;
+    expect(ans.length).toBeGreaterThan(0);
+    expect(Math.min(...ans.map((n) => n.start))).toBeGreaterThanOrEqual(0);
+    expect(Math.max(...ans.map((n) => n.start + n.duration))).toBeLessThanOrEqual(4 + 1e-6);
+    // Bar 2 is F: its downbeat (if played) is an F chord tone.
+    const down = ans.find((n) => n.start === 0);
+    if (down) expect([5, 9, 0]).toContain(down.pitch % 12);
+  });
+});

@@ -2,6 +2,16 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.19 "G3b: ghost notes in the piano roll"
+
+### G3 (part 2) · Tab to write
+- **Ghost notes in the editor**: 600 ms after the last edit, the piano roll shows OpenBand's suggestion in grey with **1/3** and the keys — **Tab** accepts it as **one undo step**, **⇧Tab** shows the next, **Esc** dismisses it until the region changes. The kind fits the region: continue a melody, a bass line on an empty bass region under chords, a variation of the track's motif on an empty section; in the **step sequencer** the rest of the groove (or a fill), as grey cells. *Continue*, *Harmonize* (the chords for a new harmony track, shown in violet, Tab creates the track), *Counter-melody* and *Bass line* ask for one now; **?** shows the reasons, in English or Italian. A **Suggestions** switch in the editor (on by default).
+- **It learns from you**: what you accept and dismiss is counted locally; ideas that repeat your motif rise or fall with it. *Forget what I taught* starts again.
+- **Jam mode answers at once**: when you play a phrase, the same engine continues it on the next window while the AI thinks; if the AI's answer arrives before OpenBand's has started, it replaces it.
+- Website: a card for ghost notes.
+- Not done: training on the user's other songs (the app keeps one song at a time; other songs live in files).
+- Tests: in Chrome (`npm run e2e`, *ghosts*) the suggestion appears after the pause, *?* gives its reasons, ⇧Tab shows 2/3, Esc dismisses it and it doesn't come back until an edit, Tab adds its notes (7 → 10) and **one undo** takes them back (7), *Harmonize* right after an edit shows its chords (the automatic suggestion doesn't replace it) and Tab puts them on a new Harmony track. Unit: every reason has its Italian, the jam answer starts on its bar line in the next chord.
+
 ## v0.6.18 "G3a: ghost notes, the engine"
 
 ### G3 (part 1) · A musical autocomplete, local and instant

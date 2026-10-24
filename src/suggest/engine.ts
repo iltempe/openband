@@ -37,6 +37,8 @@ export interface SuggestOptions {
   seed?: number;
   /** Harmonize/counter: only these notes of the region (a selection). */
   noteIds?: string[];
+  /** What this user tends to accept (learned from Tab / Esc): extra score for ideas that repeat the motif. */
+  prefer?: { motif?: number };
 }
 
 const MAJOR = [0, 2, 4, 5, 7, 9, 11];
@@ -242,7 +244,7 @@ function nearestIn(near: number, pcs: number[]): number {
 
 // ---------------------------------------------------------------- continue a melody
 
-function continueMelody(ctx: Context, o: Required<Pick<SuggestOptions, 'count' | 'seed'>>): Suggestion[] {
+function continueMelody(ctx: Context, o: Required<Pick<SuggestOptions, 'count' | 'seed'>> & { prefer?: SuggestOptions['prefer'] }): Suggestion[] {
   const line = monophonic(ctx.region.notes);
   if (!line.length) return [];
   const model = melodyModel(ctx);
@@ -321,7 +323,7 @@ function continueMelody(ctx: Context, o: Required<Pick<SuggestOptions, 'count' |
     const ch = last ? chordAt(ctx, base + last.start) : null;
     if (last && ch && !chordPcs(ch).includes(mod(last.pitch, 12))) last.pitch = nearestIn(last.pitch, chordPcs(ch));
     const c: Candidate = { notes, logp, reasons };
-    cands.push({ ...c, score: rank(ctx, c, line) });
+    cands.push({ ...c, score: round4(rank(ctx, c, line) + (useMotif ? (o.prefer?.motif ?? 0) : 0)) });
   }
   return distinct(cands, o.count).map((c) => ({ kind: 'continue', notes: c.notes, score: c.score, reasons: [...c.reasons, ...(ctx.role === 'melody' ? ['stays in a singable range'] : [])] }));
 }
@@ -610,7 +612,7 @@ export function autoKind(ctx: Context): SuggestKind {
 export function suggest(p: Project, regionId: string, opts: SuggestOptions = {}): { kind: SuggestKind; suggestions: Suggestion[] } {
   const ctx = contextOf(p, regionId);
   const kind = opts.kind ?? autoKind(ctx);
-  const o = { count: Math.max(1, Math.min(8, opts.count ?? 3)), seed: opts.seed ?? 1, noteIds: opts.noteIds };
+  const o = { count: Math.max(1, Math.min(8, opts.count ?? 3)), seed: opts.seed ?? 1, noteIds: opts.noteIds, prefer: opts.prefer };
   let out: Suggestion[];
   if (ctx.role === 'drums' && (kind === 'continue' || kind === 'drum_fill')) out = drums(ctx, kind, o);
   else if (kind === 'continue') out = continueMelody(ctx, o);

@@ -70,7 +70,7 @@ class AudioEngine {
   private refPlayer: Tone.Player | null = null;
   private refGain = 1;
   /** Ephemeral notes (the AI's live answers): played at absolute times, never stored in the song. */
-  private phraseQueue: { trackId: string; pitch: number; time: number; duration: number; velocity: number }[] = [];
+  private phraseQueue: { trackId: string; pitch: number; time: number; duration: number; velocity: number; tag?: string }[] = [];
   private phraseTimer: ReturnType<typeof setInterval> | null = null;
   /** Last start per track: monophonic synths need strictly increasing start times. */
   private phraseLast = new Map<string, number>();
@@ -193,9 +193,16 @@ class AudioEngine {
    * AudioContext time `at`. A lookahead timer hands them to the instrument just before they sound,
    * so stopping the transport can cancel what hasn't played yet. Returns when the phrase ends.
    */
-  schedulePhrase(trackId: string, notes: { pitch: number; start: number; duration: number; velocity: number }[], at: number): number {
+  /** Drop the notes of a scheduled phrase that haven't sounded yet (a local jam answer the AI's replaces). */
+  cancelPhrase(tag: string): number {
+    const before = this.phraseQueue.length;
+    this.phraseQueue = this.phraseQueue.filter((n) => n.tag !== tag);
+    return before - this.phraseQueue.length;
+  }
+
+  schedulePhrase(trackId: string, notes: { pitch: number; start: number; duration: number; velocity: number }[], at: number, tag?: string): number {
     const spb = 60 / transport().bpm.value;
-    for (const n of notes) this.phraseQueue.push({ trackId, pitch: n.pitch, time: at + n.start * spb, duration: Math.max(0.03, n.duration * spb), velocity: n.velocity });
+    for (const n of notes) this.phraseQueue.push({ trackId, pitch: n.pitch, time: at + n.start * spb, duration: Math.max(0.03, n.duration * spb), velocity: n.velocity, tag });
     this.phraseQueue.sort((a, b) => a.time - b.time);
     this.phraseTimer ??= setInterval(() => {
       const horizon = Tone.now() + 0.12;
