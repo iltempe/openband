@@ -40,12 +40,12 @@ const line = `${smoke.stdout}${smoke.stderr}`.split('\n').find((l) => l.startsWi
 check(smoke.status === 0 && line.startsWith('SMOKE OK'), `the app starts and plays (${line.trim()})`);
 if (smoke.status !== 0) console.log(`${smoke.stderr}`.split('\n').slice(-15).join('\n'));
 
-// Native plugins (G8.2): the CLAP fixtures (built by scripts/build-plughost.mjs, never shipped) on a track.
+// Native plugins (G8.2): the CLAP and VST3 fixtures (built by scripts/build-plughost.mjs, never shipped) on a track.
 const fixtures = path.join(root, 'build', 'plughost');
 if (fs.existsSync(path.join(fixtures, 'ob-fixtures.clap'))) {
   const n = spawnSync(exe, ['--smoke', ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], { env: { ...env, OPENBAND_SMOKE_NATIVE: '1', OPENBAND_PLUGIN_DIRS: fixtures }, encoding: "utf8", timeout: 180000 });
   const res = `${n.stdout}${n.stderr}`.split('\n').find((l) => l.startsWith('SMOKE-NATIVE')) ?? `exit ${n.status}`;
-  check(n.status === 0, `CLAP in the app: effect, crash isolation, instrument, automation, state, identical exports, render cache (${res.trim()})`);
+  check(n.status === 0, `CLAP and VST3 in the app: effects, crash isolation, instrument, automation, state, identical exports, render cache (${res.trim()})`);
   if (n.status !== 0) console.log(`${n.stderr}`.split('\n').slice(-15).join('\n'));
 } else console.log('- native plugins: no fixtures (node scripts/build-plughost.mjs)');
 

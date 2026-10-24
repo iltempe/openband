@@ -1,6 +1,6 @@
 {
   "name": "openband",
-  "version": "0.6.11",
+  "version": "0.6.12",
   "description": "Open-source GarageBand-style music studio for the browser, controllable by AI through MCP",
   "keywords": [
     "daw",

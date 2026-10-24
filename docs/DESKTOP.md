@@ -66,13 +66,16 @@ would both add the OpenBand tools.
 
 ## Native plugins
 
-**CLAP instruments and effects** installed on your computer work in the app: *Plugins* (in the library, or *+ Plugin* in a
+**CLAP and VST3 instruments and effects** installed on your computer work in the app: *Plugins* (in the library, or *+ Plugin* in a
 track's effects) lists them under *Installed on this computer*, next to the web plugins. OpenBand looks in
-the standard folders (macOS `~/Library/Audio/Plug-Ins/CLAP` and `/Library/Audio/Plug-Ins/CLAP`; Windows
-`Common Files\CLAP`; Linux `~/.clap`, `/usr/lib/clap`). Each folder is scanned plugin by plugin in a
+the standard folders: CLAP in macOS `~/Library/Audio/Plug-Ins/CLAP` and `/Library/Audio/Plug-Ins/CLAP`, Windows
+`Common Files\CLAP`, Linux `~/.clap`, `/usr/lib/clap`; VST3 in macOS `~/Library/Audio/Plug-Ins/VST3` and
+`/Library/Audio/Plug-Ins/VST3`, Windows `Common Files\VST3`, Linux `~/.vst3`, `/usr/lib/vst3`. Each folder is scanned plugin by plugin in a
 separate process: one that hangs or crashes while being scanned is set aside (*Ignored*, with *Retry*).
+Each plugin shows its format (CLAP, VST3); a plugin installed in both formats is listed twice — either works,
+and everything below holds for both.
 
-![Installed CLAP plugins in the plugin browser](native-plugins.png)
+![Installed CLAP and VST3 plugins in the plugin browser](native-plugins.png)
 
 - **Each plugin runs in its own process** (`openband-plughost`): if it crashes, only it stops. The track
   keeps playing without it, in time, the slot says *Closed*, and **Restart** starts it again with the state
@@ -99,7 +102,7 @@ separate process: one that hangs or crashes while being scanned is set aside (*I
   that plugin, the track plays the frozen audio (**❄ Frozen** next to its name) and you can still mix it;
   if you change its notes there, the badge says **Out of date** — open the song in the desktop app to freeze
   it again, or click the badge to choose another instrument.
-- Coming next: VST3 and AU; native windows on Linux.
+- Coming next: AU (macOS); native windows on Linux.
 
 ## Building it
 

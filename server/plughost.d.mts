@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 export interface NativePluginInfo {
-  format: 'clap';
+  format: 'clap' | 'vst3';
   id: string;
   name: string;
   vendor: string;
@@ -32,6 +32,8 @@ export interface LoadedPlugin {
 export const EVENT: { NOTE_ON: 0; NOTE_OFF: 1; PARAM: 2; ALL_NOTES_OFF: 3 };
 export function hostBinary(extra?: string[]): string | null;
 export function clapDirs(platform?: string, env?: Record<string, string | undefined>, home?: string): string[];
+export function vst3Dirs(platform?: string, env?: Record<string, string | undefined>, home?: string): string[];
+export function pluginDirs(platform?: string, env?: Record<string, string | undefined>, home?: string): string[];
 export function findBundles(dirs: string[]): string[];
 export function stopScans(): void;
 export function scanBundle(host: string, bundle: string, timeoutMs?: number): Promise<NativePluginInfo[]>;

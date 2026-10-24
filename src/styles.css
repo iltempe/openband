@@ -5492,6 +5492,9 @@ div.ca-steps {
   letter-spacing: 0.06em;
   color: #fbbf24;
 }
+.plug-thumb.native.f-vst3 {
+  color: #60a5fa;
+}
 .plug-ignored {
   font-size: 11px;
   color: var(--muted);

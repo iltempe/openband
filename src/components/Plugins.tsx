@@ -98,7 +98,7 @@ function InstalledPlugins({ kind, query, trackId, onAdded }: { kind: Mode; query
       {found && !shown.length && <div className="ai-log-empty">{tr('nat.none')}</div>}
       {shown.map((p) => (
         <div key={`${p.path}:${p.id}`} className="plug-item">
-          <div className="plug-thumb native">{p.format.toUpperCase()}</div>
+          <div className={`plug-thumb native f-${p.format}`}>{p.format.toUpperCase()}</div>
           <div className="plug-text">
             <div className="plug-name">
               {p.name} <span className="plug-kind">{tr(`plug.kind.${p.kind}` as 'plug.kind.any')}</span>

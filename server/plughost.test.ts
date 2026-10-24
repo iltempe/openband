@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { EVENT, PlugHostSession, clapDirs, findBundles, hostBinary, scanBundle, scanPlugins } from './plughost.mjs';
+import { EVENT, PlugHostSession, clapDirs, findBundles, hostBinary, pluginDirs, scanBundle, scanPlugins, vst3Dirs } from './plughost.mjs';
 
 const build = path.resolve(__dirname, '..', 'build', 'plughost');
 const host = hostBinary();
@@ -186,3 +186,125 @@ describe.skipIf(!ready || !fs.existsSync(vital))('a real CLAP instrument (Vital,
     s.close();
   }, 30000);
 });
+
+// G8.5: VST3 through the same host and protocol, with the VST3 test plugins (test/vst3fixtures.cpp).
+const vst3 = path.join(build, 'ob-vst3-fixtures.vst3');
+const GAIN3 = '0B5E00014F70656E42616E644761696E';
+const SYNTH3 = '0B5E00034F70656E42616E6453796E74';
+describe.skipIf(!host || !fs.existsSync(vst3))('openband-plughost with VST3 plugins', () => {
+  it('finds .vst3 bundles in the VST3 folders and scans them', async () => {
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), 'vst3dirs-'));
+    fs.mkdirSync(path.join(d, 'Vendor', 'Reverb.vst3', 'Contents', 'x86_64-win'), { recursive: true });
+    fs.writeFileSync(path.join(d, 'Vendor', 'Reverb.vst3', 'Contents', 'x86_64-win', 'Reverb.vst3'), '');
+    expect(findBundles([d]).map((p) => path.relative(d, p))).toEqual([path.join('Vendor', 'Reverb.vst3')]);
+    fs.rmSync(d, { recursive: true });
+    expect(vst3Dirs('darwin', {}, '/Users/x')).toEqual(['/Users/x/Library/Audio/Plug-Ins/VST3', '/Library/Audio/Plug-Ins/VST3']);
+    expect(vst3Dirs('linux', {}, '/home/x')).toEqual(['/home/x/.vst3', '/usr/lib/vst3', '/usr/local/lib/vst3']);
+    expect(vst3Dirs('win32', { COMMONPROGRAMFILES: 'C:\\CPF' }, 'C:\\Users\\x')[0]).toMatch(/CPF.VST3$/);
+    expect(pluginDirs('linux', {}, '/home/x')).toEqual([...clapDirs('linux', {}, '/home/x'), ...vst3Dirs('linux', {}, '/home/x')]);
+    const list = await scanBundle(host!, vst3);
+    expect(list.map((p) => [p.format, p.id, p.name, p.kind])).toEqual([
+      ['vst3', GAIN3, 'OB VST3 Gain', 'effect'],
+      ['vst3', SYNTH3, 'OB VST3 Synth', 'instrument'],
+    ]);
+  });
+
+  it('runs an effect: gain, its latency, parameters, state', async () => {
+    const s = new PlugHostSession(host!);
+    const info = await s.load({ path: vst3, id: GAIN3, sampleRate: 48000, maxBlock: 128 });
+    expect(info).toMatchObject({ name: 'OB VST3 Gain', latency: 256, inputs: 2, outputs: 2, gui: false });
+    expect(info.params).toEqual([expect.objectContaining({ id: 0, name: 'Gain', min: 0, max: 1, default: 0.5, value: 0.5 })]);
+    const run = async (from: number, blocks: number, x: number) => {
+      const outs: number[] = [];
+      for (let k = 0; k < blocks; k++) {
+        const p = next(s);
+        s.process(from + k, blockOf(128, () => x));
+        outs.push(...(await p).channels[0]);
+      }
+      return outs;
+    };
+    let out = await run(0, 3, 0.8);
+    expect(out[255]).toBe(0); // 256 samples late, as it says
+    expect(out[256]).toBeCloseTo(0.4, 6);
+    s.setParam(0, 0.25);
+    out = await run(3, 3, 0.8);
+    expect(out.at(-1)).toBeCloseTo(0.2, 6);
+    const state = await s.getState();
+    // [u32 component size][component: Gain as a double][controller]
+    expect(state.readUInt32LE(0)).toBe(8);
+    expect(state.readDoubleLE(4)).toBe(0.25);
+    const muted = Buffer.from(state);
+    muted.writeDoubleLE(0, 4);
+    expect(await s.setState(muted)).toBe(true);
+    out = await run(6, 3, 0.8);
+    expect(out.at(-1)).toBe(0);
+    expect(await s.setState(state)).toBe(true);
+    out = await run(9, 3, 0.8);
+    expect(out.at(-1)).toBeCloseTo(0.2, 6);
+    expect(await s.values()).toEqual([{ id: 0, value: 0.25 }]);
+    expect(await s.openGui('Gain')).toEqual({ open: false, supported: false });
+    s.close();
+  });
+
+  it('plays notes and parameter changes on their exact sample, and offline', async () => {
+    const s = new PlugHostSession(host!);
+    const info = await s.load({ path: vst3, id: SYNTH3 });
+    expect(info).toMatchObject({ inputs: 0, outputs: 2, latency: 0 });
+    const silence = () => [new Float32Array(128), new Float32Array(128)];
+    let p = next(s);
+    s.process(0, silence(), [{ offset: 37, kind: EVENT.NOTE_ON, key: 69, value: 1 }]);
+    let out = (await p).channels[0];
+    expect(out.findIndex((v) => v !== 0)).toBe(38);
+    p = next(s);
+    s.process(1, silence(), [{ offset: 64, kind: EVENT.PARAM, id: 2, value: 0.1 }]);
+    out = (await p).channels[0];
+    expect(Math.max(...out.slice(0, 64).map(Math.abs))).toBeGreaterThan(0.4);
+    expect(Math.max(...out.slice(64).map(Math.abs))).toBeLessThan(0.11);
+    p = next(s);
+    s.process(2, silence(), [{ offset: 0, kind: EVENT.ALL_NOTES_OFF }]);
+    expect(Math.max(...(await p).channels[0].map(Math.abs))).toBe(0);
+    // Offline (exports): the same notes give the same samples.
+    s.setRenderMode(true);
+    const render = async () => {
+      const r: number[] = [];
+      for (let k = 0; k < 4; k++) {
+        const q = next(s);
+        s.process(10 + k, silence(), k === 0 ? [{ offset: 5, kind: EVENT.NOTE_ON, key: 60, value: 1 }] : k === 3 ? [{ offset: 0, kind: EVENT.ALL_NOTES_OFF }] : []);
+        r.push(...(await q).channels[0]);
+      }
+      return r;
+    };
+    const a = await render();
+    expect(a).toEqual(await render());
+    s.close();
+  });
+
+  it('a VST3 that is not in the bundle: says so', async () => {
+    const s = new PlugHostSession(host!);
+    await expect(s.load({ path: vst3, id: '00000000000000000000000000000000' })).rejects.toThrow(/cannot create|not found|no class/i);
+  });
+});
+
+// Third-party VST3s, when installed on this computer (never on CI).
+for (const [file, kind] of [['/Library/Audio/Plug-Ins/VST3/ValhallaSupermassive.vst3', 'effect'], ['/Library/Audio/Plug-Ins/VST3/Vital.vst3', 'instrument']] as const) {
+  describe.skipIf(!host || !fs.existsSync(file))(`a real VST3 ${kind} (${path.basename(file)}, when installed)`, () => {
+    it(kind === 'effect' ? 'processes audio, with its state' : 'plays a note, with its state', async () => {
+      const [p0] = (await scanBundle(host!, file)).filter((p) => p.kind === kind);
+      const s = new PlugHostSession(host!);
+      const info = await s.load({ path: file, id: p0.id });
+      expect(info.params.length).toBeGreaterThan(10);
+      let peak = 0;
+      for (let k = 0; k < 120; k++) {
+        const p = next(s);
+        const x = kind === 'effect' ? blockOf(128, (i) => (k === 0 && i === 0 ? 1 : 0)) : [new Float32Array(128), new Float32Array(128)];
+        s.process(k, x, kind === 'instrument' && k === 0 ? [{ offset: 0, kind: EVENT.NOTE_ON, key: 60, value: 0.9 }] : []);
+        peak = Math.max(peak, ...(await p).channels[0].slice(k === 0 ? 1 : 0).map(Math.abs));
+      }
+      expect(peak).toBeGreaterThan(kind === 'effect' ? 1e-4 : 0.05);
+      const state = await s.getState();
+      expect(state.length).toBeGreaterThan(16);
+      expect(await s.setState(state)).toBe(true);
+      s.close();
+    }, 30000);
+  });
+}

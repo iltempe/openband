@@ -25,7 +25,20 @@ export function clapDirs(platform = process.platform, env = process.env, home = 
   return [path.join(home, '.clap'), '/usr/lib/clap', '/usr/local/lib/clap'];
 }
 
-/** CLAP bundles under some folders (a .clap is a folder on macOS, a file elsewhere), two levels deep. */
+/** The standard VST3 folders of a platform (G8.5). */
+export function vst3Dirs(platform = process.platform, env = process.env, home = os.homedir()) {
+  if (platform === 'darwin') return [path.join(home, 'Library/Audio/Plug-Ins/VST3'), '/Library/Audio/Plug-Ins/VST3'];
+  if (platform === 'win32') return [path.join(env.COMMONPROGRAMFILES ?? 'C:\\Program Files\\Common Files', 'VST3'), path.join(env.LOCALAPPDATA ?? path.join(home, 'AppData', 'Local'), 'Programs', 'Common', 'VST3')];
+  return [path.join(home, '.vst3'), '/usr/lib/vst3', '/usr/local/lib/vst3'];
+}
+
+/** Every standard plugin folder of a platform: CLAP and VST3. */
+export const pluginDirs = (platform = process.platform, env = process.env, home = os.homedir()) => [...clapDirs(platform, env, home), ...vst3Dirs(platform, env, home)];
+
+/**
+ * Plugin bundles under some folders, two levels deep: .clap (a folder on macOS, a file elsewhere) and .vst3
+ * (a folder, or a single file on Windows). A bundle is never looked into.
+ */
 export function findBundles(dirs) {
   const out = [];
   const walk = (dir, depth) => {
@@ -37,7 +50,7 @@ export function findBundles(dirs) {
     }
     for (const e of entries) {
       const p = path.join(dir, e.name);
-      if (e.name.toLowerCase().endsWith('.clap')) out.push(p);
+      if (/\.(clap|vst3)$/i.test(e.name)) out.push(p);
       else if (e.isDirectory() && depth < 2) walk(p, depth + 1);
     }
   };
@@ -65,7 +78,7 @@ export function scanBundle(host, bundle, timeoutMs = 10000) {
       }
       try {
         const { plugins } = JSON.parse(stdout);
-        resolve(plugins.map((p) => ({ format: 'clap', ...p, kind: kindOf(p.features), path: bundle })));
+        resolve(plugins.map((p) => ({ format: /\.vst3$/i.test(bundle) ? 'vst3' : 'clap', ...p, kind: kindOf(p.features), path: bundle })));
       } catch {
         reject(new Error('the scan returned something that is not a plugin list'));
       }
@@ -78,7 +91,7 @@ export function scanBundle(host, bundle, timeoutMs = 10000) {
  * Scan the folders, reusing what didn't change (cache by path + modification time). Bundles that hang or
  * crash go on the ignore list with the reason, until `retry` names them.
  */
-export async function scanPlugins({ host = hostBinary(), dirs = clapDirs(), cacheFile = null, timeoutMs = 10000, retry = [] } = {}) {
+export async function scanPlugins({ host = hostBinary(), dirs = pluginDirs(), cacheFile = null, timeoutMs = 10000, retry = [] } = {}) {
   if (!host) throw new Error('The plugin host (openband-plughost) is not installed');
   let cache = { bundles: {} };
   if (cacheFile)

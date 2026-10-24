@@ -368,7 +368,8 @@ async function smokeNative(SOFT_LIVE) {
   const gain = scan.plugins.find((p) => p.id === 'org.openband.fixture.gain');
   const synth = scan.plugins.find((p) => p.id === 'org.openband.fixture.synth');
   const crash = scan.plugins.find((p) => p.id === 'org.openband.fixture.crash');
-  if (!gain || !crash) return { ok: false, why: 'fixtures not found', scan };
+  const gain3 = scan.plugins.find((p) => p.format === 'vst3' && p.name === 'OB VST3 Gain');
+  if (!gain || !crash || !gain3) return { ok: false, why: 'fixtures not found', scan };
   engine.stop();
   await commands.new_project({ name: 'Native', bpm: 120, key: 'C' });
   const t = (await commands.add_track({ kind: 'instrument', instrument: 'aurora-pad', name: 'Pad' })).track_id;
@@ -388,7 +389,7 @@ async function smokeNative(SOFT_LIVE) {
   };
   step('dry');
   const dry = await rms();
-  const slot = (p) => ({ id: 'n1', url: '', name: p.name, on: true, format: 'clap', native: { id: p.id, vendor: p.vendor, version: p.version, path_hint: p.path } });
+  const slot = (p) => ({ id: 'n1', url: '', name: p.name, on: true, format: p.format, native: { id: p.id, vendor: p.vendor, version: p.version, path_hint: p.path } });
   const setSlot = (p) => useStore.getState().commit((d) => { const tr = d.tracks.find((x) => x.id === t); tr.fx = { amp: { on: false, drive: 0, tone: 0, level: 0.7 }, eq: { on: false, low: 0, mid: 0, high: 0, midFreq: 1000 }, comp: { on: false, threshold: -18, ratio: 4, attack: 0.01, release: 0.18, makeup: 0 }, plugins: [slot(p)] }; });
   const status = window.openband.nativeStatus;
   // Wait for the plugin to be running (its host loaded, the latency known) — slower on CI runners.
@@ -402,6 +403,13 @@ async function smokeNative(SOFT_LIVE) {
   step('gain');
   const wet = await rms();
   const latency = engine.pdcLatency;
+  // G8.5: a VST3 effect behind the same bridge — −6 dB, and its 256 samples of latency compensated too.
+  step('vst3');
+  status.setState({}, true);
+  setSlot(gain3);
+  await waitLive();
+  const wet3 = await rms();
+  const latency3 = engine.pdcLatency;
   status.setState({}, true);
   setSlot(crash);
   await waitLive();
@@ -500,8 +508,10 @@ async function smokeNative(SOFT_LIVE) {
   // The live checks need audio running in real time; a CI macOS VM's fake audio output doesn't keep pace
   // (the instrument drops out). There they are reported, not required; offline checks always are.
   const live = plays > -40 && automated < -15 && /^gain=0\.25/.test(saved) && liveVsExport < 1;
-  const ok = Math.abs(wet - dry + 6) < 1 && latency === 6 * 128 && Math.abs(before - dry) < 1 && !!crashed && Math.abs(after - dry) < 1 && restarted && Math.abs(back - dry) < 1 && (live || SOFT_LIVE) && same && exportRms > -40 && frozenOk;
-  return { ok, live, liveWindows: live ? undefined : L.map((v) => Math.round(v)).join(' '), exportWindows: live ? undefined : E.map((v) => Math.round(v)).join(' '), dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, instrument: +plays.toFixed(1), automation: +automated.toFixed(1), saved: saved.slice(0, 12), exportsIdentical: same, exportRms: +exportRms.toFixed(1), liveVsExport: +liveVsExport.toFixed(2), frozen: fr.frozen.join('+'), frozenOk, crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
+  const vst3 = Math.abs(wet3 - dry + 6) < 1.5 && latency3 === 6 * 128 + 256;
+  // Levels within 1.5 dB: the pad itself varies a little between captures on a slow runner.
+  const ok = Math.abs(wet - dry + 6) < 1.5 && latency === 6 * 128 && vst3 && Math.abs(before - dry) < 1.5 && !!crashed && Math.abs(after - dry) < 1.5 && restarted && Math.abs(back - dry) < 1.5 && (live || SOFT_LIVE) && same && exportRms > -40 && frozenOk;
+  return { ok, live, liveWindows: live ? undefined : L.map((v) => Math.round(v)).join(' '), exportWindows: live ? undefined : E.map((v) => Math.round(v)).join(' '), dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, vst3Gain: +(wet3 - dry).toFixed(2), vst3Latency: latency3, instrument: +plays.toFixed(1), automation: +automated.toFixed(1), saved: saved.slice(0, 12), exportsIdentical: same, exportRms: +exportRms.toFixed(1), liveVsExport: +liveVsExport.toFixed(2), frozen: fr.frozen.join('+'), frozenOk, crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
 }
 
 /** OPENBAND_DESKTOP_SHOT=file.png (docs): the studio with the AI panel on the "AI apps" tab, then quit. */

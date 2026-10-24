@@ -212,7 +212,7 @@ const en = {
 
   // Plugins
   'plug.title': 'Plugins',
-  'plug.sub': 'Open-source WAM 2.0 instruments and effects from the community collection — and, in the desktop app, the CLAP plugins installed on this computer',
+  'plug.sub': 'Open-source WAM 2.0 instruments and effects from the community collection — and, in the desktop app, the CLAP and VST3 plugins installed on this computer',
   'plug.kind.any': 'All',
   'plug.kind.instrument': 'Instrument',
   'plug.kind.effect': 'Effect',
@@ -1189,7 +1189,7 @@ const it: Record<MessageKey, string> = {
   'menu.exportMidi': 'Esporta MIDI',
 
   'plug.title': 'Plugin',
-  'plug.sub': 'Strumenti ed effetti WAM 2.0 open source dalla raccolta della community e, nell\'app desktop, i plugin CLAP installati su questo computer',
+  'plug.sub': 'Strumenti ed effetti WAM 2.0 open source dalla raccolta della community e, nell\'app desktop, i plugin CLAP e VST3 installati su questo computer',
   'plug.kind.any': 'Tutti',
   'plug.kind.instrument': 'Strumento',
   'plug.kind.effect': 'Effetto',

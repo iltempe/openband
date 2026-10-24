@@ -1,7 +1,8 @@
 // openband-plughost (G8): runs native plugins for OpenBand in a process of their own, so a plugin that
-// crashes takes only this process down. CLAP for now (VST3 and AU come next).
+// crashes takes only this process down. CLAP, and VST3 through an adapter that presents a VST3 plugin as
+// a CLAP one (vst3.cpp).
 //
-//   openband-plughost scan <bundle.clap>   print the plugins in a bundle as JSON, then exit
+//   openband-plughost scan <bundle>        print the plugins in a .clap or .vst3 bundle as JSON, then exit
 //   openband-plughost host                 serve one plugin over stdin/stdout (frames below)
 //
 // Frames, both ways: u32 length (of what follows, little-endian), u8 type, payload.
@@ -173,10 +174,30 @@ static const clap_plugin_entry_t *open_entry(const char *path, char *err, size_t
   return entry;
 }
 
+// ---------------------------------------------------------------- VST3 (vst3.cpp)
+
+int ob_vst3_scan(const char *path, char *out, size_t cap);
+const clap_plugin_t *ob_vst3_create(const char *path, const char *uid, const clap_host_t *host, char *err, size_t cap);
+
+static int is_vst3(const char *path) {
+  size_t n = strlen(path);
+  while (n && (path[n - 1] == '/' || path[n - 1] == '\\')) n--;
+  return n >= 5 && !strncmp(path + n - 5, ".vst3", 5);
+}
+
 // ---------------------------------------------------------------- scan
 
 static int scan(const char *path) {
   char err[1024];
+  if (is_vst3(path)) {
+    static char list[65536];
+    if (ob_vst3_scan(path, list, sizeof list) < 0) {
+      fprintf(stderr, "%s\n", list);
+      return 2;
+    }
+    printf("{\"plugins\":[%s]}\n", list);
+    return 0;
+  }
   const clap_plugin_entry_t *entry = open_entry(path, err, sizeof err);
   if (!entry) {
     fprintf(stderr, "%s\n", err);
@@ -467,13 +488,21 @@ static void load_main(void *ctx) {
     return;
   }
   char err[1024];
-  S.entry = open_entry(fields[0], err, sizeof err);
-  if (!S.entry) {
-    error_json(1, err);
-    return;
+  if (is_vst3(fields[0])) {
+    S.plugin = ob_vst3_create(fields[0], fields[1], &HOST, err, sizeof err);
+    if (!S.plugin) {
+      error_json(1, err);
+      return;
+    }
+  } else {
+    S.entry = open_entry(fields[0], err, sizeof err);
+    if (!S.entry) {
+      error_json(1, err);
+      return;
+    }
+    const clap_plugin_factory_t *f = (const clap_plugin_factory_t *)S.entry->get_factory(CLAP_PLUGIN_FACTORY_ID);
+    S.plugin = f ? f->create_plugin(f, &HOST, fields[1]) : NULL;
   }
-  const clap_plugin_factory_t *f = (const clap_plugin_factory_t *)S.entry->get_factory(CLAP_PLUGIN_FACTORY_ID);
-  S.plugin = f ? f->create_plugin(f, &HOST, fields[1]) : NULL;
   if (!S.plugin || !S.plugin->init(S.plugin)) {
     snprintf(err, sizeof err, "cannot create %s from %s", fields[1], fields[0]);
     S.plugin = NULL;
