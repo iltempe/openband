@@ -77,7 +77,7 @@ export function materialAllows(material: string, release: LicenseCode): string |
   if (!r.cc) return null;
   const m = material.toUpperCase();
   if (/^CC0|PUBLIC|MIT|APACHE|BSD/.test(m)) return null;
-  if (/ARR|ALL RIGHTS|UNKNOWN|PROPRIETARY/.test(m)) return 'its licence is unknown or all rights reserved';
+  if (/ARR|ALL[ -]RIGHTS|UNKNOWN|PROPRIETARY/.test(m)) return 'its licence is unknown or all rights reserved';
   const nc = /NC/.test(m);
   const nd = /ND/.test(m);
   const sa = /SA/.test(m);

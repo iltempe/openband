@@ -1598,6 +1598,102 @@ tests.video = async () => {
   }
 };
 
+// G6c: publishing, against a mock of the Internet Archive and Wikimedia (OAuth 2.0 + PKCE, chunked upload).
+// No publish without the user's click; the Archive refuses "all rights reserved", Commons NC, a sample whose
+// licence doesn't allow CC blocks it by name; then both, confirmed in the studio, with what arrived checked;
+// and no key or adapter code in the web bundle.
+tests.publish = async () => {
+  const os = await import('node:os');
+  const { createFakePlatforms } = await import('../../server/fixtures/fake-platforms.mjs');
+  const fake = createFakePlatforms({ archiveKeys: { access: 'AKIA-E2E', secret: 'S3CRET-E2E-7f3a' }, wikimediaClient: 'e2e-commons' });
+  const mock = `http://127.0.0.1:${await fake.listen()}`;
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ob-pub-'));
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1', OPENBAND_PUBLISH_MOCK: mock, OPENBAND_PUBLISH: path.join(tmp, 'publish.json') });
+  const b = await launch();
+  try {
+    const ctx = await b.createBrowserContext();
+    const p = await ctx.newPage();
+    await p.setViewport({ width: 1440, height: 900 });
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.waitForFunction(() => window.openband.useStore.getState().bridgeStatus === 'connected', { timeout: 10000 });
+    const r1 = await p.evaluate(async () => {
+      const { commands, samples, publishing } = window.openband;
+      await commands.new_project({ name: 'Fuori', bpm: 120, key: 'C' });
+      await commands.transport({ action: 'stop' });
+      const { track_id } = await commands.add_track({ kind: 'instrument', instrument: 'felt-piano', name: 'Keys' });
+      await commands.add_region({ track_id, start_bar: 1, length_bars: 2, notes: [60, 64, 67, 72].map((pitch, i) => ({ pitch, start: i, duration: 0.9, velocity: 0.8 })) });
+      await commands.set_release({ title: 'Fuori', artist: 'iltempe', license: 'CC-BY-4.0', tags: ['e2e'] });
+      await commands.generate_cover({ seed: 3 });
+      await publishing.saveCredentials('archive', { access: 'AKIA-E2E', secret: 'S3CRET-E2E-7f3a' });
+      await publishing.saveCredentials('wikimedia', { client_id: 'e2e-commons' });
+      const err = async (f) => f().then(() => 'no error', (e) => e.message);
+      const out = { targets: JSON.stringify(publishing.usePublish.getState().targets) };
+      out.listed = await commands.list_publish_targets();
+      out.unsigned = await err(() => commands.publish({ platforms: ['wikimedia'] }));
+      out.unconfirmed = await err(() => commands.publish({ platforms: ['archive'], confirm_timeout_ms: 400 }));
+      await commands.set_release({ license: 'all-rights-reserved' });
+      out.arr = await err(() => commands.publish({ platforms: ['archive'] }));
+      await commands.set_release({ license: 'CC-BY-NC-4.0' });
+      out.nc = await err(() => commands.publish({ platforms: ['wikimedia'] }));
+      await commands.set_release({ license: 'CC-BY-4.0' });
+      const sr = 48000, n = sr;
+      const dv = new DataView(new ArrayBuffer(44 + n * 2));
+      const w = (o, s) => [...s].forEach((c, i) => dv.setUint8(o + i, c.charCodeAt(0)));
+      w(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+      dv.setUint32(24, sr, true); dv.setUint32(28, sr * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, 'data'); dv.setUint32(40, n * 2, true);
+      for (let i = 0; i < n; i++) dv.setInt16(44 + i * 2, 6000 * Math.sin((2 * Math.PI * 330 * i) / sr), true);
+      const info = await samples.importSample(dv.buffer, 'vocal from a pack.wav');
+      const { region_id } = await commands.add_audio_region({ sample_id: info.id, start_bar: 3, length_bars: 1 });
+      await commands.set_release({ sample_licenses: { [info.id]: 'all-rights-reserved' } });
+      out.sample = await err(() => commands.publish({ platforms: ['archive'] }));
+      await commands.delete_region({ region_id });
+      out.signIn = await publishing.authorizeUrl('wikimedia');
+      return out;
+    });
+    check(!r1.targets.includes('S3CRET-E2E-7f3a'), 'the page learns which accounts are set up, never the secret');
+    check(r1.listed.available && r1.listed.targets.find((x) => x.id === 'archive')?.ready && !r1.listed.targets.find((x) => x.id === 'soundcloud')?.supported, 'list_publish_targets: the Archive ready, SoundCloud not supported yet');
+    check(/set up the account/.test(r1.unsigned), `Commons before signing in: refused (${r1.unsigned})`);
+    check(/did not confirm/.test(r1.unconfirmed) && !Object.keys(fake.state.archive).length, `publish without the user's click → error, nothing uploaded (${r1.unconfirmed})`);
+    check(/Internet Archive.*Creative Commons/.test(r1.arr), `the Archive without a CC licence: blocked, with why (${r1.arr})`);
+    check(/Wikimedia Commons.*free licences/.test(r1.nc), `Commons with CC BY-NC: blocked (${r1.nc})`);
+    check(/vocal from a pack/.test(r1.sample), `a sample whose licence doesn't allow CC blocks it by name (${r1.sample.slice(0, 120)})`);
+    // The user signs in to Wikimedia: the sign-in page (here the mock approves at once) returns to OpenBand.
+    const login = await ctx.newPage();
+    await login.goto(r1.signIn, { waitUntil: 'networkidle0' });
+    check((await login.content()).includes('Signed in to Wikimedia Commons'), 'Wikimedia sign-in with OAuth 2.0 + PKCE, back through the local OpenBand');
+    await login.close();
+    await p.waitForFunction(() => window.openband.publishing.usePublish.getState().targets?.find((x) => x.id === 'wikimedia')?.authorized, { timeout: 5000 });
+    // Publish to both, as the AI would; the user confirms in the studio.
+    const job = p.evaluate(() => window.openband.commands.publish({ platforms: ['archive', 'wikimedia'] }).catch((e) => ({ error: e.message })));
+    await p.waitForSelector('.pub-confirm .btn.primary', { timeout: 5000 });
+    const dialog = await p.$eval('.pub-confirm', (el) => el.textContent);
+    check(/permanent/.test(dialog) && /cannot be withdrawn/.test(dialog), 'the confirmation says the Archive is permanent and CC irrevocable');
+    if (process.env.E2E_SHOTS) await p.screenshot({ path: path.join(process.env.E2E_SHOTS, 'publish-confirm.png') });
+    await p.click('.pub-confirm .btn.primary');
+    const r2 = await job;
+    check(r2.published?.length === 2 && !r2.failed, `published to both (${JSON.stringify(r2.failed ?? r2.error ?? r2.published?.map((x) => x.url))})`);
+    const item = Object.values(fake.state.archive)[0];
+    const files = item ? Object.keys(item.files) : [];
+    check(files.some((f) => f.endsWith('.flac')) && files.includes('cover.png') && files.includes('LICENSE.txt') && files.includes('CREDITS.txt'), `the Archive item holds the FLAC, cover, LICENSE and CREDITS (${files.join(', ')})`);
+    check(item?.meta.licenseurl === 'https://creativecommons.org/licenses/by/4.0/' && item?.meta.title === 'Fuori' && item?.meta.creator === 'iltempe', 'with title, creator and licence URL');
+    const cf = Object.values(fake.state.commons.files)[0];
+    check(cf && /\{\{Information/.test(cf.text) && /\{\{cc-by-4\.0\}\}/.test(cf.text), 'the Commons file page carries {{Information}} and {{cc-by-4.0}}');
+    const pubs = await p.evaluate(() => window.openband.commands.get_publications());
+    check(pubs.publications.length === 2 && pubs.publications.every((x) => x.url && x.master), 'both publications are kept in the song, with the master they sent');
+    // No key and no platform code in the web app.
+    const dist = path.join(path.dirname(new globalThis.URL(import.meta.url).pathname), '../../dist');
+    const bundle = fs.readdirSync(path.join(dist, 'assets')).filter((f) => f.endsWith('.js')).map((f) => fs.readFileSync(path.join(dist, 'assets', f), 'utf8')).join('\n');
+    check(!/S3CRET-E2E|x-archive-meta|oauth2\/access_token|client_secret/.test(bundle), 'no secret and no adapter (S3 headers, token endpoint) in the web bundle');
+  } finally {
+    await b.close();
+    srv.kill();
+    await fake.close();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);

@@ -30,6 +30,7 @@ import { FlubsPanel } from './components/Flubs';
 import { DawReportDialog } from './components/DawReport';
 import { CreateDialog, EnsemblePanel } from './components/Ensemble';
 import { ReleasePanel } from './components/Release';
+import { PublishConfirm } from './components/Publish';
 import { ExportPlatformsDialog, PilotPanel } from './components/Pilot';
 import { isRecordingTake, jumpToFlub, markFlub } from './flubLive';
 import { acceptGhost, dismissGhosts, ghostsShown, nextGhost } from './ghost';
@@ -291,6 +292,7 @@ export function App() {
       <RecoveryBanner />
       <DawReportDialog />
       <CreateDialog />
+      <PublishConfirm />
       <ExportPlatformsDialog />
       <PluginRestoreOverlay />
       <MicOverlay />

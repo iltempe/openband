@@ -31,6 +31,9 @@ copy('bin');
 copy('omep');
 fs.mkdirSync(path.join(stage, 'server'));
 for (const f of fs.readdirSync(path.join(root, 'server'))) if (f.endsWith('.mjs')) copy(`server/${f}`);
+// Publishing adapters (G6): the user's keys stay in this process.
+fs.mkdirSync(path.join(stage, 'server', 'publish'), { recursive: true });
+for (const f of fs.readdirSync(path.join(root, 'server', 'publish'))) if (f.endsWith('.mjs')) copy(`server/publish/${f}`);
 copy('mcpb/icon.png', 'icon.png');
 copy('LICENSE');
 const runtime = { name: pkg.name, version: pkg.version, type: 'module', private: true, dependencies: pkg.dependencies };

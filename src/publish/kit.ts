@@ -69,8 +69,8 @@ export function flacTags(p: Project): Record<string, string> {
   };
 }
 
-/** The kit as zip bytes, from the rendered master (channels at its rate). */
-export async function buildKit(p: Project, master: { channels: Float32Array[]; sampleRate: number }): Promise<{ zip: Uint8Array; files: string[] }> {
+/** The release's files by name, from the rendered master (channels at its rate). */
+export async function releaseFiles(p: Project, master: { channels: Float32Array[]; sampleRate: number }): Promise<Record<string, Uint8Array>> {
   const r = releaseOf(p);
   const name = r.title.replace(/[\\/:*?"<>|]/g, '_');
   const cover = r.cover?.kind === 'image' ? dataUrlBytes(r.cover.dataUrl) : await coverPng(r.cover?.kind === 'generated' ? r.cover : { style: 'bold', palette: 'night', seed: 1 }, { title: r.title, artist: r.artist });
@@ -86,6 +86,12 @@ export async function buildKit(p: Project, master: { channels: Float32Array[]; s
   if (lyrics) files['lyrics.txt'] = enc.encode(`${lyrics}\n`);
   const lrc = lrcOf(p);
   if (lrc) files[`${name}.lrc`] = enc.encode(lrc);
+  return files;
+}
+
+/** The kit as zip bytes, from the rendered master. */
+export async function buildKit(p: Project, master: { channels: Float32Array[]; sampleRate: number }): Promise<{ zip: Uint8Array; files: string[] }> {
+  const files = await releaseFiles(p, master);
   // FLAC and PNG don't compress further: store them.
   const zip = zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, [v, { level: /\.(flac|png)$/.test(k) ? 0 : 6 }]])));
   return { zip, files: Object.keys(files) };

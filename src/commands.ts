@@ -1533,6 +1533,9 @@ export const commands: Record<string, (args: P) => unknown> = {
     download(new Blob([kit.zip as BlobPart], { type: 'application/zip' }), name);
     return { saved: name, files: kit.files, bytes: kit.zip.length };
   },
+  list_publish_targets: async () => (await import('./publish/publish')).listPublishTargets(),
+  publish: async ({ platforms, privacy, confirm_timeout_ms }) => (await import('./publish/publish')).publish({ platforms, privacy, confirm_timeout_ms }),
+  get_publications: async () => (await import('./publish/publish')).getPublications(),
   render_video: async ({ format, section_id, max_seconds }) => {
     const { renderVideo } = await import('./publish/video');
     const v = await renderVideo(st().project, { format, section_id, max_seconds });

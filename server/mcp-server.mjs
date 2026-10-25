@@ -16,6 +16,7 @@ import { CAPABILITY, CORE, INSTRUCTIONS, TOOLS, TOOLSETS } from './tools.mjs';
 import { Pairing, classifyOrigin, parseAllowedOrigins } from './pairing.mjs';
 import { checkForUpdate } from './update.mjs';
 import { RUN } from './package.mjs';
+import { PublishHost } from './publish/index.mjs';
 import { EngineHost } from './engines.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -70,6 +71,8 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
 const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 /** OMEP engines the user configured (SPEC v0.6 §9). Never on a public server: there the page is a stranger's. */
 const engineHost = REMOTE ? null : new EngineHost({ log });
+/** Publishing (SPEC v0.6 G6): the user's keys stay in this process; never on a public server. */
+const publishHost = REMOTE ? null : new PublishHost({ port: PORT, log, notify: (m) => studio?.readyState === 1 && studio.send(JSON.stringify(m)) });
 const CONFIG_FILE = process.env.OPENBAND_CONFIG || '';
 /** Public instances (Docker) send the same CSP as the static hosts. */
 const CSP = process.env.OPENBAND_CSP === '1' ? (await import('./csp.mjs')).contentSecurityPolicy({ collab: process.env.OPENBAND_CSP_COLLAB ? process.env.OPENBAND_CSP_COLLAB.split(',') : undefined }) : '';
@@ -77,6 +80,7 @@ const CSP = process.env.OPENBAND_CSP === '1' ? (await import('./csp.mjs')).conte
 const httpServer = http.createServer(async (req, res) => {
   const pathname = new URL(req.url || '/', 'http://x').pathname;
   if (remote && (await remote.handleHttp(req, res))) return;
+  if (publishHost && (await publishHost.handleHttp(req, res))) return;
   if (pathname === '/version.json') {
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-cache' });
     res.end(JSON.stringify({ app: 'openband', version: PKG.version }));
@@ -203,7 +207,7 @@ wss.on('connection', (ws, _req, kind = 'local') => {
   const welcome = () => {
     studio = ws; // the most recent tab wins
     log(kind === 'local' ? 'studio connected' : 'studio connected (paired online demo)');
-    send({ type: 'hello', protocol: PROTOCOL, version: PKG.version, update: updateInfo, collab: COLLAB ? { lan: lanUrls(), port: PORT } : null, engines: !!engineHost });
+    send({ type: 'hello', protocol: PROTOCOL, version: PKG.version, update: updateInfo, collab: COLLAB ? { lan: lanUrls(), port: PORT } : null, engines: !!engineHost, publish: !!publishHost && kind === 'local' });
   };
   let paired = kind === 'local';
   if (paired) welcome();
@@ -246,6 +250,13 @@ wss.on('connection', (ws, _req, kind = 'local') => {
       if (!engineHost) return void answer(false, 'Engines are not available on this server');
       const job = msg.op === 'list' ? engineHost.list() : msg.op === 'call' ? engineHost.call(String(msg.engine), String(msg.capability), msg.args ?? {}) : Promise.reject(new Error(`Unknown engine op "${msg.op}"`));
       job.then((r) => answer(true, r), (e) => answer(false, e.message));
+      return;
+    }
+    if (msg.type === 'publish') {
+      // Only a studio served by this machine (not a paired public site) may use the user's accounts.
+      const answer = (ok, payload) => send({ type: 'publish_result', id: msg.id, ok, ...(ok ? { result: payload } : { error: payload }) });
+      if (!publishHost || kind !== 'local') return void answer(false, 'Publishing needs the OpenBand app or npx openband on this computer');
+      publishHost.handle(msg, (fraction, note) => send({ type: 'publish_progress', id: msg.id, fraction, note })).then((r) => answer(true, r), (e) => answer(false, e.message));
       return;
     }
     if (msg.type !== 'result') return;

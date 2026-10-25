@@ -6050,3 +6050,34 @@ div.ca-steps {
   width: auto;
   max-height: 260px;
 }
+.pub-fields {
+  margin: 6px 0 4px;
+}
+.pub-fields code {
+  font-size: 11px;
+  word-break: break-all;
+}
+.pub-choice {
+  display: block;
+  font-size: 12px;
+  margin: 3px 0;
+}
+.pub-confirm {
+  width: min(520px, calc(100vw - 32px));
+}
+.pub-confirm-body {
+  padding: 0 16px 16px;
+  font-size: 13px;
+}
+.pub-confirm-body ul {
+  padding-left: 18px;
+}
+.pub-confirm-body li {
+  margin-bottom: 6px;
+}
+.pub-confirm-body .row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}

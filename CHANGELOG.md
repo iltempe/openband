@@ -2,6 +2,38 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.34 "G6c1: publish to the Internet Archive and Wikimedia Commons"
+
+### G6c1 · Publishing, with your own accounts and your click (SPEC v0.6 G6)
+- **Publish** in the Release tab, or `publish`. Tick the platforms (*Publish in CC* ticks the ones the licence allows) and press *Publish…*. The release is checked again, then a **confirmation in the studio** lists each platform with what it means: the Archive is public and permanent, Commons is public and free to reuse, and Creative Commons can't be withdrawn. **Nothing goes out without that click.** When the AI calls `publish`, the same confirmation opens and the tool waits for it. A cancel, or no answer within 5 minutes, is an error.
+- **Internet Archive**, through its S3-like API with the user's own keys:
+  - an item in *Community Audio* (`opensource_audio`) holding the master as 24-bit FLAC (tags and cover inside), the cover, the LRC, LICENSE.txt and CREDITS.txt;
+  - metadata in `x-archive-meta-*` headers: title, creator, date, description with the licence and the AI-use statement, `licenseurl`, the tags as `subject`; values are `uri()`-encoded, so accents survive;
+  - a busy Archive (503 SlowDown) is retried with backoff.
+  Without a Creative Commons licence it is blocked, with the reason.
+- **Wikimedia Commons**:
+  - Sign-in is **OAuth 2.0 with PKCE** through meta.wikimedia.org, with the local OpenBand as the redirect target. The token is renewed when it expires (refresh tokens are single-use), and once more if the wiki refuses it early. The access token of an owner-only consumer can be pasted instead.
+  - The master is sent with the **chunked upload** (4 MB chunks to the stash). A failed chunk is sent again from its offset.
+  - The file is then published with the description page the studio writes: `{{Information}}` (description with the AI-use statement, date, `{{own}}`, author, software), and `{{cc-zero}}`, `{{cc-by-4.0}}` or `{{cc-by-sa-4.0}}`. Free text is kept in `<nowiki>`, so a title can't break the template.
+  - NC and ND licences are refused, and so is a file name that already exists (*change the title*).
+- **The keys never reach the web page.** They stay in the local OpenBand (`npx openband` or the desktop app) in `~/.openband/publish.json`, readable only by the user (0600). The page only learns which accounts are set up; the AI never sees keys.
+  - Files reach the local server over HTTP, accepted only from loopback, from a local origin (`openband://app` or 127.0.0.1) and with a token the server gives the studio over the bridge.
+  - Everything else goes over the bridge. A paired public site (the online demo) can't publish.
+- **Publications are kept in the song** (`Project.publications`, not an undo step), each with its platform, id, URL, date and the hash of the master that went out. They show as *Published* in the tab and in `get_publications`.
+- Tools (169 in all): `list_publish_targets` (every platform: whether OpenBand publishes there yet, the account, what blocks it), `publish`, `get_publications`.
+- Guide: [docs/PUBLISHING.md](docs/PUBLISHING.md) (IT: PUBLISHING.it.md), with how to get the Archive keys and a Wikimedia consumer.
+- **Fix**: a sample marked *All rights reserved* in the licence select (stored as `all-rights-reserved`) was not seen as a conflict with a Creative Commons song. Now it is.
+- **Different from the spec**:
+  - The adapters are in the local server (`server/publish/`), not in `src/publish/adapters/`, because they are where the keys are.
+  - The Archive doesn't publish from the browser alone, so a local OpenBand is always needed.
+  - Keys are kept in a 0600 file, not yet encrypted with the system keychain in the desktop app.
+  - `privacy` other than *public* is refused for the Archive and Commons, which have no private uploads.
+- Not yet: SoundCloud, YouTube and Mixcloud (G6c2), Funkwhale and Audius (G6c3).
+- Tests:
+  - Against a **mock of both platforms** (`server/fixtures/fake-platforms.mjs`; `server/publish.test.ts`, 10 tests): files need the token and a local origin; the page never gets a secret, and the key file is 0600; the item is created with decoded metadata after one 503, its files are added, and its status is live; wrong keys give a clear error; Wikimedia sign-in completes the full PKCE round trip, and a forged verifier fails; a 9 MB upload in 3 chunks survives a failed chunk and an expired token (one refresh) and keeps its page text; a duplicate name is refused; signed out, it asks to sign in; a pasted owner-only token works.
+  - In Chrome (`npm run e2e`, *publish*, 15 checks, the real server against the mock): the page never sees the secret; `list_publish_targets`; Commons before sign-in is refused; **publish without the click → error, nothing uploaded**; the Archive without CC and Commons with NC are blocked with the reason; an all-rights-reserved sample blocks it by name; the Wikimedia sign-in window returns through the local OpenBand; the confirmation shows the warnings; both uploads arrive (FLAC, cover, LICENSE, CREDITS with the metadata; the page with `{{Information}}` and `{{cc-by-4.0}}`); the publications are kept with their master; **no secret, S3 header or token endpoint in the web bundle**.
+  - Unit tests: the Archive identifier and metadata, CC required; the Commons page and templates, NC and ND refused, free text escaped, file names.
+
 ## v0.6.33 "G6b: the video for YouTube"
 
 ### G6b · A video from the song, made in the browser (SPEC v0.6 G6)

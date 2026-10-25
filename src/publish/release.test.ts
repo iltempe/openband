@@ -43,6 +43,8 @@ describe('licences', () => {
 
   it('material against the licence: NC, ND, SA, unknown', () => {
     expect(materialAllows('CC0-1.0', 'CC-BY-4.0')).toBeNull();
+    // The code the studio's licence select stores, too.
+    expect(materialAllows('all-rights-reserved', 'CC-BY-4.0')).toMatch(/all rights reserved/);
     expect(materialAllows('CC-BY-NC-4.0', 'CC-BY-4.0')).toMatch(/commercial/);
     expect(materialAllows('CC-BY-NC-4.0', 'CC-BY-NC-4.0')).toBeNull();
     expect(materialAllows('CC-BY-ND-4.0', 'CC-BY-NC-4.0')).toMatch(/ND/);

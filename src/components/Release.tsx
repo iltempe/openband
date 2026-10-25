@@ -8,6 +8,7 @@ import { LICENSES, chooseLicense, explain, IRREVOCABLE, COLLECTING_SOCIETY, type
 import { COVER_STYLES, PALETTES, drawCover } from '../publish/cover';
 import { getRelease, checkReleaseCommand } from '../publish/commands';
 import { useVideo, type VideoFormat } from '../publish/video';
+import { PublishSection } from './Publish';
 
 const run = (m: string, a: Record<string, unknown>) => runCommand(m, a, 'ui').catch((e) => useStore.getState().notify((e as Error).message));
 
@@ -173,6 +174,7 @@ export function ReleasePanel() {
           {busy ? '…' : t('rel.kit')}
         </button>
         <VideoMaker />
+        <PublishSection />
       </section>
     </div>
   );
