@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { VoiceButton } from './Voice';
 import { useConfig } from '../config';
 import { useDiagnostics } from './Diagnostics';
 import { installApp, isSafari, usePwa } from '../pwa';
@@ -369,6 +370,7 @@ export function Toolbar() {
             onChange={(e) => s.commit((d) => void (d.masterVolume = Number(e.target.value)), { history: false })}
           />
         </div>
+        <VoiceButton />
         <button className={`icon-btn ${s.keyboardOpen ? 'on' : ''}`} onClick={() => s.set({ keyboardOpen: !s.keyboardOpen })} title={t('tb.typing')}>
           <I.Keyboard />
         </button>

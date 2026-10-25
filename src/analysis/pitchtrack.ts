@@ -92,7 +92,8 @@ export function yinTrack(x: Float32Array, sampleRate: number, o: YinOptions = {}
       }
       ap = m;
     }
-    const rms = Math.sqrt(energy(start + W / 2 - hop / 2, hop) / hop);
+    // An integer index: with odd W or hop (some sample rates) the halves would land between samples.
+    const rms = Math.sqrt(energy(Math.floor(start + W / 2 - hop / 2), hop) / hop);
     const db = rms > 0 ? 20 * Math.log10(rms) : -120;
     let midi: number | null = null;
     if (best > 0 && ap < 0.35 && db > -55) {

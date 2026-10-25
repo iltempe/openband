@@ -136,6 +136,8 @@
     'foot.contacts': 'Contatti',
     'foot.contactsp': 'OpenBand è fatto da @iltempe e dai suoi contributori.',
     'foot.coffee': 'Offrimi un caffè',
+    'feat.voice': 'Mani sulla chitarra',
+    'feat.voicep': 'Tieni premuto un pedale e di’ “registra”, “dal ritornello”, “segna errore”, “tieni questa”. Comandi vocali in italiano e inglese, riconosciuti offline nel tuo browser. La modalità Sessione registra cinque passaggi, valuta ogni battuta e unisce le migliori per te.',
     'feat.stems': 'Qualsiasi canzone, in stem',
     'feat.stemsp': 'Trascina un mix e premi Separa gli stem: batteria, basso, voce e il resto arrivano su tracce proprie, pronte da remixare, silenziare o su cui suonare. Demucs gira nel tuo browser: gratis, offline dopo un download una tantum, e il tuo audio non lascia il computer.',
     'feat.energy': 'Disegna la canzone',

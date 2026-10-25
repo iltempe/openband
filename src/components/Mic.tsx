@@ -1,5 +1,7 @@
 // Microphone: toolbar button + popover, recording overlay and the AI's "may I record?" dialog.
 import { useEffect, useState } from 'react';
+import { useSession } from '../session/session';
+import { runCommand } from '../commands';
 import { useStore } from '../store';
 import { PRESETS } from '../audio/instruments';
 import { armTrack, listInputs, recordFromMic, setMicOffset, setPunch, stopMicRecording, useMic, useRecSetup, type MicMode } from '../recording';
@@ -78,6 +80,41 @@ function RecordingSetup() {
         <span>{t('rec.monitor')}</span>
       </label>
       {loop.enabled && !setup.punch.enabled && <div className="rec-hint">{t('rec.loopTakes')}</div>}
+      <SessionRow />
+    </div>
+  );
+}
+
+/** Session mode (G4): loop a section, N passes as takes, scored and comped. */
+function SessionRow() {
+  const t = useT();
+  const sections = useStore((s) => s.project.sections ?? []);
+  const ses = useSession();
+  const [sectionId, setSectionId] = useState('');
+  const [passes, setPasses] = useState(5);
+  const id = sectionId || sections[0]?.id || '';
+  if (!sections.length) return <div className="rec-hint">{t('ses.needSections')}</div>;
+  return (
+    <div className="mic-row rec-session" title={t('ses.hint')}>
+      <span>{t('ses.title')}</span>
+      <select value={id} onChange={(e) => setSectionId(e.target.value)} disabled={ses.active}>
+        {sections.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name}
+          </option>
+        ))}
+      </select>
+      <input type="number" min={1} max={16} value={passes} onChange={(e) => setPasses(Math.max(1, Math.min(16, Number(e.target.value))))} disabled={ses.active} />
+      {ses.active ? (
+        <button className="mini" onClick={() => void runCommand('stop_session', {}, 'ui')}>
+          {t('ses.stop')}
+        </button>
+      ) : (
+        <button className="mini" onClick={() => void runCommand('start_session', { section_id: id, passes }, 'ui').catch((e) => useStore.getState().notify((e as Error).message))}>
+          {t('ses.start')}
+        </button>
+      )}
+      {!ses.active && ses.takes.length > 0 && <span className="rec-hint">{t(ses.comp ? 'ses.doneComp' : 'ses.doneBest', { n: ses.takes.length })}</span>}
     </div>
   );
 }

@@ -16,7 +16,10 @@ export type StudioEvent =
   | { kind: 'transport'; action: 'play' | 'stop' | 'loop'; bar: number }
   | { kind: 'user_edit'; label: string }
   | { kind: 'region_recorded'; region_id: string }
-  | { kind: 'ask'; text: string; context?: { region_id?: string; section_id?: string; note_ids?: string[]; track_id?: string; explain?: boolean } }
+  | { kind: 'ask'; text: string; context?: { region_id?: string; section_id?: string; note_ids?: string[]; track_id?: string; explain?: boolean; voice?: boolean } }
+  | { kind: 'voice_command'; heard: string; action: string }
+  | { kind: 'session_take'; region_id: string; take_id: string; name: string; score: number; flubs: number }
+  | { kind: 'session_done'; region_id: string; takes: number; comp_take_id: string | null; best_take_id: string | null }
   | { kind: 'ab_result'; test_id: string; ranking: string[] }
   | { kind: 'flub'; flub_id: string; flub_kind: 'flub' | 'good' | 'note'; beat: number; bar: number; track_id?: string };
 

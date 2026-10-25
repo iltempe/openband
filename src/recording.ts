@@ -13,6 +13,7 @@ import { scalePitchClasses } from './analysis/key';
 import { emitStudioEvent } from './events';
 import { beginFlubTake, bindPendingFlubs, flushPendingFlubs } from './flubLive';
 import { monitorLatency, punchComposite, recordingPlan, splitPasses, type Punch } from './punch';
+import { silenceSpans } from './session/score';
 import { needsProcessing } from './audio/processed';
 import { nextTakeName, withTakes } from './takes';
 import { t } from './i18n';
@@ -90,6 +91,8 @@ export interface RecSetup {
   punch: Punch;
   /** Hear the input while recording (with the device's latency). */
   monitor: boolean;
+  /** Its level in the headphones, dB (voice: "more me"); listening only, never recorded. */
+  monitorDb?: number;
 }
 export const useRecSetup = create<RecSetup>(() => ({ deviceId: null, devices: [], armed: {}, punch: { enabled: false, inBeat: 0, outBeat: 8, preRollBars: 1 }, monitor: false }));
 
@@ -128,7 +131,15 @@ export interface RecordOptions {
   bars?: number;
   /** Use the armed tracks, the punch range and loop recording (default true for audio). */
   useSetup?: boolean;
+  /** Loop recording: stop by itself after this many passes (Session mode). */
+  passes?: number;
 }
+
+/**
+ * When a voice command was said during a take (performance.now() ms, from push-to-talk): those stretches
+ * are silenced in the take (10 ms fades), so "mark error" never ends up in the mix (G4).
+ */
+export const spokenSpans: { from: number; to: number }[] = [];
 
 export interface RecordResult {
   region_id: string;
@@ -174,9 +185,13 @@ export async function recordFromMic(o: RecordOptions): Promise<RecordResult> {
   node.connect(sink).connect(ctx.destination);
   // Optional input monitoring, with a word about its latency.
   let monitorGain: GainNode | null = null;
+  let stopMonitorWatch: (() => void) | undefined;
   if (setup.monitor) {
     monitorGain = ctx.createGain();
+    monitorGain.gain.value = 10 ** ((setup.monitorDb ?? 0) / 20);
     source.connect(monitorGain).connect(ctx.destination);
+    const g = monitorGain;
+    stopMonitorWatch = useRecSetup.subscribe((s) => g.gain.setTargetAtTime(10 ** ((s.monitorDb ?? 0) / 20), ctx.currentTime, 0.02));
     const lat = monitorLatency(ctx.baseLatency || 0, ctx.outputLatency || 0);
     if (lat.noticeable) st.notify(t('rec.monitorLatency', { ms: lat.ms }));
   }
@@ -200,7 +215,9 @@ export async function recordFromMic(o: RecordOptions): Promise<RecordResult> {
   session = { stop: () => void (stopped = true) };
   const t0 = await engine.playWithCountIn(plan.countInBeats);
   st.set({ isPlaying: true });
-  const endTime = plan.keepTo !== Infinity ? t0 + plan.keepTo + (punch ? FADE + 0.05 : 0) : Infinity;
+  const loopLen = (p.loop.end - p.loop.start) * spb;
+  const endTime = plan.keepTo !== Infinity ? t0 + plan.keepTo + (punch ? FADE + 0.05 : 0) : loopRec && o.passes ? t0 + plan.keepFrom + o.passes * loopLen : Infinity;
+  spokenSpans.length = 0;
   const recordFrom = t0 + plan.keepFrom;
 
   await new Promise<void>((resolve) => {
@@ -228,6 +245,7 @@ export async function recordFromMic(o: RecordOptions): Promise<RecordResult> {
   source.disconnect();
   node.disconnect();
   monitorGain?.disconnect();
+  stopMonitorWatch?.();
   session = null;
   useMic.setState({ state: 'processing', level: 0 });
 
@@ -237,11 +255,18 @@ export async function recordFromMic(o: RecordOptions): Promise<RecordResult> {
     const latency = (ctx.outputLatency || 0) + (ctx.baseLatency || 0) + useMic.getState().offsetMs / 1000;
     const lead = punch ? FADE : 0;
     const fromS = Math.max(0, Math.round((recordFrom - lead + latency - chunks[0].t) * ctx.sampleRate));
+    // The spoken spans on the context's clock, with 50 ms of margin each side.
+    const stamp = ctx.getOutputTimestamp?.();
+    const toCtx = (perf: number) => (stamp?.contextTime ?? ctx.currentTime) + (perf - (stamp?.performanceTime ?? performance.now())) / 1000;
+    const spoken = spokenSpans.splice(0).map((s) => ({ from: toCtx(s.from) - 0.05, to: toCtx(s.to) + 0.05 }));
     const channelPcm = (c: number) => {
       const all = new Float32Array(chunks.length * 2048);
       chunks.forEach((ch, i) => all.set(ch.d[Math.min(c, ch.d.length - 1)], i * 2048));
       const toS = Math.min(all.length, endTime === Infinity ? all.length : Math.round((endTime + latency - chunks[0].t) * ctx.sampleRate));
-      return all.subarray(fromS, toS);
+      const pcm = all.subarray(fromS, toS);
+      // Voice commands said during the take: silenced (input clock: no output latency to add).
+      if (spoken.length) silenceSpans(pcm, spoken.map((s) => ({ from: (s.from - chunks[0].t) * ctx.sampleRate - fromS, to: (s.to - chunks[0].t) * ctx.sampleRate - fromS })), Math.round(0.01 * ctx.sampleRate));
+      return pcm;
     };
     const tx = useStore.getState().beginTransaction(o.mode === 'hum' ? 'Hummed melody' : punch ? 'Punch-in' : 'Audio recording', 'ui');
     try {
@@ -259,13 +284,14 @@ export async function recordFromMic(o: RecordOptions): Promise<RecordResult> {
           first ??= { region: getRegion(useStore.getState().project, r.region_id)!, seconds: pcm.length / ctx.sampleRate };
           continue;
         }
-        if (loopRec && track !== undefined) {
+        if (loopRec) {
           const pass = Math.round((p.loop.end - p.loop.start) * spb * ctx.sampleRate);
           const passes = splitPasses(pcm, pass);
           if (passes.length > 1) {
-            const r = await loopTakes(track.id, passes, ctx.sampleRate, name, p.loop.start, p.loop.end - p.loop.start);
-            recorded.push({ track_id: track.id, ...r });
-            first ??= { region: getRegion(useStore.getState().project, r.region_id)!, seconds: pass / ctx.sampleRate };
+            const r = await loopTakes(track?.id, passes, ctx.sampleRate, name, p.loop.start, p.loop.end - p.loop.start);
+            const made = getRegion(useStore.getState().project, r.region_id)!;
+            recorded.push({ track_id: made.trackId, ...r });
+            first ??= { region: made, seconds: pass / ctx.sampleRate };
             continue;
           }
         }

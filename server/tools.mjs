@@ -633,6 +633,22 @@ tool('clear_reference', 'Remove the reference track from the project.', {});
 
 // ---- recording
 
+tool('set_voice_control', 'Hands-free studio: the user commands the studio by voice while holding push-to-talk (the ` key or a MIDI pedal) — record, stop, again, play back, from the chorus / bar N, loop, punch, mark error / good, keep / delete the take, metronome, tempo, headphone levels, undo (Italian and English). Recognition runs in the browser with Vosk, offline (a one-time model download of 40–50 MB per language, which the user agrees to in the studio), or with the browser\'s Web Speech API (engine "webspeech": on some browsers the audio goes to an online service). Each command arrives as a "voice_command" event; a phrase outside the commands arrives as an "ask" event with context.voice. Turn it on only when the user asks.', {
+  enabled: z.boolean().optional(),
+  engine: z.enum(['vosk', 'webspeech']).optional(),
+  language: z.enum(['it', 'en']).optional(),
+  push_to_talk_cc: z.number().int().min(0).max(127).nullable().optional().describe('A MIDI CC held to talk (a pedal); null removes it'),
+  feedback: z.boolean().optional().describe('Spoken answers ("Take recorded"), never while recording'),
+});
+tool('start_session', 'Session mode: loop a section (or bars) with a count-in and record N passes as takes (the user plays or sings; flubs marked by voice, pedal or key attach to the take). Then every take is scored bar by bar — pitch against the guide melody, timing against the grid, clipping (MIDI: timing, notes out of the key) — and the best bar of each is comped into a "Session comp" take, made active; compare it with the best single take with start_ab_test. Answers when the passes are done (or stop_session). Start it only when the user asks.', {
+  section_id: z.string().optional(),
+  from_bar: z.number().int().min(1).optional(),
+  to_bar: z.number().int().min(1).optional().describe('Last bar (inclusive)'),
+  passes: z.number().int().min(1).max(16).optional().describe('Default 5'),
+  track_id: z.string().optional().describe('The audio track to record on (default: armed tracks, or a new one)'),
+}, { timeout: 1800000 });
+tool('stop_session', 'Stop the running session ("that\'s enough"): the passes recorded so far are kept, scored and comped.', {});
+tool('get_session', 'The last session: its takes with their scores (overall and per bar), flubs, the comp and the best single take.', {}, readOnly);
 tool('record_audio', 'Record from the user\'s microphone or audio interface, with a one-bar count-in, starting at start_bar. The user is always asked to confirm in the studio first (returns {recorded:false} if they decline). mode "audio" makes an audio region; mode "hum" also turns the hummed/sung melody into MIDI notes on a new instrument track (the audio is kept, muted). Without bars, recording runs until the user presses stop. With the setup (use_setup, default true for audio): armed tracks (arm_track) record together, each from its input; a punch range (set_punch) records only between in and out after a pre-roll, as a new take of the clip there; with the cycle on, every pass becomes a take.', {
   mode: z.enum(['audio', 'hum']).optional(),
   track_id: z.string().optional().describe('Audio track to record onto (default: a new one; ignored when tracks are armed)'),
@@ -667,7 +683,7 @@ tool('audio_to_midi', 'Convert a monophonic audio region (voice, whistle, bass, 
 
 // ---- studio → AI events (answered by this server, not the studio)
 
-const EventKind = z.enum(['phrase', 'selection', 'transport', 'user_edit', 'region_recorded', 'ask', 'ab_result', 'flub']);
+const EventKind = z.enum(['phrase', 'selection', 'transport', 'user_edit', 'region_recorded', 'ask', 'ab_result', 'flub', 'voice_command', 'session_take', 'session_done']);
 
 special('get_events', 'What the user has been doing in the studio, oldest first: phrases played live (notes in beats from the phrase\'s first bar), selection changes, transport, finished edits, recorded regions and questions asked with "Ask the AI". Pass since_id (the last_id you got) to get only new ones.', { since_id: z.number().int().optional(), kinds: z.array(EventKind).optional(), limit: z.number().int().min(1).max(500).optional() }, 'events_list', readOnly);
 
@@ -849,7 +865,7 @@ export const TOOLSETS = {
   structure: { description: 'Sections (add, move, duplicate with ripple), automatic sections, the energy curve and transitions', tools: ['add_section', 'update_section', 'delete_section', 'move_section', 'duplicate_section', 'auto_sections', 'set_energy_curve', 'get_energy', 'add_transition'] },
   mix: { description: 'Effects per track, master chain, the mix pilot\'s knob, automation, meters and listening (analyze_mix, spectrogram), reference tracks', tools: ['set_track_effects', 'set_master_chain', 'set_pilot_amount', 'fix_pilot', 'set_track_role', 'set_automation', 'clear_automation', 'list_automatable', 'get_meters', 'set_monitoring', 'level_match', 'analyze_mix', 'render_spectrogram', 'import_reference', 'compare_to_reference', 'clear_reference'] },
   analysis: { description: 'Harmony and key analysis, the song linter and its fixes', tools: ['analyze_harmony', 'detect_key', 'lint_project', 'apply_fix', 'ignore_issue'] },
-  recording: { description: 'Recording audio and MIDI, punch-in, takes and comping, blind A/B tests, flub marks', tools: ['record_audio', 'arm_track', 'set_punch', 'audio_to_midi', 'add_take', 'list_takes', 'set_active_take', 'delete_take', 'comp_takes', 'start_ab_test', 'add_flub', 'list_flubs', 'resolve_flub', 'delete_flub', 'replace_with_best_take'] },
+  recording: { description: 'Recording audio and MIDI, punch-in, takes and comping, blind A/B tests, flub marks', tools: ['record_audio', 'arm_track', 'set_punch', 'audio_to_midi', 'add_take', 'list_takes', 'set_active_take', 'delete_take', 'comp_takes', 'start_ab_test', 'add_flub', 'list_flubs', 'resolve_flub', 'delete_flub', 'replace_with_best_take', 'set_voice_control', 'start_session', 'stop_session', 'get_session'] },
   versions: { description: 'History, versions and branches, merge, the time machine', tools: ['get_history', 'save_version', 'list_versions', 'create_branch', 'checkout', 'diff_versions', 'merge', 'get_timeline', 'preview_at', 'restore_at'] },
   lyrics: { description: 'Lyrics, aligning them to the melody, prosody, chord sheets', tools: ['set_lyrics', 'get_lyrics', 'align_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet'] },
   plugins: { description: 'WAM plugins and the user\'s installed VST3 / CLAP / AU plugins', tools: ['list_plugins', 'search_plugins', 'list_native_plugins', 'rescan_plugins', 'add_plugin', 'add_plugin_instrument', 'add_plugin_effect', 'remove_plugin_effect', 'set_plugin_bypass', 'get_plugin_params', 'set_plugin_params', 'show_plugin'] },

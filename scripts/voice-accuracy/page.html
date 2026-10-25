@@ -1,0 +1,29 @@
+<!doctype html><meta charset="utf-8"><script src="vosk.js"></script>
+<script type="module">
+import { parseCommand, vocabulary } from './grammar.js';
+import { setVoskSources, voskModelUrl } from './models.js';
+window.run = async (lang, src) => {
+  setVoskSources({ [lang]: src });
+  const m = await Vosk.createModel(await voskModelUrl(lang, true));
+  const list = (await (await fetch('list.json')).json()).filter((x) => x.lang === lang);
+  const out = [];
+  for (const f of list) {
+    const ab = await (await fetch(f.file)).arrayBuffer();
+    const dv = new DataView(ab);
+    const pcm = new Float32Array((ab.byteLength - 44) / 2);
+    for (let i = 0; i < pcm.length; i++) pcm[i] = dv.getInt16(44 + i * 2, true) / 32768;
+    const rec = new m.KaldiRecognizer(16000, JSON.stringify([...vocabulary(lang), '[unk]']));
+    const texts = [];
+    const done = new Promise((r) => rec.on('result', (msg) => (texts.push(msg.result.text), r())));
+    const pad = new Float32Array(8000);
+    for (const part of [pad, pcm, pad, pad]) for (let i = 0; i < part.length; i += 4096) rec.acceptWaveformFloat(part.subarray(i, i + 4096), 16000);
+    rec.retrieveFinalResult();
+    await Promise.race([done, new Promise((r) => setTimeout(r, 4000))]);
+    const heard = texts.filter(Boolean).join(' ').replace(/\[unk\]/g, '').trim();
+    out.push({ text: f.text, voice: f.voice, heard, ok: JSON.stringify(parseCommand(f.text, lang)) === JSON.stringify(parseCommand(heard, lang)) });
+    rec.remove();
+  }
+  m.terminate();
+  return out;
+};
+</script>

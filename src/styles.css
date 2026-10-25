@@ -5809,3 +5809,68 @@ div.ca-steps {
 .en-separate progress {
   width: 160px;
 }
+.voice-btn.on {
+  color: var(--accent);
+}
+.voice-btn.listening {
+  color: #fff;
+  background: rgba(255, 77, 94, 0.85);
+  box-shadow: 0 0 0 4px rgba(255, 77, 94, 0.25);
+}
+.voice-menu {
+  width: 340px;
+  padding: 10px 12px;
+}
+.vc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+.vc-row select {
+  margin-left: auto;
+}
+.vc-row progress {
+  width: 110px;
+}
+.vc-help {
+  font-size: 11px;
+  opacity: 0.75;
+}
+.vc-error {
+  color: #ff8a95;
+}
+.voice-btn {
+  position: relative;
+}
+.vc-level {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 3px;
+  height: 3px;
+  border-radius: 2px;
+  background: #fff;
+  transform-origin: left;
+  transition: transform 0.08s linear;
+}
+.take-score {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  background: rgba(255, 255, 255, 0.08);
+}
+.take-score.good {
+  color: #6ee7a8;
+}
+.take-score.ok {
+  color: #fcd34d;
+}
+.take-score.low {
+  color: #ff8a95;
+}
+.rec-session input[type='number'] {
+  width: 46px;
+}

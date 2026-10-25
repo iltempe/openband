@@ -42,6 +42,8 @@ export interface Take {
   audio?: AudioClip;
   createdAt: number;
   author: 'user' | 'ai';
+  /** Session mode's score, 0..100 (G4). */
+  score?: number;
 }
 
 export interface AudioClip {

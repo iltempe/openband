@@ -25,7 +25,8 @@ export function contentSecurityPolicy({ collab = DEFAULT_COLLAB, extraConnect = 
     'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
     'img-src': ["'self'", 'data:', 'blob:', WAM_HOST],
     'media-src': ["'self'", 'data:', 'blob:'],
-    'connect-src': ["'self'", 'ws://127.0.0.1:*', 'ws://localhost:*', 'http://127.0.0.1:*', 'http://localhost:*', ...AI_APIS, ...RELAY_HOSTS, ...MODEL_HOSTS, WAM_HOST, ...collab, ...extraConnect],
+    // blob:: in-browser engines load the models this page downloaded and checked (Vosk's worker fetches them).
+    'connect-src': ["'self'", 'blob:', 'ws://127.0.0.1:*', 'ws://localhost:*', 'http://127.0.0.1:*', 'http://localhost:*', ...AI_APIS, ...RELAY_HOSTS, ...MODEL_HOSTS, WAM_HOST, ...collab, ...extraConnect],
     'object-src': ["'none'"],
     'base-uri': ["'self'"],
     'frame-ancestors': ["'self'"],

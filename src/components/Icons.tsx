@@ -26,6 +26,10 @@ export const Record = (p: I) => (
 export const Mic = (p: I) => (
   <svg {...base(p)}><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" /></svg>
 );
+/** A microphone with sound coming from it: voice commands (the plain Mic is recording). */
+export const Voice = (p: I) => (
+  <svg {...base(p)}><rect x="7" y="3" width="5.5" height="10" rx="2.75" /><path d="M4 10.5a5.75 5.75 0 0 0 11.5 0M9.75 16.5V20" /><path d="M17.5 7.5c1 1.1 1.5 2.3 1.5 3.6s-.5 2.5-1.5 3.6M20 5c1.6 1.8 2.4 3.9 2.4 6.1s-.8 4.3-2.4 6.1" /></svg>
+);
 export const People = (p: I) => (
   <svg {...base(p)}><circle cx="9" cy="8" r="3.2" /><path d="M3 19.5c.6-3.3 3-5 6-5s5.4 1.7 6 5" /><circle cx="17" cy="9" r="2.4" /><path d="M16.5 14.6c2.3.2 3.9 1.7 4.5 4.4" /></svg>
 );

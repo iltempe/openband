@@ -537,6 +537,13 @@ class AudioEngine {
   }
 
   /** Mono sum and dim: what you hear only — exports render their own graph without them. */
+  /** The click's level, dB from its default (voice: "metronome louder"); listening only. */
+  clickDb = 0;
+  setClickLevel(db: number) {
+    this.clickDb = Math.max(-24, Math.min(12, db));
+    if (this.click) this.click.volume.value = -8 + this.clickDb;
+  }
+
   setMonitoring(m: Partial<{ mono: boolean; dim: boolean; trimDb: number }>) {
     this.monitoring = { ...this.monitoring, ...m };
     if (this.ready) this.applyMonitoring();

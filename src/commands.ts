@@ -1504,6 +1504,15 @@ export const commands: Record<string, (args: P) => unknown> = {
   transform: (args) => transformPart(args as TransformArgs),
   separate: (args) => separateRegion(args as SeparateArgs),
   sing: (args) => singPart(args as SingArgs),
+  start_session: async (args) => (await import('./session/session')).startSession(args as import('./session/session').SessionArgs),
+  stop_session: async () => (await import('./session/session')).stopSession(),
+  get_session: async () => (await import('./session/session')).summary(),
+  set_voice_control: async ({ enabled, engine: eng, language, push_to_talk_cc, feedback }) => {
+    const { setVoiceControl, useVoice } = await import('./voice/control');
+    setVoiceControl({ ...(enabled !== undefined ? { enabled } : {}), ...(eng ? { engine: eng } : {}), ...(language ? { lang: language } : {}), ...(push_to_talk_cc !== undefined ? { pushToTalkCc: push_to_talk_cc } : {}), ...(feedback !== undefined ? { feedback } : {}) });
+    const v = useVoice.getState();
+    return { enabled: v.enabled, engine: v.engine, language: v.lang, push_to_talk: v.pushToTalkCc !== null ? `MIDI CC ${v.pushToTalkCc}, or hold the \` key` : 'hold the ` key', feedback: v.feedback, ...(v.engine === 'webspeech' ? { note: 'Web Speech: on some browsers the audio goes to an online service; Vosk keeps it on this computer.' } : {}) };
+  },
   // The Song Context Package (§3): what an engine — or the director — needs to know about the song.
   get_context: async ({ section_id, from_bar, to_bar }) => {
     const p = st().project;

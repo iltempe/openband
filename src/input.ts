@@ -10,6 +10,7 @@ import { PhraseSegmenter } from './phrases';
 import { emitStudioEvent } from './events';
 import { takesFromPasses, type PassNote } from './takes';
 import { beginFlubTake, bindPendingFlubs, flushPendingFlubs, onControlChange } from './flubLive';
+import { voiceCC } from './voice/control';
 
 /** Musical typing layout, semitone offsets from the current octave's C. */
 export const TYPING_KEYS: Record<string, number> = {
@@ -190,7 +191,8 @@ export function initMidi() {
             if (cmd === 0x90 && d2 > 0) liveNoteOn(d1, d2 / 127);
             else if (cmd === 0x80 || (cmd === 0x90 && d2 === 0)) liveNoteOff(d1);
             // A pedal (CC64 by default, or the one learned) marks a flub while recording.
-            else if (cmd === 0xb0) onControlChange(d1, d2);
+            // A pedal held to talk (G4) is the voice's; otherwise the flub pedal's (F18).
+            else if (cmd === 0xb0 && !voiceCC(d1, d2)) onControlChange(d1, d2);
           };
         });
       const list = () => setMidiInputs([...access.inputs.values()].map((i) => i.name ?? 'MIDI input'));

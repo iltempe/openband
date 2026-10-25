@@ -1081,6 +1081,169 @@ tests.diffsinger = async () => {
   }
 };
 
+// G4a: voice commands. In CI: what each spoken command does (the phrases go in as heard). With
+// OPENBAND_VOSK_DIR=<folder with it.zip, the official vosk-model-small-it-0.22> also for real: Vosk in the
+// page, a fake microphone saying "dalla battuta nove" (macOS say), push-to-talk held on the ` key.
+tests.voice = async () => {
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    const r = await p.evaluate(async () => {
+      const { commands, useStore, engine, voice } = window.openband;
+      await commands.new_project({ name: 'Voce', bpm: 100, key: 'C' });
+      await commands.transport({ action: 'stop' });
+      await commands.add_section({ name: 'Strofa', kind: 'verse', start_bar: 1, length_bars: 4 });
+      await commands.add_section({ name: 'Ritornello', kind: 'chorus', start_bar: 5, length_bars: 4 });
+      voice.setVoiceControl({ enabled: true, lang: 'it', feedback: false });
+      const said = async (text) => (await voice.handleHeard({ text, from: 0, to: 0 })).answer;
+      const out = {};
+      out.chorus = [await said('dal ritornello'), engine.position];
+      out.bar = [await said('dalla battuta nove'), engine.position];
+      out.loop = [await said('loop sul ritornello'), useStore.getState().project.loop];
+      await said('punch dalla nove alla dodici');
+      out.flub = [await said('segna errore'), (useStore.getState().project.flubs ?? []).length];
+      await said('tempo novanta');
+      out.slower = [await said('più lento'), useStore.getState().project.bpm];
+      await said('metronomo più forte');
+      out.click = [engine.clickDb, useStore.getState().project.metronome];
+      out.off = [await said('metronomo via'), useStore.getState().project.metronome];
+      out.basi = [await said('meno basi'), engine.monitoring.trimDb];
+      out.undo = [await said('annulla'), useStore.getState().project.bpm];
+      out.unknown = await said('che bella giornata');
+      voice.setVoiceControl({ lang: 'en' });
+      out.en = [await said('from the chorus'), engine.position];
+      return out;
+    });
+    check(r.chorus[1] === 16 && r.bar[1] === 32, `"dal ritornello" and "dalla battuta nove" move the playhead (${r.chorus.join(' @ ')}; ${r.bar.join(' @ ')})`);
+    check(r.loop[1]?.enabled && r.loop[1].start === 16 && r.loop[1].end === 32, `"loop sul ritornello" loops the chorus (${JSON.stringify(r.loop[1])})`);
+    check(r.flub[1] === 1 && r.slower[1] === 85, `"segna errore" marks a flub, "tempo novanta" then "più lento" → ${r.slower[1]} BPM`);
+    check(r.click[0] === 3 && r.click[1] === true && r.off[1] === false && r.basi[1] === -3, `the click: louder (+${r.click[0]} dB) then off; "meno basi" → playback ${r.basi[1]} dB in the headphones`);
+    check(r.undo[1] === 90, `"annulla" undoes the last change ("più lento": back to ${r.undo[1]} BPM)`);
+    check(/I comandi sono/.test(r.unknown) && /AI/.test(r.unknown), `a phrase that isn't a command goes to a listening AI and gets the list (${r.unknown.slice(0, 40)}…)`);
+    check(r.en[1] === 16, `in English too ("${r.en[0]}")`);
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+  const dir = process.env.OPENBAND_VOSK_DIR;
+  if (!dir) return console.log('  (real recognition: set OPENBAND_VOSK_DIR to a folder with it.zip to run it)');
+  const http = await import('node:http');
+  const os = await import('node:os');
+  const { execFileSync } = await import('node:child_process');
+  // The fake microphone loops this file: the phrase, then silence.
+  const wav = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ob-voice-')), 'mic.wav');
+  execFileSync('say', ['-v', 'Alice', '-o', wav, '--data-format=LEI16@48000', '[[slnc 500]] dalla battuta nove [[slnc 4000]]']);
+  const zip = fs.readFileSync(path.join(dir, 'it.zip'));
+  const host = http.createServer((q, res) => (res.writeHead(200, { 'access-control-allow-origin': '*', 'content-length': zip.length }), res.end(zip)));
+  const hostUrl = await new Promise((ok) => host.listen(0, '127.0.0.1', () => ok(`http://127.0.0.1:${host.address().port}/it.zip`)));
+  const srv2 = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b2 = await puppeteer.launch({ executablePath: chrome, headless: true, protocolTimeout: 600000, args: ['--autoplay-policy=no-user-gesture-required', '--no-sandbox', '--disable-audio-output', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-audio-capture=${wav}`, '--disable-background-timer-throttling', '--disable-renderer-backgrounding'] });
+  try {
+    const p = await (await b2.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.evaluate(async (src) => {
+      const { commands, voice } = window.openband;
+      await commands.new_project({ name: 'Voce', bpm: 100, key: 'C' });
+      await commands.transport({ action: 'stop' });
+      voice.setVoskSources({ it: src });
+      voice.setVoiceControl({ enabled: true, lang: 'it', feedback: false });
+      localStorage.setItem('openband.voice.consent.it', src.sha256);
+    }, { name: 'vosk-model-small-it-0.22', url: hostUrl, sha256: crypto.createHash('sha256').update(zip).digest('hex'), bytes: zip.length });
+    // First press loads the model (downloaded and repacked once); then hold for a whole loop of the file.
+    await p.keyboard.down('`');
+    await new Promise((r) => setTimeout(r, 1500));
+    await p.keyboard.up('`');
+    await p.waitForFunction(() => !window.openband.voice.useVoice.getState().listening, { timeout: 300000 });
+    await p.keyboard.down('`');
+    await new Promise((r) => setTimeout(r, 6500));
+    await p.keyboard.up('`');
+    await p.waitForFunction(() => /9/.test(window.openband.voice.useVoice.getState().answer), { timeout: 30000 }).catch(() => {});
+    const v = await p.evaluate(() => ({ ...window.openband.voice.useVoice.getState(), position: window.openband.engine.position }));
+    check(v.position === 32, `for real: Vosk hears "${v.heard}" through the microphone while \` is held → ${v.answer} (playhead at beat ${v.position})${v.error ? `; error: ${v.error}` : ""}; ${v.chunks} chunks heard`);
+  } finally {
+    await b2.close();
+    srv2.kill();
+    host.close();
+  }
+};
+
+// G4b: Session mode. A real session through the (fake) microphone: N passes become N scored takes. And the
+// spec's acceptance: five takes with flubs marked → the comp takes, bar by bar, the takes without one.
+tests.session = async () => {
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await puppeteer.launch({ executablePath: chrome, headless: true, protocolTimeout: 600000, args: ['--autoplay-policy=no-user-gesture-required', '--no-sandbox', '--disable-audio-output', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--disable-background-timer-throttling', '--disable-renderer-backgrounding'] });
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    const real = await p.evaluate(async () => {
+      const { commands, useStore } = window.openband;
+      await commands.new_project({ name: 'Sessione', bpm: 240, key: 'C' });
+      await commands.transport({ action: 'stop' });
+      await commands.add_section({ name: 'Strofa', kind: 'verse', start_bar: 1, length_bars: 1 });
+      const sec = useStore.getState().project.sections[0];
+      const r = await commands.start_session({ section_id: sec.id, passes: 3 }).catch((e) => ({ error: e.message, loop: useStore.getState().project.loop, regions: useStore.getState().project.regions.map((x) => ({ len: x.length, takes: x.takes?.length, start: x.start })) }));
+      if (r.error) return { r, takes: [] };
+      const region = useStore.getState().project.regions.find((x) => x.id === r.region_id);
+      return { r, takes: region.takes.map((t) => ({ name: t.name, score: t.score })) };
+    });
+    if (real.r.error) console.log('  debug:', JSON.stringify(real.r));
+    check(real.r.takes?.length === 3 && real.takes.filter((t) => typeof t.score === 'number').length === 3, `a session of 3 passes through the microphone: 3 takes, each scored (${real.takes.map((t) => `${t.name} ${t.score ?? '-'}`).join(', ')})`);
+
+    const acc = await p.evaluate(async () => {
+      const { commands, useStore, samples, session } = window.openband;
+      await commands.new_project({ name: 'Comp', bpm: 120, key: 'C' });
+      // A guide melody (E4 for four bars) and five sung takes of it; take 3 is the most in tune, take 1 the least.
+      const { track_id: lead } = await commands.add_track({ kind: 'instrument', instrument: 'felt-piano', name: 'Guide' });
+      await commands.update_track({ track_id: lead, name: 'Guide' });
+      useStore.getState().commit((d) => void (d.tracks.find((t) => t.id === lead).role = 'lead'));
+      await commands.add_region({ track_id: lead, start_bar: 1, length_bars: 4, notes: [{ pitch: 64, start: 0, duration: 16, velocity: 0.8 }] });
+      const sr = 22050;
+      const sung = (cents) => {
+        const n = sr * 8;
+        const x = Float32Array.from({ length: n }, (_, i) => 0.3 * Math.sin((2 * Math.PI * 329.63 * 2 ** (cents / 1200) * i) / sr));
+        const dv = new DataView(new ArrayBuffer(44 + n * 2));
+        const w = (o, s) => [...s].forEach((c, i) => dv.setUint8(o + i, c.charCodeAt(0)));
+        w(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+        dv.setUint32(24, sr, true); dv.setUint32(28, sr * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, 'data'); dv.setUint32(40, n * 2, true);
+        for (let i = 0; i < n; i++) dv.setInt16(44 + i * 2, x[i] * 32767, true);
+        return dv.buffer;
+      };
+      const cents = [45, 25, 5, 20, 15];
+      const infos = [];
+      for (const [i, c] of cents.entries()) infos.push(await samples.importSample(sung(c), `take ${i + 1}.wav`));
+      const { region_id } = await commands.add_audio_region({ sample_id: infos[0].id, start_bar: 1, length_bars: 4 });
+      useStore.getState().commit((d) => {
+        const r = d.regions.find((x) => x.id === region_id);
+        r.takes = infos.map((info, i) => ({ id: `tk${i + 1}`, name: `Take ${i + 1}`, notes: [], audio: { sampleId: info.id, offset: 0, gain: 1 }, createdAt: i, author: 'user' }));
+        r.activeTakeId = 'tk5';
+        // Simulated flubs: take 3 (the best) slips in bar 2, take 5 in bar 4.
+        d.flubs = [
+          { id: 'f1', beat: 5.5, regionId: region_id, takeId: 'tk3', trackId: r.trackId, kind: 'flub', createdAt: 1 },
+          { id: 'f2', beat: 13.2, regionId: region_id, takeId: 'tk5', trackId: r.trackId, kind: 'flub', createdAt: 2 },
+        ];
+      });
+      const out = await session.scoreAndComp(region_id);
+      const r = useStore.getState().project.regions.find((x) => x.id === region_id);
+      return { comp: out.comp, takes: out.takes.map((t) => [t.name, t.score, t.flubs]), active: r.activeTakeId, activeName: r.takes.find((t) => t.id === r.activeTakeId)?.name };
+    });
+    const from = acc.comp?.from_takes ?? [];
+    check(from.length === 4 && from[1] !== 'tk3' && from[3] !== 'tk5', `five takes with flubs: the comp takes, bar by bar, ${from.join(' · ')} — never a take where it slipped`);
+    check(from[0] === 'tk3' && from[2] === 'tk3', 'and elsewhere the most in-tune take (3)');
+    check(acc.active === acc.comp?.take_id, `the comp is the active take ("${acc.activeName}"), scores beside the takes (${acc.takes.map((t) => `${t[0]} ${t[1]}`).join(', ')})`);
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);

@@ -115,6 +115,11 @@ export function TakesDialog() {
                 <span className="take-dot" style={{ background: colorOf(tk.id) }} />
                 {tk.name}
                 <small>{tk.author === 'ai' ? 'AI' : ''}</small>
+                {tk.score !== undefined && (
+                  <span className={`take-score ${tk.score >= 80 ? 'good' : tk.score >= 60 ? 'ok' : 'low'}`} title={t('take.scoreHint')}>
+                    {tk.score}
+                  </span>
+                )}
               </button>
               <div className="take-lane" onPointerDown={(e) => startComp(e, tk.id)}>
                 {!tk.audio && <Mini take={tk} length={region.length} />}
