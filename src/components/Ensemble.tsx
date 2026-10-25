@@ -6,6 +6,8 @@ import { useT, type MessageKey } from '../i18n';
 import { runCommand } from '../commands';
 import { useBridge } from '../bridge';
 import { allEngines, builtinEngines, refreshEngines, setPolicy, useEnsemble } from '../ensemble/engines';
+import { relayEngines, relaySettings, setRelay } from '../ensemble/relay';
+import { estimate, spending } from '../ensemble/budget';
 import { exclusion, inferCapability, route, type EngineInfo } from '../ensemble/router';
 import { shares } from '../ensemble/ledger';
 import type { Region } from '../types';
@@ -165,6 +167,11 @@ export function CreateDialog() {
               ))}
             </select>
           </label>
+          {routed?.candidates[0] && (() => {
+            const pick = routed.candidates.find((c) => c.id === engine) ?? routed.candidates[0];
+            const usd = pick.manifest.runtime.pricing ? estimate(pick, capability, { scp: '1.0', song: { bpm: p.bpm, meter: '4/4', key: p.key, length_bars: 8 }, scope: where === 'bars' ? { from_bar: bars.from, to_bar: bars.to + 1 } : { from_bar: 1, to_bar: 9 } }, variants) : 0;
+            return usd > 0 ? <div className="en-quote">{t('on.quote', { usd: usd.toFixed(4), n: variants, engine: pick.manifest.engine.name })}</div> : null;
+          })()}
           <div className="en-cap">
             {capability}
             {routed && !routed.candidates.length && <span className="ca-problem">{t('en.noEngine')}</span>}
@@ -193,7 +200,7 @@ export function EnsemblePanel() {
   useEffect(() => {
     void refreshEngines(true);
   }, [hasEngines]);
-  const engines = [...builtinEngines(), ...external];
+  const engines = [...builtinEngines(), ...external, ...relayEngines()];
   const ledger = [...(p.ledger ?? [])].reverse();
   const share = shares(p).filter((s) => s.bars > 0);
   const firstExclusion = (e: EngineInfo) => {
@@ -248,6 +255,7 @@ export function EnsemblePanel() {
         </ul>
         <p className="ca-note">{hasEngines ? t('en.addHint') : t('en.noServer')}</p>
       </section>
+      <OnlineEngines engines={engines.filter((e) => e.manifest.runtime.where === 'cloud')} />
       <section>
         <h4>{t('en.share')}</h4>
         {share.length ? (
@@ -293,5 +301,82 @@ export function EnsemblePanel() {
         )}
       </section>
     </div>
+  );
+}
+
+/** Online engines (§9-bis): the relay for the online studio, the budget, and what each engine sends. */
+function OnlineEngines({ engines }: { engines: EngineInfo[] }) {
+  const t = useT();
+  const policy = useEnsemble((e) => e.policy);
+  const [relay, setRelayForm] = useState(() => relaySettings() ?? { url: '', token: '' });
+  const [msg, setMsg] = useState<string | null>(null);
+  const spent = spending();
+  if (!policy.allow_cloud) return null;
+  const save = () => {
+    try {
+      setRelay(relay.url && relay.token ? relay : null);
+      setMsg(relay.url ? t('on.relaySaved') : t('on.relayRemoved'));
+      useEnsemble.setState({ checkedAt: 0 });
+    } catch (e) {
+      setMsg((e as Error).message);
+    }
+  };
+  const accept = (id: string, on: boolean) => setPolicy({ accepted_conditions: on ? [...new Set([...policy.accepted_conditions, id])] : policy.accepted_conditions.filter((x) => x !== id) });
+  return (
+    <section className="en-online">
+      <h4>{t('on.title')}</h4>
+      <p className="ca-note">{t('on.relayNote')}</p>
+      <div className="en-relay">
+        <input placeholder="https://openband-relay.<you>.workers.dev" value={relay.url} onChange={(e) => setRelayForm({ ...relay, url: e.target.value })} onKeyDown={(e) => e.stopPropagation()} />
+        <input placeholder={t('on.token')} type="password" value={relay.token} onChange={(e) => setRelayForm({ ...relay, token: e.target.value })} onKeyDown={(e) => e.stopPropagation()} />
+        <button className="btn" onClick={save}>
+          {t('on.save')}
+        </button>
+        <a href="https://github.com/iltempe/openband/blob/main/deploy/relay/README.md" target="_blank" rel="noreferrer">
+          {t('on.howto')}
+        </a>
+      </div>
+      {msg && <p className="ca-note">{msg}</p>}
+      <div className="en-budget">
+        <label>
+          {t('on.session')}
+          <input type="number" min={0} step={0.5} value={policy.budget_session_usd} onChange={(e) => setPolicy({ budget_session_usd: Math.max(0, Number(e.target.value)) })} /> USD
+        </label>
+        <label>
+          {t('on.month')}
+          <input type="number" min={0} step={1} value={policy.budget_month_usd} onChange={(e) => setPolicy({ budget_month_usd: Math.max(0, Number(e.target.value)) })} /> USD
+        </label>
+        <span className="en-spent">{t('on.spent', { session: spent.session_usd.toFixed(4), month: spent.month_usd.toFixed(4) })}</span>
+      </div>
+      <ul className="en-engines">
+        {engines.map((e) => {
+          const d = e.manifest.runtime.data_policy;
+          const rights = e.manifest.runtime.output_rights;
+          const conditional = [e.manifest.license.commercial, rights?.commercial].includes('conditional');
+          return (
+            <li key={e.id}>
+              <div>
+                <b>{e.manifest.engine.name}</b> <span className="en-badge">{e.manifest.runtime.pricing ? `${e.manifest.runtime.pricing.usd} USD / ${e.manifest.runtime.pricing.unit}` : ''}</span>
+                {spent.byEngine[e.id] ? <span className="en-spent"> · {t('on.engineSpent', { usd: spent.byEngine[e.id].toFixed(4) })}</span> : null}
+              </div>
+              {d && (
+                <div className="en-data">
+                  {t(d.uploads_audio ? 'on.sendsAudio' : 'on.sendsText')} · {t('on.retention', { r: d.retention ?? '?' })} · {t('on.training', { v: d.training_on_inputs })} ·{' '}
+                  <a href={d.terms_url} target="_blank" rel="noreferrer">
+                    {t('on.terms')}
+                  </a>{' '}
+                  ({t('on.verified', { date: d.verified })})
+                </div>
+              )}
+              {conditional && (
+                <label className="en-toggle">
+                  <input type="checkbox" checked={policy.accepted_conditions.includes(e.id)} onChange={(ev) => accept(e.id, ev.target.checked)} /> {t('on.accept')}
+                </label>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

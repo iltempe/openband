@@ -72,6 +72,31 @@ Tra i motori rimasti, il router preferisce quelli che rispettano meglio le canzo
 dalla conformità e dalle correzioni che OpenBand ha dovuto fare), poi i più veloci; i motori di OpenBand
 vengono prima, salvo che un altro faccia meglio. Ogni motore escluso è elencato con il motivo.
 
+## Motori online (senza GPU)
+
+Anche i modelli musicali ospitati da **fal.ai** funzionano come motori, con lo stesso router, la stessa
+conformità e lo stesso registro, al prezzo di fal (ACE-Step: circa 0,0002 USD al secondo di musica, quindi
+uno strato di 30 secondi costa circa 0,006 USD; separazione degli stem con Demucs: 0,0007 USD al secondo).
+I modelli sono elencati in `omep/fal-catalog.json`; aggiungerne uno è aggiungere una voce lì.
+
+- **Con l'app desktop o il server locale**: metti la tua chiave fal in `~/.openband/engines.json`, non
+  lascia mai il tuo computer:
+  ```json
+  { "engines": { "fal-ace-step": { "builtin": "omep-fal", "model": "ace-step", "env": { "FAL_KEY": "…" } } } }
+  ```
+- **Nello studio online**: pubblica un tuo **relay** (un Cloudflare Worker o una funzione Vercel gratuiti,
+  pochi minuti: [deploy/relay](../deploy/relay/README.md)); tiene lui la chiave, la pagina conosce solo
+  l'indirizzo del relay e il tuo token. Poi *Ensemble → Motori online*: il relay, e i modelli compaiono.
+
+Prima di ogni esecuzione vedi un **preventivo** (*"Circa 0,0032 USD (1 × ACE-Step on fal), dal tuo
+budget"*); imposta un **budget per sessione e al mese**: oltre, nulla di online parte senza il tuo ok (l'AI
+deve chiedertelo e poi riprovare con `confirm_spend`). Quanto è costato ogni motore resta registrato. Ogni
+motore online dice cosa invia (solo testo, o l'audio della canzone), cosa conserva il fornitore, se gli
+input servono all'addestramento, i termini e quando sono stati verificati; i termini di fal sull'output
+sono *condizionati*, quindi li accetti una volta per motore. OpenBand porta anche quello che un motore
+restituisce a un livello di lavoro (−20 dBFS RMS, come guadagno della regione) e non inserisce audio muto
+o fatto solo di rumore; il clipping viene segnalato.
+
 ## Chi ha suonato cosa
 
 Ogni parte fatta da un motore ha una ✦ sulla regione e una voce nel **registro dei contributi**: motore,

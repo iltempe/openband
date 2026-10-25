@@ -4,7 +4,8 @@
 //   { "engines": {
 //       "ace-step":  { "command": "uvx", "args": ["omep-ace-step"], "env": { "DEVICE": "cuda" } },
 //       "studio-pc": { "url": "https://192.168.1.20:8765/mcp", "token": "…" },
-//       "mock":      { "builtin": "omep-mock" }
+//       "mock":      { "builtin": "omep-mock" },
+//       "fal-ace-step": { "builtin": "omep-fal", "model": "ace-step", "env": { "FAL_KEY": "…" } }
 //   } }
 //
 // The page reaches them through the bridge (`engine` messages). Files an engine writes (file://) are read
@@ -20,7 +21,11 @@ import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const defaultEnginesFile = () => process.env.OPENBAND_ENGINES || path.join(os.homedir(), '.openband', 'engines.json');
-const BUILTIN = { 'omep-mock': () => ({ command: process.execPath, args: [path.join(ROOT, 'omep', 'mock-engine.mjs')] }) };
+const BUILTIN = {
+  'omep-mock': () => ({ command: process.execPath, args: [path.join(ROOT, 'omep', 'mock-engine.mjs')] }),
+  // A model on fal.ai (omep/fal-catalog.json): "model" picks it; its key stays in this engine's env.
+  'omep-fal': (e) => ({ command: process.execPath, args: [path.join(ROOT, 'omep', 'fal-engine.mjs'), '--model', String(e.model ?? '')] }),
+};
 const AUDIO = { '.wav': 'audio/wav', '.flac': 'audio/flac', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg' };
 const MAX_FILE = 100 * 1024 * 1024;
 
@@ -30,7 +35,7 @@ export function readEnginesConfig(file = defaultEnginesFile()) {
   const out = {};
   for (const [id, e] of Object.entries(raw.engines ?? {})) {
     if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(id) || !e || typeof e !== 'object') continue;
-    if (e.builtin && BUILTIN[e.builtin]) out[id] = { ...BUILTIN[e.builtin](), env: e.env };
+    if (e.builtin && BUILTIN[e.builtin]) out[id] = { ...BUILTIN[e.builtin](e), env: e.env };
     else if (typeof e.command === 'string') out[id] = { command: e.command, args: Array.isArray(e.args) ? e.args.map(String) : [], env: e.env };
     else if (typeof e.url === 'string' && /^https?:\/\//.test(e.url)) out[id] = { url: e.url, token: e.token };
   }

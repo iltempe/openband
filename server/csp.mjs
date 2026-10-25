@@ -10,6 +10,8 @@ export const WAM_HOST = 'https://www.webaudiomodules.com';
 export const DEFAULT_COLLAB = ['wss://y-webrtc-eu.fly.dev'];
 /** The AI providers the in-browser chat can call with the user's key (local servers: http://127.0.0.1 / localhost). */
 export const AI_APIS = ['https://api.anthropic.com', 'https://api.openai.com', 'https://generativelanguage.googleapis.com'];
+/** Where users deploy their relay for online engines (deploy/relay/): the provider key stays there. */
+export const RELAY_HOSTS = ['https://*.workers.dev', 'https://*.vercel.app'];
 
 export function contentSecurityPolicy({ collab = DEFAULT_COLLAB, extraConnect = [] } = {}) {
   const directives = {
@@ -21,7 +23,7 @@ export function contentSecurityPolicy({ collab = DEFAULT_COLLAB, extraConnect = 
     'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
     'img-src': ["'self'", 'data:', 'blob:', WAM_HOST],
     'media-src': ["'self'", 'data:', 'blob:'],
-    'connect-src': ["'self'", 'ws://127.0.0.1:*', 'ws://localhost:*', 'http://127.0.0.1:*', 'http://localhost:*', ...AI_APIS, WAM_HOST, ...collab, ...extraConnect],
+    'connect-src': ["'self'", 'ws://127.0.0.1:*', 'ws://localhost:*', 'http://127.0.0.1:*', 'http://localhost:*', ...AI_APIS, ...RELAY_HOSTS, WAM_HOST, ...collab, ...extraConnect],
     'object-src': ["'none'"],
     'base-uri': ["'self'"],
     'frame-ancestors': ["'self'"],

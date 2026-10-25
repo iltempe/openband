@@ -728,6 +728,105 @@ tests.director = async () => {
   }
 };
 
+tests.online = async () => {
+  // E3: an online engine (fal, faked) through the user's relay (deploy/relay/relay.mjs, run here): a layer
+  // is created and paid from the budget; past the budget nothing starts without confirmation; the page
+  // never sends a provider key nor talks to fal directly.
+  const http = await import('node:http');
+  const { handle } = await import(path.join(root, 'deploy', 'relay', 'relay.mjs'));
+  const { encodeWav } = await import(path.join(root, 'omep', 'lib', 'audio.mjs'));
+  const listen = (srv) => new Promise((r) => srv.listen(0, '127.0.0.1', () => r(`http://127.0.0.1:${srv.address().port}`)));
+  // The fake fal: its queue and its media.
+  let falBase = '';
+  const fal = http.createServer(async (req, res) => {
+    let raw = '';
+    for await (const c of req) raw += c;
+    const json = (b) => (res.writeHead(200, { 'content-type': 'application/json' }), res.end(JSON.stringify(b)));
+    if (req.headers.authorization !== 'Key fal-test-key' && !req.url.startsWith('/files/')) return (res.writeHead(401), res.end('{}'));
+    if (req.method === 'POST') {
+      const dur = JSON.parse(raw).duration ?? 4;
+      return json({ request_id: `r${dur}`, status_url: `https://queue.fal.run/fal-ai/ace-step/requests/r${dur}/status`, response_url: `https://queue.fal.run/fal-ai/ace-step/requests/r${dur}` });
+    }
+    if (req.url.endsWith('/status')) return json({ status: 'COMPLETED' });
+    if (req.url.startsWith('/files/')) {
+      const sr = 44100;
+      const secs = Number(req.url.split('/')[2]);
+      const x = Float32Array.from({ length: Math.round(secs * sr) }, (_, i) => 0.2 * Math.sin((2 * Math.PI * 220 * i) / sr) * (1 - ((i / sr) % 0.5) * 1.6));
+      res.writeHead(200, { 'content-type': 'audio/wav' });
+      return res.end(Buffer.from(encodeWav([x], sr)));
+    }
+    const dur = Number(req.url.match(/requests\/r(\d+)/)?.[1] ?? 4);
+    return json({ audio: { url: `https://v3b.fal.media/files/${dur}/out.wav` } });
+  });
+  falBase = await listen(fal);
+  // The relay, as the user would deploy it, its upstream pointed at the fake fal.
+  const env = { FAL_KEY: 'fal-test-key', RELAY_TOKEN: 'relay-secret', ALLOWED_ORIGINS: URL.replace(/\/$/, '') };
+  const upstream = (u, init) => fetch(u.replace('https://queue.fal.run', falBase).replace(/^https:\/\/v3b\.fal\.media/, falBase), init);
+  const relay = http.createServer(async (req, res) => {
+    let raw = Buffer.alloc(0);
+    for await (const c of req) raw = Buffer.concat([raw, c]);
+    const r = await handle(new Request(`http://relay${req.url}`, { method: req.method, headers: req.headers, body: req.method === 'GET' || req.method === 'OPTIONS' ? undefined : raw }), env, upstream);
+    res.writeHead(r.status, Object.fromEntries(r.headers));
+    res.end(Buffer.from(await r.arrayBuffer()));
+  });
+  const relayBase = await listen(relay);
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    const sent = [];
+    p.on('request', (r) => sent.push({ url: r.url(), headers: r.headers() }));
+    // As a user who set up a relay and a budget before: in place when the studio starts.
+    await p.evaluateOnNewDocument((relayUrl) => {
+      localStorage.setItem('openband.ensemble.relay', JSON.stringify({ url: relayUrl, token: 'relay-secret' }));
+      localStorage.setItem('openband.ensemble.policy', JSON.stringify({ commercial_only: true, local_only: false, allow_cloud: true, accepted_conditions: ['fal-ace-step'], budget_session_usd: 0.001, budget_month_usd: 5 }));
+    }, relayBase);
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.keyboard.press('Space');
+    const r = await p.evaluate(async (relayUrl) => {
+      const { commands, useStore } = window.openband;
+      void relayUrl;
+      await commands.new_project({ name: 'Online', bpm: 120, key: 'Am' });
+      const out = {};
+      try {
+        const c = await commands.create({ text: 'lofi keys', capability: 'music.add_layer', engine: 'fal-ace-step', from_bar: 1, to_bar: 2 });
+        out.first = { engines: c.engines, cost: c.cost_usd, audio: useStore.getState().project.regions.filter((x) => x.audio).length };
+      } catch (e) {
+        out.firstError = e.message;
+      }
+      try {
+        await commands.create({ text: 'lofi keys', capability: 'music.add_layer', engine: 'fal-ace-step', from_bar: 1, to_bar: 2 });
+        out.second = 'ran';
+      } catch (e) {
+        out.secondError = e.message;
+      }
+      try {
+        const c = await commands.create({ text: 'lofi keys', capability: 'music.add_layer', engine: 'fal-ace-step', from_bar: 1, to_bar: 2, confirm_spend: true });
+        out.confirmed = c.cost_usd;
+      } catch (e) {
+        out.confirmedError = e.message;
+      }
+      out.spend = JSON.parse(localStorage.getItem('openband.ensemble.spend') ?? '{}');
+      return out;
+    }, relayBase);
+    check(!!r.first && r.first.audio > 0 && r.first.engines.includes('ACE-Step on fal'), `an online engine makes a layer through the relay (${JSON.stringify(r.first ?? r.firstError)})`);
+    const quote = 4 * 0.0002;
+    check(r.first && Math.abs(r.first.cost - quote) / quote < 0.1, `the cost recorded (${r.first?.cost} USD) is the quote (${quote} USD) within 10 %`);
+    check(/session budget/.test(r.secondError ?? ''), `past the budget nothing starts without confirmation (${(r.secondError ?? r.second ?? '').slice(0, 70)}…)`);
+    check(r.confirmed > 0 && r.spend.entries?.length === 2, `with confirmation it runs, and both runs are in the spend log (${r.spend.entries?.length})`);
+    const toRelay = sent.filter((x) => x.url.startsWith(relayBase));
+    const leaks = sent.filter((x) => /(^|\.)(fal\.run|fal\.media|fal\.ai)$/.test(new globalThis.URL(x.url).hostname) || x.headers.authorization || JSON.stringify(x).includes('fal-test-key'));
+    check(toRelay.length > 0 && toRelay.every((x) => x.headers['x-relay-token'] === 'relay-secret' || x.headers['access-control-request-method']) && leaks.length === 0, `the page talks only to the relay, with its token: no provider key, nothing to fal directly (${toRelay.length} requests)`);
+  } finally {
+    await b.close();
+    srv.kill();
+    fal.close();
+    relay.close();
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);

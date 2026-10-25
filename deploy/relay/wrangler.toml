@@ -1,0 +1,11 @@
+# OpenBand relay on Cloudflare Workers (free plan is enough). See README.md.
+name = "openband-relay"
+main = "relay.mjs"
+compatibility_date = "2026-10-01"
+
+[vars]
+# The studios allowed to use this relay (comma-separated).
+ALLOWED_ORIGINS = "https://iltempe.github.io,https://www.openband.it"
+
+# Secrets — set them with `npx wrangler secret put FAL_KEY` and `npx wrangler secret put RELAY_TOKEN`,
+# never in this file.

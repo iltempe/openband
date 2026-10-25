@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { engineRequest, useBridge } from '../bridge';
 import { BUILTINS } from './builtin';
+import { callRelay, relayEngines } from './relay';
 import { DEFAULT_POLICY, type EngineInfo, type Policy } from './router';
 import type { Capability, Contribution, Manifest, ToolInput } from './types';
 
@@ -83,7 +84,7 @@ export async function refreshEngines(force = false): Promise<EngineInfo[]> {
 }
 
 export async function allEngines(): Promise<EngineInfo[]> {
-  return [...builtinEngines(), ...(await refreshEngines())];
+  return [...builtinEngines(), ...(await refreshEngines()), ...relayEngines()];
 }
 
 export async function callEngine(e: EngineInfo, capability: Capability, input: ToolInput): Promise<Contribution> {
@@ -92,6 +93,7 @@ export async function callEngine(e: EngineInfo, capability: Capability, input: T
     if (!b) throw new Error(`Unknown builtin engine ${e.id}`);
     return b.run(capability, input);
   }
+  if (e.transport === 'relay') return callRelay(e.id, capability, input);
   const call = caller ?? bridgeCaller;
   return call(e.id, capability, input);
 }

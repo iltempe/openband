@@ -71,6 +71,30 @@ conformance and by the corrections OpenBand had to make), then the faster ones; 
 first unless another does better. Every engine it skips is listed with the reason (*“its licence doesn't
 allow commercial use”*).
 
+## Online engines (no GPU needed)
+
+Music models hosted by **fal.ai** work as engines too — the same router, conformance and ledger — for the
+price fal charges (ACE-Step: about 0.0002 USD per second of music, so a 30-second layer is about 0.006 USD;
+Demucs stem separation: 0.0007 USD per second). The models are listed in `omep/fal-catalog.json`; adding
+one is adding an entry there.
+
+- **With the desktop app or the local server**: put your fal key in `~/.openband/engines.json`, it never
+  leaves your computer:
+  ```json
+  { "engines": { "fal-ace-step": { "builtin": "omep-fal", "model": "ace-step", "env": { "FAL_KEY": "…" } } } }
+  ```
+- **In the online studio**: deploy your own **relay** (a free Cloudflare Worker or Vercel function, a few
+  minutes: [deploy/relay](../deploy/relay/README.md)); it keeps the key, the page only knows the relay's
+  address and your relay token. Then *Ensemble → Online engines*: the relay, and the models appear.
+
+Before every run you see a **quote** (*"About 0.0032 USD (1 × ACE-Step on fal), from your budget"*);
+set a **budget per session and per month** — past it nothing online starts without your OK (the AI has to
+ask you, then retry with `confirm_spend`). What each engine cost is logged. Each online engine shows what it
+sends (only text, or your song's audio), what the provider keeps, whether inputs are used for training, its
+terms and when they were checked; fal's terms for the output are *conditional*, so you accept them once
+per engine. OpenBand also brings what an engine returns to a working level (−20 dBFS RMS, as a region gain)
+and doesn't place audio that is silent or just noise; clipping is reported.
+
 ## Who played what
 
 Every part an engine made carries a ✦ on its region and an entry in the **contribution ledger**: engine,

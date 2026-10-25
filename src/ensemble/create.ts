@@ -11,6 +11,7 @@ import { allEngines, callEngine, useEnsemble } from './engines';
 import { inferCapability, route, type EngineInfo } from './router';
 import { scopeOf } from './builtin';
 import type { Capability, Contribution, Scp } from './types';
+import { OverBudget, checkBudget, estimate, recordSpend } from './budget';
 
 const st = () => useStore.getState();
 
@@ -32,6 +33,8 @@ export interface CreateArgs {
   instrument?: string;
   /** The track whose notes are the melody to work from (transform). */
   melody_track_id?: string;
+  /** Online engines past the budget: the user said yes to this cost. */
+  confirm_spend?: boolean;
 }
 
 const INSTRUMENTS: [RegExp, string, string][] = [
@@ -84,12 +87,18 @@ async function perform(capability: Capability, candidates: EngineInfo[], scp: Sc
     for (let k = 0; k < candidates.length; k++) {
       const e = candidates[(v + k) % candidates.length];
       try {
+        // Online engines: the quote first, inside the budget (or confirmed); then what it really cost.
+        const quoted = estimate(e, capability, scp);
+        const pol = useEnsemble.getState().policy;
+        checkBudget(quoted, { session_usd: pol.budget_session_usd, month_usd: pol.budget_month_usd }, a.confirm_spend);
         const c = await callEngine(e, capability, { context: minimizeContext(scp, e.manifest, capability), request: { text: a.text, role: a.role, instrument: a.instrument }, seed: seed + v, variants: 1 });
         const bad = checkContribution(c);
         if (bad) throw new Error(`invalid contribution: ${bad}`);
+        if (quoted > 0 || c.cost_usd) recordSpend(e.id, capability, c.cost_usd ?? quoted);
         made.push({ engine: e, contribution: c });
         break;
       } catch (err) {
+        if (err instanceof OverBudget) throw err;
         failures.push(`${e.manifest.engine.name}: ${(err as Error).message}`);
       }
     }
@@ -156,6 +165,7 @@ export async function createPart(a: CreateArgs) {
       scope: { from_bar: s.fromBar, to_bar: s.toBar - 1 },
       ...out,
       engines: made.map((m) => m.engine.manifest.engine.name),
+      ...(made.some((m) => m.contribution.cost_usd) ? { cost_usd: Math.round(made.reduce((s, m) => s + (m.contribution.cost_usd ?? 0), 0) * 1e6) / 1e6 } : {}),
       ...(failures.length ? { failed: failures } : {}),
       ...(r.excluded.length ? { not_used: r.excluded.map((x) => `${x.name}: ${x.reason}`) } : {}),
       context_hash: scp.context_hash,
@@ -250,7 +260,7 @@ async function placeAudio(made: Made[], capability: Capability, scp: Scp, a: Cre
         start: (s.fromBar - 1 + k * plan.bars) * BEATS_PER_BAR,
         length: +(bars * BEATS_PER_BAR).toFixed(4),
         notes: [],
-        audio: { sampleId: info.id, offset: 0, gain: 1, stretch: plan.stretch ? { mode: 'follow_tempo', originalBpm: plan.sourceBpm } : { mode: 'off', originalBpm: plan.sourceBpm }, ...(plan.pitch ? { pitch: plan.pitch } : {}) },
+        audio: { sampleId: info.id, offset: 0, gain: plan.gain, stretch: plan.stretch ? { mode: 'follow_tempo', originalBpm: plan.sourceBpm } : { mode: 'off', originalBpm: plan.sourceBpm }, ...(plan.pitch ? { pitch: plan.pitch } : {}) },
         contribution: e.id,
       });
     }

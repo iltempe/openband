@@ -781,6 +781,7 @@ tool('create', 'Make a musical part from a description: OpenBand picks the capab
   variants: z.number().int().min(1).max(4).optional(),
   seed: z.number().int().optional(),
   engine: z.string().optional().describe('Pin an engine id (see list_engines) — only if the user asked for it'),
+  confirm_spend: z.boolean().optional().describe('Online engines past the budget: true only after the user agreed to that cost'),
 }, { timeout: 900000 });
 tool('transform', 'Change a part that is there, through OpenBand\'s engines: continue it, harmonize it (chords on a new track), repaint or restyle it. Give the region (or a track with a section or bars) and what you want in words; the capability is inferred when omitted. The result arrives as takes of that region to compare (start_ab_test) — the user\'s version is kept — and the answer says which engine played and what OpenBand corrected.', {
   region_id: z.string().optional(),
@@ -793,6 +794,7 @@ tool('transform', 'Change a part that is there, through OpenBand\'s engines: con
   variants: z.number().int().min(1).max(4).optional(),
   engine: z.string().optional(),
   seed: z.number().int().optional(),
+  confirm_spend: z.boolean().optional(),
 }, { timeout: 600000 });
 
 tool('get_context', 'The Song Context Package (OMEP SCP 1.0) of the song, a section or some bars: tempo, key, length, sections with their energy, the chords bar by bar, the tracks with their roles, the melody and the lyrics — what you need to know before writing or changing a part, in one call instead of five analyses. Also as the resource openband://context/song (or /section/<id>, /bars/<a>-<b>).', {

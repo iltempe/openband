@@ -3,6 +3,7 @@
 // Pure: notes in, notes out; for audio a plan (stretch, pitch, repeats, trim) that the insertion step
 // applies with the non-destructive clip settings of F23. Every correction is written down, in words, for
 // the contribution's provenance (`conform`).
+import { powerSpectrum } from '../analysis/fft';
 import { BEATS_PER_BAR, keyInterval } from '../music';
 import { keyFromProfile, profileFromAudio, profileFromNotes, sameKey, sameScale, scalePitchClasses } from '../analysis/key';
 import { detectTempo } from '../audio/stretch';
@@ -108,7 +109,56 @@ export interface AudioPlan {
   /** How many times to place it to fill the scope (loops), and the length of the last one. */
   repeats: number;
   lastBars: number;
+  /** Step 6: the region's gain that brings the part to its working level (gain staging, not a correction
+   *  of the engine: it is not in `conform`). */
+  gain: number;
+  gainDb: number;
   conform: string[];
+}
+
+/** Working level of a new part, RMS in dBFS (step 6): under the mix, room for the rest. */
+export const WORKING_RMS_DB = -20;
+
+/**
+ * Step 8: what's grossly wrong with an audio part — silent, clipped, or noise (a flat spectrum).
+ * Measured on the PCM; `reject` is a reason not to place it at all.
+ */
+export function audioQuality(mono: Float32Array, sampleRate: number): { rmsDb: number; peak: number; clipped: number; flatness: number; reject?: string; warn?: string } {
+  let sum = 0;
+  let peak = 0;
+  let clipped = 0;
+  for (const v of mono) {
+    const a = Math.abs(v);
+    sum += v * v;
+    if (a > peak) peak = a;
+    if (a >= 0.999) clipped++;
+  }
+  const rms = Math.sqrt(sum / Math.max(1, mono.length));
+  const rmsDb = 20 * Math.log10(rms + 1e-12);
+  // Spectral flatness over a few frames: near 1 for noise, low for music.
+  const n = 2048;
+  const frames = Math.min(16, Math.floor(mono.length / n));
+  let flat = 0;
+  for (let f = 0; f < frames; f++) {
+    const at = Math.floor(((mono.length - n) * (f + 0.5)) / frames);
+    const p = powerSpectrum(mono, at, n);
+    let logSum = 0;
+    let lin = 0;
+    let k0 = Math.max(1, Math.round((100 * n) / sampleRate));
+    const k1 = Math.min(p.length, Math.round((8000 * n) / sampleRate));
+    for (let k = k0; k < k1; k++) {
+      logSum += Math.log(p[k] + 1e-20);
+      lin += p[k];
+    }
+    const m = k1 - k0;
+    if (m > 0 && lin > 0) flat += Math.exp(logSum / m) / (lin / m);
+    k0 = 0;
+  }
+  const flatness = frames ? flat / frames : 0;
+  const share = clipped / Math.max(1, mono.length);
+  if (rmsDb < -60) return { rmsDb, peak, clipped: share, flatness, reject: 'it is silent' };
+  if (flatness > 0.5) return { rmsDb, peak, clipped: share, flatness, reject: 'it sounds like noise (flat spectrum)' };
+  return { rmsDb, peak, clipped: share, flatness, ...(share > 0.001 ? { warn: `clipped (${(share * 100).toFixed(2)}% of samples at full scale)` } : {}) };
 }
 
 /** Steps 1–4 for audio, on the decoded PCM. */
@@ -168,5 +218,12 @@ export function planAudio(c: Contribution, scp: Scp, pcm: { mono: Float32Array; 
     lastBars = s.bars - unit * (repeats - 1);
     conform.push(`repeated ×${repeats} to fill ${s.bars} bars`);
   } else if (unit > s.bars + 0.01) conform.push(`trimmed to ${s.bars} bars`);
-  return { sourceBpm, stretch, pitch, bars: unit, repeats, lastBars, conform };
+  // 8. quality: silent or noise is not placed; clipping is said.
+  const q = audioQuality(pcm.mono, pcm.sampleRate);
+  if (q.reject) throw new Error(`The engine's audio was not used: ${q.reject}`);
+  if (q.warn) conform.push(q.warn);
+  // 6. loudness: to the working level (a region gain, never more than ±12 dB).
+  const gainDb = Math.max(-12, Math.min(12, WORKING_RMS_DB - q.rmsDb));
+  const gain = Math.round(10 ** (gainDb / 20) * 1000) / 1000;
+  return { sourceBpm, stretch, pitch, bars: unit, repeats, lastBars, gain, gainDb: Math.round(gainDb * 10) / 10, conform };
 }

@@ -18,6 +18,7 @@ export interface TransformArgs {
   variants?: number;
   engine?: string;
   seed?: number;
+  confirm_spend?: boolean;
 }
 
 /** The capability a sentence asks for, when none is given. */
@@ -37,7 +38,7 @@ export async function transformPart(a: TransformArgs) {
   if (!trackId && !a.section_id && a.from_bar === undefined) throw new Error('Say what to transform: region_id, or track_id with section_id or bars');
   const bars = region ? { from_bar: region.start / BEATS_PER_BAR + 1, to_bar: (region.start + region.length) / BEATS_PER_BAR } : { from_bar: a.from_bar, to_bar: a.to_bar };
   const capability = a.capability ?? transformCapability(a.intent);
-  const common = { capability, text: a.intent, section_id: region ? undefined : a.section_id, ...bars, melody_track_id: trackId, variants: a.variants, engine: a.engine, seed: a.seed };
+  const common = { capability, text: a.intent, section_id: region ? undefined : a.section_id, ...bars, melody_track_id: trackId, variants: a.variants, engine: a.engine, seed: a.seed, confirm_spend: a.confirm_spend };
   // A harmony is a new part (on a new track); the rest are other versions of the same part.
   const out = capability === 'symbolic.harmonize' ? await createPart({ ...common, text: a.intent || 'harmony' }) : await createPart({ ...common, track_id: trackId });
   return { transformed: region?.id ?? trackId ?? null, ...out };

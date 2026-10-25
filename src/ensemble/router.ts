@@ -9,8 +9,9 @@ import type { Capability, Manifest, Where } from './types';
 export interface EngineInfo {
   id: string;
   manifest: Manifest;
-  /** builtin: runs in the page; bridge: an external engine hosted by the local server. */
-  transport: 'builtin' | 'bridge';
+  /** builtin: runs in the page; bridge: an external engine hosted by the local server; relay: an online
+   *  model reached through the user's relay (no key in the page). */
+  transport: 'builtin' | 'bridge' | 'relay';
   status: 'ready' | 'error' | 'unavailable';
   error?: string;
   /** Measured by conformance or by the studio's corrections (0..1); unknown engines start at 0.7. */
@@ -26,9 +27,12 @@ export interface Policy {
   allow_cloud: boolean;
   /** Engines with a conditional licence whose conditions the user accepted. */
   accepted_conditions: string[];
+  /** Online engines: what may be spent per session and per month (USD) before asking. */
+  budget_session_usd: number;
+  budget_month_usd: number;
 }
 
-export const DEFAULT_POLICY: Policy = { commercial_only: true, local_only: false, allow_cloud: false, accepted_conditions: [] };
+export const DEFAULT_POLICY: Policy = { commercial_only: true, local_only: false, allow_cloud: false, accepted_conditions: [], budget_session_usd: 1, budget_month_usd: 5 };
 
 export interface RouteRequest {
   capability: Capability;
@@ -81,7 +85,11 @@ export function route(req: RouteRequest, engines: EngineInfo[], policy: Policy =
     }
     const adherence = e.adherence ?? (e.transport === 'builtin' ? 0.95 : 0.7);
     const pref = prefs[req.capability]?.[e.id] ?? 0.5;
-    ok.push({ ...e, score: 0.6 * adherence + 0.25 * pref + 0.15 * LATENCY[e.manifest.runtime.where] });
+    // Online engines (§9-bis): what they cost and what they send count against them, a little.
+    const pricing = e.manifest.runtime.pricing;
+    const cost = pricing ? Math.min(0.1, (pricing.unit === 'second' ? pricing.usd * 60 : pricing.usd) * 0.2) : 0;
+    const data = e.manifest.runtime.data_policy?.uploads_audio ? 0.03 : 0;
+    ok.push({ ...e, score: 0.6 * adherence + 0.25 * pref + 0.15 * LATENCY[e.manifest.runtime.where] - cost - data });
   }
   ok.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
   if (req.engine) {
