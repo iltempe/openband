@@ -2,6 +2,14 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.26 "E3c: ACE-Step on your computer"
+
+### E3 (part 3) · `omep-ace-step`: songs, layers, repaints and restyles from a local ACE-Step 1.5 (SPEC v0.6 §10)
+- **`omep-ace-step`** (`"builtin": "omep-ace-step"` in `~/.openband/engines.json`): ACE-Step 1.5 (MIT code and weights, commercial use allowed, under 4 GB of VRAM, CUDA/MPS/ROCm/CPU) as an OMEP engine, through the REST server ACE-Step ships (`uv run acestep-api`) — the user installs and starts it; OpenBand installs no Python and downloads no weights. `music.song` → `text2music` (words, lyrics as the song's lines or `[Instrumental]`, tempo, key as *"A minor"*, meter, length, seed); `music.add_layer` → `lego` with ACE-Step's track for the instrument named (strings, guitar, keys…; base models only, so the manifest offers it only with `"model": "acestep-v15-base"`); `music.repaint` → `repaint` of the bars; `music.restyle` → `cover`. Each is an MCP task; the answer is cut to the scope. If the server isn't running, the error says how to start it.
+- **The song's audio for engines that listen** (any engine whose manifest asks for `context_audio`, local or online): `create` and `transform` now render it once per request and send it — the mix of the bars for a layer; for a repaint the part being changed with two bars around it; for a restyle that part — exactly those bars, without the render's reverb tail.
+- Tests: the mapping onto ACE-Step's tasks; against a mock of its REST API, written from its server code (`release_task` with the `src_audio` upload, `query_result`'s JSON-string results with status 0/1/2, `/v1/audio?path=`, Bearer key): submit, follow, download, a failed run and a wrong key said plainly, the repaint window inside the context audio, the answer trimmed to the scope; the engine over MCP gives valid OMEP contributions and offers `add_layer` only on a base model. In Chrome (`npm run e2e`, *acestep*) through `engines.json` and the real engine host in front of a fake ACE-Step server: a layer goes as a `lego` task with exactly the 8 s of mix of its 4 bars, a restyle as a `cover` of that track alone, both placed and in the ledger.
+- Not run here against the real ACE-Step weights (it would need running ACE-Step's own code on this machine). Next (E3 part 4): Italian phonemes in the song context, `voice.sing`, `sing` and DiffSinger.
+
 ## v0.6.25 "E3b: stems in your browser"
 
 ### E3 (part 2) · Demucs in the browser, the `separate` tool, and isolating a new layer (SPEC v0.6 §7 step 5, §10)

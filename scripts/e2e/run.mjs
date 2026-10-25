@@ -920,6 +920,77 @@ tests.separate = async () => {
   }
 };
 
+// E3c: ACE-Step 1.5 on this computer, through engines.json and the real engine host, in front of a fake
+// of ACE-Step's REST server (same contract as its api_server). A layer gets the song's mix of its bars; a
+// restyle gets that track alone; what comes back lands conformed, in the ledger.
+tests.acestep = async () => {
+  const http = await import('node:http');
+  const os = await import('node:os');
+  const { decodeWav, encodeWav } = await import('../../omep/lib/audio.mjs');
+  const tasks = [];
+  const ace = http.createServer(async (req, res) => {
+    const chunks = [];
+    for await (const c of req) chunks.push(c);
+    const raw = Buffer.concat(chunks);
+    const send = (json) => (res.writeHead(200, { 'content-type': 'application/json' }), res.end(JSON.stringify(json)));
+    if (req.url === '/release_task') {
+      const form = await new Response(raw, { headers: { 'content-type': req.headers['content-type'] } }).formData();
+      const fields = {};
+      let seconds = 0;
+      for (const [k, v] of form.entries()) {
+        if (typeof v === 'string') fields[k] = v;
+        else {
+          const w = decodeWav(Buffer.from(await v.arrayBuffer()));
+          seconds = w.channels[0].length / w.sampleRate;
+        }
+      }
+      tasks.push({ fields, seconds });
+      return send({ data: { task_id: `t${tasks.length}`, status: 'queued' }, code: 200, error: null });
+    }
+    if (req.url === '/query_result') {
+      const id = JSON.parse(raw.toString()).task_id_list[0];
+      return send({ data: [{ task_id: id, status: 1, result: JSON.stringify([{ file: `/v1/audio?path=${encodeURIComponent(`/tmp/${id}.wav`)}`, status: 1 }]) }], code: 200 });
+    }
+    if (req.url.startsWith('/v1/audio')) {
+      // As long as what was sent, like ACE-Step's lego and cover: a 440 Hz tone at 48 kHz.
+      const t = tasks[Number(/t(\d+)\.wav/.exec(decodeURIComponent(req.url))[1]) - 1];
+      const n = Math.round(t.seconds * 48000);
+      res.writeHead(200, { 'content-type': 'audio/wav' });
+      return res.end(Buffer.from(encodeWav([Float32Array.from({ length: n }, (_, i) => 0.2 * Math.sin((2 * Math.PI * 440 * i) / 48000))], 48000)));
+    }
+    res.writeHead(404).end();
+  });
+  const aceBase = await new Promise((ok) => ace.listen(0, '127.0.0.1', () => ok(`http://127.0.0.1:${ace.address().port}`)));
+  const enginesFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ob-e2e-')), 'engines.json');
+  fs.writeFileSync(enginesFile, JSON.stringify({ engines: { 'ace-step': { builtin: 'omep-ace-step', model: 'acestep-v15-base', env: { ACESTEP_API_URL: aceBase, ACESTEP_POLL_MS: '20' } } } }));
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1', OPENBAND_ENGINES: enginesFile });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    const r = await p.evaluate(async () => {
+      const { commands, useStore } = window.openband;
+      await commands.new_project({ name: 'Local ACE', bpm: 120, key: 'Am' });
+      await commands.add_drummer({ style: 'pop', from_bar: 1, to_bar: 8 });
+      const layer = await commands.create({ text: 'warm strings', capability: 'music.add_layer', engine: 'ace-step', from_bar: 1, to_bar: 4 });
+      const region = useStore.getState().project.regions.find((x) => x.id === layer.region_ids[0]);
+      const restyle = await commands.transform({ region_id: region.id, intent: 'make it a bossa nova', capability: 'music.restyle', engine: 'ace-step' });
+      const p1 = useStore.getState().project;
+      return { layer, restyle, ledger: (p1.ledger ?? []).map((e) => `${e.engine}:${e.capability}`), audio: p1.regions.filter((x) => x.audio).length };
+    });
+    check(r.layer.engines?.includes('ACE-Step 1.5') && tasks[0]?.fields.task_type === 'lego' && /strings track/.test(tasks[0].fields.instruction), `a layer from ACE-Step on this computer, as a lego task (${tasks[0]?.fields.instruction})`);
+    check(Math.abs(tasks[0]?.seconds - 8) < 0.05, `ACE-Step heard the song's mix of exactly those bars (${tasks[0]?.seconds?.toFixed(2)} s for 4 bars at 120 BPM)`);
+    check(tasks[1]?.fields.task_type === 'cover' && Math.abs(tasks[1].seconds - 8) < 0.05 && r.restyle.capability === 'music.restyle', `a restyle sends that part to ACE-Step as a cover (${tasks[1]?.seconds?.toFixed(2)} s)`);
+    check(r.ledger.filter((x) => x.startsWith('ace-step:')).length === 2 && r.audio >= 2, `both are in the song and in the ledger (${r.ledger.join(', ')})`);
+  } finally {
+    await b.close();
+    srv.kill();
+    ace.close();
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);

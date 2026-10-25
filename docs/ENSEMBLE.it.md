@@ -49,7 +49,7 @@ l'estensione per Claude Desktop. Elencali in `~/.openband/engines.json` (oppure 
 ```json
 {
   "engines": {
-    "ace-step":  { "command": "uvx", "args": ["omep-ace-step"], "env": { "DEVICE": "cuda" } },
+    "ace-step":  { "builtin": "omep-ace-step", "model": "acestep-v15-turbo" },
     "studio-pc": { "url": "https://192.168.1.20:8765/mcp", "token": "…" },
     "mock":      { "builtin": "omep-mock" }
   }
@@ -59,6 +59,33 @@ l'estensione per Claude Desktop. Elencali in `~/.openband/engines.json` (oppure 
 poi premi *Aggiorna* in *Ensemble*. OpenBand avvia solo quello che c'è in quel file. `"builtin": "omep-mock"`
 è il motore di riferimento del repository OMEP, utile per provare tutta la catena. Prima di installare un
 motore, controllalo con `openband omep-conformance -- <il suo comando>`.
+
+### ACE-Step sul tuo computer
+
+[ACE-Step 1.5](https://github.com/ACE-Step/ACE-Step-1.5) (MIT, codice e pesi; uso commerciale consentito)
+crea canzoni intere, strati, ridipinture e cambi di stile in locale: meno di 4 GB di VRAM, anche su Apple
+Silicon (MPS) o sulla CPU. OpenBand parla col server REST che ACE-Step fornisce; lo installi e lo avvii tu
+(OpenBand non installa Python né scarica pesi al posto tuo):
+
+```bash
+git clone https://github.com/ACE-Step/ACE-Step-1.5 && cd ACE-Step-1.5
+uv sync
+uv run acestep-api            # http://127.0.0.1:8001; scarica i pesi la prima volta
+```
+
+e in `~/.openband/engines.json`: `"ace-step": { "builtin": "omep-ace-step", "model": "acestep-v15-turbo" }`
+(aggiungi `"url"` se gira altrove, `"env": { "ACESTEP_API_KEY": "…" }` se hai impostato una chiave). Cosa
+chiede OpenBand:
+
+| Chiedi | ACE-Step fa | Cosa ascolta |
+|---|---|---|
+| una canzone (`music.song`) | `text2music`: parole, testo, tempo, tonalità, durata | solo le parole |
+| uno strato (`music.add_layer`) | `lego`: lo strumento che hai nominato (archi, chitarra, tastiere…) — **solo modelli base** (`"model": "acestep-v15-base"`) | il mix della canzone in quelle battute |
+| una ridipintura (`transform`) | `repaint` di quelle battute | quella parte, con due battute attorno |
+| un cambio di stile (`transform`, *"falla bossa nova"*) | `cover` | quella parte |
+
+Il risultato viene tagliato alle battute e conformato come quello di ogni motore (tempo, tonalità,
+livello), nel registro.
 
 ## Le tue regole e il router
 

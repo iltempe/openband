@@ -47,7 +47,7 @@ file), in the same format MCP clients use:
 ```json
 {
   "engines": {
-    "ace-step":  { "command": "uvx", "args": ["omep-ace-step"], "env": { "DEVICE": "cuda" } },
+    "ace-step":  { "builtin": "omep-ace-step", "model": "acestep-v15-turbo" },
     "studio-pc": { "url": "https://192.168.1.20:8765/mcp", "token": "…" },
     "mock":      { "builtin": "omep-mock" }
   }
@@ -57,6 +57,31 @@ file), in the same format MCP clients use:
 then press *Refresh* in *Ensemble*. OpenBand only ever starts what is in that file. `"builtin": "omep-mock"`
 is the reference engine of the OMEP repository, handy to try the whole chain. Before installing an engine,
 check it with `openband omep-conformance -- <its command>`.
+
+### ACE-Step on your computer
+
+[ACE-Step 1.5](https://github.com/ACE-Step/ACE-Step-1.5) (MIT, code and weights; commercial use allowed)
+makes whole songs, layers, repaints and restyles locally — under 4 GB of VRAM, also on Apple Silicon (MPS)
+or the CPU. OpenBand talks to the REST server ACE-Step ships; you install and start it yourself (OpenBand
+doesn't install Python or download weights for you):
+
+```bash
+git clone https://github.com/ACE-Step/ACE-Step-1.5 && cd ACE-Step-1.5
+uv sync
+uv run acestep-api            # http://127.0.0.1:8001; downloads its weights the first time
+```
+
+and in `~/.openband/engines.json`: `"ace-step": { "builtin": "omep-ace-step", "model": "acestep-v15-turbo" }`
+(add `"url"` if it runs elsewhere, `"env": { "ACESTEP_API_KEY": "…" }` if you set a key). What OpenBand asks:
+
+| You ask | ACE-Step does | What it hears |
+|---|---|---|
+| a song (`music.song`) | `text2music`: your words, lyrics, tempo, key, length | nothing but the words |
+| a layer (`music.add_layer`) | `lego`: the instrument you named (strings, guitar, keys…) — **base models only** (`"model": "acestep-v15-base"`) | the song's mix of those bars |
+| a repaint (`transform`) | `repaint` of those bars | that part, with two bars around it |
+| a restyle (`transform`, *"make it a bossa nova"*) | `cover` | that part |
+
+What comes back is cut to the bars and conformed like any engine's (tempo, key, level), in the ledger.
 
 ## Your policy and the router
 

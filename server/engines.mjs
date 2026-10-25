@@ -2,7 +2,7 @@
 // configured in ~/.openband/engines.json (or OPENBAND_ENGINES) — nothing else is ever started:
 //
 //   { "engines": {
-//       "ace-step":  { "command": "uvx", "args": ["omep-ace-step"], "env": { "DEVICE": "cuda" } },
+//       "ace-step":  { "builtin": "omep-ace-step", "model": "acestep-v15-turbo" },
 //       "studio-pc": { "url": "https://192.168.1.20:8765/mcp", "token": "…" },
 //       "mock":      { "builtin": "omep-mock" },
 //       "fal-ace-step": { "builtin": "omep-fal", "model": "ace-step", "env": { "FAL_KEY": "…" } }
@@ -25,6 +25,8 @@ const BUILTIN = {
   'omep-mock': () => ({ command: process.execPath, args: [path.join(ROOT, 'omep', 'mock-engine.mjs')] }),
   // A model on fal.ai (omep/fal-catalog.json): "model" picks it; its key stays in this engine's env.
   'omep-fal': (e) => ({ command: process.execPath, args: [path.join(ROOT, 'omep', 'fal-engine.mjs'), '--model', String(e.model ?? '')] }),
+  // ACE-Step's own REST server on this computer (or "url"); "model": what it runs (lego needs a base model).
+  'omep-ace-step': (e) => ({ command: process.execPath, args: [path.join(ROOT, 'omep', 'ace-step-engine.mjs'), ...(e.model ? ['--model', String(e.model)] : []), ...(e.url ? ['--url', String(e.url)] : [])] }),
 };
 const AUDIO = { '.wav': 'audio/wav', '.flac': 'audio/flac', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg' };
 const MAX_FILE = 100 * 1024 * 1024;

@@ -51,6 +51,9 @@ function base64(bytes: Uint8Array) {
   return btoa(s);
 }
 
+/** Audio for an engine outside the page: a 16-bit WAV as a data: URI. */
+export const wavDataUri = (channels: Float32Array[], sampleRate: number) => `data:audio/wav;base64,${base64(new Uint8Array(encodeWavChannels(channels, sampleRate)))}`;
+
 async function decode(bytes: ArrayBuffer): Promise<{ sampleRate: number; channels: Float32Array[] }> {
   const ctx = new OfflineAudioContext(1, 1, 44100);
   const b = await ctx.decodeAudioData(bytes.slice(0));
@@ -74,7 +77,7 @@ export async function separatePcm(pcm: PcmInput, scp: Scp, o: Pick<SeparateArgs,
       checkBudget(quoted, { session_usd: policy.budget_session_usd, month_usd: policy.budget_month_usd }, o.confirm_spend);
       const context = minimizeContext(scp, e.manifest, 'audio.separate');
       if (e.transport !== 'builtin') {
-        wav ??= `data:audio/wav;base64,${base64(new Uint8Array(encodeWavChannels(pcm.right ? [pcm.left, pcm.right] : [pcm.left], pcm.sampleRate)))}`;
+        wav ??= wavDataUri(pcm.right ? [pcm.left, pcm.right] : [pcm.left], pcm.sampleRate);
         context.context_audio = { ...context.context_audio, mix_uri: wav };
       }
       const c = await callEngine(e, 'audio.separate', { context, request: e.transport === 'builtin' ? { pcm, confirm_download: o.confirm_download, onProgress: o.onProgress } : {} });

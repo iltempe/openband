@@ -12,7 +12,8 @@ import { inferCapability, route, type EngineInfo } from './router';
 import { scopeOf } from './builtin';
 import type { Capability, Contribution, Scp } from './types';
 import { OverBudget, checkBudget, estimate, recordSpend } from './budget';
-import { isolateNewPart } from './separate';
+import { isolateNewPart, wavDataUri } from './separate';
+import { renderBuffer } from '../audio/render';
 
 const st = () => useStore.getState();
 
@@ -82,9 +83,29 @@ export interface Made {
 }
 
 /** Ask the engines for `variants` contributions: rotate across the candidates, fall back on errors. */
-async function perform(capability: Capability, candidates: EngineInfo[], scp: Scp, a: CreateArgs, variants: number): Promise<{ made: Made[]; failures: string[] }> {
+/**
+ * The song's audio for an engine that listens to it (conditioning context_audio): the mix of the bars for
+ * a new layer; for a repaint or a restyle the part being changed — a repaint with two bars around it, so
+ * the engine hears where it has to land. Rendered once per request.
+ */
+async function contextAudioFor(capability: Capability, scp: Scp, target: Track | undefined): Promise<NonNullable<Scp['context_audio']>> {
+  const p = st().project;
+  const s = scopeOf(scp);
+  const margin = capability === 'music.repaint' ? 2 : 0;
+  const fromBar = Math.max(1, s.fromBar - margin);
+  const toBar = Math.max(s.toBar, Math.min(scp.song.length_bars + 1, s.toBar + margin));
+  const part = (capability === 'music.repaint' || capability === 'music.restyle') && target ? { tracks: [target.id] } : {};
+  const buf = await renderBuffer(p, { fromBeat: (fromBar - 1) * BEATS_PER_BAR, toBeat: (toBar - 1) * BEATS_PER_BAR, ...part });
+  // Exactly those bars (the render adds a tail for reverbs): the engine counts time from the first sample.
+  const n = Math.min(buf.length, Math.round((((toBar - fromBar) * BEATS_PER_BAR * 60) / p.bpm) * buf.sampleRate));
+  const channels = Array.from({ length: buf.numberOfChannels }, (_, c) => buf.getChannelData(c).subarray(0, n));
+  return { mix_uri: wavDataUri(channels, buf.sampleRate), from_bar: fromBar, to_bar: toBar };
+}
+
+async function perform(capability: Capability, candidates: EngineInfo[], scp: Scp, a: CreateArgs, variants: number, target?: Track): Promise<{ made: Made[]; failures: string[] }> {
   const made: Made[] = [];
   const failures: string[] = [];
+  let audio: Scp['context_audio'] | undefined;
   const seed = a.seed ?? Math.floor(Math.random() * 1e6);
   for (let v = 0; v < variants; v++) {
     for (let k = 0; k < candidates.length; k++) {
@@ -94,7 +115,10 @@ async function perform(capability: Capability, candidates: EngineInfo[], scp: Sc
         const quoted = estimate(e, capability, scp);
         const pol = useEnsemble.getState().policy;
         checkBudget(quoted, { session_usd: pol.budget_session_usd, month_usd: pol.budget_month_usd }, a.confirm_spend);
-        const c = await callEngine(e, capability, { context: minimizeContext(scp, e.manifest, capability), request: { text: a.text, role: a.role, instrument: a.instrument }, seed: seed + v, variants: 1 });
+        const listens = e.transport !== 'builtin' && !!e.manifest.capabilities[capability]?.conditioning?.includes('context_audio');
+        if (listens) audio ??= await contextAudioFor(capability, scp, target);
+        const context = minimizeContext(listens ? { ...scp, context_audio: audio } : scp, e.manifest, capability);
+        const c = await callEngine(e, capability, { context, request: { text: a.text, role: a.role, instrument: a.instrument }, seed: seed + v, variants: 1 });
         const bad = checkContribution(c);
         if (bad) throw new Error(`invalid contribution: ${bad}`);
         if (quoted > 0 || c.cost_usd) recordSpend(e.id, capability, c.cost_usd ?? quoted);
@@ -155,7 +179,7 @@ export async function createPart(a: CreateArgs) {
   if (!r.candidates.length) throw new Error(`No engine can do ${capability} with your settings${r.excluded.length ? `: ${r.excluded.map((x) => `${x.name} — ${x.reason}`).join('; ')}` : ''}`);
   const scp = await buildContext(p0, { scope, intent: { text: a.text, role: a.role, instrument: a.instrument }, policy: { commercial_only: policy.commercial_only, local_only: policy.local_only }, melodyTrackId: a.melody_track_id });
   const variants = clamp(Math.round(Number(a.variants ?? 1)), 1, 4);
-  const { made, failures } = await perform(capability, r.candidates, scp, a, variants);
+  const { made, failures } = await perform(capability, r.candidates, scp, a, variants, target);
   if (!made.length) throw new Error(`Every engine failed: ${failures.join('; ')}`);
 
   // Everything below is one undo step (inside the AI's transaction when the AI asked).
