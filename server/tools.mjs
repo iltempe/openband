@@ -19,7 +19,8 @@ const special = (name, description, shape, kind, opts) => add(kind, name, descri
 
 export const INSTRUCTIONS = `OpenBand is a GarageBand-style music studio running in the user's browser. You control it with these tools.
 
-Wrap every user request in begin_change("short label") … end_change() so the user can undo it in one step. (Commands sent without it are grouped automatically until you pause for 4 seconds.)
+Wrap every user request in begin_change("short label") … end_change() so the user can undo it in one step.
+Not every tool may be loaded at first: the core and capability tools always are; if the request needs one that isn't there (lyrics, versions, plugins…), call load_toolset with its toolset and it appears right away. (Commands sent without it are grouped automatically until you pause for 4 seconds.)
 When the user talks about parts of a song (verse, chorus…), call get_structure first and operate on sections (move_section, duplicate_section). Use the energy profile to make a section 'bigger' (more tracks, higher register, more notes, higher velocity) or 'smaller'. If there are no sections yet, auto_sections proposes them. When the user has a loop that should become a song ("make this a 3-minute song", "build it up slowly"), draw the energy with set_energy_curve (a shape or points) and call arrange_from_energy: it works on a branch, the user's notes untouched.
 For vocal lines, keep lyrics and melody aligned: set_lyrics → align_lyrics → check_prosody. Put stressed syllables on strong beats (suggest_melody_rhythm helps).
 When get_status reports teach_mode: true, explain your non-obvious musical choices (harmony, voicing, rhythm, mix) with annotate on the exact notes/region/section, using analyze_harmony to be precise. An ask event with context.explain is a request to explain that part: answer with annotate.
@@ -781,6 +782,25 @@ tool('create', 'Make a musical part from a description: OpenBand picks the capab
   seed: z.number().int().optional(),
   engine: z.string().optional().describe('Pin an engine id (see list_engines) — only if the user asked for it'),
 }, { timeout: 900000 });
+tool('transform', 'Change a part that is there, through OpenBand\'s engines: continue it, harmonize it (chords on a new track), repaint or restyle it. Give the region (or a track with a section or bars) and what you want in words; the capability is inferred when omitted. The result arrives as takes of that region to compare (start_ab_test) — the user\'s version is kept — and the answer says which engine played and what OpenBand corrected.', {
+  region_id: z.string().optional(),
+  track_id: z.string().optional(),
+  section_id: z.string().optional(),
+  from_bar: z.number().int().min(1).optional(),
+  to_bar: z.number().int().min(1).optional(),
+  intent: z.string().optional().describe('e.g. "harmonize with warm jazz chords", "continue for two bars", "make it a bossa nova"'),
+  capability: z.enum(['symbolic.continue', 'symbolic.harmonize', 'music.repaint', 'music.restyle', 'music.extend']).optional(),
+  variants: z.number().int().min(1).max(4).optional(),
+  engine: z.string().optional(),
+  seed: z.number().int().optional(),
+}, { timeout: 600000 });
+
+tool('get_context', 'The Song Context Package (OMEP SCP 1.0) of the song, a section or some bars: tempo, key, length, sections with their energy, the chords bar by bar, the tracks with their roles, the melody and the lyrics — what you need to know before writing or changing a part, in one call instead of five analyses. Also as the resource openband://context/song (or /section/<id>, /bars/<a>-<b>).', {
+  section_id: z.string().optional(),
+  from_bar: z.number().int().min(1).optional(),
+  to_bar: z.number().int().min(1).optional(),
+}, readOnly);
+
 tool('list_engines', 'The music engines OpenBand can use (OpenBand\'s own algorithms and the OMEP engines the user configured): capabilities, where they run, licence, and — under the user\'s policy — which ones a request would exclude and why.', { capability: z.string().optional() }, readOnly);
 tool('get_ledger', 'Who made what: every part an engine contributed (engine, model, seed, licence, the request, the corrections OpenBand applied) and the human / AI share of each track.', {}, readOnly);
 tool('set_engine_policy', 'The user\'s engine policy: commercial use only (licences that forbid it are excluded), local engines only, online engines allowed (they cost money and send data). Change it only when the user asks.', {
@@ -788,3 +808,68 @@ tool('set_engine_policy', 'The user\'s engine policy: commercial use only (licen
   local_only: z.boolean().optional(),
   allow_cloud: z.boolean().optional(),
 });
+
+// ---- levels and toolsets (SPEC v0.6 §8.1): what an AI sees first, and what it loads when it needs it.
+// Core and capability tools are always there; the domain toolsets come with load_toolset. Clients that
+// can't follow tools/list_changed get every tool, as before (--toolsets=all is the default for MCP).
+
+/** Always loaded: the song, its tracks and regions, notes, transport, undo, structure. */
+export const CORE = [
+  'get_project', 'get_status', 'list_instruments', 'new_project', 'set_tempo', 'set_key', 'add_track', 'update_track', 'delete_track',
+  'add_region', 'update_region', 'delete_region', 'duplicate_region', 'get_region_notes', 'add_notes', 'remove_notes', 'transport',
+  'undo', 'redo', 'begin_change', 'end_change', 'get_structure', 'get_context', 'load_toolset',
+];
+/** Always loaded: one generic tool per kind of musical job; the router and OpenBand's engines do the rest. */
+export const CAPABILITY = ['create', 'transform', 'suggest_continuation', 'mix_pilot', 'arrange_from_energy', 'export_for_platforms', 'set_jam_mode'];
+
+export const TOOLSETS = {
+  editing: { description: 'Detailed note and region editing: transpose, quantize, update notes, drum patterns and chord progressions written out, the drummer, loop and metronome, the editor', tools: ['rename_project', 'set_master_volume', 'update_notes', 'transpose_region', 'quantize_region', 'add_drum_pattern', 'add_chord_progression', 'set_loop', 'set_metronome', 'open_editor', 'split_region', 'detect_tempo', 'add_drummer', 'regenerate_drummer'] },
+  structure: { description: 'Sections (add, move, duplicate with ripple), automatic sections, the energy curve and transitions', tools: ['add_section', 'update_section', 'delete_section', 'move_section', 'duplicate_section', 'auto_sections', 'set_energy_curve', 'get_energy', 'add_transition'] },
+  mix: { description: 'Effects per track, master chain, the mix pilot\'s knob, automation, meters and listening (analyze_mix, spectrogram), reference tracks', tools: ['set_track_effects', 'set_master_chain', 'set_pilot_amount', 'fix_pilot', 'set_track_role', 'set_automation', 'clear_automation', 'list_automatable', 'get_meters', 'set_monitoring', 'level_match', 'analyze_mix', 'render_spectrogram', 'import_reference', 'compare_to_reference', 'clear_reference'] },
+  analysis: { description: 'Harmony and key analysis, the song linter and its fixes', tools: ['analyze_harmony', 'detect_key', 'lint_project', 'apply_fix', 'ignore_issue'] },
+  recording: { description: 'Recording audio and MIDI, punch-in, takes and comping, blind A/B tests, flub marks', tools: ['record_audio', 'arm_track', 'set_punch', 'audio_to_midi', 'add_take', 'list_takes', 'set_active_take', 'delete_take', 'comp_takes', 'start_ab_test', 'add_flub', 'list_flubs', 'resolve_flub', 'delete_flub', 'replace_with_best_take'] },
+  versions: { description: 'History, versions and branches, merge, the time machine', tools: ['get_history', 'save_version', 'list_versions', 'create_branch', 'checkout', 'diff_versions', 'merge', 'get_timeline', 'preview_at', 'restore_at'] },
+  lyrics: { description: 'Lyrics, aligning them to the melody, prosody, chord sheets', tools: ['set_lyrics', 'get_lyrics', 'align_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet'] },
+  plugins: { description: 'WAM plugins and the user\'s installed VST3 / CLAP / AU plugins', tools: ['list_plugins', 'search_plugins', 'list_native_plugins', 'rescan_plugins', 'add_plugin', 'add_plugin_instrument', 'add_plugin_effect', 'remove_plugin_effect', 'set_plugin_bypass', 'get_plugin_params', 'set_plugin_params', 'show_plugin'] },
+  sounds: { description: 'Imported samples, sampler instruments, SoundFonts, audio regions, the CC0 loop library', tools: ['import_sample', 'list_samples', 'create_sampler_instrument', 'import_soundfont', 'add_audio_region', 'search_loops', 'add_loop'] },
+  files: { description: 'Exports and imports: WAV, MIDI, project JSON, DAWproject', tools: ['export_project_json', 'import_project_json', 'export_wav', 'export_midi', 'import_midi', 'import_dawproject', 'export_dawproject'] },
+  collab: { description: 'Rooms with other people, comments and explanations on the song', tools: ['create_room', 'join_room', 'leave_room', 'get_peers', 'annotate', 'list_annotations', 'resolve_annotation', 'delete_annotation'] },
+  jam: { description: 'Jamming: answering the user\'s phrases, keeping answers, the studio\'s event stream', tools: ['play_phrase', 'keep_answer', 'keep_phrase', 'get_events', 'wait_for_event'] },
+  engines: { description: 'OMEP engines: which are installed, who made what (ledger), the engine policy', tools: ['list_engines', 'get_ledger', 'set_engine_policy'] },
+};
+
+add('toolset', 'load_toolset', `Load a toolset when the request needs tools that are not loaded yet (they appear right after). Core and capability tools are always there. Toolsets: ${Object.entries(TOOLSETS).map(([n, t]) => `${n} — ${t.description}`).join('; ')}. "all" loads everything.`, {
+  name: z.enum([...Object.keys(TOOLSETS), 'all']),
+}, { annotations: { readOnlyHint: true } });
+
+/** The toolset a tool belongs to, or 'core' / 'capability'. */
+export function levelOf(name) {
+  if (CORE.includes(name)) return 'core';
+  if (CAPABILITY.includes(name)) return 'capability';
+  for (const [set, t] of Object.entries(TOOLSETS)) if (t.tools.includes(name)) return set;
+  return null;
+}
+
+/**
+ * The toolsets a request obviously needs, from its words (English and Italian): the page chat preloads
+ * them, so the first turn already has the right tools.
+ */
+const PLAN = [
+  ['mix', /\b(mix|mixa|master|loud|lufs|eq\b|equaliz|compress|sidechain|riverbero|reverb|automat|volume curve|fade)/],
+  ['lyrics', /\b(lyric|testo|testi|parole|sing|canta|prosod|chord sheet|accordi per chitarra)/],
+  ['recording', /\b(record|registr|take|comp\b|punch|microphone|microfono|flub|errore)/],
+  ['versions', /\b(version|versione|branch|merge|go back|torna indietro|history|cronologia|what if|e se)/],
+  ['plugins', /\b(plugin|vst|clap|audio unit|\bau\b|wam|synth plugin)/],
+  ['sounds', /\b(sample|campion|soundfont|\.sf2|loop library|loop cc0|import.*(wav|mp3|audio))/],
+  ['files', /\b(export|esporta|import|importa|midi file|\.mid\b|dawproject|bitwig|cubase|studio one|wav\b)/],
+  ['structure', /\b(section|sezion|verse|strofa|chorus|ritornello|bridge|intro|outro|structure|struttura|energy|energia|arrang|song from|canzone intera|3 min)/],
+  ['editing', /\b(transpose|traspon|quantiz|drum pattern|pattern|chord progression|progressione|drummer|batterist|metronom|split|dividi)/],
+  ['analysis', /\b(harmony|armonia|key\b|tonalit|lint|check|controlla|problem)/],
+  ['collab', /\b(room|stanza|together|insieme|comment|comment[oi]|explain|spiega)/],
+  ['jam', /\b(jam|improvvis|answer my|rispondi)/],
+  ['engines', /\b(engine|motor[ei]|ledger|who made|chi ha fatto|policy)/],
+];
+export function planToolsets(text) {
+  const t = String(text).toLowerCase();
+  return PLAN.filter(([, re]) => re.test(t)).map(([name]) => name);
+}

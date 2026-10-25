@@ -4,6 +4,8 @@
 
 Gli stessi strumenti servono ai client MCP e alla chat dentro la pagina (sono definiti una volta sola, in `server/tools.mjs`).
 
+**Livelli**: 24 strumenti core (22 nella pagina, che gestisce da sé il passo di annullamento) e 7 capability sono sempre caricati; gli altri arrivano a gruppi (editing, structure, mix, analysis, recording, versions, lyrics, plugins, sounds, files, collab, jam, engines) con `load_toolset({name})`. La chat nella pagina usa i livelli (e precarica i gruppi che una richiesta chiede in modo evidente); i client MCP ricevono tutti gli strumenti, a meno che il server non parta con `--toolsets=core`: allora `load_toolset` li aggiunge con una notifica `tools/list_changed`. Vedi [AI-MODELS.it.md](AI-MODELS.it.md).
+
 | Area | Strumenti |
 |---|---|
 | Progetto | `pair_studio` (solo MCP remoto), `open_studio` (solo locale), `get_project`, `get_status`, `list_instruments`, `new_project`, `rename_project`, `set_tempo`, `set_key`, `set_master_volume`, `export_project_json`, `import_project_json` |
@@ -18,6 +20,7 @@ Gli stessi strumenti servono ai client MCP e alla chat dentro la pagina (sono de
 | Multiplayer | `create_room` (LAN o peer to peer, password facoltativa), `join_room`, `leave_room`, `get_peers` |
 | Jam | `set_jam_mode` (traccia di risposta, finestra), `play_phrase` (note effimere a `next_bar`, `next_loop` o a una battuta; `commit` opzionale; restituisce un `phrase_id`), `keep_answer`, `keep_phrase({phrase_id})` (una qualunque delle ultime 20 risposte); le frasi dell'utente arrivano come eventi `phrase` |
 | Versioni | `save_version`, `list_versions`, `create_branch`, `checkout` (branch o versione, annullabile, salva il WIP), `diff_versions` (riepilogo leggibile + modifiche strutturate), `merge` (a tre vie; `strategy` e `pick` per entità); `export_project_json` con `canonical` |
+| Ensemble e contesto | `create` (una parte a parole, dai motori di OpenBand o dai motori OMEP installati; varianti come take), `transform` (continua, armonizza, ridipingi, cambia stile a una parte che c'è), `get_context` e le risorse `openband://context/song`, `/section/<id>`, `/bars/<a>-<b>` (il Song Context Package), `list_engines`, `get_ledger`, `set_engine_policy`, `load_toolset`; prompt `loop_to_song`, `prepare_release`, `vocal_session`; `create`, `transform` e `arrange_from_energy` possono girare come task MCP |
 | Spiegami | `annotate` (progetto, traccia, regione, note, sezione o intervallo di battute; markdown fino a 500 caratteri), `list_annotations`, `resolve_annotation`, `delete_annotation`; `get_status` riporta `teach_mode` |
 | Take | `add_take`, `list_takes`, `set_active_take`, `delete_take`, `comp_takes` (segmenti, note tagliate ai confini), `start_ab_test` (test alla cieca; la classifica arriva come evento `ab_result`) |
 | Altre DAW | `import_dawproject` (percorso o URL del file; sostituisce la canzone, oppure `replace: false` ne aggiunge le tracce; restituisce cosa non si è potuto convertire), `export_dawproject` (`save_to` o download) |

@@ -5,13 +5,14 @@
 //
 // It also serves the production build (dist/) on http://127.0.0.1:7777 so the studio can be
 // opened without running Vite. Never write to stdout here: stdout carries the MCP protocol.
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { InMemoryTaskStore } from '@modelcontextprotocol/sdk/experimental/tasks/stores/in-memory.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { WebSocketServer } from 'ws';
 import { z } from 'zod';
 import { SubscribeRequestSchema, UnsubscribeRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { EventBuffer } from './events.mjs';
-import { INSTRUCTIONS, TOOLS } from './tools.mjs';
+import { CAPABILITY, CORE, INSTRUCTIONS, TOOLS, TOOLSETS } from './tools.mjs';
 import { Pairing, classifyOrigin, parseAllowedOrigins } from './pairing.mjs';
 import { checkForUpdate } from './update.mjs';
 import { RUN } from './package.mjs';
@@ -27,6 +28,12 @@ import os from 'node:os';
 const PORT = process.env.OPENBAND_PORT && Number(process.env.OPENBAND_PORT) ? Number(process.env.OPENBAND_PORT) : await findFreePort(7777);
 /** stdio MCP (default) or just the studio server (`openband start`). */
 const STDIO = process.env.OPENBAND_STDIO !== '0';
+/**
+ * Which tools an MCP client sees first (SPEC v0.6 §8.1): "all" (the default — every client works as
+ * before) or "core" (core + capability tools; the rest with load_toolset, announced by
+ * tools/list_changed). --toolsets=core on the command line, or OPENBAND_TOOLSETS=core.
+ */
+const TOOLSET_MODE = (process.argv.find((a) => a.startsWith('--toolsets='))?.split('=')[1] ?? process.env.OPENBAND_TOOLSETS ?? 'all') === 'core' ? 'core' : 'all';
 /** Open the studio in the browser by itself: at start (`openband start`) or at the first tool call (`openband mcp`). */
 const OPEN_BROWSER = !['0', 'false', 'no'].includes(String(process.env.OPENBAND_OPEN_BROWSER ?? '').toLowerCase());
 /** Folder that relative sample paths are resolved against (the .mcpb extension lets the user pick it). */
@@ -384,7 +391,12 @@ This is a REMOTE OpenBand: before any other tool, pair with the user's browser t
 function buildMcpServer(ctx) {
   const remote = ctx.mode === 'remote';
   const { call } = ctx;
-  const server = new McpServer({ name: 'openband', version: PKG.version }, { instructions: remote ? REMOTE_INSTRUCTIONS : INSTRUCTIONS });
+  // Tasks (SPEC v0.6 §8.1): long tools can run as MCP tasks for clients that ask; others get the answer
+  // synchronously, as before (the SDK polls the task for them).
+  const server = new McpServer(
+    { name: 'openband', version: PKG.version },
+    { instructions: remote ? REMOTE_INSTRUCTIONS : INSTRUCTIONS, capabilities: { tasks: { requests: { tools: { call: {} } } } }, taskStore: new InMemoryTaskStore() },
+  );
   const registerTool = server.registerTool.bind(server);
   server.registerTool = (name, config, cb) => registerTool(name, { ...config, annotations: annotationsFor(name, config.annotations) }, cb);
 
@@ -407,8 +419,39 @@ function buildMcpServer(ctx) {
     return {};
   });
   server.notifyProject = () => {
-    if (subscriptions.has(PROJECT_URI)) server.server.sendResourceUpdated({ uri: PROJECT_URI }).catch(() => {});
+    // After every change: the song, and any song context a client is following.
+    for (const uri of subscriptions) if (uri === PROJECT_URI || uri.startsWith('openband://context/')) server.server.sendResourceUpdated({ uri }).catch(() => {});
   };
+
+  // ---- openband://context/… : the Song Context Package (§8.3) — read it instead of five analyses
+  const contextOf = (args) => async (uri) => ({ contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(await call('get_context', args), null, 2) }] });
+  server.registerResource('context', 'openband://context/song', { title: 'Song context', description: 'The Song Context Package of the whole song: tempo, key, sections, chords bar by bar, tracks and roles, melody, lyrics.', mimeType: 'application/json' }, contextOf({}));
+  server.registerResource(
+    'context-section',
+    new ResourceTemplate('openband://context/section/{id}', { list: undefined }),
+    { title: 'Section context', description: 'The Song Context Package of one section (its id or name).', mimeType: 'application/json' },
+    (uri, { id }) => contextOf({ section_id: decodeURIComponent(String(id)) })(uri),
+  );
+  server.registerResource(
+    'context-bars',
+    new ResourceTemplate('openband://context/bars/{range}', { list: undefined }),
+    { title: 'Bars context', description: 'The Song Context Package of some bars: openband://context/bars/9-16.', mimeType: 'application/json' },
+    (uri, { range }) => {
+      const [a, b] = String(range).split('-').map(Number);
+      if (!(a >= 1) || !(b >= a)) throw new Error('Bars as <from>-<to>, e.g. 9-16');
+      return contextOf({ from_bar: a, to_bar: b })(uri);
+    },
+  );
+
+  // ---- prompts for the typical flows (shown by clients that support MCP prompts)
+  const prompt = (name, title, description, argsSchema, textOf) =>
+    server.registerPrompt(name, { title, description, argsSchema }, (args) => ({ messages: [{ role: 'user', content: { type: 'text', text: textOf(args ?? {}) } }] }));
+  prompt('loop_to_song', 'From the loop to the song', 'Turn the loop in the studio into a whole song with an energy curve.', { minutes: z.string().optional().describe('How long, e.g. 3:30'), shape: z.string().optional().describe('pop, slow_build, edm_drop or ballad') }, (a) =>
+    `Turn the loop in OpenBand into a whole song${a.minutes ? ` of about ${a.minutes}` : ''}. Read openband://context/song (or get_context) first. Draw the energy with set_energy_curve (shape ${a.shape || 'pop'}${a.minutes ? `, seconds for ${a.minutes}` : ''}), then arrange_from_energy: it works on a branch and never changes my notes. Then lint_project, and tell me in a few lines what you built — sections, who plays where, the transitions — and how to compare it with the loop.`);
+  prompt('prepare_release', 'Prepare the release', 'Mix and master the song for the platforms and make the release zip.', { genre: z.string().optional(), platforms: z.string().optional().describe('e.g. spotify, apple, youtube') }, (a) =>
+    `Prepare my song for release. Listen first (analyze_mix). Mix and master it with mix_pilot${a.genre ? ` for ${a.genre}` : ' (ask me the genre if you can\'t tell)'}, check the result with analyze_mix again, then export_for_platforms for ${a.platforms || 'spotify, apple and youtube'} with stems and an instrumental. Tell me the loudness of each master and anything that could not reach its target.`);
+  prompt('vocal_session', 'Vocal session', 'Lyrics, melody and recording takes for a vocal part.', { section: z.string().optional() }, (a) =>
+    `Let's do a vocal session${a.section ? ` on the ${a.section}` : ''}. Read the song context, help me with the lyrics (set_lyrics, align_lyrics, check_prosody: stressed syllables on strong beats), then set up recording (arm_track, set_punch on the section) so I can sing takes; afterwards help me compare them (start_ab_test) and comp the best parts (comp_takes). Load the lyrics and recording toolsets if they are not loaded.`);
 
   if (remote) {
     server.registerTool(
@@ -488,6 +531,13 @@ function buildMcpServer(ctx) {
       const r = await call(t.name, args ?? {}, t.timeout);
       return { content: [{ type: 'image', data: r.png_base64, mimeType: 'image/png' }, { type: 'text', text: JSON.stringify({ width: r.width, height: r.height, from_bar: r.from_bar, to_bar: r.to_bar }) }] };
     },
+    toolset: () => async ({ name }) => {
+      if (TOOLSET_MODE === 'all') return text({ loaded: name, note: 'Every tool is already available.' });
+      const names = name === 'all' ? Object.values(TOOLSETS).flatMap((s) => s.tools) : (TOOLSETS[name]?.tools ?? []);
+      const added = names.filter((n) => registered.get(n) && !registered.get(n).enabled);
+      for (const n of added) registered.get(n).enable();
+      return text({ loaded: name, tools: added.length ? added : 'already loaded', note: added.length ? 'They are available now.' : undefined });
+    },
     events_list: () => async (args) => text(ctx.events().list(args)),
     events_wait: () => async (args) => text(await ctx.events().wait(args)),
   };
@@ -502,15 +552,45 @@ function buildMcpServer(ctx) {
     }
     return t.shape;
   };
+  const registered = new Map();
+  /** Long generations: an MCP task for clients that ask, the same answer synchronously otherwise. */
+  const TASK_TOOLS = new Set(['create', 'transform', 'arrange_from_energy']);
+  const asTask = (t, handler) =>
+    server.experimental.tasks.registerToolTask(
+      t.name,
+      { title: t.title, description: t.description, inputSchema: shapeFor(t), annotations: annotationsFor(t.name, t.annotations), execution: { taskSupport: 'optional' } },
+      {
+        async createTask(args, { taskStore, taskRequestedTtl }) {
+          const task = await taskStore.createTask({ ttl: taskRequestedTtl ?? 15 * 60_000, pollInterval: 100 });
+          (async () => {
+            let result;
+            try {
+              result = await handler(args ?? {});
+            } catch (e) {
+              result = fail(e);
+            }
+            await taskStore.storeTaskResult(task.taskId, result.isError ? 'failed' : 'completed', result).catch(() => {});
+          })();
+          return { task };
+        },
+        getTask: (_args, { taskId, taskStore }) => taskStore.getTask(taskId),
+        getTaskResult: (_args, { taskId, taskStore }) => taskStore.getTaskResult(taskId),
+      },
+    );
   for (const t of TOOLS) {
     const handler = HANDLERS[t.kind](t);
-    server.registerTool(t.name, { title: t.title, description: t.description, inputSchema: shapeFor(t), annotations: t.annotations }, async (args) => {
-      try {
-        return await handler(args ?? {});
-      } catch (e) {
-        return fail(e);
-      }
-    });
+    const rt = TASK_TOOLS.has(t.name)
+      ? asTask(t, handler)
+      : server.registerTool(t.name, { title: t.title, description: t.description, inputSchema: shapeFor(t), annotations: t.annotations }, async (args) => {
+          try {
+            return await handler(args ?? {});
+          } catch (e) {
+            return fail(e);
+          }
+        });
+    registered.set(t.name, rt);
+    // Core mode: only core and capability tools to start with (load_toolset brings the others).
+    if (TOOLSET_MODE === 'core' && !CORE.includes(t.name) && !CAPABILITY.includes(t.name)) rt.disable();
   }
   return server;
 }

@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useStore } from '../store';
 import { commands } from '../commands';
 import { newChat, runTurn, useChat } from './agent';
-import { agentTools } from './tools';
-import { ChatCompletionsProvider, OpenAIResponsesProvider, geminiSchema, listModels, toChatMessages } from './openai';
+import { agentTools, toolsFor } from './tools';
+import { ChatCompletionsProvider, OpenAIResponsesProvider, chatTools, geminiSchema, listModels, toChatMessages } from './openai';
 import { makeProvider } from './provider';
 import { costUsd, NO_USAGE } from './models';
 
@@ -46,8 +46,12 @@ describe('other AI providers', () => {
     expect(sent[0].url).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
     expect(sent[0].headers.authorization).toBe('Bearer AIzaTEST');
     const tools = sent[0].body.tools as { function: { parameters: unknown } }[];
-    expect(tools.length).toBe(agentTools().length);
+    // The layered tools (core + capability, §8.1) go out; every tool, loaded later, fits Gemini's subset too.
+    expect(tools.length).toBe(toolsFor(new Set()).length);
     expect(forbidden(tools.map((t) => t.function.parameters))).toEqual([]);
+    const all = chatTools(agentTools().map((t) => ({ name: t.def.name, description: t.def.description, input_schema: t.jsonSchema })), 'gemini') as { function: { parameters: unknown } }[];
+    expect(all.length).toBe(agentTools().length);
+    expect(forbidden(all.map((t) => t.function.parameters))).toEqual([]);
     const msgs = sent[1].body.messages as Record<string, unknown>[];
     expect(msgs[0].role).toBe('system');
     expect(msgs[1]).toEqual({ role: 'user', content: 'Set the tempo to 84' });

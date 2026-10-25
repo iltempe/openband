@@ -67,7 +67,9 @@ function drummerNotes(sections: Section[], from: number, to: number, o: DrummerO
 }
 
 import { autoVersion } from './versioning';
-import { createPart, type CreateArgs } from './ensemble/create';
+import { createPart, scopeFor, type CreateArgs } from './ensemble/create';
+import { transformPart, type TransformArgs } from './ensemble/transform';
+import { buildContext } from './ensemble/context';
 import { allEngines, setPolicy, useEnsemble } from './ensemble/engines';
 import { route } from './ensemble/router';
 import type { Capability } from './ensemble/types';
@@ -1497,6 +1499,13 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   // ---- Ensemble (SPEC v0.6)
   create: (args) => createPart(args as CreateArgs),
+  transform: (args) => transformPart(args as TransformArgs),
+  // The Song Context Package (§3): what an engine — or the director — needs to know about the song.
+  get_context: async ({ section_id, from_bar, to_bar }) => {
+    const p = st().project;
+    const scope = section_id || from_bar !== undefined ? scopeFor(p, { section_id, from_bar, to_bar }) : undefined;
+    return buildContext(p, { ...(scope ? { scope } : {}) });
+  },
 
   list_engines: async ({ capability }) => {
     const engines = await allEngines();
@@ -1849,7 +1858,7 @@ export const commands: Record<string, (args: P) => unknown> = {
 /** Run a command and record it in the AI activity log. */
 /** Commands that never change the project: they don't open an undo step. */
 const READ_ONLY = new Set([
-  'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi', 'export_dawproject', 'export_for_platforms',
+  'get_context', 'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi', 'export_dawproject', 'export_for_platforms',
   'list_samples', 'list_plugins', 'search_plugins', 'list_native_plugins', 'rescan_plugins', 'suggest_continuation', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'get_energy', 'analyze_harmony',
   'list_engines', 'get_ledger', 'set_engine_policy',

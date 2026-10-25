@@ -1,14 +1,14 @@
 // The tools the in-browser agent offers Claude: the very same definitions as the MCP server
 // (server/tools.mjs), turned into JSON Schema, plus how to run each kind here in the browser.
 import { z } from 'zod';
-import { INSTRUCTIONS, TOOLS, type ToolDef } from '../../server/tools.mjs';
+import { INSTRUCTIONS, TOOLS, levelOf, type ToolDef } from '../../server/tools.mjs';
 
 export { INSTRUCTIONS };
 
 /** Kinds the browser can run: studio → AI events belong to the MCP server and are left out. */
 /** In the page there is no disk: exports download, so save_to is not offered. */
 const withoutSaveTo = (shape: Record<string, unknown> = {}) => Object.fromEntries(Object.entries(shape).filter(([k]) => k !== 'save_to'));
-const IN_BROWSER = new Set(['call', 'file', 'export', 'chord_sheet', 'image']);
+const IN_BROWSER = new Set(['call', 'file', 'export', 'chord_sheet', 'image', 'toolset']);
 /** The agent makes each request one undo step itself: a model opening its own (small local models do)
  *  would nest a second one inside. */
 const AGENT_OWNED = new Set(['begin_change', 'end_change']);
@@ -35,6 +35,17 @@ export function agentTools(): AgentTool[] {
 }
 
 export const findTool = (name: string) => agentTools().find((t) => t.def.name === name);
+
+/**
+ * The tools offered on a turn (SPEC v0.6 §8.1): core and capability ones always, the domain toolsets
+ * once loaded (by the planner from the request's words, or by the model with load_toolset).
+ */
+export function toolsFor(loaded: Set<string>): AgentTool[] {
+  return agentTools().filter((t) => {
+    const level = levelOf(t.def.name);
+    return level === 'core' || level === 'capability' || loaded.has('all') || (level !== null && loaded.has(level));
+  });
+}
 
 /** Validate a tool input; an error message for Claude when it doesn't fit the schema. */
 export function validateInput(name: string, input: unknown): { ok: true; value: Record<string, unknown> } | { ok: false; error: string } {

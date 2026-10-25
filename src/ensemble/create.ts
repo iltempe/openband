@@ -30,6 +30,8 @@ export interface CreateArgs {
   seed?: number;
   role?: string;
   instrument?: string;
+  /** The track whose notes are the melody to work from (transform). */
+  melody_track_id?: string;
 }
 
 const INSTRUMENTS: [RegExp, string, string][] = [
@@ -133,13 +135,13 @@ export async function createPart(a: CreateArgs) {
   const target = a.track_id ? p0.tracks.find((t) => t.id === a.track_id) : undefined;
   if (a.track_id && !target) throw new Error(`Track "${a.track_id}" not found`);
   const capability = inferCapability({ capability: a.capability, trackKind: target?.kind, text: `${a.text ?? ''} ${a.role ?? ''}` });
-  if (!['symbolic.drums', 'symbolic.accompany', 'symbolic.continue', 'symbolic.harmonize', 'music.add_layer', 'music.repaint', 'music.extend'].includes(capability))
+  if (!['symbolic.drums', 'symbolic.accompany', 'symbolic.continue', 'symbolic.harmonize', 'music.add_layer', 'music.repaint', 'music.extend', 'music.restyle'].includes(capability))
     throw new Error(`create can't place ${capability} contributions yet (coming with the next Ensemble steps)`);
   const scope = scopeFor(p0, a)!;
   const policy = useEnsemble.getState().policy;
   const r = route({ capability, engine: a.engine }, await allEngines(), policy);
   if (!r.candidates.length) throw new Error(`No engine can do ${capability} with your settings${r.excluded.length ? `: ${r.excluded.map((x) => `${x.name} — ${x.reason}`).join('; ')}` : ''}`);
-  const scp = await buildContext(p0, { scope, intent: { text: a.text, role: a.role, instrument: a.instrument }, policy: { commercial_only: policy.commercial_only, local_only: policy.local_only } });
+  const scp = await buildContext(p0, { scope, intent: { text: a.text, role: a.role, instrument: a.instrument }, policy: { commercial_only: policy.commercial_only, local_only: policy.local_only }, melodyTrackId: a.melody_track_id });
   const variants = clamp(Math.round(Number(a.variants ?? 1)), 1, 4);
   const { made, failures } = await perform(capability, r.candidates, scp, a, variants);
   if (!made.length) throw new Error(`Every engine failed: ${failures.join('; ')}`);

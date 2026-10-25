@@ -4,7 +4,8 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { runCommand } from '../commands';
 import { useStore } from '../store';
-import { BROWSER_NOTE, INSTRUCTIONS, agentTools, findTool, validateInput } from './tools';
+import { BROWSER_NOTE, INSTRUCTIONS, findTool, toolsFor, validateInput } from './tools';
+import { TOOLSETS, planToolsets } from '../../server/tools.mjs';
 import { NO_USAGE, addUsage, costUsd, type Usage } from './models';
 import type { LLMProvider } from './provider';
 import { useChat } from './chat';
@@ -19,6 +20,10 @@ export const MAX_TOOL_CALLS = 40;
 let history: Anthropic.Beta.BetaMessageParam[] = [];
 let controller: AbortController | null = null;
 let lastProvider: LLMProvider | null = null;
+/** The toolsets loaded in this chat (§8.1): the planner's guesses and what the model asked for. */
+let loaded = new Set<string>();
+/** For tests. */
+export const loadedToolsets = () => [...loaded];
 let seq = 0;
 const id = () => `c${++seq}`;
 
@@ -26,6 +31,7 @@ export function newChat() {
   if (useChat.getState().busy) return;
   history = [];
   lastProvider = null;
+  loaded = new Set();
   useChat.setState({ items: [], live: '' });
 }
 export const stopTurn = () => controller?.abort();
@@ -48,6 +54,12 @@ async function toBase64(url: string): Promise<{ data_base64: string; filename: s
 async function execute(name: string, input: Record<string, unknown>): Promise<ToolResult['content']> {
   const t = findTool(name)!;
   switch (t.def.kind) {
+    case 'toolset': {
+      const set = String(input.name);
+      loaded.add(set);
+      const names = set === 'all' ? 'every tool' : (TOOLSETS[set]?.tools ?? []);
+      return asJson({ loaded: set, tools: names, note: 'They are available from now on.' });
+    }
     case 'file': {
       const { source, ...rest } = input as { source: string };
       return asJson(await runCommand(name, { ...rest, ...(await toBase64(source)) }, 'ai'));
@@ -84,12 +96,17 @@ export async function runTurn(text: string, provider: LLMProvider, opts: { maxTo
   if (st.busy) throw new Error('Wait for the current answer (or press Stop)');
   const max = opts.maxToolCalls ?? MAX_TOOL_CALLS;
   // Another AI can't read the previous one's messages (ids, reasoning, signatures): it starts afresh.
-  if (lastProvider && lastProvider !== provider) history = [];
+  if (lastProvider && lastProvider !== provider) {
+    history = [];
+    loaded = new Set();
+  }
+  // The toolsets the request obviously needs, loaded before the first call ("mixa" → mix).
+  for (const set of planToolsets(text)) loaded.add(set);
   lastProvider = provider;
   controller = new AbortController();
   const signal = controller.signal;
   useChat.setState((s) => ({ busy: true, live: '', items: [...s.items, { id: id(), role: 'user', text }] }));
-  const tools = agentTools().map((t) => ({ name: t.def.name, description: t.def.description, input_schema: t.jsonSchema }));
+  const toolSpecs = () => toolsFor(loaded).map((t) => ({ name: t.def.name, description: t.def.description, input_schema: t.jsonSchema }));
   const system = INSTRUCTIONS + BROWSER_NOTE;
   let usage: Usage = NO_USAGE;
   let model = opts.model ?? '';
@@ -102,7 +119,7 @@ export async function runTurn(text: string, provider: LLMProvider, opts: { maxTo
   history.push({ role: 'user', content: text });
   try {
     for (;;) {
-      const res = await provider.turn({ system, tools, messages: history, signal, onText: (d) => useChat.setState((s) => ({ live: s.live + d })) });
+      const res = await provider.turn({ system, tools: toolSpecs(), messages: history, signal, onText: (d) => useChat.setState((s) => ({ live: s.live + d })) });
       model = res.model || model;
       usage = addUsage(usage, res.usage);
       history.push({ role: 'assistant', content: res.content as Block[] });

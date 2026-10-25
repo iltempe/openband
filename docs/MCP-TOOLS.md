@@ -4,6 +4,8 @@
 
 The same tools are used by MCP clients and by the chat inside the page (they are defined once, in `server/tools.mjs`).
 
+**Levels**: 24 core tools (22 in the page, which makes the undo step itself) and 7 capability tools are always loaded; the rest come in toolsets (editing, structure, mix, analysis, recording, versions, lyrics, plugins, sounds, files, collab, jam, engines) loaded with `load_toolset({name})`. The page chat uses the levels (and preloads the toolsets a request obviously needs); MCP clients get every tool unless the server runs with `--toolsets=core`, when `load_toolset` adds them with a `tools/list_changed` notification. See [AI-MODELS.md](AI-MODELS.md).
+
 | Area | Tools |
 |---|---|
 | Project | `pair_studio` (remote MCP only), `open_studio` (local only), `get_project`, `get_status`, `list_instruments`, `new_project`, `rename_project`, `set_tempo`, `set_key`, `set_master_volume`, `export_project_json`, `import_project_json` |
@@ -18,6 +20,7 @@ The same tools are used by MCP clients and by the chat inside the page (they are
 | Multiplayer | `create_room` (LAN or peer-to-peer, optional password), `join_room`, `leave_room`, `get_peers` |
 | Jam | `set_jam_mode` (response track, window), `play_phrase` (ephemeral notes at `next_bar`, `next_loop` or a bar; optional `commit`; returns a `phrase_id`), `keep_answer`, `keep_phrase({phrase_id})` (any of the last 20 answers); the user's phrases arrive as `phrase` events |
 | Versions | `save_version`, `list_versions`, `create_branch`, `checkout` (branch or version, undoable, auto-saves WIP), `diff_versions` (readable summary + structured changes), `merge` (three-way; `strategy` and per-entity `pick`); `export_project_json` with `canonical` |
+| Ensemble and context | `create` (a part from words, by OpenBand's engines or installed OMEP engines; variants as takes), `transform` (continue, harmonize, repaint, restyle a part that is there), `get_context` and the resources `openband://context/song`, `/section/<id>`, `/bars/<a>-<b>` (the Song Context Package), `list_engines`, `get_ledger`, `set_engine_policy`, `load_toolset`; prompts `loop_to_song`, `prepare_release`, `vocal_session`; `create`, `transform` and `arrange_from_energy` can run as MCP tasks |
 | Explain | `annotate` (project, track, region, notes, section or bar range; markdown up to 500 characters), `list_annotations`, `resolve_annotation`, `delete_annotation`; `get_status` reports `teach_mode` |
 | Takes | `add_take`, `list_takes`, `set_active_take`, `delete_take`, `comp_takes` (segments, notes cut at the boundaries), `start_ab_test` (blind test; the ranking arrives as an `ab_result` event) |
 | Other DAWs | `import_dawproject` (file path or URL; replaces the song, or `replace: false` adds its tracks; returns what couldn't be converted), `export_dawproject` (`save_to` or download) |

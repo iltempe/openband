@@ -4,8 +4,18 @@
 
 OpenBand is not tied to one AI. The studio speaks the open [Model Context Protocol](https://modelcontextprotocol.io)
 (MCP) to AI apps, and its chat in the page can run Claude, OpenAI's models, Gemini, or a model on your
-own computer with Ollama. Every AI gets the same 146 tools (141 in the page, where there are no files or
+own computer with Ollama. Every AI gets the same 149 tools (144 in the page, where there are no files or
 event stream).
+
+**Tools in levels**, so small and local models aren't swamped: the chat in the page starts every
+conversation with the **29 core and capability tools** (the song, tracks, regions and notes, transport,
+undo, structure, and one tool per kind of musical job: `create`, `transform`, `suggest_continuation`, `mix_pilot`,
+`arrange_from_energy`, `export_for_platforms`, `set_jam_mode`), adds the toolsets your words obviously
+need (*"mix it"* → mix, *"le parole"* → lyrics), and the model loads any other with `load_toolset`
+(editing, structure, mix, analysis, recording, versions, lyrics, plugins, sounds, files, collab, jam,
+engines) — it appears on its next turn. AI apps over MCP get every tool, as before; start the server with
+`--toolsets=core` (or `OPENBAND_TOOLSETS=core`) for the levels there too: the client is told when tools
+are added (`tools/list_changed`).
 
 | AI | In the page (your key) | AI app on your computer (MCP) | On the web (remote MCP) |
 |---|---|---|---|

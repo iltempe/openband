@@ -17,6 +17,8 @@ export interface ContextOptions {
   intent?: Scp['intent'];
   constraints?: Scp['constraints'];
   policy?: Scp['policy'];
+  /** The track whose notes are the melody engines read (default: the lyrics' melody track). */
+  melodyTrackId?: string;
 }
 
 export async function sha256(text: string): Promise<string> {
@@ -36,7 +38,7 @@ export async function buildContext(p: Project, o: ContextOptions = {}): Promise<
   const notes = p.regions.filter((r) => pitched.has(r.trackId) && !r.audio).flatMap((r) => r.notes.map((n) => ({ pitch: n.pitch, start: r.start + n.start, duration: n.duration, velocity: n.velocity })));
   if (notes.length) scp.harmony = analyzeChords(notes, p.key, 0, endBeat).map((c) => ({ bar: c.bar, beat: c.beat - 1, chord: c.chord, roman: c.roman, beats: c.length }));
   scp.tracks = p.tracks.map((t) => ({ id: t.id, name: t.name, role: roleOf(t, noteFacts(p, t.id)), summary: `${t.kind} · ${t.instrument}` }));
-  const melodyTrack = p.lyrics?.melodyTrackId;
+  const melodyTrack = o.melodyTrackId ?? p.lyrics?.melodyTrackId;
   if (melodyTrack) {
     const from = ((o.scope?.from_bar ?? 1) - 1) * BEATS_PER_BAR;
     const to = o.scope ? (o.scope.to_bar - 1) * BEATS_PER_BAR : endBeat;

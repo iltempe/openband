@@ -686,6 +686,48 @@ tests.energy = async () => {
   }
 };
 
+tests.director = async () => {
+  // E2: the song context as a resource, transform through the ghost-note engine, create answered
+  // synchronously for a client that doesn't ask for MCP tasks.
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+  const c = new Client({ name: 'e2e', version: '1' });
+  await c.connect(new StdioClientTransport({ command: process.execPath, args: [path.join(root, 'server', 'mcp-server.mjs')], env: { ...process.env, OPENBAND_PORT: String(PORT), OPENBAND_OPEN_BROWSER: '0', OPENBAND_NO_UPDATE_CHECK: '1' }, stderr: 'ignore' }));
+  const call = async (name, args = {}) => {
+    const r = await c.callTool({ name, arguments: args }, undefined, { timeout: 300000 });
+    if (r.isError) throw new Error(`${name}: ${r.content[0].text}`);
+    return JSON.parse(r.content[0].text);
+  };
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-more .btn.primary').click());
+    await wait(800);
+    await p.evaluate(() => window.openband.engine.stop());
+    await call('new_project', { name: 'Director', bpm: 96, key: 'Am' });
+    const keys = (await call('add_track', { kind: 'instrument', instrument: 'felt-piano', name: 'Keys' })).track_id;
+    await call('add_region', { track_id: keys, start_bar: 1, length_bars: 4, notes: ['A3', 'F3', 'C4', 'G3'].flatMap((root, i) => [root, root.replace(/\d/, (d) => String(+d + 0))].slice(0, 1).map((pitch) => ({ pitch, start: i * 4, duration: 4 }))) });
+    const lead = (await call('add_track', { kind: 'instrument', instrument: 'neon-lead', name: 'Lead' })).track_id;
+    const mel = await call('add_region', { track_id: lead, start_bar: 1, length_bars: 4, notes: [{ pitch: 'A4', start: 0, duration: 1 }, { pitch: 'C5', start: 1, duration: 1 }, { pitch: 'E5', start: 2, duration: 2 }, { pitch: 'C5', start: 4, duration: 2 }, { pitch: 'A4', start: 6, duration: 2 }] });
+    const res = await c.readResource({ uri: 'openband://context/song' });
+    const scp = JSON.parse(res.contents[0].text);
+    check(scp.scp === '1.0' && scp.song.key === 'Am' && scp.song.bpm === 96 && scp.tracks.length === 2, `openband://context/song is the song's context (${scp.song.key}, ${scp.song.bpm} BPM, ${scp.tracks.length} tracks, ${scp.harmony?.length ?? 0} chords)`);
+    const bars = JSON.parse((await c.readResource({ uri: 'openband://context/bars/1-2' })).contents[0].text);
+    check(bars.scope?.from_bar === 1 && bars.scope?.to_bar === 3, 'openband://context/bars/1-2 is scoped to those bars');
+    const before = await p.evaluate((id) => JSON.stringify(window.openband.useStore.getState().project.regions.find((r) => r.id === id).notes), mel.region_id);
+    const tr = await call('transform', { region_id: mel.region_id, intent: 'harmonize it' });
+    const after = await p.evaluate((id) => JSON.stringify(window.openband.useStore.getState().project.regions.find((r) => r.id === id).notes), mel.region_id);
+    check(tr.capability === 'symbolic.harmonize' && tr.engines?.includes('OpenBand Ghost notes') && tr.track_id !== lead && after === before, `transform "harmonize it" → ${tr.capability} by ${tr.engines?.join(', ')}, on a new track; the melody untouched`);
+    const t0 = Date.now();
+    const cr = await call('create', { text: 'funk drums', from_bar: 1, to_bar: 4 });
+    check(cr.capability === 'symbolic.drums' && cr.notes > 0, `create answers synchronously to a client without MCP tasks (${cr.notes} notes, ${Date.now() - t0} ms)`);
+  } finally {
+    await b.close();
+    await c.close();
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);
