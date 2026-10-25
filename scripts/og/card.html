@@ -1,0 +1,189 @@
+<!doctype html>
+<!-- The social preview of www.openband.it (1200×630), rendered by scripts/build-og.mjs. ?page=contribute
+     makes the one for the "Suggest a feature" page. -->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&display=swap" rel="stylesheet" />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      html,
+      body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+      }
+      body {
+        font-family: Inter, -apple-system, 'Segoe UI', sans-serif;
+        color: #eef0f6;
+        background:
+          radial-gradient(42% 60% at 12% 18%, rgba(255, 122, 89, 0.32), transparent 70%),
+          radial-gradient(45% 70% at 62% 8%, rgba(177, 76, 255, 0.38), transparent 70%),
+          radial-gradient(40% 60% at 88% 92%, rgba(60, 200, 255, 0.26), transparent 70%),
+          #0b0c10;
+        position: relative;
+      }
+      /* A faint grid, like the timeline. */
+      body::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+        background-size: 48px 48px;
+        mask-image: linear-gradient(90deg, #000 0%, transparent 70%);
+      }
+      .text {
+        position: absolute;
+        left: 64px;
+        top: 58px;
+        width: 600px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        font-size: 30px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+      .brand img {
+        width: 52px;
+        height: 52px;
+        border-radius: 13px;
+        box-shadow: 0 8px 30px rgba(177, 76, 255, 0.45);
+      }
+      .kicker {
+        margin-top: 34px;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 17px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #c9ccd8;
+        padding: 8px 16px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+      }
+      .kicker i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #34d399;
+        box-shadow: 0 0 12px #34d399;
+      }
+      h1 {
+        margin-top: 22px;
+        font-size: 66px;
+        line-height: 1.02;
+        font-weight: 900;
+        letter-spacing: -0.035em;
+      }
+      .grad {
+        background: linear-gradient(100deg, #ff7a59, #b14cff 52%, #3cc8ff);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .sub {
+        margin-top: 22px;
+        font-size: 23px;
+        line-height: 1.4;
+        font-weight: 500;
+        color: #b9bdcc;
+      }
+      .cta {
+        position: absolute;
+        left: 64px;
+        bottom: 54px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 16px 28px;
+        border-radius: 999px;
+        font-size: 24px;
+        font-weight: 800;
+        color: #fff;
+        background: linear-gradient(100deg, #ff7a59, #b14cff 55%, #3cc8ff);
+        box-shadow: 0 12px 40px rgba(177, 76, 255, 0.5);
+      }
+      .url {
+        font-size: 24px;
+        font-weight: 700;
+        color: #eef0f6;
+        opacity: 0.85;
+      }
+      /* The studio, tilted, coming out of the right edge. */
+      .shot {
+        position: absolute;
+        left: 690px;
+        top: 92px;
+        width: 760px;
+        transform: perspective(1400px) rotateY(-16deg) rotateX(4deg) rotateZ(-1deg);
+        transform-origin: left center;
+        border-radius: 18px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        box-shadow:
+          0 40px 90px rgba(0, 0, 0, 0.65),
+          0 0 0 1px rgba(0, 0, 0, 0.4),
+          -20px 0 80px rgba(177, 76, 255, 0.35);
+      }
+      .shot img {
+        display: block;
+        width: 100%;
+      }
+      .badge {
+        position: absolute;
+        right: 56px;
+        bottom: 50px;
+        display: flex;
+        gap: 10px;
+      }
+      .badge span {
+        padding: 9px 16px;
+        border-radius: 12px;
+        font-size: 17px;
+        font-weight: 700;
+        background: rgba(11, 12, 16, 0.82);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        backdrop-filter: blur(6px);
+      }
+      .badge b {
+        color: #34d399;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shot"><img src="__STUDIO__" alt="" /></div>
+    <div class="text">
+      <div class="brand"><img src="__ICON__" alt="" />OpenBand</div>
+      <div class="kicker"><i></i><span id="kicker">Free · Open source</span></div>
+      <h1 id="title">Make music.<br /><span class="grad">Free, for everyone.</span></h1>
+      <p class="sub" id="sub">A real music studio in your browser and on your desktop. Anyone can improve it, and your AI can play it too.</p>
+    </div>
+    <div class="cta">
+      <span class="btn" id="btn">Open the studio →</span>
+      <span class="url">openband.it</span>
+    </div>
+    <div class="badge"><span>Browser · macOS · Windows · Linux</span><span><b>€0</b> forever</span></div>
+    <script>
+      if (new URLSearchParams(location.search).get('page') === 'contribute') {
+        document.getElementById('kicker').textContent = 'Built in the open';
+        document.getElementById('title').innerHTML = 'Your idea,<br /><span class="grad">in the next release.</span>';
+        document.getElementById('sub').textContent = 'Suggest a feature for OpenBand, the free music studio anyone can improve. Follow it on the public roadmap, then play it.';
+        document.getElementById('btn').textContent = 'Suggest a feature →';
+      }
+    </script>
+  </body>
+</html>
