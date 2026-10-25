@@ -8,6 +8,7 @@
 import type { AutomationLane, MixRole, Note, Project, Region, Section, SectionKind } from '../types';
 import { BEATS_PER_BAR, uid } from '../music';
 import { makeTrack } from '../store';
+import { SECTION_COLORS } from '../structure';
 import { noteFacts, roleOf } from '../pilot/roles';
 import { DRUM_STYLES, generateDrums, type DrumStyle } from '../generate/drummer';
 import { parseKey } from '../analysis/harmony';
@@ -123,7 +124,7 @@ export function segment(curve: EnergyCurve): Seg[] {
 // ---------------------------------------------------------------- 2. who plays, by energy
 
 /** Energy from which a role joins: harmony first, then texture and vocal, the lead, the bass, the drums. */
-const ENTER: Record<MixRole, number> = { harmony: 0, texture: 0.12, vocal: 0.18, lead: 0.3, bass: 0.27, drums: 0.42, kick: 0.48, fx: 0.55 };
+export const ENTER: Record<MixRole, number> = { harmony: 0, texture: 0.12, vocal: 0.18, lead: 0.3, bass: 0.27, drums: 0.42, kick: 0.48, fx: 0.55 };
 const STYLE_FOR: Record<string, DrumStyle> = { edm: 'house', dance: 'house', hiphop: 'boom-bap', 'hip-hop': 'boom-bap', rap: 'trap', lofi: 'lo-fi', jazz: 'shuffle', latin: 'bossa' };
 
 const NAMES: Record<SectionKind, string> = { intro: 'Intro', verse: 'Verse', prechorus: 'Pre-chorus', chorus: 'Chorus', bridge: 'Bridge', solo: 'Solo', breakdown: 'Breakdown', outro: 'Outro', custom: 'Section' };
@@ -193,7 +194,7 @@ export function arrange(p: Project, o: ArrangeOptions): Arrangement {
   segs.forEach((s, i) => {
     counts[s.kind] = (counts[s.kind] ?? 0) + 1;
     const name = totalOf[s.kind]! > 1 ? `${NAMES[s.kind]} ${counts[s.kind]}` : NAMES[s.kind];
-    sectionsOut.push({ id: uid('sec'), name, kind: s.kind, start: s.start * BAR, length: s.bars * BAR });
+    sectionsOut.push({ id: uid('sec'), name, kind: s.kind, start: s.start * BAR, length: s.bars * BAR, color: SECTION_COLORS[s.kind] });
     const start = s.start * BAR;
     const end = start + s.bars * BAR - (stops.has(i) ? BAR : 0);
     const lastChorus = s.kind === 'chorus' && counts.chorus === totalOf.chorus && (o.modulate ?? 0) > 0;

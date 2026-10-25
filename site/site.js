@@ -136,6 +136,8 @@
     'foot.contacts': 'Contatti',
     'foot.contactsp': 'OpenBand è fatto da @iltempe e dai suoi contributori.',
     'foot.coffee': 'Offrimi un caffè',
+    'feat.energy': 'Disegna la canzone',
+    'feat.energyp': 'Hai un loop di 8 battute che non diventa mai una canzone? Disegna quanto deve essere grande nel tempo, o scegli “pop classico”, “crescendo lento”, “drop EDM”, e Arrangia la costruisce: intro, strofe, ritornelli, strumenti che entrano, fill, riser e un finale. Le tue note restano come le hai scritte, su un branch da confrontare.',
     'feat.ghosts': 'Tab per scrivere la battuta dopo',
     'feat.ghostsp': 'Mentre scrivi, OpenBand propone in grigio come continuare: il resto della melodia, una linea di basso sotto i tuoi accordi, un’armonia, una contromelodia, un fill di batteria. Tab la prende, ⇧Tab ne mostra un’altra e “?” spiega perché. Istantaneo, offline, senza account AI: impara dalla tua canzone.',
     'foot.privacy': 'Le visite si contano in forma anonima con <a href="https://www.goatcounter.com/help/privacy">GoatCounter</a>: niente cookie né dati personali, e nulla se il browser chiede di non essere tracciato.',

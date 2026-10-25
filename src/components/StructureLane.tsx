@@ -6,6 +6,7 @@ import { useStore } from '../store';
 import { runCommand } from '../commands';
 import { proposeSections } from '../structure';
 import { useT, type MessageKey } from '../i18n';
+import { setEnergyLane, useEnergyShown } from './EnergyLane';
 
 const KINDS: SectionKind[] = ['intro', 'verse', 'prechorus', 'chorus', 'bridge', 'solo', 'breakdown', 'outro', 'custom'];
 const run = (method: string, params: Record<string, unknown>) => runCommand(method, params, 'ui').catch((e) => useStore.getState().notify((e as Error).message));
@@ -24,9 +25,15 @@ export function StructureCorner() {
       useStore.getState().endTransaction(tx);
     }
   };
+  const energy = useEnergyShown();
   return (
     <div className="struct-corner">
       <span>{t('sec.lane')}</span>
+      {!energy && (
+        <button className="mini" onClick={() => setEnergyLane(true)} title={t('en.showHint')}>
+          {t('en.show')}
+        </button>
+      )}
       {!has && (
         <button className="mini" onClick={suggest} title={t('sec.suggestHint')}>
           {t('sec.suggest')}

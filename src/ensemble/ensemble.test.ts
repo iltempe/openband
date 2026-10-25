@@ -249,3 +249,31 @@ describe('create', () => {
     expect(v.failed?.some((f) => /flaky: timeout/.test(f))).toBe(true);
   });
 });
+
+describe('ghost notes and the arranger as builtin engines (G3, G2)', () => {
+  it('symbolic.continue continues the melody in the SCP; symbolic.harmonize gives chords; music.arrange a plan', async () => {
+    const { BUILTINS } = await import('./builtin');
+    const ghost = BUILTINS.find((b) => b.manifest.engine.id === 'openband-ghost')!;
+    const arranger = BUILTINS.find((b) => b.manifest.engine.id === 'openband-arranger')!;
+    const scp = {
+      scp: '1.0' as const,
+      song: { bpm: 96, meter: '4/4', key: 'Am', length_bars: 8 },
+      scope: { from_bar: 1, to_bar: 5 },
+      harmony: ['Am', 'F', 'C', 'G'].map((chord, i) => ({ bar: i + 1, chord })),
+      melody: { notes: [69, 72, 76, 74, 72, 69].map((pitch, i) => ({ pitch, start: i, duration: 1, velocity: 0.8 })) },
+      tracks: [{ id: 'd', role: 'drums' }, { id: 'k', role: 'harmony' }, { id: 'b', role: 'bass' }],
+    };
+    const cont = await ghost.run('symbolic.continue', { context: scp, seed: 2 });
+    expect(cont.kind).toBe('notes');
+    expect(cont.notes!.length).toBeGreaterThan(0);
+    expect(Math.min(...cont.notes!.map((n) => n.start))).toBeGreaterThanOrEqual(6 - 1e-6);
+    expect(cont.provenance.prompt).toMatch(/chord tones/);
+    const harm = await ghost.run('symbolic.harmonize', { context: scp });
+    expect(harm.notes!.length).toBeGreaterThanOrEqual(6);
+    const plan = await arranger.run('music.arrange', { context: scp, request: { shape: 'pop', length_bars: 64 } });
+    const sections = (plan.params as { sections: { kind: string; tracks: string[] }[] }).sections;
+    expect(sections[0].kind).toBe('intro');
+    expect(sections[0].tracks).toEqual(['k']);
+    expect(sections.find((s) => s.kind === 'chorus')!.tracks.sort()).toEqual(['b', 'd', 'k']);
+  });
+});

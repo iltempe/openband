@@ -73,6 +73,7 @@ describe('arrange from energy (G2)', () => {
       for (const k2 of ['verse', 'chorus', 'outro']) expect(kinds.has(k2 as never)).toBe(true);
       expect(a.correlation).toBeGreaterThan(0.7);
       expect(a.project.sections).toHaveLength(a.sections.length);
+      expect(a.project.sections!.every((s) => !!s.color)).toBe(true); // coloured like sections added by hand
       console.log(`${shape}: ${a.sections.map((s) => `${s.name}(${s.bars})`).join(' ')} · r = ${a.correlation} · ${a.transitions.map((t) => `${t.kind}@${t.bar}`).join(' ')} · ending ${a.ending}`);
     });
   }

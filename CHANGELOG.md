@@ -2,6 +2,16 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.22 "G2b: the Energy lane"
+
+### G2 (part 2) · Draw the song in the studio
+- **Energy lane** above the structure (*Energy* in the structure corner shows it; it stays when the song has a curve): **drag to draw** the energy you want over time — every bar crossed takes the height under the pointer, one undo step per stroke; double-click a point to remove it. The song's **measured energy** shows as grey bars under the curve, so you see where it is missing.
+- In its corner: a **shape** (classic pop, slow build, EDM drop, ballad), the **length** (`3:30` or bars) and **Arrange** — the whole arrangement on a new branch, opened in compare view, with a note of what it did.
+- **Ghost notes and the arranger are Ensemble engines too** (as the spec's order asks): `openband-ghost` answers `symbolic.continue` and `symbolic.harmonize` from the Song Context Package's melody and chords, `openband-arranger` answers `music.arrange` with the plan for a curve (sections, which tracks by role play in each), so `create` and outside directors can use them like the drummer or the pilot.
+- Fixed: the arranger's sections had no colour, so they were almost invisible in the structure lane.
+- Website: a card for *Draw the song*.
+- Tests: in Chrome (`npm run e2e`, *energy*) the lane opens with the measured energy (8 bars), a drag over 16 bars draws a rising curve (16 points, 0.06 → 0.94) that one undo removes, *Classic pop* and `2:00` give 52 bars at 100 BPM, *Arrange* builds intro · verse · chorus · verse · chorus · bridge · chorus · outro on a branch in compare view. The full end-to-end suite (53 checks) now runs Chrome without background timer throttling: the hangs of the Pilot test (an offline render slowed to a crawl in a page Chrome thought was hidden) don't happen in 48 Pilot calls in a row.
+
 ## v0.6.21 "G2a: draw the song — the arranger"
 
 - v0.6.20 has no release: its release check failed on a test that compared two packed versions byte for byte when the two saves fell in different seconds (gzip writes a timestamp in its header). Versions now pack without one, so the same song always gives the same bytes. Everything below was in v0.6.20 and ships here.

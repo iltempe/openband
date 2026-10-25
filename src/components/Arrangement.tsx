@@ -26,6 +26,7 @@ import { useT } from '../i18n';
 import { desktopNative, useNativeStatus } from '../audio/native';
 import { frozenStale, usesFrozen } from '../audio/freeze';
 import { openPluginBrowser } from './Plugins';
+import { ENERGY_H, EnergyCorner, EnergyLane, useEnergyShown } from './EnergyLane';
 
 export const HEADER_W = 252;
 export const TRACK_H = 80;
@@ -56,14 +57,16 @@ export function Arrangement() {
     return () => el.removeEventListener('wheel', onWheel);
   }, [set]);
 
+  const energy = useEnergyShown();
   const style = { width: HEADER_W + totalBeats * zoom, '--beat': `${zoom}px`, '--bar': `${zoom * BEATS_PER_BAR}px` } as CSSProperties;
 
   return (
     <section className="arrangement">
       <div className="arr-scroll" ref={scrollRef}>
         <div className="arr-inner" style={style}>
-          <div className="arr-top" style={{ height: RULER_H }}>
+          <div className="arr-top" style={{ height: RULER_H + (energy ? ENERGY_H : 0) }}>
             <div className="arr-corner">
+              {energy && <EnergyCorner />}
               <StructureCorner />
               <div className="arr-corner-buttons">
                 <button className="chip" onClick={() => commands.add_track({ kind: 'instrument' })}>
@@ -78,6 +81,7 @@ export function Arrangement() {
               </div>
             </div>
             <div className="arr-top-right">
+              {energy && <EnergyLane totalBeats={totalBeats} />}
               <StructureLane />
               <Ruler totalBeats={totalBeats} />
             </div>
@@ -86,7 +90,7 @@ export function Arrangement() {
             <TrackRow key={t.id} track={t} regions={project.regions.filter((r) => r.trackId === t.id)} />
           ))}
           {project.tracks.length === 0 && <EmptyState />}
-          <Playhead scrollRef={scrollRef} />
+          <Playhead scrollRef={scrollRef} top={RULER_H + (energy ? ENERGY_H : 0)} />
         </div>
       </div>
       <div className="zoom-ctl">
@@ -226,7 +230,7 @@ function RulerCap() {
   return <div className="ruler-cap" style={{ transform: `translateX(${pos * zoom}px)` }} />;
 }
 
-function Playhead({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) {
+function Playhead({ scrollRef, top }: { scrollRef: RefObject<HTMLDivElement>; top: number }) {
   const pos = usePosition();
   const zoom = useStore((s) => s.zoom);
   const playing = useStore((s) => s.isPlaying);
@@ -240,7 +244,7 @@ function Playhead({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) {
   }, [x, playing, scrollRef]);
 
   return (
-    <div className="playhead" style={{ top: RULER_H, transform: `translateX(${x}px)` }}>
+    <div className="playhead" style={{ top, transform: `translateX(${x}px)` }}>
       <div className="playhead-cap" />
     </div>
   );

@@ -615,6 +615,77 @@ tests.arrange = async () => {
   }
 };
 
+tests.energy = async () => {
+  // G2: the Energy lane — draw with the mouse, pick a shape and a length, Arrange.
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.setViewport({ width: 1440, height: 900 });
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.evaluate(() => [...document.querySelectorAll('.tour-card button')].at(-1)?.click());
+    await p.keyboard.press('Space');
+    await p.evaluate(async () => {
+      const { commands, useStore } = window.openband;
+      await commands.new_project({ name: 'Draw', bpm: 100, key: 'Am' });
+      const drums = (await commands.add_track({ kind: 'drums', name: 'Drums' })).track_id;
+      await commands.add_drummer({ track_id: drums, from_bar: 1, to_bar: 8, style: 'pop' });
+      const keys = (await commands.add_track({ kind: 'instrument', instrument: 'felt-piano', name: 'Keys' })).track_id;
+      await commands.add_chord_progression({ track_id: keys, chords: ['Am', 'F', 'C', 'G', 'Am', 'F', 'C', 'G'], start_bar: 1 });
+      useStore.getState().set({ zoom: 24 });
+    });
+    await p.evaluate(() => [...document.querySelectorAll('.struct-corner button')].find((x) => /Energ/.test(x.textContent))?.click());
+    const lane = await p.waitForSelector('.energy-lane svg', { timeout: 3000 }).catch(() => null);
+    const measuredBars = await p.$$eval('.energy-measured', (x) => x.length);
+    check(!!lane && measuredBars >= 8, `the Energy lane opens, with the song's measured energy in grey (${measuredBars} bars)`);
+    // A rising stroke over 16 bars.
+    const box = await lane.boundingBox();
+    const barW = 24 * 4;
+    await p.mouse.move(box.x + barW * 0.5, box.y + box.height - 6);
+    await p.mouse.down();
+    for (let i = 1; i <= 15; i++) await p.mouse.move(box.x + barW * (i + 0.5), box.y + box.height - 6 - ((box.height - 12) * i) / 15);
+    await p.mouse.up();
+    const drawn = await p.evaluate(() => window.openband.useStore.getState().project.energy);
+    const rising = drawn && drawn.points.length >= 12 && drawn.points.at(-1).energy > drawn.points[0].energy + 0.6;
+    check(rising, `a drag draws a rising curve (${drawn?.points.length} points, ${drawn?.points[0].energy.toFixed(2)} → ${drawn?.points.at(-1).energy.toFixed(2)})`);
+    const undoOnce = await p.evaluate(() => {
+      const s = window.openband.useStore.getState();
+      s.undo();
+      const gone = !window.openband.useStore.getState().project.energy;
+      window.openband.useStore.getState().redo();
+      return gone;
+    });
+    check(undoOnce, 'the stroke is one undo step');
+    await p.select('.energy-corner select', 'pop');
+    await p.click('.energy-length');
+    await p.keyboard.type('2:00');
+    await p.keyboard.press('Enter');
+    await new Promise((r) => setTimeout(r, 300));
+    const shaped = await p.evaluate(() => window.openband.useStore.getState().project.energy);
+    check(shaped?.shape === 'pop' && shaped.length_bars === 52, `a shape and a length: ${shaped?.shape}, ${shaped?.length_bars} bars for 2:00 at 100 BPM`);
+    if (process.env.E2E_SHOTS) await p.screenshot({ path: path.join(process.env.E2E_SHOTS, 'energy-lane.png') });
+    await p.evaluate(() => [...document.querySelectorAll('.energy-corner button')].find((x) => /Arrange|Arrangia/.test(x.textContent))?.click());
+    await p.waitForFunction(() => (window.openband.useStore.getState().project.sections ?? []).length > 3 && document.querySelector('.ver-banner'), { timeout: 60000 }).catch(() => null);
+    const after = await p.evaluate(() => ({ sections: (window.openband.useStore.getState().project.sections ?? []).map((s) => s.kind), banner: !!document.querySelector('.ver-banner') }));
+    if (process.env.E2E_SHOTS) await p.screenshot({ path: path.join(process.env.E2E_SHOTS, 'energy-arranged.png') });
+    if (process.env.E2E_SHOTS) {
+      // For the docs: the whole arranged song, the drawn energy over the measured one.
+      await p.evaluate(() => {
+        [...document.querySelectorAll('.ver-banner button')].find((x) => /Stop|Smetti/.test(x.textContent))?.click();
+        window.openband.useStore.getState().set({ zoom: 10 });
+      });
+      await new Promise((r) => setTimeout(r, 5000)); // the notice fades
+      await p.screenshot({ path: path.join(process.env.E2E_SHOTS, 'energy-song.png') });
+    }
+    check(after.sections.includes('chorus') && after.banner, `Arrange builds the song (${after.sections.join(' · ')}) on a branch, in compare view`);
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);

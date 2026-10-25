@@ -7,6 +7,11 @@ import { MIX_ROLES, type MixRole, type SectionKind } from '../types';
 import { GENRES, PROFILES } from '../pilot/plan';
 import { PLATFORM_TARGETS } from '../audio/master';
 import type { Capability, Contribution, Manifest, OmepLicense, Scp, ScpNote, ToolInput } from './types';
+import type { Project } from '../types';
+import { emptyProject, makeTrack } from '../store';
+import { suggest } from '../suggest/engine';
+import { ENTER, segment } from '../arranger/arrange';
+import { ENERGY_SHAPES, shapeCurve, type EnergyShape } from '../arranger/energy';
 
 export const OPENBAND_LICENSE: OmepLicense = { code: 'MIT', weights: null, commercial: 'yes', attribution: null, conditions: null, url: 'https://github.com/iltempe/openband/blob/main/LICENSE' };
 const CC0: OmepLicense = { code: 'MIT', weights: 'CC0-1.0', commercial: 'yes', attribution: null, conditions: null, url: 'https://creativecommons.org/publicdomain/zero/1.0/' };
@@ -171,4 +176,69 @@ const pilot: BuiltinEngine = {
   },
 };
 
-export const BUILTINS: BuiltinEngine[] = [drummer, chords, loops, pilot];
+// ---------------------------------------------------------------- ghost notes (G3) as symbolic.continue / harmonize
+/** The SCP as a tiny song: its chords on a keys track, its melody on a lead track (from scope.from_bar). */
+function songOf(scp: Scp): Project {
+  const s = scopeOf(scp);
+  const p = emptyProject();
+  p.key = scp.song.key;
+  p.bpm = scp.song.bpm;
+  const keys = makeTrack(p, 'instrument', 'felt-piano', 'Chords');
+  const lead = makeTrack(p, 'instrument', 'neon-lead', 'Melody');
+  p.tracks = [keys, lead];
+  const harmony = [...(scp.harmony ?? [])].sort((a, b) => a.bar + (a.beat ?? 0) / 4 - (b.bar + (b.beat ?? 0) / 4));
+  const chordNotes = harmony.flatMap((h, i) => {
+    const at = (h.bar - 1) * BEATS_PER_BAR + (h.beat ? h.beat - 1 : 0);
+    const next = harmony[i + 1];
+    const end = next ? (next.bar - 1) * BEATS_PER_BAR + (next.beat ? next.beat - 1 : 0) : at + (h.beats ?? BEATS_PER_BAR);
+    try {
+      return parseChord(h.chord, 4).map((pitch, k) => ({ id: `c${i}_${k}`, pitch, start: at, duration: Math.max(0.5, end - at), velocity: 0.6 }));
+    } catch {
+      return [];
+    }
+  });
+  const melody = scp.melody?.notes ?? [];
+  p.regions = [
+    { id: 'chords', trackId: keys.id, name: 'Chords', start: 0, length: Math.max(BEATS_PER_BAR, ...chordNotes.map((n) => n.start + n.duration)), notes: chordNotes },
+    { id: 'melody', trackId: lead.id, name: 'Melody', start: s.from, length: Math.max(BEATS_PER_BAR, s.to - s.from), notes: melody.map((n, i) => ({ id: `m${i}`, pitch: n.pitch, start: n.start, duration: n.duration, velocity: n.velocity ?? 0.8 })) },
+  ];
+  return p;
+}
+
+const ghost: BuiltinEngine = {
+  manifest: manifestOf('openband-ghost', 'OpenBand Ghost notes', { 'symbolic.continue': { conditioning: ['key', 'chords', 'melody'] }, 'symbolic.harmonize': { conditioning: ['key', 'melody'] } }),
+  async run(cap, input) {
+    const scp = input.context;
+    const kind = cap === 'symbolic.harmonize' ? 'harmonize' : 'continue';
+    const best = suggest(songOf(scp), 'melody', { kind, seed: input.seed ?? 1, count: 1 }).suggestions[0];
+    return {
+      kind: 'notes',
+      notes: (best?.notes ?? []).map((n) => ({ pitch: n.pitch, start: n.start, duration: n.duration, velocity: n.velocity })),
+      claims: { key: scp.song.key, length_bars: scopeOf(scp).bars },
+      provenance: { engine: 'openband-ghost', engine_version: '1.0.0', model_hash: 'none', seed: input.seed ?? 1, capability: cap, prompt: best ? best.reasons.join('; ') + (best.chords ? ` (${best.chords.join(' ')})` : '') : 'nothing to continue' },
+      license: OPENBAND_LICENSE,
+    };
+  },
+};
+
+// ---------------------------------------------------------------- draw the song (G2) as music.arrange
+/**
+ * The plan for an energy curve (request.shape and request.length_bars, or request.points): sections,
+ * which tracks (by role) play in each, and the transitions. Inside OpenBand arrange_from_energy applies it
+ * to the song's own material; an outside director gets the plan.
+ */
+const arranger: BuiltinEngine = {
+  manifest: manifestOf('openband-arranger', 'OpenBand Arranger', { 'music.arrange': { conditioning: ['sections', 'energy', 'text'] } }, OPENBAND_LICENSE, ['application/x-omep-params']),
+  async run(_cap, input) {
+    const r = input.request ?? {};
+    const shape = (ENERGY_SHAPES as readonly string[]).includes(String(r.shape)) ? (r.shape as EnergyShape) : 'pop';
+    const length = Number(r.length_bars) || Math.max(32, input.context.song.length_bars);
+    const curve = Array.isArray(r.points) ? { points: r.points as { bar: number; energy: number }[], length_bars: length } : shapeCurve(shape, length);
+    const segs = segment(curve);
+    const tracks = (input.context.tracks ?? []).map((t) => ({ ...t, role: (MIX_ROLES.includes(t.role as MixRole) ? t.role : 'harmony') as MixRole }));
+    const sections = segs.map((s) => ({ kind: s.kind, from_bar: s.start + 1, bars: s.bars, energy: +s.energy.toFixed(2), tracks: tracks.filter((t) => s.energy + 1e-6 >= ENTER[t.role]).map((t) => t.id) }));
+    return { kind: 'params', params: { length_bars: curve.length_bars, shape: 'shape' in curve ? curve.shape : null, sections }, claims: { length_bars: curve.length_bars }, provenance: { engine: 'openband-arranger', engine_version: '1.0.0', model_hash: 'none', seed: input.seed ?? 1, capability: 'music.arrange', prompt: shape }, license: OPENBAND_LICENSE };
+  },
+};
+
+export const BUILTINS: BuiltinEngine[] = [drummer, chords, loops, pilot, ghost, arranger];
