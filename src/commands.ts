@@ -70,6 +70,7 @@ import { autoVersion } from './versioning';
 import { createPart, scopeFor, type CreateArgs } from './ensemble/create';
 import { transformPart, type TransformArgs } from './ensemble/transform';
 import { separateRegion, type SeparateArgs } from './ensemble/separate';
+import { singPart, type SingArgs } from './sing/sing';
 import { buildContext } from './ensemble/context';
 import { allEngines, setPolicy, useEnsemble } from './ensemble/engines';
 import { route } from './ensemble/router';
@@ -1502,6 +1503,7 @@ export const commands: Record<string, (args: P) => unknown> = {
   create: (args) => createPart(args as CreateArgs),
   transform: (args) => transformPart(args as TransformArgs),
   separate: (args) => separateRegion(args as SeparateArgs),
+  sing: (args) => singPart(args as SingArgs),
   // The Song Context Package (§3): what an engine — or the director — needs to know about the song.
   get_context: async ({ section_id, from_bar, to_bar }) => {
     const p = st().project;

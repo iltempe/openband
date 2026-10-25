@@ -13,6 +13,7 @@ import { suggest } from '../suggest/engine';
 import { ENTER, segment } from '../arranger/arrange';
 import { ENERGY_SHAPES, shapeCurve, type EnergyShape } from '../arranger/energy';
 import { demucsEngine } from '../separate/engine';
+import { voiceEngine } from '../sing/engine';
 
 export const OPENBAND_LICENSE: OmepLicense = { code: 'MIT', weights: null, commercial: 'yes', attribution: null, conditions: null, url: 'https://github.com/iltempe/openband/blob/main/LICENSE' };
 const CC0: OmepLicense = { code: 'MIT', weights: 'CC0-1.0', commercial: 'yes', attribution: null, conditions: null, url: 'https://creativecommons.org/publicdomain/zero/1.0/' };
@@ -242,4 +243,4 @@ const arranger: BuiltinEngine = {
   },
 };
 
-export const BUILTINS: BuiltinEngine[] = [drummer, chords, loops, pilot, ghost, arranger, demucsEngine];
+export const BUILTINS: BuiltinEngine[] = [drummer, chords, loops, pilot, ghost, arranger, demucsEngine, voiceEngine];

@@ -171,7 +171,7 @@ export async function createPart(a: CreateArgs) {
   const target = a.track_id ? p0.tracks.find((t) => t.id === a.track_id) : undefined;
   if (a.track_id && !target) throw new Error(`Track "${a.track_id}" not found`);
   const capability = inferCapability({ capability: a.capability, trackKind: target?.kind, text: `${a.text ?? ''} ${a.role ?? ''}` });
-  if (!['symbolic.drums', 'symbolic.accompany', 'symbolic.continue', 'symbolic.harmonize', 'music.add_layer', 'music.repaint', 'music.extend', 'music.restyle'].includes(capability))
+  if (!['symbolic.drums', 'symbolic.accompany', 'symbolic.continue', 'symbolic.harmonize', 'music.add_layer', 'music.repaint', 'music.extend', 'music.restyle', 'voice.sing'].includes(capability))
     throw new Error(`create can't place ${capability} contributions yet (coming with the next Ensemble steps)`);
   const scope = scopeFor(p0, a)!;
   const policy = useEnsemble.getState().policy;
@@ -284,6 +284,7 @@ async function placeAudio(made: Made[], capability: Capability, scp: Scp, a: Cre
     let track = i === 0 && target?.kind === 'audio' ? target : undefined;
     if (!track) {
       track = makeTrack(st().project, 'audio', undefined, i === 0 ? label : `${label} (variant ${i + 1})`);
+      if (file.role === 'vocal') track.role = 'vocal';
       if (i > 0) track.mute = true;
       const t = track;
       st().commit((d) => void d.tracks.push(t));

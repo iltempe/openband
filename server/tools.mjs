@@ -784,6 +784,17 @@ tool('create', 'Make a musical part from a description: OpenBand picks the capab
   confirm_spend: z.boolean().optional().describe('Online engines past the budget: true only after the user agreed to that cost'),
   confirm_download: z.boolean().optional().describe('When a layer comes back as a full mix, OpenBand isolates it with Demucs in the browser: true only after the user agreed to download its model (166 MB, once)'),
 }, { timeout: 900000 });
+tool('sing', 'A voice sings a melody on the lyrics: the notes of the melody track (default: the lyrics\' melody track) with the syllables aligned to them — OpenBand gives the engine the phonemes too (Italian by rule). By default OpenBand\'s guide voice sings, instantly and offline (a synthetic guide vocal to hear the topline with its words); a singing engine the user installed (DiffSinger) sings instead when present, or when pinned. The voice lands on a new audio track as one undo step. Without lyrics the melody is sung on "a" (set_lyrics and align_lyrics first for words).', {
+  track_id: z.string().optional().describe('The melody track'),
+  section_id: z.string().optional(),
+  from_bar: z.number().int().min(1).optional(),
+  to_bar: z.number().int().min(1).optional().describe('Last bar (inclusive)'),
+  voice: z.string().optional().describe('The voice in words, for engines that take it ("warm, breathy")'),
+  engine: z.string().optional().describe('Pin an engine id — only if the user asked for it'),
+  variants: z.number().int().min(1).max(4).optional(),
+  seed: z.number().int().optional(),
+  confirm_spend: z.boolean().optional(),
+}, { timeout: 900000 });
 tool('separate', 'Separate an audio region into stems — drums, bass, other, vocals — each on its own track under the original (which is muted, not removed), as one undo step. By default Demucs runs in the browser: free, private, offline once its model is downloaded (166 MB, once: ask the user, then retry with confirm_download: true). Online separators are used only if the user allows online engines. Silent stems are left out. Takes two to three times the length of the audio on a typical computer (the first time also the download).', {
   region_id: z.string().optional().describe('The audio region (or give a track with one audio region)'),
   track_id: z.string().optional(),
@@ -831,7 +842,7 @@ export const CORE = [
   'undo', 'redo', 'begin_change', 'end_change', 'get_structure', 'get_context', 'load_toolset',
 ];
 /** Always loaded: one generic tool per kind of musical job; the router and OpenBand's engines do the rest. */
-export const CAPABILITY = ['create', 'transform', 'separate', 'suggest_continuation', 'mix_pilot', 'arrange_from_energy', 'export_for_platforms', 'set_jam_mode'];
+export const CAPABILITY = ['create', 'transform', 'separate', 'sing', 'suggest_continuation', 'mix_pilot', 'arrange_from_energy', 'export_for_platforms', 'set_jam_mode'];
 
 export const TOOLSETS = {
   editing: { description: 'Detailed note and region editing: transpose, quantize, update notes, drum patterns and chord progressions written out, the drummer, loop and metronome, the editor', tools: ['rename_project', 'set_master_volume', 'update_notes', 'transpose_region', 'quantize_region', 'add_drum_pattern', 'add_chord_progression', 'set_loop', 'set_metronome', 'open_editor', 'split_region', 'detect_tempo', 'add_drummer', 'regenerate_drummer'] },

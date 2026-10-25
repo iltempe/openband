@@ -554,7 +554,7 @@ function buildMcpServer(ctx) {
   };
   const registered = new Map();
   /** Long generations: an MCP task for clients that ask, the same answer synchronously otherwise. */
-  const TASK_TOOLS = new Set(['create', 'transform', 'separate', 'arrange_from_energy']);
+  const TASK_TOOLS = new Set(['create', 'transform', 'separate', 'sing', 'arrange_from_energy']);
   const asTask = (t, handler) =>
     server.experimental.tasks.registerToolTask(
       t.name,

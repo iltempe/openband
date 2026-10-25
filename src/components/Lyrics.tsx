@@ -17,6 +17,7 @@ export function LyricsPanel() {
   const [sectionId, setSectionId] = useState<string>(sections[0]?.id ?? '');
   const lines = (doc?.lines ?? []).filter((l) => (sectionId ? l.sectionId === sectionId : !l.sectionId));
   const [text, setText] = useState(lines.map((l) => l.text).join('\n'));
+  const [singing, setSinging] = useState(false);
   useEffect(() => {
     setText(lines.map((l) => l.text).join('\n'));
   }, [sectionId, doc?.lines.length]);
@@ -63,6 +64,17 @@ export function LyricsPanel() {
         </button>
         <button className="btn" disabled={!melody} onClick={() => run('align_lyrics', { melody_track_id: melody, section_id: sectionId || undefined })}>
           {t('ly.align')}
+        </button>
+        <button
+          className="btn"
+          disabled={!melody || singing}
+          title={t('ly.singHint')}
+          onClick={() => {
+            setSinging(true);
+            void run('sing', { track_id: melody, section_id: sectionId || undefined }).finally(() => setSinging(false));
+          }}
+        >
+          {singing ? '…' : t('ly.sing')}
         </button>
         <button className="btn" onClick={() => run('export_chord_sheet', { format: 'chordpro' })}>
           ChordPro

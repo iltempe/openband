@@ -36,6 +36,7 @@ No AI is needed. With one connected, it can do the same with the `create` tool.
 | **OpenBand Chords** | accompaniment: block, stabs or arpeggio, on the song's chords | in OpenBand | MIT |
 | **OpenBand CC0 loops** | an audio layer from the CC0 loop library | in OpenBand | MIT + CC0 audio |
 | **Demucs in the browser** | stems: drums, bass, other, vocals | in your browser | MIT (code and weights) |
+| **OpenBand Guide voice** | a voice singing the melody on the lyrics (a synthetic guide vocal) | in OpenBand | MIT |
 | your engines | whatever they declare | your computer, your network | theirs |
 
 ### Adding engines
@@ -142,6 +143,16 @@ your song plus the new part. OpenBand separates that answer and your song's same
 stems where the answer has something your song doesn't (a spectral difference, stem by stem) and subtracts
 what is still your song: the new part lands alone on its track, and the correction says which stems it
 kept (*"isolated the new part from the full mix: kept other 82 % new; dropped drums, bass"*).
+
+## Sing
+
+In the **Lyrics** panel, *Sing it* (or the AI: `sing`): a voice sings the melody track on the lyrics aligned
+to it, on a new vocal track, as one undo step. OpenBand hands the singer the notes, the syllables on them
+with their beats, and — for Italian — their **phonemes**, by rule (*notte‿a Trastevere* → `n o t | t e a |
+t r a | s t e | v e | r e`: soft and hard *c* and *g*, *gn*, *gli*, *sc*, voiced *s*, *z*, doubled consonants,
+open *è* and *ò*), so singing engines need no language knowledge of their own. Today **OpenBand's guide
+voice** sings: a small formant synthesizer, instant and offline — a guide vocal to hear a topline with its
+words, not a finished voice. A real singing engine (DiffSinger, next) takes over when you install one.
 
 ## Who played what
 

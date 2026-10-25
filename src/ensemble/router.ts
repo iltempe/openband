@@ -70,6 +70,9 @@ export function exclusion(e: EngineInfo, req: RouteRequest, policy: Policy): str
   return null;
 }
 
+/** Builtins that are placeholders for a kind of engine (a guide vocal, not a singer). */
+const GUIDES = new Set(['openband-voice']);
+
 /** Preferences learned from blind tests (E4): capability → engine id → 0..1. */
 export type Preferences = Record<string, Record<string, number>>;
 
@@ -83,7 +86,8 @@ export function route(req: RouteRequest, engines: EngineInfo[], policy: Policy =
       excluded.push({ id: e.id, name: e.manifest.engine.name, reason: why });
       continue;
     }
-    const adherence = e.adherence ?? (e.transport === 'builtin' ? 0.95 : 0.7);
+    // OpenBand's guide voice stands in until a real singer is installed: any other one goes first.
+    const adherence = e.adherence ?? (GUIDES.has(e.id) ? 0.3 : e.transport === 'builtin' ? 0.95 : 0.7);
     const pref = prefs[req.capability]?.[e.id] ?? 0.5;
     // Online engines (§9-bis): what they cost and what they send count against them, a little.
     const pricing = e.manifest.runtime.pricing;

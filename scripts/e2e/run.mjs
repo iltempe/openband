@@ -991,6 +991,59 @@ tests.acestep = async () => {
   }
 };
 
+// E3d: sing — an Italian line on a melody: the context carries each syllable's phonemes and timing, and
+// OpenBand's guide voice sings it on a new vocal track, at the melody's pitch, in the ledger.
+tests.sing = async () => {
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    const r = await p.evaluate(async () => {
+      const { commands, useStore, renderBuffer } = window.openband;
+      await commands.new_project({ name: 'Canta', bpm: 100, key: 'Am' });
+      const { track_id } = await commands.add_track({ kind: 'instrument', instrument: 'felt-piano', name: 'Melody' });
+      // "not-te‿a Tra-ste-ve-re" (te and a merge, as sung): six syllables on six notes, A3 first (MIDI 57).
+      const pitches = [57, 60, 62, 64, 62, 57];
+      const notes = pitches.map((pitch, i) => ({ pitch, start: i, duration: i === 5 ? 2 : 0.9, velocity: 0.8 }));
+      await commands.add_region({ track_id, start_bar: 1, length_bars: 2, notes });
+      await commands.set_lyrics({ text: 'notte a Trastevere', language: 'it' });
+      await commands.align_lyrics({ melody_track_id: track_id });
+      const ctx = await commands.get_context({ from_bar: 1, to_bar: 2 });
+      const scp = ctx.context ?? ctx;
+      const syl = scp.lyrics.lines[0].syllables;
+      const res = await commands.sing({ track_id });
+      const p1 = useStore.getState().project;
+      const voice = p1.tracks.find((t) => t.id === res.track_id);
+      // The first note, sung: its fundamental by autocorrelation.
+      const buf = await renderBuffer(p1, { tracks: [res.track_id], fromBeat: 0, toBeat: 8, includeMaster: false });
+      const sr = buf.sampleRate;
+      const x = buf.getChannelData(0).subarray(Math.round(0.25 * sr), Math.round(0.5 * sr));
+      let best = 0;
+      let lag = 0;
+      for (let L = Math.round(sr / 400); L < Math.round(sr / 150); L++) {
+        let c = 0;
+        for (let i = 0; i + L < x.length; i++) c += x[i] * x[i + L];
+        if (c > best) [best, lag] = [c, L];
+      }
+      let e = 0;
+      for (const v of buf.getChannelData(0)) e += v * v;
+      return { syl, res, voice: { role: voice.role, name: voice.name }, f0: sr / lag, rms: Math.sqrt(e / buf.length), ledger: (p1.ledger ?? []).map((x) => `${x.engine}:${x.capability}`) };
+    });
+    const ph = r.syl.map((s) => (s.phonemes ?? []).join(' '));
+    check(ph.join(' | ') === 'n o t | t e a | t r a | s t e | v e | r e', `the context gives every syllable its phonemes (${ph.join(' | ')})`);
+    check(r.syl.every((s, i) => s.start_beat === i), `and its beat on the melody (${r.syl.map((s) => s.start_beat).join(', ')})`);
+    check(r.res.engines?.includes('OpenBand Guide voice') && r.voice.role === 'vocal', `the guide voice sings it on a vocal track ("${r.voice.name}")`);
+    check(Math.abs(r.f0 - 220) < 12 && r.rms > 0.01, `at the melody's pitch: first note ${r.f0.toFixed(1)} Hz (A3 = 220 Hz), RMS ${r.rms.toFixed(3)}`);
+    check(r.ledger.includes('openband-voice:voice.sing'), 'in the ledger');
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);

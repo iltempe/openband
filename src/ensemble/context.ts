@@ -1,6 +1,7 @@
 // The Song Context Package (OMEP 1.0 §6) of the open song: what there is and what is wanted, independent of
 // any model. Built from what OpenBand already knows (sections, harmony from the notes, lyrics, track roles),
 // hashed on the canonical song, and trimmed to what each engine declares it uses before it leaves.
+import { phonemizeSyllables } from '../lyrics/g2p.it';
 import type { Project } from '../types';
 import { noteFacts, roleOf } from '../pilot/roles';
 import { BEATS_PER_BAR } from '../music';
@@ -24,6 +25,27 @@ export interface ContextOptions {
 export async function sha256(text: string): Promise<string> {
   const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return `sha256:${[...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** Which syllables start a word, by walking the line's letters (syllables may merge words: "to‿e"). */
+export function withWordStarts(line: string, syllables: string[]): { text: string; wordStart: boolean }[] {
+  const lens = line.split(/\s+/).map((w) => w.replace(/[^\p{L}]/gu, '').length).filter((n) => n > 0);
+  let word = 0;
+  let used = 0;
+  return syllables.map((text) => {
+    const wordStart = used === 0;
+    let n = text.replace(/[^\p{L}]/gu, '').length;
+    while (n > 0 && word < lens.length) {
+      const take = Math.min(n, lens[word] - used);
+      n -= take;
+      used += take;
+      if (used >= lens[word]) {
+        word++;
+        used = 0;
+      }
+    }
+    return { text, wordStart };
+  });
 }
 
 export async function buildContext(p: Project, o: ContextOptions = {}): Promise<Scp> {
@@ -50,8 +72,34 @@ export async function buildContext(p: Project, o: ContextOptions = {}): Promise<
         .filter((n) => n.start >= 0 && n.start < to - from),
     };
   }
-  if (p.lyrics?.lines.length)
-    scp.lyrics = { language: p.lyrics.language, lines: p.lyrics.lines.map((l) => ({ text: l.text, ...(l.sectionId ? { section_id: l.sectionId } : {}), syllables: l.syllables.map((s) => ({ text: s.text, stressed: !!s.stressed })) })) };
+  if (p.lyrics?.lines.length) {
+    // Each syllable with its timing (from the alignment, beats from the scope) and, in Italian, its
+    // phonemes — so a singing engine needs no language knowledge of its own.
+    const from = ((o.scope?.from_bar ?? 1) - 1) * BEATS_PER_BAR;
+    const noteAt = new Map(p.regions.flatMap((r) => r.notes.map((n) => [n.id, { start: r.start + n.start, end: r.start + n.start + n.duration }] as const)));
+    const it = p.lyrics.language === 'it';
+    scp.lyrics = {
+      language: p.lyrics.language,
+      lines: p.lyrics.lines.map((l) => {
+        const ph = it ? phonemizeSyllables(withWordStarts(l.text, l.syllables.map((s) => s.text))) : null;
+        return {
+          text: l.text,
+          ...(l.sectionId ? { section_id: l.sectionId } : {}),
+          syllables: l.syllables.map((s, i) => {
+            const note = s.noteId ? noteAt.get(s.noteId) : undefined;
+            const next = l.syllables[i + 1]?.beat;
+            const end = s.melisma && next !== undefined ? next : note?.end;
+            return {
+              text: s.text,
+              stressed: !!s.stressed,
+              ...(s.beat !== undefined ? { start_beat: +(s.beat - from).toFixed(4), ...(end !== undefined && end > s.beat ? { dur: +(end - s.beat).toFixed(4) } : {}) } : {}),
+              ...(ph ? { phonemes: ph[i] } : {}),
+            };
+          }),
+        };
+      }),
+    };
+  }
   if (o.intent) scp.intent = o.intent;
   scp.constraints = o.constraints ?? { hard: { key: true, bpm: true, length: true, sections: true } };
   if (o.policy) scp.policy = o.policy;

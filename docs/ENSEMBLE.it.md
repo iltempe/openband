@@ -38,6 +38,7 @@ Non serve un'AI. Se ce n'è una collegata, può fare lo stesso con lo strumento 
 | **OpenBand Chords** | accompagnamento: accordi tenuti, stab o arpeggio, sugli accordi della canzone | in OpenBand | MIT |
 | **OpenBand CC0 loops** | uno strato audio dalla libreria di loop CC0 | in OpenBand | MIT + audio CC0 |
 | **Demucs nel browser** | stem: batteria, basso, altro, voce | nel tuo browser | MIT (codice e pesi) |
+| **OpenBand Guide voice** | una voce che canta la melodia sul testo (una voce guida sintetica) | in OpenBand | MIT |
 | i tuoi motori | quello che dichiarano | il tuo computer, la tua rete | la loro |
 
 ### Aggiungere motori
@@ -148,6 +149,16 @@ battute della tua canzone in stem, tiene gli stem in cui la risposta ha qualcosa
 differenza spettrale, stem per stem) e sottrae quello che è ancora la tua canzone: la parte nuova arriva da
 sola sulla sua traccia, e la correzione dice quali stem ha tenuto (*"isolated the new part from the full
 mix: kept other 82 % new; dropped drums, bass"*).
+
+## Cantare
+
+Nel pannello **Testo**, *Cantala* (o l'AI: `sing`): una voce canta la traccia della melodia sul testo
+allineato, su una nuova traccia vocale, come un solo passo di annulla. OpenBand dà al cantante le note, le
+sillabe con i loro tempi e, in italiano, i loro **fonemi**, per regola (*notte‿a Trastevere* → `n o t | t e a |
+t r a | s t e | v e | r e`: *c* e *g* dolci e dure, *gn*, *gli*, *sc*, *s* sonora, *z*, doppie, *è* e *ò*
+aperte), così i motori di canto non devono conoscere la lingua. Oggi canta la **voce guida di OpenBand**: un
+piccolo sintetizzatore a formanti, istantaneo e offline — una voce guida per sentire una melodia con le sue
+parole, non una voce finita. Un vero motore di canto (DiffSinger, il prossimo) subentra quando ne installi uno.
 
 ## Chi ha suonato cosa
 

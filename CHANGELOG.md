@@ -2,6 +2,17 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.27 "E3d: sing it — Italian phonemes and a guide voice"
+
+### E3 (part 4) · `voice.sing`, `sing`, and the song context speaking Italian (SPEC v0.6 §8.1, §10)
+- **Italian G2P by rule** (`src/lyrics/g2p.it.ts`): every syllable's phonemes in a small X-SAMPA-like set — soft and hard *c*/*g* (the *i* of *cia*/*gio* only softens), *ch*/*gh*, *gn* → J, *gli* → L, *sc(i)* → S, *qu* → k w, silent *h*, *s* voiced between vowels and before voiced consonants, *z* → dz at the start of a word and ts elsewhere, doubled affricates holding their stop (*piz-za* → t | ts), glides *j*/*w*, open *E*/*O* where the spelling marks them (*è*, *ò*). Synalepha syllables carry both vowels (*te‿a* → t e a).
+- **The Song Context Package** now gives every aligned syllable its **beat** (`start_beat`, from the scope, like notes) and **duration** (`dur`, held through a melisma), and in Italian its **phonemes** — so a singing engine needs no language of its own (as §10 asks of DiffSinger).
+- **`sing`** (capability tool and MCP task; **Sing it** in the Lyrics panel): a voice sings the melody track (by default the lyrics' melody) on the lyrics, on a new **vocal** track, one undo step, through the router (`voice.sing`) and conformance like any part. Without lyrics the melody is sung on "a", and the answer says how to add words.
+- **OpenBand Guide voice** (builtin, `voice.sing`, MIT): a small formant synthesizer — a glottal pulse at the note's pitch with portamento and vibrato, three resonances per vowel gliding between them, noise for fricatives, stop and burst for plosives, a murmur for nasals and liquids. Instant and offline; a guide vocal to hear the topline with its words, not a finished voice. Its contribution carries the syllables' timing (`alignment.syllables`). It stands in: the router puts any singing engine the user installed before it.
+- Docs: `separate` (added in v0.6.25) and `sing` in the tools list.
+- Tests: the G2P on the tricky words (*chiesa, figlio, sciare, quando, sbaglio, zero, pizza, faccia, oggi, caffè, però, piede, uomo*) and a whole line; the guide voice sings the note's pitch (A3 within 8 Hz), an /a/ and an /i/ have their formants where they belong, syllables land on their notes, a melisma keeps its vowel, no words → "a". In Chrome (`npm run e2e`, *sing*): *notte a Trastevere* on a melody — the context gives `n o t | t e a | t r a | s t e | v e | r e` on beats 0–5, the guide voice sings it on a vocal track at **220.5 Hz** for the A3 it starts on, in the ledger.
+- Next (E3 part 5): DiffSinger as a singing engine (the user's own install and voicebank; no Italian DiffSinger voicebank was found published).
+
 ## v0.6.26 "E3c: ACE-Step on your computer"
 
 ### E3 (part 3) · `omep-ace-step`: songs, layers, repaints and restyles from a local ACE-Step 1.5 (SPEC v0.6 §10)
