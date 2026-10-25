@@ -158,7 +158,7 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
     for (const track of p.tracks) {
       const audible = included(track.id, track.mute, track.solo);
       if (!audible && !keySources.has(track.id)) continue;
-      const inst = createInstrument(track.instrument, p.instruments?.find((c) => c.id === track.instrument));
+      const inst = createInstrument(track.instrument, p.instruments?.find((c) => c.id === track.instrument), undefined, track.synthParams);
       inst.setCutoff(track.cutoff);
       const ch = new Tone.Channel({ volume: faderToDb(track.volume), pan: track.pan });
       if (audible) ch.connect(master);

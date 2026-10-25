@@ -5,6 +5,8 @@ import { PRESETS, customInstruments, findInstrument } from '../audio/instruments
 import { Knob } from './Knob';
 import * as I from './Icons';
 import { InstrumentEditor } from './ImportUI';
+import { SynthEditor } from './SynthEditor';
+import { ToneMatch } from './MatchSound';
 import { openPluginBrowser } from './Plugins';
 import { categoryLabel, presetDescription, useT } from '../i18n';
 import { setLowLatency, useLowLatency } from '../lowLatency';
@@ -81,6 +83,8 @@ function TrackControls({ track }: { track: Track }) {
               update((t) => {
                 t.instrument = e.target.value;
                 t.cutoff = findInstrument(e.target.value)!.cutoff;
+                // Another synth: the parameters were the old one's.
+                delete t.synthParams;
               }, true)
             }
           >
@@ -117,8 +121,10 @@ function TrackControls({ track }: { track: Track }) {
             </button>
           </div>
         </div>
+      ) : preset?.custom ? (
+        <InstrumentEditor inst={preset.custom} track={track} />
       ) : (
-        preset?.custom && <InstrumentEditor inst={preset.custom} track={track} />
+        (track.kind === 'instrument' && <SynthEditor track={track} />) || (track.kind === 'audio' && <ToneMatch track={track} />)
       )}
     </div>
   );

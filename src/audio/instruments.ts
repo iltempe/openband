@@ -2,11 +2,13 @@
 // Factories only use Tone constructors, so they work both in the live context and inside
 // Tone.Offline() for bouncing to WAV.
 import * as Tone from 'tone';
+import './toneFix';
 import type { CustomInstrument, TrackKind } from '../types';
 import { cutoffToHz } from '../music';
 import { AudioTrackInput, SampleInstrument } from './sampler';
 import { WamInstrument } from './wam';
 import { NativeInstrument } from './native';
+import { voiceOptions } from './synthParams';
 
 export interface InstrumentPreset {
   id: string;
@@ -73,23 +75,33 @@ export interface Instrument {
   setCutoff(v: number, time?: number): void;
   releaseAll(): void;
   dispose(): void;
+  /** Synth parameters (G5), for the presets that have them. */
+  setParams?(params?: Record<string, number>): void;
 }
 
 const midiHz = (p: number) => Tone.Frequency(p, 'midi').toFrequency();
 
 // ---------- Melodic ----------
 
-type VoiceFactory = () => Tone.PolySynth;
+/** A melodic preset as data: which Tone synth plays it and with what options (G5: its parameters come from here). */
+export interface VoiceDef {
+  synth: 'synth' | 'mono' | 'fm';
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  options: Record<string, any>;
+}
 
-const VOICES: Record<string, VoiceFactory> = {
-  'felt-piano': () =>
-    new Tone.PolySynth(Tone.Synth, {
+export const VOICES: Record<string, VoiceDef> = {
+  'felt-piano': {
+    synth: 'synth',
+    options: {
       oscillator: { type: 'custom', partials: [1, 0.42, 0.24, 0.12, 0.07, 0.04, 0.02] },
       envelope: { attack: 0.004, decay: 2.4, sustain: 0.02, release: 1.1 },
       volume: -9,
-    }),
-  'velvet-keys': () =>
-    new Tone.PolySynth(Tone.FMSynth, {
+    },
+  },
+  'velvet-keys': {
+    synth: 'fm',
+    options: {
       harmonicity: 2,
       modulationIndex: 3.2,
       oscillator: { type: 'sine' },
@@ -97,88 +109,133 @@ const VOICES: Record<string, VoiceFactory> = {
       envelope: { attack: 0.002, decay: 1.6, sustain: 0.18, release: 1.3 },
       modulationEnvelope: { attack: 0.002, decay: 0.45, sustain: 0.12, release: 0.8 },
       volume: -11,
-    }),
-  'retro-organ': () =>
-    new Tone.PolySynth(Tone.Synth, {
+    },
+  },
+  'retro-organ': {
+    synth: 'synth',
+    options: {
       oscillator: { type: 'custom', partials: [1, 0.8, 0.55, 0, 0.42, 0, 0, 0.3] },
       envelope: { attack: 0.012, decay: 0.1, sustain: 0.92, release: 0.12 },
       volume: -16,
-    }),
-  'crystal-bells': () =>
-    new Tone.PolySynth(Tone.FMSynth, {
+    },
+  },
+  'crystal-bells': {
+    synth: 'fm',
+    options: {
       harmonicity: 5.07,
       modulationIndex: 9,
       envelope: { attack: 0.001, decay: 2.2, sustain: 0, release: 2.2 },
       modulationEnvelope: { attack: 0.001, decay: 0.9, sustain: 0, release: 0.9 },
       volume: -15,
-    }),
-  'neon-lead': () =>
-    new Tone.PolySynth(Tone.MonoSynth, {
+    },
+  },
+  'neon-lead': {
+    synth: 'mono',
+    options: {
       oscillator: { type: 'sawtooth' },
       filter: { Q: 2, type: 'lowpass', rolloff: -24 },
       envelope: { attack: 0.006, decay: 0.2, sustain: 0.75, release: 0.28 },
       filterEnvelope: { attack: 0.008, decay: 0.35, sustain: 0.45, release: 0.4, baseFrequency: 500, octaves: 3.4 },
       volume: -15,
-    }),
-  pluck: () =>
-    new Tone.PolySynth(Tone.Synth, {
+    },
+  },
+  pluck: {
+    synth: 'synth',
+    options: {
       oscillator: { type: 'fattriangle', count: 2, spread: 18 },
       envelope: { attack: 0.001, decay: 0.32, sustain: 0, release: 0.35 },
       volume: -9,
-    }),
-  chip: () =>
-    new Tone.PolySynth(Tone.Synth, {
+    },
+  },
+  chip: {
+    synth: 'synth',
+    options: {
       oscillator: { type: 'pulse', width: 0.3 } as any,
       envelope: { attack: 0.001, decay: 0.08, sustain: 0.55, release: 0.04 },
       volume: -20,
-    }),
-  'sub-bass': () =>
-    new Tone.PolySynth(Tone.MonoSynth, {
+    },
+  },
+  'sub-bass': {
+    synth: 'mono',
+    options: {
       oscillator: { type: 'triangle' },
       filter: { Q: 0.7, type: 'lowpass', rolloff: -24 },
       envelope: { attack: 0.004, decay: 0.3, sustain: 0.85, release: 0.18 },
       filterEnvelope: { attack: 0.002, decay: 0.2, sustain: 0.6, release: 0.2, baseFrequency: 180, octaves: 2.2 },
       volume: -5,
-    }),
-  'acid-bass': () =>
-    new Tone.PolySynth(Tone.MonoSynth, {
+    },
+  },
+  'acid-bass': {
+    synth: 'mono',
+    options: {
       oscillator: { type: 'sawtooth' },
       filter: { Q: 9, type: 'lowpass', rolloff: -24 },
       envelope: { attack: 0.002, decay: 0.25, sustain: 0.4, release: 0.08 },
       filterEnvelope: { attack: 0.002, decay: 0.22, sustain: 0.08, release: 0.1, baseFrequency: 160, octaves: 4.2 },
       volume: -15,
-    }),
-  'finger-bass': () =>
-    new Tone.PolySynth(Tone.MonoSynth, {
+    },
+  },
+  'finger-bass': {
+    synth: 'mono',
+    options: {
       oscillator: { type: 'custom', partials: [1, 0.6, 0.3, 0.18, 0.1] } as any,
       filter: { Q: 1.2, type: 'lowpass', rolloff: -12 },
       envelope: { attack: 0.003, decay: 0.9, sustain: 0.25, release: 0.15 },
       filterEnvelope: { attack: 0.002, decay: 0.25, sustain: 0.2, release: 0.2, baseFrequency: 220, octaves: 2.6 },
       volume: -6,
-    }),
-  'aurora-pad': () =>
-    new Tone.PolySynth(Tone.Synth, {
+    },
+  },
+  'aurora-pad': {
+    synth: 'synth',
+    options: {
       oscillator: { type: 'fatsawtooth', count: 3, spread: 32 },
       envelope: { attack: 0.9, decay: 0.6, sustain: 0.85, release: 2.6 },
       volume: -19,
-    }),
-  'silk-strings': () =>
-    new Tone.PolySynth(Tone.Synth, {
+    },
+  },
+  'silk-strings': {
+    synth: 'synth',
+    options: {
       oscillator: { type: 'fatsawtooth', count: 4, spread: 22 },
       envelope: { attack: 0.32, decay: 0.3, sustain: 0.9, release: 1.2 },
       volume: -19,
-    }),
+    },
+  },
 };
+
+const SYNTHS = { synth: Tone.Synth, mono: Tone.MonoSynth, fm: Tone.FMSynth } as const;
 
 class MelodicInstrument implements Instrument {
   output: Tone.Filter;
   private synth: Tone.PolySynth;
+  /** The voice filter of presets that have none of their own (G5 cutoff and resonance). */
+  private voiceFilter: Tone.Filter;
+  private params = '';
 
-  constructor(presetId: string) {
-    this.synth = (VOICES[presetId] ?? VOICES['felt-piano'])();
+  constructor(private presetId: string, params?: Record<string, number>) {
+    const v = voiceOptions(presetId, params);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.synth = new Tone.PolySynth(SYNTHS[v.synth] as any, v.options);
     this.synth.maxPolyphony = 24;
-    this.output = new Tone.Filter({ type: 'lowpass', frequency: 16000, rolloff: -12, Q: 0.5 });
-    this.synth.connect(this.output);
+    this.voiceFilter = new Tone.Filter({ type: 'lowpass', frequency: this.belowNyquist(v.filter.frequency), Q: v.filter.Q, rolloff: -12 });
+    this.output = new Tone.Filter({ type: 'lowpass', frequency: this.belowNyquist(16000), rolloff: -12, Q: 0.5 });
+    this.synth.connect(this.voiceFilter);
+    this.voiceFilter.connect(this.output);
+    this.params = JSON.stringify(params ?? {});
+  }
+  /** A filter at or above Nyquist misbehaves (lower sample rates, e.g. the sound-alike search's 22 kHz renders). */
+  private belowNyquist(hz: number) {
+    return Math.min(hz, Tone.getContext().sampleRate * 0.45);
+  }
+  /** New parameters, live (G5): the voices and the filter change without rebuilding the instrument. */
+  setParams(params: Record<string, number> = {}) {
+    const key = JSON.stringify(params);
+    if (key === this.params) return;
+    this.params = key;
+    const v = voiceOptions(this.presetId, params);
+    this.synth.set(v.options);
+    this.voiceFilter.frequency.rampTo(this.belowNyquist(v.filter.frequency), 0.03);
+    this.voiceFilter.Q.rampTo(v.filter.Q, 0.03);
   }
   trigger(pitch: number, duration: number, time: number, velocity: number) {
     this.synth.triggerAttackRelease(midiHz(pitch), Math.max(0.02, duration), time, velocity);
@@ -190,13 +247,14 @@ class MelodicInstrument implements Instrument {
     this.synth.triggerRelease(midiHz(pitch), time);
   }
   setCutoff(v: number, time?: number) {
-    this.output.frequency.rampTo(cutoffToHz(v), 0.05, time);
+    this.output.frequency.rampTo(this.belowNyquist(cutoffToHz(v)), 0.05, time);
   }
   releaseAll() {
     this.synth.releaseAll();
   }
   dispose() {
     this.synth.dispose();
+    this.voiceFilter.dispose();
     this.output.dispose();
   }
 }
@@ -339,14 +397,14 @@ class DrumKit implements Instrument {
 }
 
 /** key (trackId:instrument) registers a live plugin instance for its GUI and MCP. */
-export function createInstrument(presetId: string, custom = customs.get(presetId), key?: string): Instrument {
+export function createInstrument(presetId: string, custom = customs.get(presetId), key?: string, params?: Record<string, number>): Instrument {
   if (presetId === AUDIO_INPUT) return new AudioTrackInput();
   if (custom?.source === 'wam' && custom.wam) return new WamInstrument(custom.wam.url, custom.wam.state, key);
   if (custom?.source === 'native' && custom.native) return new NativeInstrument(custom, key);
   if (custom) return new SampleInstrument(custom);
   const preset = presetById(presetId);
   if (preset?.kind === 'drums') return new DrumKit(presetId);
-  return new MelodicInstrument(presetId);
+  return new MelodicInstrument(presetId, params);
 }
 
 /** Small seeded PRNG (mulberry32): the reverb must sound the same on every render. */

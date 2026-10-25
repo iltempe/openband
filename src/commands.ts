@@ -71,6 +71,8 @@ import { createPart, scopeFor, type CreateArgs } from './ensemble/create';
 import { transformPart, type TransformArgs } from './ensemble/transform';
 import { separateRegion, type SeparateArgs } from './ensemble/separate';
 import { singPart, type SingArgs } from './sing/sing';
+import { applyPatch, describeSynth, keepPatch, setSynthParams } from './soundmatch/patches';
+import { soundFromWords } from './soundmatch/words';
 import { buildContext } from './ensemble/context';
 import { allEngines, setPolicy, useEnsemble } from './ensemble/engines';
 import { route } from './ensemble/router';
@@ -1507,6 +1509,18 @@ export const commands: Record<string, (args: P) => unknown> = {
   start_session: async (args) => (await import('./session/session')).startSession(args as import('./session/session').SessionArgs),
   stop_session: async () => (await import('./session/session')).stopSession(),
   get_session: async () => (await import('./session/session')).summary(),
+  set_synth_params: ({ track_id, values, reset }) => (values && Object.keys(values).length) || reset ? setSynthParams(String(track_id), (values ?? {}) as Record<string, number>, !!reset) : describeSynth(String(track_id)),
+  sound_from_words: ({ description, family }) => {
+    const w = soundFromWords(String(description), family);
+    const patch = keepPatch({ preset: w.preset, params: w.params, label: String(description), why: w.why });
+    return { candidate_id: patch.id, preset: patch.preset, family: w.family, params: patch.params, why: w.why, note: 'A starting point from the words: apply it with apply_patch (on a track, or a new one), then shape it with set_synth_params.' };
+  },
+  apply_patch: ({ candidate_id, track_id }) => applyPatch(String(candidate_id), track_id),
+  match_sound: async (args) => (await import('./soundmatch/match')).matchSoundCommand(args as Parameters<typeof import('./soundmatch/match').matchSoundCommand>[0]),
+  tone_match: async ({ track_id, from_bar, to_bar, apply, ...source }) => {
+    const { resolveSource, toneMatch } = await import('./soundmatch/tone');
+    return toneMatch(String(track_id), resolveSource(source), { from_bar, to_bar, apply });
+  },
   set_voice_control: async ({ enabled, engine: eng, language, push_to_talk_cc, feedback }) => {
     const { setVoiceControl, useVoice } = await import('./voice/control');
     setVoiceControl({ ...(enabled !== undefined ? { enabled } : {}), ...(eng ? { engine: eng } : {}), ...(language ? { lang: language } : {}), ...(push_to_talk_cc !== undefined ? { pushToTalkCc: push_to_talk_cc } : {}), ...(feedback !== undefined ? { feedback } : {}) });

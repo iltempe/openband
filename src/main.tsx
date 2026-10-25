@@ -1,4 +1,8 @@
 import './audio/context';
+import { distance, noteFeatures } from './soundmatch/features';
+import { yinTrack } from './analysis/pitchtrack';
+import { analyseTarget, matchSound, renderCandidates } from './soundmatch/search';
+import { synthSchema, toUnit } from './audio/synthParams';
 import { scoreAndComp, summary as sessionSummary, useSession } from './session/session';
 import { handleHeard, setVoiceControl, useVoice } from './voice/control';
 import { setVoskSources } from './voice/models';
@@ -52,7 +56,7 @@ initAutoWrite();
 startLowLatency();
 initGhosts();
 // ?debug: the engine and the store on window.openband, for diagnostics and end-to-end tests.
-if (new URLSearchParams(location.search).has('debug')) (window as unknown as { openband: unknown }).openband = { engine, useStore, renderBuffer, Tone, commands, analysis: { loudness, truePeak }, native: { testSlot }, nativeStatus: useNativeStatus, restartNative, nativeParam, liveNative, freeze: { freezeNativeTracks, trackHash }, samples: { importSample }, encodePcm, lowLatency: { setLowLatency, syncMonitoring, useLowLatency }, ghost: { useGhost, requestGhosts, acceptGhost }, separation: { setModelSource, useSeparationModel }, voice: { handleHeard, setVoiceControl, useVoice, setVoskSources }, session: { scoreAndComp, summary: sessionSummary, useSession } };
+if (new URLSearchParams(location.search).has('debug')) (window as unknown as { openband: unknown }).openband = { engine, useStore, renderBuffer, Tone, commands, analysis: { loudness, truePeak }, native: { testSlot }, nativeStatus: useNativeStatus, restartNative, nativeParam, liveNative, freeze: { freezeNativeTracks, trackHash }, samples: { importSample }, encodePcm, lowLatency: { setLowLatency, syncMonitoring, useLowLatency }, ghost: { useGhost, requestGhosts, acceptGhost }, separation: { setModelSource, useSeparationModel }, voice: { handleHeard, setVoiceControl, useVoice, setVoskSources }, session: { scoreAndComp, summary: sessionSummary, useSession }, soundmatch: { analyseTarget, matchSound, renderCandidates, synthSchema, toUnit, yinTrack, distance, noteFeatures } };
 initJam();
 initFirstRun();
 void loadKeyState();

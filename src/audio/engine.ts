@@ -347,7 +347,7 @@ class AudioEngine {
       const pdc = new Tone.Delay({ delayTime: 0, maxDelay: MAX_PDC_SECONDS }).connect(polarity);
       fx.output.connect(pdc);
       void attachMeter(track.id, channel);
-      const instrument = createInstrument(track.instrument, undefined, `${track.id}:instrument`);
+      const instrument = createInstrument(track.instrument, undefined, `${track.id}:instrument`, track.synthParams);
       instrument.output.connect(fx.input);
       const ready = (instrument as { ready?: Promise<void> }).ready;
       if (ready) void ready.then(() => this.syncPdc());
@@ -357,12 +357,13 @@ class AudioEngine {
       node.instrument.releaseAll();
       const old = node.instrument;
       setTimeout(() => old.dispose(), 1500);
-      node.instrument = createInstrument(track.instrument, undefined, `${track.id}:instrument`);
+      node.instrument = createInstrument(track.instrument, undefined, `${track.id}:instrument`, track.synthParams);
       node.instrument.output.connect(node.fx.input);
       node.presetId = signature;
       const ready = (node.instrument as { ready?: Promise<void> }).ready;
       if (ready) void ready.then(() => this.syncPdc());
     }
+    node.instrument.setParams?.(track.synthParams);
     const ch = node.channel;
     // Mute is a gain of its own (with polarity, after the effects): Tone.Channel's mute sets the volume
     // to −∞, which the very next volume update (fader, automation) undid — the M button did nothing live.

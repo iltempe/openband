@@ -649,6 +649,39 @@ tool('start_session', 'Session mode: loop a section (or bars) with a count-in an
 }, { timeout: 1800000 });
 tool('stop_session', 'Stop the running session ("that\'s enough"): the passes recorded so far are kept, scored and comped.', {});
 tool('get_session', 'The last session: its takes with their scores (overall and per bar), flubs, the comp and the best single take.', {}, readOnly);
+tool('set_synth_params', 'Shape the sound of an instrument track playing one of OpenBand\'s synths: amplitude envelope (attack, decay, sustain, release, seconds and 0..1), filter (cutoff Hz, resonance; and on mono synths filter_env octaves and its attack/decay/sustain), FM (fm_index, fm_ratio, fm_decay, fm_sustain) on FM presets, wave (0 sine … 3 square), unison and detune (cents) on wide presets, level (dB). Only the values given change (reset: back to the preset first); one undo step. Without values it lists the parameters with their ranges and current values.', {
+  track_id: z.string(),
+  values: z.record(z.string(), z.number()).optional(),
+  reset: z.boolean().optional(),
+});
+tool('sound_from_words', 'A synth sound from a description, in Italian or English: "basso caldo e plucky", "bright wide pad", "metallic bells", "soft slow strings". Descriptors pick the family and the preset and push its parameters (warm/dark = lower cutoff, plucky = no attack and sustain, wide = unison and detune, metallic = FM, slow = slow attack…). Returns a patch (candidate_id) with what each word did: apply it with apply_patch.', {
+  description: z.string(),
+  family: z.enum(['bass', 'pluck', 'pad', 'lead', 'keys', 'bells', 'organ', 'strings']).optional(),
+});
+tool('match_sound', '"I want that sound": from one note — a sample (sample_id, e.g. after import_sample), an audio region (region_id), or a stretch of the reference track (reference_from_seconds, to_seconds) — find the patches of OpenBand\'s synths that sound most like it: the note\'s pitch and envelope are read, every compatible preset is tried, then the parameters are searched (CMA-ES) with each candidate rendered at the same pitch and length. Returns the 3 closest with a similarity 0..1; the user can A/B each against the original; apply one with apply_patch. family narrows the search (bass, pluck, pad, lead, keys, bells, organ, strings); words combine a description ("warm, plucky"). budget: renders (default 300, a few seconds). In the browser: nothing is uploaded.', {
+  sample_id: z.string().optional(),
+  region_id: z.string().optional(),
+  reference_from_seconds: z.number().min(0).optional(),
+  to_seconds: z.number().min(0).optional(),
+  family: z.enum(['bass', 'pluck', 'pad', 'lead', 'keys', 'bells', 'organ', 'strings']).optional(),
+  words: z.string().optional(),
+  budget: z.number().int().min(30).max(2000).optional(),
+  target: z.enum(['synth', 'plugin', 'auto']).optional().describe('synth (default and auto); plugin: not yet'),
+}, { timeout: 300000 });
+tool('tone_match', 'Make an audio track sound like a reference ("make my guitar sound like the record"): six peaking EQ bands (100 Hz – 10 kHz, ±12 dB) and the amp\'s drive that bring the track\'s average spectrum closest to the reference\'s — a sample, an audio region, or a stretch of the reference track. Applied as one undo step (apply: false only proposes); answers how far apart they were before and after, in dB.', {
+  track_id: z.string(),
+  sample_id: z.string().optional(),
+  region_id: z.string().optional(),
+  reference_from_seconds: z.number().min(0).optional(),
+  to_seconds: z.number().min(0).optional(),
+  from_bar: z.number().int().min(1).optional(),
+  to_bar: z.number().int().min(1).optional(),
+  apply: z.boolean().optional(),
+}, { timeout: 300000 });
+tool('apply_patch', 'Put a patch (from sound_from_words, or match_sound) on an instrument track — its instrument becomes that synth with those parameters — or, without track_id, on a new track. One undo step.', {
+  candidate_id: z.string(),
+  track_id: z.string().optional(),
+});
 tool('record_audio', 'Record from the user\'s microphone or audio interface, with a one-bar count-in, starting at start_bar. The user is always asked to confirm in the studio first (returns {recorded:false} if they decline). mode "audio" makes an audio region; mode "hum" also turns the hummed/sung melody into MIDI notes on a new instrument track (the audio is kept, muted). Without bars, recording runs until the user presses stop. With the setup (use_setup, default true for audio): armed tracks (arm_track) record together, each from its input; a punch range (set_punch) records only between in and out after a pre-roll, as a new take of the clip there; with the cycle on, every pass becomes a take.', {
   mode: z.enum(['audio', 'hum']).optional(),
   track_id: z.string().optional().describe('Audio track to record onto (default: a new one; ignored when tracks are armed)'),
@@ -869,7 +902,7 @@ export const TOOLSETS = {
   versions: { description: 'History, versions and branches, merge, the time machine', tools: ['get_history', 'save_version', 'list_versions', 'create_branch', 'checkout', 'diff_versions', 'merge', 'get_timeline', 'preview_at', 'restore_at'] },
   lyrics: { description: 'Lyrics, aligning them to the melody, prosody, chord sheets', tools: ['set_lyrics', 'get_lyrics', 'align_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet'] },
   plugins: { description: 'WAM plugins and the user\'s installed VST3 / CLAP / AU plugins', tools: ['list_plugins', 'search_plugins', 'list_native_plugins', 'rescan_plugins', 'add_plugin', 'add_plugin_instrument', 'add_plugin_effect', 'remove_plugin_effect', 'set_plugin_bypass', 'get_plugin_params', 'set_plugin_params', 'show_plugin'] },
-  sounds: { description: 'Imported samples, sampler instruments, SoundFonts, audio regions, the CC0 loop library', tools: ['import_sample', 'list_samples', 'create_sampler_instrument', 'import_soundfont', 'add_audio_region', 'search_loops', 'add_loop'] },
+  sounds: { description: 'Imported samples, sampler instruments, SoundFonts, audio regions, the CC0 loop library', tools: ['import_sample', 'list_samples', 'create_sampler_instrument', 'import_soundfont', 'add_audio_region', 'search_loops', 'add_loop', 'set_synth_params', 'sound_from_words', 'apply_patch', 'match_sound', 'tone_match'] },
   files: { description: 'Exports and imports: WAV, MIDI, project JSON, DAWproject', tools: ['export_project_json', 'import_project_json', 'export_wav', 'export_midi', 'import_midi', 'import_dawproject', 'export_dawproject'] },
   collab: { description: 'Rooms with other people, comments and explanations on the song', tools: ['create_room', 'join_room', 'leave_room', 'get_peers', 'annotate', 'list_annotations', 'resolve_annotation', 'delete_annotation'] },
   jam: { description: 'Jamming: answering the user\'s phrases, keeping answers, the studio\'s event stream', tools: ['play_phrase', 'keep_answer', 'keep_phrase', 'get_events', 'wait_for_event'] },

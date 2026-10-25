@@ -5874,3 +5874,58 @@ div.ca-steps {
 .rec-session input[type='number'] {
   width: 46px;
 }
+.synth-editor {
+  flex: 1 1 420px;
+  min-width: 0;
+  max-height: 100%;
+  overflow: auto;
+  padding: 12px 0;
+}
+.syn-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 22px;
+  margin-top: 8px;
+}
+.syn-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.6;
+  margin-bottom: 4px;
+}
+.syn-knobs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.syn-words {
+  margin-top: 10px;
+  gap: 8px;
+}
+.syn-words input {
+  flex: 1;
+  min-width: 220px;
+}
+.sm-match {
+  margin-top: 10px;
+}
+.sm-match .row {
+  gap: 8px;
+  align-items: center;
+}
+.sm-list {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+}
+.sm-list li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 3px 0;
+}
+.sm-sim {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
