@@ -18,6 +18,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js';
+import { GpuScheduler, gpuNeed } from './scheduler.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const defaultEnginesFile = () => process.env.OPENBAND_ENGINES || path.join(os.homedir(), '.openband', 'engines.json');
@@ -46,6 +47,17 @@ const BUILTIN = {
 };
 const AUDIO = { '.wav': 'audio/wav', '.flac': 'audio/flac', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg' };
 const MAX_FILE = 100 * 1024 * 1024;
+
+/** The GPU's VRAM budget from engines.json: "gpu": { "vram_gb": 8 } (or per device { "cuda:0": 24 }). */
+export function readGpuBudget(file = defaultEnginesFile()) {
+  try {
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const g = raw.gpu?.vram_gb;
+    return typeof g === 'number' ? g : g && typeof g === 'object' ? g : null;
+  } catch {
+    return null;
+  }
+}
 
 export function readEnginesConfig(file = defaultEnginesFile()) {
   if (!fs.existsSync(file)) return {};
@@ -77,6 +89,8 @@ export class EngineHost {
     this.log = log;
     /** id → { key, client, manifest, tools } */
     this.live = new Map();
+    // Engines on this computer that need the GPU take turns (scheduler.mjs); unloading = stopping one.
+    this.scheduler = new GpuScheduler({ budgetGb: readGpuBudget(file), unload: (id) => this.drop(id) });
   }
 
   async connect(id, spec) {
@@ -111,7 +125,7 @@ export class EngineHost {
       Object.entries(cfg).map(async ([id, spec]) => {
         try {
           const e = await this.connect(id, spec);
-          return { id, status: 'ready', manifest: e.manifest };
+          return { id, status: 'ready', manifest: e.manifest, ...(gpuNeed(spec, e.manifest) ? { gpu: this.scheduler.stateOf(id) } : {}) };
         } catch (err) {
           await this.drop(id);
           return { id, status: 'error', error: err.message };
@@ -124,6 +138,15 @@ export class EngineHost {
     const spec = readEnginesConfig(this.file)[id];
     if (!spec) throw new Error(`No engine "${id}" in ${this.file}`);
     const e = await this.connect(id, spec);
+    const need = gpuNeed(spec, e.manifest);
+    if (need) {
+      const { priority, ...rest } = args ?? {};
+      return this.scheduler.run({ id, ...need, priority: priority === 'batch' ? 'batch' : 'interactive' }, async () => this.invoke(id, await this.connect(id, spec), capability, rest, timeoutMs));
+    }
+    return this.invoke(id, e, capability, args, timeoutMs);
+  }
+
+  async invoke(id, e, capability, args, timeoutMs) {
     const tool = e.tools.get(capability);
     if (!tool) throw new Error(`${id} has no tool ${capability}`);
     let result;
@@ -141,6 +164,7 @@ export class EngineHost {
   }
 
   async drop(id) {
+    this.scheduler.forget(id);
     const e = this.live.get(id);
     this.live.delete(id);
     await e?.client.close().catch(() => {});

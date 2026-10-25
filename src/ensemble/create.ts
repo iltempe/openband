@@ -3,7 +3,7 @@
 // in the song as one undo step — as takes when there are variants — with a ledger entry for each.
 import { BEATS_PER_BAR, clamp, uid } from '../music';
 import { isAiCommand, makeTrack, useStore } from '../store';
-import { getBuffer, importSample } from '../audio/samples';
+import { getBuffer, importSample, type SampleInfo } from '../audio/samples';
 import type { LedgerEntry, Note, Project, Region, Take, Track } from '../types';
 import { buildContext, minimizeContext } from './context';
 import { checkContribution, conformNotes, planAudio, type AudioPlan } from './conform';
@@ -13,6 +13,7 @@ import { scopeOf } from './builtin';
 import type { Capability, Contribution, Scp } from './types';
 import { OverBudget, checkBudget, estimate, recordSpend } from './budget';
 import { isolateNewPart, wavDataUri } from './separate';
+import { preferencesFor, styleOf } from './taste';
 import { renderBuffer } from '../audio/render';
 
 const st = () => useStore.getState();
@@ -175,7 +176,9 @@ export async function createPart(a: CreateArgs) {
     throw new Error(`create can't place ${capability} contributions yet (coming with the next Ensemble steps)`);
   const scope = scopeFor(p0, a)!;
   const policy = useEnsemble.getState().policy;
-  const r = route({ capability, engine: a.engine }, await allEngines(), policy);
+  // The user's taste, learnt from blind tests (per capability, and per style once there is enough of it).
+  const taste = preferencesFor(capability, styleOf(`${a.text ?? ''} ${a.instrument ?? ''}`));
+  const r = route({ capability, engine: a.engine }, await allEngines(), policy, { [capability]: taste.prefs }, { [capability]: taste.confidence });
   if (!r.candidates.length) throw new Error(`No engine can do ${capability} with your settings${r.excluded.length ? `: ${r.excluded.map((x) => `${x.name} — ${x.reason}`).join('; ')}` : ''}`);
   const scp = await buildContext(p0, { scope, intent: { text: a.text, role: a.role, instrument: a.instrument }, policy: { commercial_only: policy.commercial_only, local_only: policy.local_only }, melodyTrackId: a.melody_track_id });
   const variants = clamp(Math.round(Number(a.variants ?? 1)), 1, 4);
@@ -259,9 +262,9 @@ function placeNotes(made: Made[], capability: Capability, scp: Scp, a: CreateArg
 }
 
 async function placeAudio(made: Made[], capability: Capability, scp: Scp, a: CreateArgs, target: Track | undefined, s: ReturnType<typeof scopeOf>) {
-  const results: { track_id: string; region_ids: string[]; plan: AudioPlan }[] = [];
-  const ledger: LedgerEntry[] = [];
-  for (const [i, m] of made.entries()) {
+  // First every variant, decoded and conformed; then where they go.
+  const ready: { m: Made; info: SampleInfo; plan: AudioPlan; label: string; role: string }[] = [];
+  for (const m of made) {
     const file = m.contribution.files![0];
     const label = `${(a.text ?? '').slice(0, 28) || a.role || file.role} · ${m.engine.manifest.engine.name}`;
     let info = await importSample(await audioOf(file.uri), `${m.engine.id}-${capability}-${Date.now().toString(36)}.${file.format}`);
@@ -278,36 +281,46 @@ async function placeAudio(made: Made[], capability: Capability, scp: Scp, a: Cre
         if (!buf) throw new Error('The isolated part could not be decoded');
       }
     }
-    const mono = buf.getChannelData(0);
-    const plan = planAudio(m.contribution, scp, { mono, sampleRate: buf.sampleRate, name: info.name });
+    const plan = planAudio(m.contribution, scp, { mono: buf.getChannelData(0), sampleRate: buf.sampleRate, name: info.name });
     if (isolated) plan.conform.unshift(isolated);
-    let track = i === 0 && target?.kind === 'audio' ? target : undefined;
-    if (!track) {
-      track = makeTrack(st().project, 'audio', undefined, i === 0 ? label : `${label} (variant ${i + 1})`);
-      if (file.role === 'vocal') track.role = 'vocal';
-      if (i > 0) track.mute = true;
-      const t = track;
-      st().commit((d) => void d.tracks.push(t));
-    }
-    const e = ledgerEntry(m, capability, a, plan.conform, track.id, []);
+    ready.push({ m, info, plan, label, role: file.role });
+  }
+  const clip = (r: (typeof ready)[number]) => ({ sampleId: r.info.id, offset: 0, gain: r.plan.gain, stretch: r.plan.stretch ? { mode: 'follow_tempo' as const, originalBpm: r.plan.sourceBpm } : { mode: 'off' as const, originalBpm: r.plan.sourceBpm }, ...(r.plan.pitch ? { pitch: r.plan.pitch } : {}) });
+  const newTrack = (label: string, role: string, muted: boolean) => {
+    const track = makeTrack(st().project, 'audio', undefined, label);
+    if (role === 'vocal') track.role = 'vocal';
+    if (muted) track.mute = true;
+    st().commit((d) => void d.tracks.push(track));
+    return track;
+  };
+  // Ensemble: variants that each fill the bars in one piece become takes of one region — anonymous in a
+  // blind test, and what the user ranks teaches the router (taste.ts).
+  if (ready.length > 1 && ready.every((r) => r.plan.repeats === 1)) {
+    const track = target?.kind === 'audio' ? target : newTrack(`${(a.text ?? '').slice(0, 28) || a.role || capability.split('.')[1]} · ${ready.length} engines`, ready[0].role, false);
+    const takes: Take[] = ready.map((r, i) => ({ id: uid('take'), name: `${i + 1} · ${r.m.engine.manifest.engine.name}`, notes: [], audio: clip(r), createdAt: Date.now() + i, author: 'ai' }));
+    const region: Region = { id: uid('rgn'), trackId: track.id, name: ready[0].label, start: (s.fromBar - 1) * BEATS_PER_BAR, length: +(Math.min(...ready.map((r) => r.plan.lastBars)) * BEATS_PER_BAR).toFixed(4), notes: [], audio: { ...takes[0].audio! }, takes, activeTakeId: takes[0].id };
+    const ledger = ready.map((r, i) => ledgerEntry(r.m, capability, a, r.plan.conform, track.id, [region.id], [takes[i].id]));
+    region.contribution = ledger[0].id;
+    st().commit((d) => {
+      d.regions.push(region);
+      d.ledger = [...(d.ledger ?? []), ...ledger];
+    });
+    return { track_id: track.id, region_ids: [region.id], take_ids: takes.map((t) => t.id), corrections: ready.map((r) => r.plan.conform) };
+  }
+  const results: { track_id: string; region_ids: string[]; plan: AudioPlan }[] = [];
+  const ledger: LedgerEntry[] = [];
+  for (const [i, r] of ready.entries()) {
+    const track = i === 0 && target?.kind === 'audio' ? target : newTrack(i === 0 ? r.label : `${r.label} (variant ${i + 1})`, r.role, i > 0);
+    const e = ledgerEntry(r.m, capability, a, r.plan.conform, track.id, []);
     const regions: Region[] = [];
-    for (let k = 0; k < plan.repeats; k++) {
-      const bars = k === plan.repeats - 1 ? plan.lastBars : plan.bars;
-      regions.push({
-        id: uid('rgn'),
-        trackId: track.id,
-        name: label,
-        start: (s.fromBar - 1 + k * plan.bars) * BEATS_PER_BAR,
-        length: +(bars * BEATS_PER_BAR).toFixed(4),
-        notes: [],
-        audio: { sampleId: info.id, offset: 0, gain: plan.gain, stretch: plan.stretch ? { mode: 'follow_tempo', originalBpm: plan.sourceBpm } : { mode: 'off', originalBpm: plan.sourceBpm }, ...(plan.pitch ? { pitch: plan.pitch } : {}) },
-        contribution: e.id,
-      });
+    for (let k = 0; k < r.plan.repeats; k++) {
+      const bars = k === r.plan.repeats - 1 ? r.plan.lastBars : r.plan.bars;
+      regions.push({ id: uid('rgn'), trackId: track.id, name: r.label, start: (s.fromBar - 1 + k * r.plan.bars) * BEATS_PER_BAR, length: +(bars * BEATS_PER_BAR).toFixed(4), notes: [], audio: clip(r), contribution: e.id });
     }
-    e.regionIds = regions.map((r) => r.id);
+    e.regionIds = regions.map((x) => x.id);
     ledger.push(e);
     st().commit((d) => void d.regions.push(...regions));
-    results.push({ track_id: track.id, region_ids: e.regionIds, plan });
+    results.push({ track_id: track.id, region_ids: e.regionIds, plan: r.plan });
   }
   st().commit((d) => void (d.ledger = [...(d.ledger ?? []), ...ledger]));
   return { track_id: results[0].track_id, region_ids: results.flatMap((r) => r.region_ids), ...(results.length > 1 ? { variant_tracks: results.map((r) => r.track_id) } : {}), corrections: results.map((r) => r.plan.conform) };

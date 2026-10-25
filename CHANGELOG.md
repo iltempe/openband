@@ -2,6 +2,16 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.31 "E4: your ears teach the router"
+
+### E4 · Ensemble and taste: blind tests between engines, preferences, the GPU scheduler (SPEC v0.6 §6, §7)
+- **Ensemble variants as takes**: variants from different engines arrive as takes of one region — now **audio ones too**, when each fills the bars in one piece (before, each went on a muted track of its own) — ready for a blind test, every take in the ledger with its engine.
+- **Blind tests of audio takes** (they compared MIDI takes only): the region's clip switches with the letter, for listening only.
+- **Taste**: every blind ranking becomes pairwise comparisons between the engines that made the takes (found through the ledger), per capability and style (*funk*, *lo-fi*, *jazz*… from the request), kept in this browser and never sent. A **Bradley–Terry** model (MM iterations, a weak prior of one win and one loss against an average engine, so two listens can't decide) gives each engine a score 0..1 with an interval; per style once a style has 5 comparisons of its own. The router weighs the score more as comparisons add up (0.25 → up to 0.6), so after about ten it changes its choice — and only then.
+- **Your engines** in *Ensemble*: the ranking per capability, with comparisons, wins and the interval; *Forget my preferences*. `list_engines` shows the same taste and its routes now use it, like `create` does.
+- **The GPU scheduler** (`server/scheduler.mjs`): engines on this computer that declare a GPU and a VRAM need (manifest `runtime.device`, `vram_gb`) take turns — one heavy model at a time per device, the studio's (interactive) requests before batch jobs, the least recently used engine unloaded (its process stopped) when another needs the room; the budget from `engines.json` (`"gpu": { "vram_gb": 12 }`, or per device), one loaded at a time without it. Their state (loaded, running, waiting) shows in *Ensemble* and `list_engines`, and the router prefers an engine already loaded. Engines elsewhere (url) aren't scheduled.
+- Tests (the spec's acceptance: *after 10 comparisons the router changes its choice coherently, with simulated preferences*): with OpenBand's Drummer and another drum engine, 2 rankings for the other don't change the choice, 10 do; 10 split ones don't; funk and pop preferences each apply to their style; Bradley–Terry scores and intervals. Scheduler: one at a time per device, interactive before batch, devices in parallel, LRU unloading within the budget (6 + 6 GB over 10 → the older goes; the least recently used of two goes), one loaded without a budget, a failed job doesn't block the queue, which engines are scheduled. In Chrome (`npm run e2e`, *taste*) with the OMEP mock engine installed: the Drummer plays first; ten variant pairs ranked for the other engine reach the router; then *make drums* asks it (80 % ± 19 against 20 %).
+
 ## v0.6.30 "G5: the sound-alike — shape it, describe it, match it"
 
 ### G5 · Parametric instruments, sounds from words, sounds from a sample, tone match (SPEC v0.6 G5)

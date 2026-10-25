@@ -181,6 +181,27 @@ pubblicare. Non risulta pubblicato un voicebank italiano; va bene qualunque voic
 fonemi. Senza GPU, usane una a noleggio: [deploy/diffsinger](../deploy/diffsinger/README.md).
 
 
+## I tuoi gusti
+
+Chiedi delle **varianti** (2–4) e arrivano da **motori diversi** quando più d'uno può suonare, come take di
+una stessa regione — anche quelle audio. Confrontale in un **test alla cieca**: ascolti A, B, C senza sapere
+chi ha suonato cosa, le metti in ordine, e solo dopo vedi i nomi. Quello che scegli insegna a OpenBand:
+ogni classifica diventa confronti tra motori, e un modello di Bradley–Terry (tenuto in questo browser, mai
+inviato) dà a ogni motore un punteggio per tipo di parte — e per stile quando i confronti bastano. Il router
+gli dà più peso man mano che i confronti crescono: dopo una decina, *"fai la batteria"* va al motore che
+piace alle **tue** orecchie per la batteria, che può essere diverso da quello per le voci; due ascolti o un
+pareggio non lo spostano. *Ensemble → I tuoi motori* mostra la classifica con il numero di confronti e un
+intervallo, e la dimentica su richiesta.
+
+## La GPU
+
+I motori sul tuo computer che usano la scheda grafica fanno a turno: un modello pesante alla volta per GPU,
+le richieste dello studio prima dei lavori in background, e quando un altro modello deve caricarsi viene
+scaricato quello usato meno di recente (il suo processo fermato, così la memoria si libera). Indica a
+OpenBand la memoria della tua scheda in `~/.openband/engines.json` — `"gpu": { "vram_gb": 12 }` — e i modelli
+che ci stanno restano caricati insieme; senza, ne resta caricato uno alla volta. *Ensemble* mostra quali
+sono caricati, al lavoro o in attesa, e il router preferisce quello già caricato.
+
 ## Chi ha suonato cosa
 
 Ogni parte fatta da un motore ha una ✦ sulla regione e una voce nel **registro dei contributi**: motore,

@@ -872,7 +872,7 @@ tool('get_context', 'The Song Context Package (OMEP SCP 1.0) of the song, a sect
   to_bar: z.number().int().min(1).optional(),
 }, readOnly);
 
-tool('list_engines', 'The music engines OpenBand can use (OpenBand\'s own algorithms and the OMEP engines the user configured): capabilities, where they run, licence, and — under the user\'s policy — which ones a request would exclude and why.', { capability: z.string().optional() }, readOnly);
+tool('list_engines', 'The music engines OpenBand can use (OpenBand\'s own algorithms and the OMEP engines the user configured): capabilities, where they run, licence, the GPU state of those that take turns on it, and — under the user\'s policy and taste — the order a request would try them in, what it would exclude and why, and what blind tests taught (score, interval, comparisons).', { capability: z.string().optional() }, readOnly);
 tool('get_ledger', 'Who made what: every part an engine contributed (engine, model, seed, licence, the request, the corrections OpenBand applied) and the human / AI share of each track.', {}, readOnly);
 tool('set_engine_policy', 'The user\'s engine policy: commercial use only (licences that forbid it are excluded), local engines only, online engines allowed (they cost money and send data). Change it only when the user asks.', {
   commercial_only: z.boolean().optional(),

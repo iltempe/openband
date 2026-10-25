@@ -1399,6 +1399,48 @@ tests.tuning = async () => {
   }
 };
 
+// E4: taste. Variants from two engines (OpenBand's Drummer and an installed OMEP engine) arrive as takes of
+// one region; the user keeps ranking the other engine's first; after 10 rankings, "make drums" asks it.
+tests.taste = async () => {
+  const os = await import('node:os');
+  const enginesFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ob-e2e-')), 'engines.json');
+  fs.writeFileSync(enginesFile, JSON.stringify({ engines: { mock: { builtin: 'omep-mock' } } }));
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1', OPENBAND_ENGINES: enginesFile });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    const r = await p.evaluate(async () => {
+      const { commands, useStore, taste } = window.openband;
+      await commands.new_project({ name: 'Taste', bpm: 110, key: 'C' });
+      await commands.transport({ action: 'stop' });
+      taste.resetTaste();
+      const first = await commands.create({ text: 'drums', capability: 'symbolic.drums', from_bar: 1, to_bar: 2 });
+      const rounds = [];
+      for (let i = 0; i < 10; i++) {
+        const v = await commands.create({ text: 'drums', capability: 'symbolic.drums', variants: 2, from_bar: 1, to_bar: 2 });
+        const region = useStore.getState().project.regions.find((x) => x.id === v.region_id);
+        const ledger = useStore.getState().project.ledger ?? [];
+        const engineOf = (takeId) => ledger.find((e) => e.takeIds?.includes(takeId))?.engine;
+        const mine = (v.take_ids ?? []).filter((id) => engineOf(id));
+        // The user prefers the installed engine every time.
+        const ranked = [...mine].sort((a, b) => (engineOf(a) === 'mock' ? -1 : 1) - (engineOf(b) === 'mock' ? -1 : 1));
+        rounds.push(taste.learnFromRanking(region.id, ranked));
+      }
+      const after = await commands.create({ text: 'drums', capability: 'symbolic.drums', from_bar: 3, to_bar: 4 });
+      return { first: first.engines, after: after.engines, rounds: rounds.filter(Boolean).length, ranking: taste.tasteByCapability()[0]?.ranking };
+    });
+    check(r.first?.[0] === 'OpenBand Drummer', `at first OpenBand's Drummer plays the drums (${r.first})`);
+    check(r.rounds === 10, `10 blind rankings between the two engines reach the router (${r.rounds})`);
+    check(r.after?.[0] !== 'OpenBand Drummer', `after them, "make drums" asks the engine the user prefers (${r.after}; ${r.ranking?.map((x) => `${x.engine} ${Math.round(x.score * 100)} %±${Math.round(x.interval * 100)}`).join(', ')})`);
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);

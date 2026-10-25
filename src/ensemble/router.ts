@@ -16,6 +16,8 @@ export interface EngineInfo {
   error?: string;
   /** Measured by conformance or by the studio's corrections (0..1); unknown engines start at 0.7. */
   adherence?: number;
+  /** For engines that take turns on this computer's GPU: loaded now, running, waiting. */
+  gpu?: { loaded: boolean; running: boolean; queued: number; device?: string; vram_gb?: number };
 }
 
 export interface Policy {
@@ -76,7 +78,10 @@ const GUIDES = new Set(['openband-voice']);
 /** Preferences learned from blind tests (E4): capability → engine id → 0..1. */
 export type Preferences = Record<string, Record<string, number>>;
 
-export function route(req: RouteRequest, engines: EngineInfo[], policy: Policy = DEFAULT_POLICY, prefs: Preferences = {}): Route {
+/** How sure each preference is (0..1, from the number of blind comparisons): a sure one weighs more. */
+export type Confidence = Record<string, Record<string, number>>;
+
+export function route(req: RouteRequest, engines: EngineInfo[], policy: Policy = DEFAULT_POLICY, prefs: Preferences = {}, confidence: Confidence = {}): Route {
   const excluded: Route['excluded'] = [];
   const ok: (EngineInfo & { score: number })[] = [];
   for (const e of engines) {
@@ -89,11 +94,13 @@ export function route(req: RouteRequest, engines: EngineInfo[], policy: Policy =
     // OpenBand's guide voice stands in until a real singer is installed: any other one goes first.
     const adherence = e.adherence ?? (GUIDES.has(e.id) ? 0.3 : e.transport === 'builtin' ? 0.95 : 0.7);
     const pref = prefs[req.capability]?.[e.id] ?? 0.5;
+    // What the user's ears chose weighs 0.25, up to 0.6 once it rests on many comparisons.
+    const wp = 0.25 + 0.35 * (confidence[req.capability]?.[e.id] ?? 0);
     // Online engines (§9-bis): what they cost and what they send count against them, a little.
     const pricing = e.manifest.runtime.pricing;
     const cost = pricing ? Math.min(0.1, (pricing.unit === 'second' ? pricing.usd * 60 : pricing.usd) * 0.2) : 0;
     const data = e.manifest.runtime.data_policy?.uploads_audio ? 0.03 : 0;
-    ok.push({ ...e, score: 0.6 * adherence + 0.25 * pref + 0.15 * LATENCY[e.manifest.runtime.where] - cost - data });
+    ok.push({ ...e, score: 0.6 * adherence + wp * pref + 0.15 * LATENCY[e.manifest.runtime.where] + (e.gpu?.loaded ? 0.05 : 0) - cost - data });
   }
   ok.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
   if (req.engine) {

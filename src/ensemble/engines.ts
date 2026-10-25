@@ -44,7 +44,7 @@ export function setPolicy(p: Partial<Policy>) {
 export const builtinEngines = (): EngineInfo[] => BUILTINS.map((b) => ({ id: b.manifest.engine.id, manifest: b.manifest, transport: 'builtin', status: 'ready' }));
 
 type Caller = (engine: string, capability: string, args: ToolInput) => Promise<Contribution>;
-type Lister = () => Promise<{ id: string; status: string; manifest?: Manifest; error?: string }[]>;
+type Lister = () => Promise<{ id: string; status: string; manifest?: Manifest; error?: string; gpu?: EngineInfo['gpu'] }[]>;
 let lister: Lister | null = null;
 let caller: Caller | null = null;
 /** For tests (and future transports): where external engines come from. */
@@ -72,7 +72,7 @@ export async function refreshEngines(force = false): Promise<EngineInfo[]> {
     const external: EngineInfo[] = [];
     const broken: BrokenEngine[] = [];
     for (const r of rows) {
-      if (r.status === 'ready' && r.manifest) external.push({ id: r.id, manifest: r.manifest, transport: 'bridge', status: 'ready' });
+      if (r.status === 'ready' && r.manifest) external.push({ id: r.id, manifest: r.manifest, transport: 'bridge', status: 'ready', ...(r.gpu ? { gpu: r.gpu } : {}) });
       else broken.push({ id: r.id, error: r.error ?? 'not available' });
     }
     useEnsemble.setState({ external, broken, checkedAt: Date.now(), checking: false });

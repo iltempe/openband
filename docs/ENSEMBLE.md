@@ -175,6 +175,26 @@ found published; any voicebank whose phonemes you can map will do. Without a GPU
 [deploy/diffsinger](../deploy/diffsinger/README.md).
 
 
+## Your taste
+
+Ask for **variants** (2–4) and they come from **different engines** when several can play, as takes of one
+region — audio ones too. Compare them in a **blind test**: you hear A, B, C without knowing who played what,
+rank them, and only then see the names. What you choose teaches OpenBand: each ranking becomes comparisons
+between engines, and a Bradley–Terry model (kept in this browser, never sent) gives each engine a score per
+kind of part — and per style once there are enough comparisons for it. The router weighs it more as
+comparisons add up: after about ten, *"make drums"* goes to the engine **your** ears prefer for drums, which
+can be another than for vocals; two listens or a split decision don't move it. *Ensemble → Your engines*
+shows the ranking with the number of comparisons and an interval, and forgets it on request.
+
+## The GPU
+
+Engines on your computer that need a graphics card take turns: one heavy model runs at a time per GPU,
+the studio's requests go before background jobs, and when another model has to load the least recently
+used one is unloaded (its process stopped, which frees the memory). Tell OpenBand your card's memory in
+`~/.openband/engines.json` — `"gpu": { "vram_gb": 12 }` — and models that fit stay loaded together; without
+it, one stays loaded at a time. *Ensemble* shows which are loaded, running or waiting, and the router
+prefers one already loaded.
+
 ## Who played what
 
 Every part an engine made carries a ✦ on its region and an entry in the **contribution ledger**: engine,

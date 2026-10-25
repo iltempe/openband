@@ -13,6 +13,7 @@ import { shares } from '../ensemble/ledger';
 import type { Region } from '../types';
 import * as I from './Icons';
 import { SeparationSection } from './Separation';
+import { YourEngines } from './YourEngines';
 
 const WHERE: Record<string, MessageKey> = { builtin: 'en.where.builtin', browser: 'en.where.browser', local: 'en.where.local', lan: 'en.where.lan', cloud: 'en.where.cloud' };
 const PARTS: { id: string; label: MessageKey }[] = [
@@ -242,6 +243,7 @@ export function EnsemblePanel() {
               <li key={e.id} className={why ? 'off' : ''}>
                 <div>
                   <b>{e.manifest.engine.name}</b> <span className="en-badge">{t(WHERE[e.manifest.runtime.where])}</span> <LicenceBadge e={e} />
+                  {e.gpu && <span className="en-badge">{t(e.gpu.running ? 'gpu.running' : e.gpu.loaded ? 'gpu.loaded' : 'gpu.idle', { vram: e.gpu.vram_gb ?? '', queued: e.gpu.queued })}</span>}
                 </div>
                 <div className="en-caps">{Object.keys(e.manifest.capabilities).join(' · ')}</div>
                 {why && <div className="en-why">{why}</div>}
@@ -256,6 +258,7 @@ export function EnsemblePanel() {
         </ul>
         <p className="ca-note">{hasEngines ? t('en.addHint') : t('en.noServer')}</p>
       </section>
+      <YourEngines names={Object.fromEntries(engines.map((e) => [e.id, e.manifest.engine.name]))} />
       <SeparationSection />
       <OnlineEngines engines={engines.filter((e) => e.manifest.runtime.where === 'cloud')} />
       <section>

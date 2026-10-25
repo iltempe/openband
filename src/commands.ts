@@ -73,6 +73,7 @@ import { separateRegion, type SeparateArgs } from './ensemble/separate';
 import { singPart, type SingArgs } from './sing/sing';
 import { applyPatch, describeSynth, keepPatch, setSynthParams } from './soundmatch/patches';
 import { soundFromWords } from './soundmatch/words';
+import { preferencesFor, tasteByCapability } from './ensemble/taste';
 import { buildContext } from './ensemble/context';
 import { allEngines, setPolicy, useEnsemble } from './ensemble/engines';
 import { route } from './ensemble/router';
@@ -1548,10 +1549,14 @@ export const commands: Record<string, (args: P) => unknown> = {
         capabilities: Object.keys(e.manifest.capabilities),
         licence: { code: e.manifest.license.code, weights: e.manifest.license.weights, commercial: e.manifest.license.commercial, ...(e.manifest.license.attribution ? { attribution: e.manifest.license.attribution } : {}) },
         ...(e.manifest.runtime.pricing ? { pricing: e.manifest.runtime.pricing } : {}),
+        ...(e.gpu ? { gpu: e.gpu } : {}),
       })),
+      // The same routes create takes: the user's taste from blind tests included.
       routes: caps.map((c) => {
-        const r = route({ capability: c as Capability }, engines, policy);
-        return { capability: c, order: r.candidates.map((x) => x.id), excluded: r.excluded };
+        const t = preferencesFor(c);
+        const r = route({ capability: c as Capability }, engines, policy, { [c]: t.prefs }, { [c]: t.confidence });
+        const taste = tasteByCapability().find((x) => x.capability === c)?.ranking;
+        return { capability: c, order: r.candidates.map((x) => x.id), excluded: r.excluded, ...(taste?.length ? { taste: taste.map((x) => ({ engine: x.engine, score: x.score, interval: x.interval, comparisons: x.comparisons })) } : {}) };
       }),
       unavailable: useEnsemble.getState().broken,
     };
