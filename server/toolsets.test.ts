@@ -36,7 +36,8 @@ describe('tool levels over MCP', () => {
     try {
       const first = (await c.listTools()).tools.map((t) => t.name);
       expect(first.filter((n) => n !== 'open_studio').sort()).toEqual([...CORE, ...CAPABILITY].sort());
-      expect(first.length).toBeLessThanOrEqual(32);
+      // §8.1: ~20 core + ~8 capability (create, transform, separate, sing…), plus open_studio.
+      expect(first.length).toBeLessThanOrEqual(34);
       await c.callTool({ name: 'load_toolset', arguments: { name: 'lyrics' } });
       await new Promise((r) => setTimeout(r, 200));
       expect(changed.length).toBeGreaterThan(0);

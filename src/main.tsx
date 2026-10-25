@@ -1,4 +1,5 @@
 import './audio/context';
+import { setModelSource, useSeparationModel } from './separate/model';
 import { freezeNativeTracks } from './freezeTracks';
 import { trackHash } from './audio/freeze';
 import { importSample } from './audio/samples';
@@ -48,7 +49,7 @@ initAutoWrite();
 startLowLatency();
 initGhosts();
 // ?debug: the engine and the store on window.openband, for diagnostics and end-to-end tests.
-if (new URLSearchParams(location.search).has('debug')) (window as unknown as { openband: unknown }).openband = { engine, useStore, renderBuffer, Tone, commands, analysis: { loudness, truePeak }, native: { testSlot }, nativeStatus: useNativeStatus, restartNative, nativeParam, liveNative, freeze: { freezeNativeTracks, trackHash }, samples: { importSample }, encodePcm, lowLatency: { setLowLatency, syncMonitoring, useLowLatency }, ghost: { useGhost, requestGhosts, acceptGhost } };
+if (new URLSearchParams(location.search).has('debug')) (window as unknown as { openband: unknown }).openband = { engine, useStore, renderBuffer, Tone, commands, analysis: { loudness, truePeak }, native: { testSlot }, nativeStatus: useNativeStatus, restartNative, nativeParam, liveNative, freeze: { freezeNativeTracks, trackHash }, samples: { importSample }, encodePcm, lowLatency: { setLowLatency, syncMonitoring, useLowLatency }, ghost: { useGhost, requestGhosts, acceptGhost }, separation: { setModelSource, useSeparationModel } };
 initJam();
 initFirstRun();
 void loadKeyState();

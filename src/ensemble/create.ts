@@ -12,6 +12,7 @@ import { inferCapability, route, type EngineInfo } from './router';
 import { scopeOf } from './builtin';
 import type { Capability, Contribution, Scp } from './types';
 import { OverBudget, checkBudget, estimate, recordSpend } from './budget';
+import { isolateNewPart } from './separate';
 
 const st = () => useStore.getState();
 
@@ -35,6 +36,8 @@ export interface CreateArgs {
   melody_track_id?: string;
   /** Online engines past the budget: the user said yes to this cost. */
   confirm_spend?: boolean;
+  /** Isolating a layer from a full mix with Demucs in the browser: the user agreed to download it. */
+  confirm_download?: boolean;
 }
 
 const INSTRUMENTS: [RegExp, string, string][] = [
@@ -73,7 +76,7 @@ export function scopeFor(p: Project, a: CreateArgs): Scp['scope'] {
   return { from_bar: 1, to_bar: Math.max(5, Math.ceil(end / BEATS_PER_BAR) + 1) };
 }
 
-interface Made {
+export interface Made {
   engine: EngineInfo;
   contribution: Contribution;
 }
@@ -106,7 +109,7 @@ async function perform(capability: Capability, candidates: EngineInfo[], scp: Sc
   return { made, failures };
 }
 
-function ledgerEntry(m: Made, capability: string, a: CreateArgs, conform: string[], trackId: string, regionIds: string[], takeIds?: string[]): LedgerEntry {
+export function ledgerEntry(m: Made, capability: string, a: CreateArgs, conform: string[], trackId: string, regionIds: string[], takeIds?: string[]): LedgerEntry {
   const c = m.contribution;
   return {
     id: uid('ctb'),
@@ -237,11 +240,23 @@ async function placeAudio(made: Made[], capability: Capability, scp: Scp, a: Cre
   for (const [i, m] of made.entries()) {
     const file = m.contribution.files![0];
     const label = `${(a.text ?? '').slice(0, 28) || a.role || file.role} · ${m.engine.manifest.engine.name}`;
-    const info = await importSample(await audioOf(file.uri), `${m.engine.id}-${capability}-${Date.now().toString(36)}.${file.format}`);
-    const buf = getBuffer(info.id);
+    let info = await importSample(await audioOf(file.uri), `${m.engine.id}-${capability}-${Date.now().toString(36)}.${file.format}`);
+    let buf = getBuffer(info.id);
     if (!buf) throw new Error('The audio could not be decoded');
+    // Step 5: a layer asked for, a full mix answered — keep only the new part.
+    let isolated: string | null = null;
+    if ((capability === 'music.add_layer' || capability === 'music.repaint') && file.role === 'full') {
+      const iso = await isolateNewPart(buf, scp, { fromBeat: s.from, toBeat: s.to }, a);
+      isolated = iso.note;
+      if (iso.wav) {
+        info = await importSample(iso.wav, `${m.engine.id}-${capability}-${Date.now().toString(36)}-isolated.wav`);
+        buf = getBuffer(info.id);
+        if (!buf) throw new Error('The isolated part could not be decoded');
+      }
+    }
     const mono = buf.getChannelData(0);
     const plan = planAudio(m.contribution, scp, { mono, sampleRate: buf.sampleRate, name: info.name });
+    if (isolated) plan.conform.unshift(isolated);
     let track = i === 0 && target?.kind === 'audio' ? target : undefined;
     if (!track) {
       track = makeTrack(st().project, 'audio', undefined, i === 0 ? label : `${label} (variant ${i + 1})`);

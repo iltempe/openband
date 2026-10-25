@@ -12,6 +12,7 @@
 //
 //   node scripts/e2e/run.mjs [first-run|pwa ...]   (CHROME=/path/to/chrome, default: the system Chrome)
 import { spawn } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -824,6 +825,98 @@ tests.online = async () => {
     srv.kill();
     fal.close();
     relay.close();
+  }
+};
+
+// E3b: stems in the browser — Demucs' runtime and worker as shipped, with a stand-in model of the same
+// shape (scripts/e2e/fixtures/demucs-fixture.onnx: each stem a fixed share of the mix). Asked before the
+// download; downloaded once, checked, kept; four stems on their own tracks, the original muted; undo.
+// OPENBAND_DEMUCS_MODEL=<path to htdemucs_fp16weights.onnx> runs the real model instead (locally, not in CI).
+tests.separate = async () => {
+  const real = process.env.OPENBAND_DEMUCS_MODEL;
+  const model = fs.readFileSync(real || path.join(root, 'scripts', 'e2e', 'fixtures', 'demucs-fixture.onnx'));
+  const sha256 = crypto.createHash('sha256').update(model).digest('hex');
+  // The model host (Hugging Face in real life): counts downloads, answers with CORS like the real one.
+  const http = await import('node:http');
+  let fetched = 0;
+  const host = http.createServer((req, res) => {
+    fetched++;
+    res.writeHead(200, { 'access-control-allow-origin': '*', 'content-type': 'application/octet-stream', 'content-length': String(model.length) });
+    res.end(model);
+  });
+  const listen = (x) => new Promise((ok) => x.listen(0, '127.0.0.1', () => ok(`http://127.0.0.1:${x.address().port}`)));
+  const MODEL_URL = `${await listen(host)}/demucs.onnx`;
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    const elsewhere = [];
+    p.on('request', (r) => /huggingface\.co|\.hf\.co/.test(r.url()) && elsewhere.push(r.url()));
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    const r = await p.evaluate(async (src) => {
+      const { commands, useStore, samples, renderBuffer, separation } = window.openband;
+      separation.setModelSource(src);
+      await commands.new_project({ name: 'Stems', bpm: 120, key: 'C' });
+      // 10 s of stereo (two model segments): a chord on the left, a low note on the right.
+      const sr = 44100;
+      const n = sr * 10;
+      const L = Float32Array.from({ length: n }, (_, i) => 0.3 * Math.sin((2 * Math.PI * 261.6 * i) / sr) + 0.2 * Math.sin((2 * Math.PI * 329.6 * i) / sr));
+      const R = Float32Array.from({ length: n }, (_, i) => 0.4 * Math.sin((2 * Math.PI * 65.4 * i) / sr));
+      const dv = new DataView(new ArrayBuffer(44 + n * 4));
+      const w = (o, s) => [...s].forEach((c, i) => dv.setUint8(o + i, c.charCodeAt(0)));
+      w(0, 'RIFF'); dv.setUint32(4, 36 + n * 4, true); w(8, 'WAVEfmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 2, true);
+      dv.setUint32(24, sr, true); dv.setUint32(28, sr * 4, true); dv.setUint16(32, 4, true); dv.setUint16(34, 16, true); w(36, 'data'); dv.setUint32(40, n * 4, true);
+      for (let i = 0; i < n; i++) { dv.setInt16(44 + i * 4, L[i] * 32767, true); dv.setInt16(46 + i * 4, R[i] * 32767, true); }
+      const info = await samples.importSample(dv.buffer, 'mix.wav');
+      const { region_id, track_id } = await commands.add_audio_region({ sample_id: info.id, start_bar: 1, length_bars: 5 });
+      const out = { tracksBefore: useStore.getState().project.tracks.length };
+      try {
+        await commands.separate({ region_id });
+      } catch (e) {
+        out.asked = e.message;
+      }
+      out.fetchedBeforeOk = separation.useSeparationModel.getState().status;
+      const t0 = performance.now();
+      const res = await commands.separate({ region_id, confirm_download: true });
+      out.ms = Math.round(performance.now() - t0);
+      out.res = res;
+      const p1 = useStore.getState().project;
+      out.muted = p1.tracks.find((t) => t.id === track_id).mute;
+      out.order = p1.tracks.map((t) => t.name);
+      out.ledger = (p1.ledger ?? []).map((e) => `${e.engine}:${e.capability}:${e.license.code}`);
+      const rms = async (id) => {
+        const buf = await renderBuffer(useStore.getState().project, { tracks: [id], fromBeat: 0, toBeat: 16, includeMaster: false });
+        let e = 0;
+        const c = buf.getChannelData(0);
+        for (let i = 0; i < c.length; i++) e += c[i] * c[i];
+        return Math.sqrt(e / c.length);
+      };
+      out.rms = {};
+      for (const s of res.stems) out.rms[s.stem] = await rms(s.track_id);
+      // Again: the model is kept, nothing downloaded.
+      await commands.undo({});
+      out.afterUndo = { tracks: useStore.getState().project.tracks.length, muted: useStore.getState().project.tracks.find((t) => t.id === track_id).mute };
+      await commands.separate({ region_id, stems: ['bass', 'vocals'] });
+      out.second = useStore.getState().project.tracks.length - out.tracksBefore;
+      return out;
+    }, { url: MODEL_URL, sha256, bytes: model.length, name: 'fixture', license: 'MIT', homepage: '' });
+    check(/one-time download/.test(r.asked ?? '') && r.fetchedBeforeOk !== 'ready', `without the user's OK nothing is downloaded: the AI is told to ask (${(r.asked ?? '').slice(0, 60)}…)`);
+    const names = r.res?.stems?.map((s) => s.stem).join() ?? '';
+    // The real model leaves vocals out: there are none, and silent stems are not placed.
+    check((real ? /bass/.test(names) && /other/.test(names) && r.res.silent?.includes('vocals') : names === 'drums,bass,other,vocals') && r.res.engine === 'Demucs in the browser', `${real ? 'the stems that are there' : 'four stems'} by Demucs in the browser (${names}${r.res?.silent ? `; silent: ${r.res.silent}` : ''}; ${r.ms} ms for 10 s)`);
+    const ratio = r.rms.vocals / r.rms.drums;
+    if (real) check(r.rms.bass > 30 * r.rms.drums && r.rms.other > 30 * r.rms.drums, `HT-Demucs puts the low note in bass and the chord in other (${Object.entries(r.rms).map(([k, v]) => `${k} ${v.toFixed(4)}`).join(', ')})`);
+    else check(Math.abs(ratio - 4) < 0.2 && Math.abs(r.rms.bass / r.rms.drums - 2) < 0.1, `each stem is what the model made, seams included (vocals/drums ${ratio.toFixed(3)}, expected 4)`);
+    check(r.muted === true && r.order.filter((n) => / · (Drums|Bass|Other|Vocals)$/.test(n)).length === r.res.stems.length, `stems on tracks under the original, which is muted (${r.order.join(', ')})`);
+    check(r.ledger.length === r.res.stems.length && r.ledger.every((x) => x === 'openband-demucs:audio.separate:MIT'), `every stem is in the ledger with its engine and licence (${r.ledger.length})`);
+    check(r.afterUndo.tracks === r.tracksBefore && r.afterUndo.muted === false, 'one undo step takes it all back, the original plays again');
+    check(fetched === 1 && r.second === (real ? 1 : 2) && elsewhere.length === 0, `the model is downloaded once and kept; only the stems asked for (${fetched} download, ${r.second} tracks)`);
+  } finally {
+    await b.close();
+    srv.kill();
+    host.close();
   }
 };
 

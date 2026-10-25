@@ -4,7 +4,7 @@
 //
 // connect-src: the bridge on this computer, the AI APIs of the in-browser chat (and local AI servers such
 // as Ollama), the WAM plugin catalog and
-// the collaboration servers. Anything else (importing a sound from an arbitrary URL in the browser, other
+// the collaboration servers, the relay for online engines and the model hosts of in-browser engines. Anything else (importing a sound from an arbitrary URL in the browser, other
 // plugin hosts) is blocked on such instances unless the admin adds it here or in their own headers.
 export const WAM_HOST = 'https://www.webaudiomodules.com';
 export const DEFAULT_COLLAB = ['wss://y-webrtc-eu.fly.dev'];
@@ -12,6 +12,8 @@ export const DEFAULT_COLLAB = ['wss://y-webrtc-eu.fly.dev'];
 export const AI_APIS = ['https://api.anthropic.com', 'https://api.openai.com', 'https://generativelanguage.googleapis.com'];
 /** Where users deploy their relay for online engines (deploy/relay/): the provider key stays there. */
 export const RELAY_HOSTS = ['https://*.workers.dev', 'https://*.vercel.app'];
+/** Where models for in-browser engines are downloaded from, with the user's OK (Demucs: Hugging Face and its CDN). */
+export const MODEL_HOSTS = ['https://huggingface.co', 'https://*.hf.co'];
 
 export function contentSecurityPolicy({ collab = DEFAULT_COLLAB, extraConnect = [] } = {}) {
   const directives = {
@@ -23,7 +25,7 @@ export function contentSecurityPolicy({ collab = DEFAULT_COLLAB, extraConnect = 
     'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
     'img-src': ["'self'", 'data:', 'blob:', WAM_HOST],
     'media-src': ["'self'", 'data:', 'blob:'],
-    'connect-src': ["'self'", 'ws://127.0.0.1:*', 'ws://localhost:*', 'http://127.0.0.1:*', 'http://localhost:*', ...AI_APIS, ...RELAY_HOSTS, WAM_HOST, ...collab, ...extraConnect],
+    'connect-src': ["'self'", 'ws://127.0.0.1:*', 'ws://localhost:*', 'http://127.0.0.1:*', 'http://localhost:*', ...AI_APIS, ...RELAY_HOSTS, ...MODEL_HOSTS, WAM_HOST, ...collab, ...extraConnect],
     'object-src': ["'none'"],
     'base-uri': ["'self'"],
     'frame-ancestors': ["'self'"],

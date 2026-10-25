@@ -782,7 +782,16 @@ tool('create', 'Make a musical part from a description: OpenBand picks the capab
   seed: z.number().int().optional(),
   engine: z.string().optional().describe('Pin an engine id (see list_engines) — only if the user asked for it'),
   confirm_spend: z.boolean().optional().describe('Online engines past the budget: true only after the user agreed to that cost'),
+  confirm_download: z.boolean().optional().describe('When a layer comes back as a full mix, OpenBand isolates it with Demucs in the browser: true only after the user agreed to download its model (166 MB, once)'),
 }, { timeout: 900000 });
+tool('separate', 'Separate an audio region into stems — drums, bass, other, vocals — each on its own track under the original (which is muted, not removed), as one undo step. By default Demucs runs in the browser: free, private, offline once its model is downloaded (166 MB, once: ask the user, then retry with confirm_download: true). Online separators are used only if the user allows online engines. Silent stems are left out. Takes two to three times the length of the audio on a typical computer (the first time also the download).', {
+  region_id: z.string().optional().describe('The audio region (or give a track with one audio region)'),
+  track_id: z.string().optional(),
+  stems: z.array(z.enum(['drums', 'bass', 'other', 'vocals'])).optional().describe('Only these stems (all by default)'),
+  engine: z.string().optional().describe('Pin an engine id — only if the user asked for it'),
+  confirm_download: z.boolean().optional().describe('true only after the user agreed to download the separation model'),
+  confirm_spend: z.boolean().optional(),
+}, { timeout: 1800000 });
 tool('transform', 'Change a part that is there, through OpenBand\'s engines: continue it, harmonize it (chords on a new track), repaint or restyle it. Give the region (or a track with a section or bars) and what you want in words; the capability is inferred when omitted. The result arrives as takes of that region to compare (start_ab_test) — the user\'s version is kept — and the answer says which engine played and what OpenBand corrected.', {
   region_id: z.string().optional(),
   track_id: z.string().optional(),
@@ -822,7 +831,7 @@ export const CORE = [
   'undo', 'redo', 'begin_change', 'end_change', 'get_structure', 'get_context', 'load_toolset',
 ];
 /** Always loaded: one generic tool per kind of musical job; the router and OpenBand's engines do the rest. */
-export const CAPABILITY = ['create', 'transform', 'suggest_continuation', 'mix_pilot', 'arrange_from_energy', 'export_for_platforms', 'set_jam_mode'];
+export const CAPABILITY = ['create', 'transform', 'separate', 'suggest_continuation', 'mix_pilot', 'arrange_from_energy', 'export_for_platforms', 'set_jam_mode'];
 
 export const TOOLSETS = {
   editing: { description: 'Detailed note and region editing: transpose, quantize, update notes, drum patterns and chord progressions written out, the drummer, loop and metronome, the editor', tools: ['rename_project', 'set_master_volume', 'update_notes', 'transpose_region', 'quantize_region', 'add_drum_pattern', 'add_chord_progression', 'set_loop', 'set_metronome', 'open_editor', 'split_region', 'detect_tempo', 'add_drummer', 'regenerate_drummer'] },

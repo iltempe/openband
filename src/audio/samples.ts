@@ -194,25 +194,32 @@ export function pitchFromName(name: string): number | undefined {
 }
 
 /** Encode mono float PCM as a 16-bit WAV file (used for samples extracted from SoundFonts). */
-export function encodeMonoWav(pcm: Float32Array, sampleRate: number): ArrayBuffer {
-  const data = new DataView(new ArrayBuffer(44 + pcm.length * 2));
+export const encodeMonoWav = (pcm: Float32Array, sampleRate: number): ArrayBuffer => encodeWavChannels([pcm], sampleRate);
+
+/** Encode float PCM channels (interleaved on write) as a 16-bit WAV file. */
+export function encodeWavChannels(channels: Float32Array[], sampleRate: number): ArrayBuffer {
+  const n = channels[0].length;
+  const ch = channels.length;
+  const data = new DataView(new ArrayBuffer(44 + n * ch * 2));
   const str = (o: number, s: string) => [...s].forEach((c, i) => data.setUint8(o + i, c.charCodeAt(0)));
   str(0, 'RIFF');
-  data.setUint32(4, 36 + pcm.length * 2, true);
+  data.setUint32(4, 36 + n * ch * 2, true);
   str(8, 'WAVE');
   str(12, 'fmt ');
   data.setUint32(16, 16, true);
   data.setUint16(20, 1, true);
-  data.setUint16(22, 1, true);
+  data.setUint16(22, ch, true);
   data.setUint32(24, sampleRate, true);
-  data.setUint32(28, sampleRate * 2, true);
-  data.setUint16(32, 2, true);
+  data.setUint32(28, sampleRate * ch * 2, true);
+  data.setUint16(32, ch * 2, true);
   data.setUint16(34, 16, true);
   str(36, 'data');
-  data.setUint32(40, pcm.length * 2, true);
-  for (let i = 0; i < pcm.length; i++) {
-    const s = Math.max(-1, Math.min(1, pcm[i]));
-    data.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-  }
+  data.setUint32(40, n * ch * 2, true);
+  let o = 44;
+  for (let i = 0; i < n; i++)
+    for (let c = 0; c < ch; c++, o += 2) {
+      const s = Math.max(-1, Math.min(1, channels[c][i]));
+      data.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
   return data.buffer;
 }

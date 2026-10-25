@@ -3,8 +3,8 @@
 🇬🇧 English · 🇮🇹 [Italiano](ENSEMBLE.it.md) · [← README](../README.md)
 
 OpenBand is where the song lives; **engines** play parts of it. An engine can be one of OpenBand's own
-algorithms, a music model on your computer, one on another computer on your network, or (soon) an online
-service. They all speak the same open standard, the [Open Music Engine Profile](../omep/README.md) (OMEP),
+algorithms, a music model in your browser or on your computer, one on another computer on your network, or
+an online service. They all speak the same open standard, the [Open Music Engine Profile](../omep/README.md) (OMEP),
 so OpenBand never calls a model by name: you ask for a part, OpenBand picks who plays it.
 
 ## Create a part
@@ -35,6 +35,7 @@ No AI is needed. With one connected, it can do the same with the `create` tool.
 | **OpenBand Drummer** | drums (10 styles, follows the sections) | in OpenBand | MIT |
 | **OpenBand Chords** | accompaniment: block, stabs or arpeggio, on the song's chords | in OpenBand | MIT |
 | **OpenBand CC0 loops** | an audio layer from the CC0 loop library | in OpenBand | MIT + CC0 audio |
+| **Demucs in the browser** | stems: drums, bass, other, vocals | in your browser | MIT (code and weights) |
 | your engines | whatever they declare | your computer, your network | theirs |
 
 ### Adding engines
@@ -95,6 +96,28 @@ terms and when they were checked; fal's terms for the output are *conditional*, 
 per engine. OpenBand also brings what an engine returns to a working level (−20 dBFS RMS, as a region gain)
 and doesn't place audio that is silent or just noise; clipping is reported.
 
+## Separate stems
+
+Select an audio region and press **Separate stems** in its editor (or ask the AI: `separate`). OpenBand puts
+**drums, bass, other and vocals** on their own tracks, right under the original, which is muted — never
+removed — and it is one undo step. Stems with nothing in them (a song without vocals) are left out.
+
+<img src="stems.png" alt="A song separated into stems" width="720">
+
+It runs **in your browser** with [HT-Demucs](https://github.com/facebookresearch/demucs) (Meta, MIT):
+free, private — the audio never leaves your computer — and offline. The model (166 MB, the
+[ONNX export by StemSplit](https://huggingface.co/StemSplitio/htdemucs-onnx), MIT) is downloaded **once,
+when you agree**, from Hugging Face; OpenBand checks it against its SHA-256 and keeps it in the browser
+(*Ensemble → Stem separation* shows it, and removes it). It takes two to three times the length of the audio
+on a typical computer, in the background. With online engines allowed, Demucs on fal can do it too, for its
+price; the browser one is always tried first.
+
+**A layer that comes back as a whole mix.** Some audio engines asked for one new layer answer the full mix —
+your song plus the new part. OpenBand separates that answer and your song's same bars into stems, keeps the
+stems where the answer has something your song doesn't (a spectral difference, stem by stem) and subtracts
+what is still your song: the new part lands alone on its track, and the correction says which stems it
+kept (*"isolated the new part from the full mix: kept other 82 % new; dropped drums, bass"*).
+
 ## Who played what
 
 Every part an engine made carries a ✦ on its region and an entry in the **contribution ledger**: engine,
@@ -105,5 +128,5 @@ ledger travels inside the song (`.openband`, exports) and will feed release cred
 
 ## For AI clients
 
-`create` (describe the part; `variants`, `engine` only when asked), `list_engines` (engines, routes and
+`create` (describe the part; `variants`, `engine` only when asked), `separate` (an audio region into stems; `confirm_download` only after the user agreed to the one-time download), `list_engines` (engines, routes and
 exclusions under the policy), `get_ledger` (contributions and shares), `set_engine_policy`.

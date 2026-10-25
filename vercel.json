@@ -9,7 +9,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob: https://www.webaudiomodules.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://www.webaudiomodules.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://www.webaudiomodules.com; media-src 'self' data: blob:; connect-src 'self' ws://127.0.0.1:* ws://localhost:* http://127.0.0.1:* http://localhost:* https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://*.workers.dev https://*.vercel.app https://www.webaudiomodules.com wss://y-webrtc-eu.fly.dev; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+          "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob: https://www.webaudiomodules.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://www.webaudiomodules.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://www.webaudiomodules.com; media-src 'self' data: blob:; connect-src 'self' ws://127.0.0.1:* ws://localhost:* http://127.0.0.1:* http://localhost:* https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://*.workers.dev https://*.vercel.app https://huggingface.co https://*.hf.co https://www.webaudiomodules.com wss://y-webrtc-eu.fly.dev; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
         },
         {
           "key": "X-Content-Type-Options",

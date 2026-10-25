@@ -136,6 +136,8 @@
     'foot.contacts': 'Contatti',
     'foot.contactsp': 'OpenBand è fatto da @iltempe e dai suoi contributori.',
     'foot.coffee': 'Offrimi un caffè',
+    'feat.stems': 'Qualsiasi canzone, in stem',
+    'feat.stemsp': 'Trascina un mix e premi Separa gli stem: batteria, basso, voce e il resto arrivano su tracce proprie, pronte da remixare, silenziare o su cui suonare. Demucs gira nel tuo browser: gratis, offline dopo un download una tantum, e il tuo audio non lascia il computer.',
     'feat.energy': 'Disegna la canzone',
     'feat.energyp': 'Hai un loop di 8 battute che non diventa mai una canzone? Disegna quanto deve essere grande nel tempo, o scegli “pop classico”, “crescendo lento”, “drop EDM”, e Arrangia la costruisce: intro, strofe, ritornelli, strumenti che entrano, fill, riser e un finale. Le tue note restano come le hai scritte, su un branch da confrontare.',
     'feat.ghosts': 'Tab per scrivere la battuta dopo',

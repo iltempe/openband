@@ -3,8 +3,8 @@
 🇬🇧 [English](ENSEMBLE.md) · 🇮🇹 Italiano · [← README](../README.it.md)
 
 OpenBand è dove vive la canzone; i **motori** ne suonano le parti. Un motore può essere uno degli algoritmi
-di OpenBand, un modello musicale sul tuo computer, uno su un altro computer della tua rete o (presto) un
-servizio online. Parlano tutti lo stesso standard aperto, l'[Open Music Engine Profile](../omep/README.md)
+di OpenBand, un modello musicale nel tuo browser o sul tuo computer, uno su un altro computer della tua rete
+o un servizio online. Parlano tutti lo stesso standard aperto, l'[Open Music Engine Profile](../omep/README.md)
 (OMEP), quindi OpenBand non chiama mai un modello per nome: tu chiedi una parte, OpenBand sceglie chi la
 suona.
 
@@ -37,6 +37,7 @@ Non serve un'AI. Se ce n'è una collegata, può fare lo stesso con lo strumento 
 | **OpenBand Drummer** | batteria (10 stili, segue le sezioni) | in OpenBand | MIT |
 | **OpenBand Chords** | accompagnamento: accordi tenuti, stab o arpeggio, sugli accordi della canzone | in OpenBand | MIT |
 | **OpenBand CC0 loops** | uno strato audio dalla libreria di loop CC0 | in OpenBand | MIT + audio CC0 |
+| **Demucs nel browser** | stem: batteria, basso, altro, voce | nel tuo browser | MIT (codice e pesi) |
 | i tuoi motori | quello che dichiarano | il tuo computer, la tua rete | la loro |
 
 ### Aggiungere motori
@@ -97,6 +98,30 @@ sono *condizionati*, quindi li accetti una volta per motore. OpenBand porta anch
 restituisce a un livello di lavoro (−20 dBFS RMS, come guadagno della regione) e non inserisce audio muto
 o fatto solo di rumore; il clipping viene segnalato.
 
+## Separare gli stem
+
+Seleziona una regione audio e premi **Separa gli stem** nel suo editor (o chiedilo all'AI: `separate`).
+OpenBand mette **batteria, basso, altro e voce** su tracce proprie, subito sotto l'originale, che viene
+silenziato — mai rimosso — e tutto è un solo passo di annulla. Gli stem vuoti (una canzone senza voce) non
+vengono creati.
+
+<img src="stems.png" alt="Una canzone separata in stem" width="720">
+
+Gira **nel tuo browser** con [HT-Demucs](https://github.com/facebookresearch/demucs) (Meta, MIT): gratis,
+privato — l'audio non lascia il tuo computer — e offline. Il modello (166 MB,
+l'[export ONNX di StemSplit](https://huggingface.co/StemSplitio/htdemucs-onnx), MIT) si scarica **una volta,
+quando dai l'ok**, da Hugging Face; OpenBand lo verifica col suo SHA-256 e lo tiene nel browser
+(*Ensemble → Separazione degli stem* lo mostra e lo rimuove). Ci mette da due a tre volte la durata
+dell'audio su un computer normale, in background. Con i motori online attivi può farlo anche Demucs su fal,
+al suo prezzo; quello nel browser viene sempre provato per primo.
+
+**Uno strato che torna come mix intero.** Alcuni motori audio, a cui chiedi un solo strato nuovo,
+rispondono col mix completo: la tua canzone più la parte nuova. OpenBand separa la risposta e le stesse
+battute della tua canzone in stem, tiene gli stem in cui la risposta ha qualcosa che la canzone non ha (una
+differenza spettrale, stem per stem) e sottrae quello che è ancora la tua canzone: la parte nuova arriva da
+sola sulla sua traccia, e la correzione dice quali stem ha tenuto (*"isolated the new part from the full
+mix: kept other 82 % new; dropped drums, bass"*).
+
 ## Chi ha suonato cosa
 
 Ogni parte fatta da un motore ha una ✦ sulla regione e una voce nel **registro dei contributi**: motore,
@@ -107,5 +132,5 @@ viaggia dentro la canzone (`.openband`, export) e servirà per crediti e dichiar
 
 ## Per i client AI
 
-`create` (descrivi la parte; `variants`, `engine` solo se richiesto), `list_engines` (motori, percorsi ed
+`create` (descrivi la parte; `variants`, `engine` solo se richiesto), `separate` (una regione audio in stem; `confirm_download` solo dopo l'ok dell'utente al download una tantum), `list_engines` (motori, percorsi ed
 esclusioni secondo le regole), `get_ledger` (contributi e quote), `set_engine_policy`.

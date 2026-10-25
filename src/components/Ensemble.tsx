@@ -12,6 +12,7 @@ import { exclusion, inferCapability, route, type EngineInfo } from '../ensemble/
 import { shares } from '../ensemble/ledger';
 import type { Region } from '../types';
 import * as I from './Icons';
+import { SeparationSection } from './Separation';
 
 const WHERE: Record<string, MessageKey> = { builtin: 'en.where.builtin', browser: 'en.where.browser', local: 'en.where.local', lan: 'en.where.lan', cloud: 'en.where.cloud' };
 const PARTS: { id: string; label: MessageKey }[] = [
@@ -255,6 +256,7 @@ export function EnsemblePanel() {
         </ul>
         <p className="ca-note">{hasEngines ? t('en.addHint') : t('en.noServer')}</p>
       </section>
+      <SeparationSection />
       <OnlineEngines engines={engines.filter((e) => e.manifest.runtime.where === 'cloud')} />
       <section>
         <h4>{t('en.share')}</h4>

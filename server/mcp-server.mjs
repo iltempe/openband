@@ -65,7 +65,7 @@ async function findFreePort(from) {
 
 // ---------------------------------------------------------------- HTTP + WebSocket bridge
 
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.png': 'image/png', '.wav': 'audio/wav', '.webmanifest': 'application/manifest+json' };
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.png': 'image/png', '.wav': 'audio/wav', '.webmanifest': 'application/manifest+json', '.mjs': 'text/javascript', '.wasm': 'application/wasm' };
 
 const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 /** OMEP engines the user configured (SPEC v0.6 §9). Never on a public server: there the page is a stranger's. */
@@ -554,7 +554,7 @@ function buildMcpServer(ctx) {
   };
   const registered = new Map();
   /** Long generations: an MCP task for clients that ask, the same answer synchronously otherwise. */
-  const TASK_TOOLS = new Set(['create', 'transform', 'arrange_from_energy']);
+  const TASK_TOOLS = new Set(['create', 'transform', 'separate', 'arrange_from_energy']);
   const asTask = (t, handler) =>
     server.experimental.tasks.registerToolTask(
       t.name,

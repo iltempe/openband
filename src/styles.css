@@ -5806,3 +5806,6 @@ div.ca-steps {
   font-size: 12px;
   color: #fbbf24;
 }
+.en-separate progress {
+  width: 160px;
+}
