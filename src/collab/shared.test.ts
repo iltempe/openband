@@ -7,7 +7,7 @@ import { publishBranches, publishVersions, roomBranches, roomVersions, type Shar
 import { emptyProjectFixture, region, track } from '../__fixtures__/projects';
 import { migrate } from '../migrations';
 
-const version = (id: string, by: string, at: number, label = id): SharedVersion => ({ id, projectId: 'song_1', parentIds: [], branch: 'main', label, createdAt: at, author: 'user', by, snapshot: gzipSync(strToU8(JSON.stringify({ label }))) });
+const version = (id: string, by: string, at: number, label = id): SharedVersion => ({ id, projectId: 'song_1', parentIds: [], branch: 'main', label, createdAt: at, author: 'user', by, snapshot: gzipSync(strToU8(JSON.stringify({ label })), { mtime: 0 }) });
 /** Two peers that were in sync, then each works offline; finally they exchange what they did. */
 function offlinePair() {
   const a = new Y.Doc();

@@ -91,7 +91,8 @@ async function tx<T>(store: string, mode: IDBTransactionMode, fn: (s: IDBObjectS
   });
 }
 
-const pack = (p: Project) => gzipSync(strToU8(JSON.stringify(p)));
+// No timestamp in the gzip header: the same song always packs to the same bytes (shared versions compare equal).
+const pack = (p: Project) => gzipSync(strToU8(JSON.stringify(p)), { mtime: 0 });
 const unpack = (b: Uint8Array) => migrate(strFromU8(gunzipSync(b)));
 const projectIdOf = (p: Project) => p.meta?.projectId ?? 'local';
 

@@ -2,7 +2,9 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
-## v0.6.20 "G2a: draw the song — the arranger"
+## v0.6.21 "G2a: draw the song — the arranger"
+
+- v0.6.20 has no release: its release check failed on a test that compared two packed versions byte for byte when the two saves fell in different seconds (gzip writes a timestamp in its header). Versions now pack without one, so the same song always gives the same bytes. Everything below was in v0.6.20 and ships here.
 
 ### G2 (part 1) · From an energy curve to a whole song
 - **New MCP tools (146 in all)**: **`set_energy_curve`** (points `{bar, energy 0..1}`, or a shape — `pop`, `slow_build`, `edm_drop`, `ballad` — for `length_bars` or `seconds`, e.g. 3:30 at the song's tempo), **`get_energy`** (the drawn curve and the song's measured one, per bar), **`arrange_from_energy`** (`seed`, `genre`, `as_branch` = true, `keep_sections`, `modulate`) and **`add_transition`** (`riser`, `downlifter`, `reverse_cymbal`, `fill`, `stop`, `impact` at a bar). The curve is saved in the song (`Project.energy`).
