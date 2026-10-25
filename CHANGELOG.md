@@ -2,6 +2,31 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.33 "G6b: the video for YouTube"
+
+### G6b · A video from the song, made in the browser (SPEC v0.6 G6)
+- **Make the video** in the Release tab, or `render_video`. Each video shows:
+  - the cover, on a glow of its palette's accent;
+  - the title and artist;
+  - the **spectrum moving with the music**: 48 log bands from 40 Hz to 12 kHz, fast attack and slow fall;
+  - a progress line;
+  - the **lyric line being sung**, from the aligned lyrics, with the next one dimmer.
+  Syllable hyphens are removed, as in the LRC. A preview plays in the panel and the MP4 is saved.
+- **Two formats**:
+  - **16:9**, 1920×1080: the whole song.
+  - **9:16**, 1080×1920: a **Short** of 15–60 s. It shows the first chorus by default (a chorus shorter than 15 s takes what follows), or `section_id`, at most `max_seconds`. It fades in over 0.3 s and out over 1.5 s.
+- **Encoding**: WebCodecs in a worker, at 30 fps and 6 Mbit/s for H.264 High and 192 kbit/s for AAC. Chrome on Linux has no AAC encoder, so there the audio is Opus; VP9 is the fallback where H.264 isn't available. The file is an MP4 with its index at the front, muxed by `mp4-muxer` 5.2.2 (MIT). That library is finished but deprecated in favour of Mediabunny, which is MPL-2.0. Nothing is uploaded.
+- Not yet: publishing to the platforms (G6c).
+- Acceptance. The spec asks for a video that opens in standard players, with the audio and lyrics in sync within ±50 ms.
+  - In Chrome (`npm run e2e`, *video*, 12 checks), ffprobe reads both files as H.264 + AAC at 1920×1080 and 1080×1920, with audio and video the same length (27.07 / 27.00 s, and 15.08 / 15.00 s for the Short).
+  - Both streams start at 0.000 s.
+  - The Short is the chorus (from 12 s, 15 s long).
+  - ffmpeg's decoded frames show the first lyric line absent 50 ms before it is sung (contrast 5.0) and present 50 ms after (68.3). Every line appears on its own frame (0 ms late).
+  - 27 s of 1080p were made in 5.2 s.
+  - Unit tests: the Short's excerpt (chorus, short chorus, limit, end of song, no sections, unknown section), the lyric cues within an excerpt, and a line on the first frame at or after it.
+- CI installs ffmpeg for the e2e job if it's missing.
+- **CI's e2e job had failed since v0.6.30**: the sound-alike's "under 10 s" check took up to 18.9 s on GitHub's shared runners, about 2.2× slower than a computer. There the bound is now 25 s, as a guard against regressions. The 10 s bar still applies, and is met, on a computer (slowest 8.7 s on an M-series Mac).
+
 ## v0.6.32 "G6a: the release kit"
 
 ### G6a · Getting a song ready to release: metadata, licence, what it contains, cover, Release Kit (SPEC v0.6 G6)

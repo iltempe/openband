@@ -7,6 +7,7 @@ import { runCommand } from '../commands';
 import { LICENSES, chooseLicense, explain, IRREVOCABLE, COLLECTING_SOCIETY, type LicenseCode } from '../publish/license';
 import { COVER_STYLES, PALETTES, drawCover } from '../publish/cover';
 import { getRelease, checkReleaseCommand } from '../publish/commands';
+import { useVideo, type VideoFormat } from '../publish/video';
 
 const run = (m: string, a: Record<string, unknown>) => runCommand(m, a, 'ui').catch((e) => useStore.getState().notify((e as Error).message));
 
@@ -171,7 +172,30 @@ export function ReleasePanel() {
         >
           {busy ? '…' : t('rel.kit')}
         </button>
+        <VideoMaker />
       </section>
+    </div>
+  );
+}
+
+function VideoMaker() {
+  const t = useT();
+  const v = useVideo();
+  const [format, setFormat] = useState<VideoFormat>('16:9');
+  return (
+    <div className="rel-video">
+      <h4>{t('rel.video')}</h4>
+      <div className="row">
+        <select value={format} onChange={(e) => setFormat(e.target.value as VideoFormat)} disabled={v.progress !== null}>
+          <option value="16:9">{t('rel.video169')}</option>
+          <option value="9:16">{t('rel.video916')}</option>
+        </select>
+        <button className="btn" disabled={v.progress !== null} onClick={() => void run('render_video', { format })}>
+          {v.progress !== null ? t('rel.videoMaking', { pct: Math.round(v.progress * 100) }) : t('rel.videoMake')}
+        </button>
+      </div>
+      {v.progress !== null && <progress className="rel-progress" value={v.progress} />}
+      {v.url && v.progress === null && <video className={`rel-preview ${v.format === '9:16' ? 'tall' : ''}`} src={v.url} controls />}
     </div>
   );
 }

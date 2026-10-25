@@ -1533,6 +1533,13 @@ export const commands: Record<string, (args: P) => unknown> = {
     download(new Blob([kit.zip as BlobPart], { type: 'application/zip' }), name);
     return { saved: name, files: kit.files, bytes: kit.zip.length };
   },
+  render_video: async ({ format, section_id, max_seconds }) => {
+    const { renderVideo } = await import('./publish/video');
+    const v = await renderVideo(st().project, { format, section_id, max_seconds });
+    const name = `${safeName(st().project.release?.title || st().project.name)}${v.format === '9:16' ? ' (Short)' : ''}.mp4`;
+    download(new Blob([v.mp4 as BlobPart], { type: 'video/mp4' }), name);
+    return { saved: name, format: v.format, width: v.width, height: v.height, seconds: Math.round(v.seconds * 100) / 100, from_seconds: Math.round(v.from * 100) / 100, ...(v.section ? { section: v.section } : {}), video_codec: v.videoCodec, audio_codec: v.audioCodec, bytes: v.mp4.length, lyric_lines: v.cues.length };
+  },
   set_voice_control: async ({ enabled, engine: eng, language, push_to_talk_cc, feedback }) => {
     const { setVoiceControl, useVoice } = await import('./voice/control');
     setVoiceControl({ ...(enabled !== undefined ? { enabled } : {}), ...(eng ? { engine: eng } : {}), ...(language ? { lang: language } : {}), ...(push_to_talk_cc !== undefined ? { pushToTalkCc: push_to_talk_cc } : {}), ...(feedback !== undefined ? { feedback } : {}) });

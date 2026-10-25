@@ -129,6 +129,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # ffprobe / ffmpeg check the release video (e2e "video").
+      - run: command -v ffprobe || (sudo apt-get update && sudo apt-get install -y ffmpeg)
       - run: node scripts/e2e/run.mjs
 
   # What a release would produce, without publishing: npm tarball and .mcpb at the same version, notes present.

@@ -6033,3 +6033,20 @@ div.ca-steps {
 .rel-col > .btn.primary {
   margin-top: 10px;
 }
+.rel-video .row select {
+  font-size: 12px;
+}
+.rel-progress {
+  width: 100%;
+  margin-top: 6px;
+}
+.rel-preview {
+  width: 100%;
+  margin-top: 6px;
+  border-radius: 6px;
+  background: #000;
+}
+.rel-preview.tall {
+  width: auto;
+  max-height: 260px;
+}

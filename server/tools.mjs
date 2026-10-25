@@ -54,7 +54,7 @@ Other DAWs: import_dawproject/export_dawproject move songs to and from Bitwig, S
 Plugins: Web Audio Modules (WAM 2.0) instruments and effects, and in the desktop app the user's installed VST3 / CLAP / AU plugins (list_native_plugins). When the user describes a sound or effect in words, call add_plugin with that description (or search_plugins first to compare options) — installed plugins come first when they fit; then get_plugin_params / set_plugin_params to dial it in. Never install or download plugins: use what is there.
 
 Ensemble: to add a part (drums, an accompaniment, an audio layer) you can describe it with create instead of writing every note: OpenBand picks the engine (its own drummer, chords and CC0 loops, or the OMEP engines the user installed) within the user's licence and privacy policy, sends it the song's tempo, key, sections and harmony, and fits the result to the song. Do not pin an engine unless the user asks. Ask for variants when taste matters: they arrive as takes, offer a blind test (start_ab_test). Report which engine played and what OpenBand corrected. get_ledger tells who made what; never describe engine-made parts as the user's own playing.
-Release: when the user wants to put a song out, get_release shows its metadata, licence and what it contains; ask before choosing a licence (Creative Commons cannot be withdrawn), declare imported samples' licences with set_release({sample_licenses}), run check_release and fix what it names, then generate_cover and export_release_kit.`;
+Release: when the user wants to put a song out, get_release shows its metadata, licence and what it contains; ask before choosing a licence (Creative Commons cannot be withdrawn), declare imported samples' licences with set_release({sample_licenses}), run check_release and fix what it names, then generate_cover and export_release_kit (render_video makes the video YouTube needs, or a 9:16 Short).`;
 
 const Pitch = z.union([z.number().int().min(0).max(127), z.string()]).describe('MIDI number, note name ("C4", "F#3") or drum name ("kick")');
 const NoteSchema = z.object({
@@ -884,7 +884,12 @@ tool('check_release', 'What stands between the song and each platform: missing t
 tool('generate_cover', 'Make a typographic cover for the release — deterministic for a style (bold, grid, waves, minimal), a palette (night, sunset, ocean, forest, paper, mono) and a seed — with the title and the artist. Answers a preview.', {
   style: z.enum(['bold', 'grid', 'waves', 'minimal']).optional(), palette: z.enum(['night', 'sunset', 'ocean', 'forest', 'paper', 'mono']).optional(), seed: z.number().int().optional(),
 });
-tool('export_release_kit', 'Everything a release needs, in one zip saved to the user\'s downloads: the master as 24-bit FLAC with its tags (title, artist, licence, copyright, contact, AI use) and cover, the cover (3000 px), LICENSE.txt, the lyrics as text and as LRC synchronised from their alignment, the credits.', {});
+tool('export_release_kit', 'Everything a release needs, in one zip saved to the user\'s downloads: the master as 24-bit FLAC with its tags (title, artist, licence, copyright, contact, AI use) and cover, the cover (3000 px), LICENSE.txt, the lyrics as text and as LRC synchronised from their alignment, the credits.', {}, { timeout: 300000 });
+tool('render_video', 'The video for YouTube, saved to the user\'s downloads: the cover, the spectrum moving with the music and the aligned lyrics in time, as an MP4 (H.264 and AAC; VP9 or Opus where the browser has no H.264 or AAC encoder). format 16:9 is the whole song (1920×1080); 9:16 is a Short (1080×1920) of 15–60 s from the chorus, or from section_id, at most max_seconds. Rendered in the browser; takes about as long as the song or less.', {
+  format: z.enum(['16:9', '9:16']).optional().describe('16:9 (default, the whole song) or 9:16 (a Short from the chorus)'),
+  section_id: z.string().optional().describe('9:16: the section to show instead of the first chorus'),
+  max_seconds: z.number().min(15).max(60).optional().describe('9:16: at most this long (default 60)'),
+}, { timeout: 900000 });
 
 tool('get_context', 'The Song Context Package (OMEP SCP 1.0) of the song, a section or some bars: tempo, key, length, sections with their energy, the chords bar by bar, the tracks with their roles, the melody and the lyrics — what you need to know before writing or changing a part, in one call instead of five analyses. Also as the resource openband://context/song (or /section/<id>, /bars/<a>-<b>).', {
   section_id: z.string().optional(),
@@ -926,7 +931,7 @@ export const TOOLSETS = {
   files: { description: 'Exports and imports: WAV, MIDI, project JSON, DAWproject', tools: ['export_project_json', 'import_project_json', 'export_wav', 'export_midi', 'import_midi', 'import_dawproject', 'export_dawproject'] },
   collab: { description: 'Rooms with other people, comments and explanations on the song', tools: ['create_room', 'join_room', 'leave_room', 'get_peers', 'annotate', 'list_annotations', 'resolve_annotation', 'delete_annotation'] },
   jam: { description: 'Jamming: answering the user\'s phrases, keeping answers, the studio\'s event stream', tools: ['play_phrase', 'keep_answer', 'keep_phrase', 'get_events', 'wait_for_event'] },
-  release: { description: 'The release: metadata, licence (Creative Commons chooser and checks), cover, the Release Kit', tools: ['get_release', 'set_release', 'check_release', 'generate_cover', 'export_release_kit'] },
+  release: { description: 'The release: metadata, licence (Creative Commons chooser and checks), cover, the Release Kit', tools: ['get_release', 'set_release', 'check_release', 'generate_cover', 'export_release_kit', 'render_video'] },
   engines: { description: 'OMEP engines: which are installed, who made what (ledger), the engine policy', tools: ['list_engines', 'get_ledger', 'set_engine_policy'] },
 };
 
