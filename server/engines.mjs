@@ -26,6 +26,22 @@ const BUILTIN = {
   // A model on fal.ai (omep/fal-catalog.json): "model" picks it; its key stays in this engine's env.
   'omep-fal': (e) => ({ command: process.execPath, args: [path.join(ROOT, 'omep', 'fal-engine.mjs'), '--model', String(e.model ?? '')] }),
   // ACE-Step's own REST server on this computer (or "url"); "model": what it runs (lego needs a base model).
+  // DiffSinger and a voicebank the user installed: "repo", "exp", "python", and how the voicebank names phonemes.
+  'omep-diffsinger': (e) => ({
+    command: process.execPath,
+    args: [
+      path.join(ROOT, 'omep', 'diffsinger-engine.mjs'),
+      ...(e.repo ? ['--repo', String(e.repo).replace(/^~(?=\/|$)/, os.homedir())] : []),
+      ...(e.exp ? ['--exp', String(e.exp)] : []),
+      ...(e.python ? ['--python', String(e.python).replace(/^~(?=\/|$)/, os.homedir())] : []),
+      ...(e.spk ? ['--spk', String(e.spk)] : []),
+      ...(e.lang ? ['--lang', String(e.lang)] : []),
+      ...(e.lang_prefix ? ['--lang-prefix', String(e.lang_prefix)] : []),
+      ...(e.phonemes ? ['--phonemes', JSON.stringify(e.phonemes)] : []),
+      ...(e.languages ? ['--languages', JSON.stringify(e.languages)] : []),
+      ...(e.voicebank ? ['--voicebank', JSON.stringify(e.voicebank)] : []),
+    ],
+  }),
   'omep-ace-step': (e) => ({ command: process.execPath, args: [path.join(ROOT, 'omep', 'ace-step-engine.mjs'), ...(e.model ? ['--model', String(e.model)] : []), ...(e.url ? ['--url', String(e.url)] : [])] }),
 };
 const AUDIO = { '.wav': 'audio/wav', '.flac': 'audio/flac', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg' };

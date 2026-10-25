@@ -152,7 +152,28 @@ with their beats, and — for Italian — their **phonemes**, by rule (*notte‿
 t r a | s t e | v e | r e`: soft and hard *c* and *g*, *gn*, *gli*, *sc*, voiced *s*, *z*, doubled consonants,
 open *è* and *ò*), so singing engines need no language knowledge of their own. Today **OpenBand's guide
 voice** sings: a small formant synthesizer, instant and offline — a guide vocal to hear a topline with its
-words, not a finished voice. A real singing engine (DiffSinger, next) takes over when you install one.
+words, not a finished voice. A real singing engine takes over when you install one: the router always puts it first.
+
+### Sing with DiffSinger
+
+[DiffSinger](https://github.com/openvpi/DiffSinger) (openvpi, Apache-2.0) sings with a **voicebank** — you
+install both (DiffSinger's own guide; a voicebank is an experiment folder under its `checkpoints/`), then:
+
+```json
+"diffsinger": { "builtin": "omep-diffsinger", "repo": "~/DiffSinger", "exp": "my_voice",
+                "python": "~/DiffSinger/.venv/bin/python", "languages": ["it"],
+                "phonemes": { "E": "e", "O": "o" },
+                "voicebank": { "name": "My voice", "license": "CC-BY-4.0", "commercial": "yes", "url": "…" } }
+```
+
+OpenBand writes the song as a DiffSinger `.ds` file — phrases, the phonemes with durations that add up to
+each note (consonants lead into the note, the vowel sits on it), the pitch curve — and runs the acoustic
+model (`scripts/infer.py acoustic`). `phonemes` maps OpenBand's symbols to your voicebank's where they differ
+(`lang_prefix` for multilingual banks, `spk` for a speaker). The voicebank's licence is in the engine's
+manifest and in the ledger of every part it sings: check it before you release. No Italian voicebank was
+found published; any voicebank whose phonemes you can map will do. Without a GPU, run it on a rented one:
+[deploy/diffsinger](../deploy/diffsinger/README.md).
+
 
 ## Who played what
 

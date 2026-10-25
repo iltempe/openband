@@ -158,7 +158,28 @@ sillabe con i loro tempi e, in italiano, i loro **fonemi**, per regola (*notte�
 t r a | s t e | v e | r e`: *c* e *g* dolci e dure, *gn*, *gli*, *sc*, *s* sonora, *z*, doppie, *è* e *ò*
 aperte), così i motori di canto non devono conoscere la lingua. Oggi canta la **voce guida di OpenBand**: un
 piccolo sintetizzatore a formanti, istantaneo e offline — una voce guida per sentire una melodia con le sue
-parole, non una voce finita. Un vero motore di canto (DiffSinger, il prossimo) subentra quando ne installi uno.
+parole, non una voce finita. Un vero motore di canto subentra quando ne installi uno: il router lo mette sempre per primo.
+
+### Cantare con DiffSinger
+
+[DiffSinger](https://github.com/openvpi/DiffSinger) (openvpi, Apache-2.0) canta con un **voicebank**: li
+installi entrambi (la guida di DiffSinger; un voicebank è una cartella di esperimento sotto `checkpoints/`), poi:
+
+```json
+"diffsinger": { "builtin": "omep-diffsinger", "repo": "~/DiffSinger", "exp": "mia_voce",
+                "python": "~/DiffSinger/.venv/bin/python", "languages": ["it"],
+                "phonemes": { "E": "e", "O": "o" },
+                "voicebank": { "name": "La mia voce", "license": "CC-BY-4.0", "commercial": "yes", "url": "…" } }
+```
+
+OpenBand scrive la canzone come file `.ds` di DiffSinger — frasi, fonemi con durate che tornano con ogni
+nota (le consonanti anticipano la nota, la vocale ci sta sopra), la curva d'intonazione — e lancia il
+modello acustico (`scripts/infer.py acoustic`). `phonemes` traduce i simboli di OpenBand in quelli del tuo
+voicebank dove differiscono (`lang_prefix` per i voicebank multilingue, `spk` per scegliere una voce). La
+licenza del voicebank è nel manifest del motore e nel registro di ogni parte che canta: controllala prima di
+pubblicare. Non risulta pubblicato un voicebank italiano; va bene qualunque voicebank di cui puoi mappare i
+fonemi. Senza GPU, usane una a noleggio: [deploy/diffsinger](../deploy/diffsinger/README.md).
+
 
 ## Chi ha suonato cosa
 

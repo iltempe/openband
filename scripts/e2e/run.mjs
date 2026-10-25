@@ -1044,6 +1044,43 @@ tests.sing = async () => {
   }
 };
 
+// E3e: DiffSinger through engines.json and the real engine host (the user's "DiffSinger" here is a stand-in
+// for scripts/infer.py that checks the .ds as DiffSinger reads it): the router picks it over the guide
+// voice, it gets the Italian phonemes, and the voicebank's licence reaches the ledger.
+tests.diffsinger = async () => {
+  const os = await import('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ob-e2e-'));
+  const log = path.join(dir, 'ds.json');
+  const enginesFile = path.join(dir, 'engines.json');
+  fs.writeFileSync(enginesFile, JSON.stringify({ engines: { diffsinger: { builtin: 'omep-diffsinger', repo: path.join(root, 'server', 'fixtures', 'fake-diffsinger'), exp: 'it_test_voice', python: process.execPath, languages: ['it'], voicebank: { name: 'Test voice', license: 'CC-BY-4.0', commercial: 'yes', url: 'https://example.org/voice' }, env: { FAKE_DS_LOG: log } } } }));
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1', OPENBAND_ENGINES: enginesFile });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    const r = await p.evaluate(async () => {
+      const { commands, useStore } = window.openband;
+      await commands.new_project({ name: 'Canta', bpm: 100, key: 'Am' });
+      const { track_id } = await commands.add_track({ kind: 'instrument', instrument: 'felt-piano', name: 'Melody' });
+      await commands.add_region({ track_id, start_bar: 1, length_bars: 2, notes: [57, 60, 62, 64, 62, 57].map((pitch, i) => ({ pitch, start: i, duration: i === 5 ? 2 : 0.9, velocity: 0.8 })) });
+      await commands.set_lyrics({ text: 'notte a Trastevere', language: 'it' });
+      await commands.align_lyrics({ melody_track_id: track_id });
+      const res = await commands.sing({ track_id });
+      const p1 = useStore.getState().project;
+      return { res, ledger: (p1.ledger ?? []).map((e) => ({ engine: e.engine, weights: e.license.weights, attribution: e.license.attribution })) };
+    });
+    const sent = fs.existsSync(log) ? JSON.parse(fs.readFileSync(log, 'utf8')).ds : [];
+    check(r.res.engines?.[0]?.startsWith('DiffSinger') && r.res.engines.length === 1, `with DiffSinger installed it sings, not the guide voice (${r.res.engines})`);
+    check(/n o t t e a t r a s t e v e r e/.test(sent[0]?.ph_seq?.replace(/ SP/g, '') ?? ''), `DiffSinger got the Italian phonemes (${sent[0]?.ph_seq})`);
+    check(r.ledger.some((e) => e.engine === 'diffsinger' && e.weights === 'CC-BY-4.0' && /Test voice/.test(e.attribution ?? '')), `the voicebank's licence is in the ledger (${JSON.stringify(r.ledger.at(-1))})`);
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);

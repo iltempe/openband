@@ -2,6 +2,16 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.28 "E3e: DiffSinger sings"
+
+### E3 (part 5) · `omep-diffsinger`, locally and on a GPU machine (SPEC v0.6 §10)
+- **`omep-diffsinger`** (`"builtin": "omep-diffsinger"` with `repo`, `exp`, `python`): DiffSinger (openvpi, Apache-2.0) with the user's own install and voicebank as a `voice.sing` engine. The song context becomes a DiffSinger **`.ds`** — phrases split at rests (gaps under 0.12 s are sung legato), each opening with a short rest that carries the first onset; per note its vowel and coda plus the next syllable's onset consonants (DiffSinger puts the vowel on the note's start), so `ph_num` groups and **every group's `ph_dur` adds up to its note**; `note_seq`/`note_dur`/`note_slur`; an `f0_seq` every 5 ms with 40 ms glides — and the acoustic model runs (`scripts/infer.py acoustic … --exp --out --title --seed [--spk --lang]`), no variance model needed. A 0.3 s pre-roll gives the first consonants room; the answer is cut to the scope.
+- **Phonemes**: OpenBand's (Italian by rule, from v0.6.27) mapped to the voicebank's with `phonemes`, `lang_prefix` for multilingual banks. No Italian DiffSinger voicebank was found published, so none is suggested.
+- **The voicebank's licence** is in the manifest (`weights`, `commercial`, a CC-BY attribution made from its name when none is given) and in the ledger of every part it sings. The router puts DiffSinger before OpenBand's guide voice.
+- **On a GPU machine**: the adapter serves MCP over Streamable HTTP (`--http <port>`, bearer `OMEP_TOKEN`, required beyond this computer), returning the voice inline; **`deploy/diffsinger/`** has a Dockerfile (DiffSinger pinned, the adapter with exactly its packages) and a guide in EN/IT for RunPod, Modal, a Space or a server, reached from OpenBand as a `url` engine.
+- Tests: the `.ds` against DiffSinger's own sample format (rests, onsets, groups summing to notes, f0 length and the first note at 220 Hz); against a stand-in for `scripts/infer.py` that checks the file as DiffSinger reads it and sings its f0 as a sine: the engine over MCP gives a valid contribution with the voicebank's licence, exactly the scope's length with the pre-roll cut (the first note at 220 Hz), the syllables' timing, a missing voicebank said plainly; over HTTP the token is required and the voice comes back inline — run also with exactly the packages the image installs. In Chrome (`npm run e2e`, *diffsinger*) through `engines.json` and the real engine host: *Sing it* is sung by DiffSinger, not the guide voice; it gets `n o t t e a t r a s t e v e r e`; the ledger has the voicebank's CC-BY-4.0 with its attribution.
+- Not done here: building the Docker image (no Docker daemon on this machine) and singing with a real voicebank.
+
 ## v0.6.27 "E3d: sing it — Italian phonemes and a guide voice"
 
 ### E3 (part 4) · `voice.sing`, `sing`, and the song context speaking Italian (SPEC v0.6 §8.1, §10)
