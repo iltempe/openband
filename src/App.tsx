@@ -29,6 +29,7 @@ import { useT } from './i18n';
 import { FlubsPanel } from './components/Flubs';
 import { DawReportDialog } from './components/DawReport';
 import { CreateDialog, EnsemblePanel } from './components/Ensemble';
+import { ReleasePanel } from './components/Release';
 import { ExportPlatformsDialog, PilotPanel } from './components/Pilot';
 import { isRecordingTake, jumpToFlub, markFlub } from './flubLive';
 import { acceptGhost, dismissGhosts, ghostsShown, nextGhost } from './ghost';
@@ -257,6 +258,9 @@ export function App() {
                 <button className={s.bottom === 'ensemble' ? 'on' : ''} onClick={() => s.set({ bottom: 'ensemble' })}>
                   <span aria-hidden>✦</span> {t('en.tab')}
                 </button>
+                <button className={s.bottom === 'release' ? 'on' : ''} onClick={() => s.set({ bottom: 'release' })}>
+                  <span aria-hidden>◉</span> {t('rel.tab')}
+                </button>
                 <div className="eb-spacer" />
                 <button className="dock-close" onClick={() => s.set({ bottom: null })}>
                   <I.Close width={14} height={14} />
@@ -274,6 +278,7 @@ export function App() {
                 {s.bottom === 'versions' && <VersionsPanel />}
                 {s.bottom === 'flubs' && <FlubsPanel />}
                 {s.bottom === 'ensemble' && <EnsemblePanel />}
+                {s.bottom === 'release' && <ReleasePanel />}
                 {s.bottom === 'pilot' && <PilotPanel />}
               </div>
             </div>

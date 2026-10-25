@@ -73,6 +73,7 @@ import { separateRegion, type SeparateArgs } from './ensemble/separate';
 import { singPart, type SingArgs } from './sing/sing';
 import { applyPatch, describeSynth, keepPatch, setSynthParams } from './soundmatch/patches';
 import { soundFromWords } from './soundmatch/words';
+import { checkReleaseCommand, generateCover, getRelease, releaseKit, setRelease, type SetReleaseArgs } from './publish/commands';
 import { preferencesFor, tasteByCapability } from './ensemble/taste';
 import { buildContext } from './ensemble/context';
 import { allEngines, setPolicy, useEnsemble } from './ensemble/engines';
@@ -1521,6 +1522,16 @@ export const commands: Record<string, (args: P) => unknown> = {
   tone_match: async ({ track_id, from_bar, to_bar, apply, ...source }) => {
     const { resolveSource, toneMatch } = await import('./soundmatch/tone');
     return toneMatch(String(track_id), resolveSource(source), { from_bar, to_bar, apply });
+  },
+  get_release: () => getRelease(),
+  set_release: ({ ai_disclosure, ...a }) => setRelease({ ...(a as SetReleaseArgs), ...(ai_disclosure ? { aiDisclosure: String(ai_disclosure) } : {}) }),
+  check_release: ({ platforms }) => checkReleaseCommand(platforms as string[] | undefined),
+  generate_cover: (a) => generateCover(a as { style?: string; palette?: string; seed?: number }),
+  export_release_kit: async () => {
+    const kit = await releaseKit();
+    const name = `${safeName(st().project.release?.title || st().project.name)} - Release Kit.zip`;
+    download(new Blob([kit.zip as BlobPart], { type: 'application/zip' }), name);
+    return { saved: name, files: kit.files, bytes: kit.zip.length };
   },
   set_voice_control: async ({ enabled, engine: eng, language, push_to_talk_cc, feedback }) => {
     const { setVoiceControl, useVoice } = await import('./voice/control');

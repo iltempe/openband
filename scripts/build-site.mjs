@@ -12,7 +12,7 @@ export const DOMAIN = 'www.openband.it';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const site = path.join(root, 'build', 'site');
 const about = path.join(root, 'dist', 'about');
-const IMAGES = ['studio.png', 'pilot.png', 'ensemble-create.png', 'jam-ghosts.png', 'takes.png', 'versions.png', 'multiplayer.png', 'native-plugins.png', 'master-chain.png', 'chat.png', 'ghost-notes-card.png', 'energy-lane-card.png', 'stems-card.png', 'voice-card.png'];
+const IMAGES = ['studio.png', 'pilot.png', 'ensemble-create.png', 'jam-ghosts.png', 'takes.png', 'versions.png', 'multiplayer.png', 'native-plugins.png', 'master-chain.png', 'chat.png', 'ghost-notes-card.png', 'energy-lane-card.png', 'stems-card.png', 'voice-card.png', 'release-card.png'];
 const PAGES = ['index.html', 'contribute.html'];
 
 function buildSite(out) {

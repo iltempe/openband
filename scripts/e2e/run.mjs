@@ -1441,6 +1441,81 @@ tests.taste = async () => {
   }
 };
 
+// G6a: the release. A CC BY-NC sample in a song released CC BY is named as the conflict (in check_release
+// and in Problems); the Internet Archive refuses "all rights reserved", Commons refuses NC; the Release Kit
+// holds the FLAC (with its tags and cover), the LRC from the aligned lyrics, LICENSE.txt and CREDITS.txt.
+tests.release = async () => {
+  const { unzipSync, strFromU8 } = await import('fflate');
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.setViewport({ width: 1440, height: 900 });
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    const r = await p.evaluate(async () => {
+      const { commands, samples, release } = window.openband;
+      await commands.new_project({ name: 'Rilascio', bpm: 120, key: 'C' });
+      await commands.transport({ action: 'stop' });
+      const sr = 48000, n = sr * 2;
+      const dv = new DataView(new ArrayBuffer(44 + n * 2));
+      const w = (o, s) => [...s].forEach((c, i) => dv.setUint8(o + i, c.charCodeAt(0)));
+      w(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+      dv.setUint32(24, sr, true); dv.setUint32(28, sr * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, 'data'); dv.setUint32(40, n * 2, true);
+      for (let i = 0; i < n; i++) dv.setInt16(44 + i * 2, 8000 * Math.sin((2 * Math.PI * 220 * i) / sr), true);
+      const info = await samples.importSample(dv.buffer, 'pad from freesound.wav');
+      await commands.add_audio_region({ sample_id: info.id, start_bar: 1, length_bars: 1 });
+      const { track_id } = await commands.add_track({ kind: 'instrument', instrument: 'felt-piano', name: 'Melody' });
+      await commands.add_region({ track_id, start_bar: 2, length_bars: 1, notes: [60, 62, 64, 65].map((pitch, i) => ({ pitch, start: i, duration: 0.9, velocity: 0.8 })) });
+      await commands.set_lyrics({ text: 'cia-o mon-do', language: 'it' });
+      await commands.align_lyrics({ melody_track_id: track_id });
+      await commands.set_release({ title: 'Rilascio', artist: 'iltempe', license: 'CC-BY-4.0', sample_licenses: { [info.id]: 'CC-BY-NC-4.0' } });
+      const conflict = commands.check_release({ platforms: ['archive', 'wikimedia'] });
+      const lint = await commands.lint_project({ rules: ['release-license'] });
+      await commands.set_release({ sample_licenses: { [info.id]: 'CC0-1.0' }, license: 'all-rights-reserved' });
+      const arr = commands.check_release({ platforms: ['archive'] });
+      await commands.set_release({ choose: { commercial: false, derivatives: true } });
+      const nc = commands.check_release({ platforms: ['wikimedia', 'soundcloud'] });
+      const chosen = commands.get_release().release.license;
+      await commands.set_release({ license: 'CC-BY-4.0' });
+      await commands.generate_cover({ style: 'bold', palette: 'night', seed: 7 });
+      const kit = await release.releaseKit();
+      let bin = '';
+      for (let i = 0; i < kit.zip.length; i += 0x8000) bin += String.fromCharCode(...kit.zip.subarray(i, i + 0x8000));
+      document.querySelector('.eb-spacer')?.parentElement?.querySelectorAll('button').forEach((x) => x.textContent.includes('Release') && x.click());
+      await new Promise((ok) => setTimeout(ok, 300));
+      return { conflict, lint: lint.issues ?? lint, arr, nc, chosen, files: kit.files, zip: btoa(bin), panel: !!document.querySelector('.release-panel'), platforms: document.querySelectorAll('.rel-platforms li').length };
+    });
+    if (process.env.E2E_SHOTS) {
+      await p.evaluate(() => [...document.querySelectorAll('.tour-card button')].at(-1)?.click());
+      await wait(300);
+      await p.screenshot({ path: path.join(process.env.E2E_SHOTS, 'release.png') });
+    }
+    const named = r.conflict.issues.find((i) => i.code === 'license-material');
+    check(named?.message.includes('pad from freesound') && named.message.includes('NC'), `a CC BY-NC sample in a CC BY song is named (${named?.message})`);
+    check(!r.conflict.ready.includes('archive'), 'with the conflict, nothing is ready');
+    check(JSON.stringify(r.lint).includes('pad from freesound'), 'the conflict is in Problems too (release-license)');
+    check(r.arr.issues.some((i) => i.platform === 'archive' && i.code === 'license-platform'), 'the Internet Archive refuses "all rights reserved"');
+    check(r.chosen === 'CC-BY-NC-4.0', `"not commercial, may change it" chooses CC BY-NC (${r.chosen})`);
+    check(r.nc.issues.some((i) => i.platform === 'wikimedia' && i.code === 'license-platform') && r.nc.ready.includes('soundcloud'), 'Commons refuses NC, SoundCloud takes it');
+    const z = unzipSync(Buffer.from(r.zip, 'base64'));
+    const flac = Object.keys(z).find((k) => k.endsWith('.flac'));
+    check(flac && strFromU8(z[flac].subarray(0, 4)) === 'fLaC', `the kit holds the FLAC master (${r.files.join(', ')})`);
+    const tags = flac ? strFromU8(z[flac].subarray(0, 20000), true) : '';
+    check(/TITLE=Rilascio/.test(tags) && /LICENSE=https:\/\/creativecommons.org\/licenses\/by\/4.0\//.test(tags), 'its tags carry the title and the licence');
+    check(z['LICENSE.txt'] && strFromU8(z['LICENSE.txt']).includes('CC BY 4.0'), 'LICENSE.txt names the licence');
+    check(z['CREDITS.txt'] && strFromU8(z['CREDITS.txt']).includes('AI use:'), 'CREDITS.txt states the AI use');
+    check(z['cover.png'] && z['cover.png'][1] === 0x50, 'the cover is a PNG');
+    const lrc = Object.keys(z).find((k) => k.endsWith('.lrc'));
+    check(lrc && /\[00:02\.00\]ciao mondo/.test(strFromU8(z[lrc])), `the LRC puts the line where it is sung, bar 2 = 00:02.00 (${lrc && strFromU8(z[lrc]).split('\n').pop() || strFromU8(z[lrc] ?? new Uint8Array()).trim().split('\n').at(-1)})`);
+    check(r.panel && r.platforms === 7, `the Release tab shows the seven platforms (${r.platforms})`);
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);

@@ -1,6 +1,6 @@
 import type { Project, Severity } from '../types';
 
-export type LintCategory = 'harmony' | 'rhythm' | 'arrangement' | 'mix' | 'lyrics' | 'structure';
+export type LintCategory = 'harmony' | 'rhythm' | 'arrangement' | 'mix' | 'lyrics' | 'structure' | 'release';
 
 export interface LintTarget {
   track_id?: string;

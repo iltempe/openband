@@ -270,6 +270,12 @@ export interface Project {
   annotations?: Annotation[];
   /** Reference track for mix matching (F6); not on the timeline. */
   reference?: ReferenceTrack;
+  /** What a release says about the song (G6): metadata, licence, credits. */
+  release?: ReleaseMeta;
+  /** Licences the user declared for imported samples (by sample id), for the release's licence check. */
+  sampleLicenses?: Record<string, string>;
+  /** Where the song has been published (G6). */
+  publications?: Publication[];
   /** Linter configuration (F7). */
   lint?: LintConfig;
   /** Marks left while recording (F18): mistakes to fix, good parts, notes. */
@@ -430,7 +436,7 @@ export interface LintConfig {
   ignored?: string[];
 }
 
-export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | 'flubs' | 'ensemble' | 'pilot' | null;
+export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | 'flubs' | 'ensemble' | 'pilot' | 'release' | null;
 
 export interface BridgeLogEntry {
   id: string;
@@ -468,3 +474,35 @@ export interface ActiveTransaction {
 }
 
 export type BridgeStatus = 'connecting' | 'connected' | 'disconnected';
+
+export interface ReleaseMeta {
+  title?: string;
+  artist?: string;
+  featuring?: string;
+  genre?: string;
+  tags?: string[];
+  description?: string;
+  /** ISO 639-1. */
+  language?: string;
+  explicit?: boolean;
+  /** ISO date of the release. */
+  date?: string;
+  credits?: { role: string; name: string }[];
+  /** A licence code (all-rights-reserved, CC0-1.0, CC-BY-4.0…). */
+  license?: string;
+  contact?: string;
+  /** The cover: generated (deterministic: the recipe is enough) or an image of the user's (data URL). */
+  cover?: { kind: 'generated'; style: string; palette: string; seed: number } | { kind: 'image'; dataUrl: string };
+  /** How AI was used, in words (prefilled from the ledger). */
+  aiDisclosure?: string;
+}
+
+export interface Publication {
+  platform: string;
+  id: string;
+  url: string;
+  at: number;
+  /** The master that was published (the version's hash). */
+  master?: string;
+  privacy?: 'private' | 'unlisted' | 'public';
+}

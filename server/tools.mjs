@@ -53,7 +53,8 @@ Files: export_wav and export_midi download in the browser, or write to disk with
 Other DAWs: import_dawproject/export_dawproject move songs to and from Bitwig, Studio One and Cubase; report what could not be converted.
 Plugins: Web Audio Modules (WAM 2.0) instruments and effects, and in the desktop app the user's installed VST3 / CLAP / AU plugins (list_native_plugins). When the user describes a sound or effect in words, call add_plugin with that description (or search_plugins first to compare options) — installed plugins come first when they fit; then get_plugin_params / set_plugin_params to dial it in. Never install or download plugins: use what is there.
 
-Ensemble: to add a part (drums, an accompaniment, an audio layer) you can describe it with create instead of writing every note: OpenBand picks the engine (its own drummer, chords and CC0 loops, or the OMEP engines the user installed) within the user's licence and privacy policy, sends it the song's tempo, key, sections and harmony, and fits the result to the song. Do not pin an engine unless the user asks. Ask for variants when taste matters: they arrive as takes, offer a blind test (start_ab_test). Report which engine played and what OpenBand corrected. get_ledger tells who made what; never describe engine-made parts as the user's own playing.`;
+Ensemble: to add a part (drums, an accompaniment, an audio layer) you can describe it with create instead of writing every note: OpenBand picks the engine (its own drummer, chords and CC0 loops, or the OMEP engines the user installed) within the user's licence and privacy policy, sends it the song's tempo, key, sections and harmony, and fits the result to the song. Do not pin an engine unless the user asks. Ask for variants when taste matters: they arrive as takes, offer a blind test (start_ab_test). Report which engine played and what OpenBand corrected. get_ledger tells who made what; never describe engine-made parts as the user's own playing.
+Release: when the user wants to put a song out, get_release shows its metadata, licence and what it contains; ask before choosing a licence (Creative Commons cannot be withdrawn), declare imported samples' licences with set_release({sample_licenses}), run check_release and fix what it names, then generate_cover and export_release_kit.`;
 
 const Pitch = z.union([z.number().int().min(0).max(127), z.string()]).describe('MIDI number, note name ("C4", "F#3") or drum name ("kick")');
 const NoteSchema = z.object({
@@ -866,6 +867,25 @@ tool('transform', 'Change a part that is there, through OpenBand\'s engines: con
   confirm_spend: z.boolean().optional(),
 }, { timeout: 600000 });
 
+// ---- the release (G6): metadata, licence, cover, checks, the Release Kit
+const LicenseCode = z.enum(['all-rights-reserved', 'CC0-1.0', 'CC-BY-4.0', 'CC-BY-SA-4.0', 'CC-BY-NC-4.0', 'CC-BY-ND-4.0', 'CC-BY-NC-SA-4.0', 'CC-BY-NC-ND-4.0']);
+tool('get_release', 'The release of the song: title, artist, genre, tags, description, language, date, credits, licence (what it means, and the warnings that go with Creative Commons), the AI-use statement prefilled from the ledger, every piece of material with its licence (engine parts, CC0 loops, recordings, imported samples), and the platforms OpenBand can publish to (only ones with an open upload API).', {}, readOnly);
+tool('set_release', 'Set the release\'s metadata. The licence by code, or from three answers (choose: commercial use allowed? changes allowed? same licence for changed versions? or public domain) — Creative Commons licences cannot be withdrawn for copies already shared, so confirm with the user. sample_licenses declares the licence of imported samples (by sample id) for the licence check. One undo step.', {
+  title: z.string().optional(), artist: z.string().optional(), featuring: z.string().optional(), genre: z.string().optional(),
+  tags: z.array(z.string()).optional(), description: z.string().optional(), language: z.string().optional(), explicit: z.boolean().optional(),
+  date: z.string().optional().describe('YYYY-MM-DD'), credits: z.array(z.object({ role: z.string(), name: z.string() })).optional(),
+  license: LicenseCode.optional(), contact: z.string().optional(), ai_disclosure: z.string().optional(),
+  choose: z.object({ commercial: z.boolean(), derivatives: z.boolean(), share_alike: z.boolean().optional(), public_domain: z.boolean().optional() }).optional(),
+  sample_licenses: z.record(z.string(), z.string()).optional(),
+});
+tool('check_release', 'What stands between the song and each platform: missing title or cover, a licence the platform refuses (Wikimedia Commons only CC0/BY/BY-SA, YouTube only CC BY, the Internet Archive needs CC), material whose licence the chosen Creative Commons licence doesn\'t allow (named), too many tags… Answers the issues, the platforms ready, and with a CC licence the ones "Publish in CC" can go to.', {
+  platforms: z.array(z.enum(['soundcloud', 'youtube', 'mixcloud', 'audius', 'archive', 'funkwhale', 'wikimedia'])).optional(),
+}, readOnly);
+tool('generate_cover', 'Make a typographic cover for the release — deterministic for a style (bold, grid, waves, minimal), a palette (night, sunset, ocean, forest, paper, mono) and a seed — with the title and the artist. Answers a preview.', {
+  style: z.enum(['bold', 'grid', 'waves', 'minimal']).optional(), palette: z.enum(['night', 'sunset', 'ocean', 'forest', 'paper', 'mono']).optional(), seed: z.number().int().optional(),
+});
+tool('export_release_kit', 'Everything a release needs, in one zip saved to the user\'s downloads: the master as 24-bit FLAC with its tags (title, artist, licence, copyright, contact, AI use) and cover, the cover (3000 px), LICENSE.txt, the lyrics as text and as LRC synchronised from their alignment, the credits.', {});
+
 tool('get_context', 'The Song Context Package (OMEP SCP 1.0) of the song, a section or some bars: tempo, key, length, sections with their energy, the chords bar by bar, the tracks with their roles, the melody and the lyrics — what you need to know before writing or changing a part, in one call instead of five analyses. Also as the resource openband://context/song (or /section/<id>, /bars/<a>-<b>).', {
   section_id: z.string().optional(),
   from_bar: z.number().int().min(1).optional(),
@@ -906,6 +926,7 @@ export const TOOLSETS = {
   files: { description: 'Exports and imports: WAV, MIDI, project JSON, DAWproject', tools: ['export_project_json', 'import_project_json', 'export_wav', 'export_midi', 'import_midi', 'import_dawproject', 'export_dawproject'] },
   collab: { description: 'Rooms with other people, comments and explanations on the song', tools: ['create_room', 'join_room', 'leave_room', 'get_peers', 'annotate', 'list_annotations', 'resolve_annotation', 'delete_annotation'] },
   jam: { description: 'Jamming: answering the user\'s phrases, keeping answers, the studio\'s event stream', tools: ['play_phrase', 'keep_answer', 'keep_phrase', 'get_events', 'wait_for_event'] },
+  release: { description: 'The release: metadata, licence (Creative Commons chooser and checks), cover, the Release Kit', tools: ['get_release', 'set_release', 'check_release', 'generate_cover', 'export_release_kit'] },
   engines: { description: 'OMEP engines: which are installed, who made what (ledger), the engine policy', tools: ['list_engines', 'get_ledger', 'set_engine_policy'] },
 };
 

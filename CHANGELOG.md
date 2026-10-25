@@ -2,6 +2,39 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.32 "G6a: the release kit"
+
+### G6a · Getting a song ready to release: metadata, licence, what it contains, cover, Release Kit (SPEC v0.6 G6)
+- **The Release tab** (bottom panel): the song's metadata — title, artist, genre, tags, date, contact, description — saved with the song (`Project.release`).
+- **A licence in three answers**: may others use it commercially? may they change it? must changed versions keep the licence? — or give it to the public domain. The answers pick one of CC0, CC BY, BY-SA, BY-NC, BY-ND, BY-NC-SA, BY-NC-ND, or *all rights reserved*, explained in plain words (EN and IT) with a link to the deed. Two warnings come with a Creative Commons choice: it cannot be withdrawn for copies already shared, and it may clash with a collecting society (SIAE, PRS, ASCAP…).
+- **What the song contains**, from its regions and the ledger: imported samples (a licence select each, `sample_licenses`), library loops (CC0), parts made by AI engines (their weights' licence), your own recordings. **Each is checked against the song's licence**. NC material can't go in a song that allows commercial use, ND can't be mixed in, SA must match, unknown or all-rights-reserved material can't go under Creative Commons, and BY material can't go in CC0. A conflict is named by sample, here and in *Problems* (lint rule `release-license`).
+- **Where it can go**, only platforms with an open upload API: SoundCloud, YouTube, Mixcloud, Audius, Internet Archive, Funkwhale, Wikimedia Commons. Each shows *ready* or what stops it:
+  - the Archive needs Creative Commons, and an upload there is permanent;
+  - Commons takes only CC0, BY and BY-SA;
+  - YouTube takes only its standard licence or CC BY;
+  - Mixcloud takes at most 5 tags;
+  - a cover is required for YouTube.
+  With a CC licence, the list of platforms it can go to.
+- **A generated cover** in four styles and a set of palettes, deterministic by seed (*Another one* changes the seed). Your own image can be used instead (`cover.kind: image`).
+- **The AI-use statement** is written from the song's ledger (which engines made which parts) and can be edited.
+- **The Release Kit** is one zip:
+  - the master as **24-bit FLAC at 48 kHz**, with Vorbis comments (TITLE, ARTIST, GENRE, DATE, DESCRIPTION, CONTACT, COPYRIGHT, LICENSE, COMMENT with the AI use) and the cover as its PICTURE block;
+  - `cover.png` at 3000 px;
+  - `LICENSE.txt`;
+  - `CREDITS.txt`, with the AI use;
+  - `lyrics.txt`;
+  - an **LRC** synchronised from the lyrics' alignment.
+  The FLAC encoder is our own (fixed predictors, Rice coding) and decodes bit-exact with the reference `flac` (unit test).
+- MCP tools (new toolset `release`, 165 tools in all): `get_release`, `set_release`, `check_release`, `generate_cover`, `export_release_kit`.
+- Not yet: publishing to the platforms (G6c, with mock servers and a confirmation in the studio for every upload) and the YouTube video (G6b).
+- Tests: unit tests for licences, conflicts, platform checks and the FLAC round trip. In Chrome (`npm run e2e`, *release*), 13 checks:
+  - a CC BY-NC sample in a CC BY song is named, in `check_release` and in Problems;
+  - the Internet Archive refuses *all rights reserved*;
+  - "not commercial, may change it" picks CC BY-NC, which Commons refuses and SoundCloud accepts;
+  - the kit holds a FLAC whose tags carry the title and licence, the PNG cover, LICENSE.txt, CREDITS.txt with the AI use, and an LRC with the line at 00:02.00 (bar 2 at 120 BPM);
+  - the tab shows the seven platforms.
+- Docs: the MCP tool count was out of date in README, FEATURES and AI-MODELS (149): it is 165.
+
 ## v0.6.31 "E4: your ears teach the router"
 
 ### E4 · Ensemble and taste: blind tests between engines, preferences, the GPU scheduler (SPEC v0.6 §6, §7)
