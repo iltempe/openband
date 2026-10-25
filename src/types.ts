@@ -258,6 +258,8 @@ export interface Project {
   // ---- schema v2 (all optional) ----
   /** Song structure (F8): ordered, non-overlapping. */
   sections?: Section[];
+  /** The energy curve drawn for the song (G2): what "Arrange" builds from. */
+  energy?: { points: { bar: number; energy: number }[]; length_bars: number; shape?: string };
   /** Lyrics aligned to a melody (F10). */
   lyrics?: LyricsDoc;
   /** Comments/explanations attached to parts of the song (F14). */

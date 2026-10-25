@@ -12,6 +12,7 @@ import type { AutoParam } from './types';
 import { presetForProgram, readMidi, writeMidi, type MidiSong } from './midi';
 import { addNativeEffect, addNativeInstrument, addPluginEffect, addPluginInstrument, captureWamStates, findNativePlugin, getPluginParams, nativePlugins, nativeRef, rankNativePlugins, removePluginEffect, searchAllPlugins, setPluginParams, updateSlot } from './plugins';
 import { suggest } from './suggest/engine';
+import { addTransition, arrangeFromEnergy, getEnergy, setEnergyCurve } from './arranger/apply';
 import { wamCatalog } from './audio/wam';
 import { analyzeHarmony, analyzeMix, detectKey, spectrogram } from './mixAnalysis';
 import { lint } from './lint/engine';
@@ -1040,6 +1041,11 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { left_region_id: r.id, right_region_id: id };
   },
 
+  set_energy_curve: ({ points, shape, length_bars, seconds }) => setEnergyCurve({ points, shape, length_bars, seconds }),
+  get_energy: () => getEnergy(),
+  arrange_from_energy: ({ seed, genre, as_branch, keep_sections, modulate }) => arrangeFromEnergy({ seed, genre, as_branch, keep_sections, modulate }, isAiCommand() ? 'ai' : 'user'),
+  add_transition: ({ at_bar, kind, bars }) => addTransition({ at_bar, kind, bars }),
+
   auto_sections: () => ({
     proposal: proposeSections(st().project).map((s) => ({ name: s.name, kind: s.kind, start_bar: beatToBar(s.start), length_bars: s.length / BEATS_PER_BAR })),
     note: 'Nothing was changed. Call add_section for the ones you want.',
@@ -1845,7 +1851,7 @@ export const commands: Record<string, (args: P) => unknown> = {
 const READ_ONLY = new Set([
   'get_project', 'get_status', 'list_instruments', 'get_region_notes', 'export_project_json', 'export_wav', 'export_midi', 'export_dawproject', 'export_for_platforms',
   'list_samples', 'list_plugins', 'search_plugins', 'list_native_plugins', 'rescan_plugins', 'suggest_continuation', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
-  'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'analyze_harmony',
+  'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'get_energy', 'analyze_harmony',
   'list_engines', 'get_ledger', 'set_engine_policy',
   'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
 ]);

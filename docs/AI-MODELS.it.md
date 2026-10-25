@@ -5,7 +5,7 @@
 OpenBand non è legato a una sola AI. Lo studio parla il protocollo aperto
 [Model Context Protocol](https://modelcontextprotocol.io) (MCP) con le app AI, e la sua chat nella pagina
 può usare Claude, i modelli di OpenAI, Gemini, oppure un modello sul tuo computer con Ollama. Ogni AI
-riceve gli stessi 142 strumenti (137 nella pagina, dove non ci sono file né flusso di eventi).
+riceve gli stessi 146 strumenti (141 nella pagina, dove non ci sono file né flusso di eventi).
 
 | AI | Nella pagina (la tua chiave) | App AI sul computer (MCP) | Sul web (MCP remoto) |
 |---|---|---|---|

@@ -526,7 +526,9 @@ async function smokeNative(SOFT_LIVE, IS_MAC) {
   // (the instrument drops out). There they are reported, not required; offline checks always are.
   const vst3Level = Math.abs(wet3 - dry + 6) < 1.5;
   const vst3 = latency3 === 6 * 128 + 256;
-  const live = plays > -40 && automated < -15 && /^gain=0\.25/.test(saved) && liveVsExport < 1 && vst3Level && auLevel;
+  // Every level heard live (the effect's gain, the bypass while crashed, after the restart) is a live check too.
+  const levels = Math.abs(wet - dry + 6) < 1.5 && Math.abs(before - dry) < 1.5 && Math.abs(after - dry) < 1.5 && Math.abs(back - dry) < 1.5;
+  const live = plays > -40 && automated < -15 && /^gain=0\.25/.test(saved) && liveVsExport < 1 && vst3Level && auLevel && levels;
   // Levels within 1.5 dB: the pad itself varies a little between captures on a slow runner.
   // G8.9: the AI sees the installed plugins and adds one by its id.
   step('mcp');
@@ -551,7 +553,7 @@ async function smokeNative(SOFT_LIVE, IS_MAC) {
   await ll.syncMonitoring();
   const monitoring = { backend: mon?.backend ?? null, buffer: mon ? mon.period * mon.periods : null, heard, off: ll.useLowLatency.getState().trackId === null };
   const monOk = monitoring.backend === 'Null' && !!heard && monitoring.off;
-  const ok = monOk && mcpOk && Math.abs(wet - dry + 6) < 1.5 && latency === 6 * 128 && vst3 && auOk && Math.abs(before - dry) < 1.5 && !!crashed && Math.abs(after - dry) < 1.5 && restarted && Math.abs(back - dry) < 1.5 && (live || SOFT_LIVE) && same && exportRms > -40 && frozenOk;
+  const ok = monOk && mcpOk && latency === 6 * 128 && vst3 && auOk && !!crashed && restarted && (live || SOFT_LIVE) && same && exportRms > -40 && frozenOk;
   return { ok, live, liveWindows: live ? undefined : L.map((v) => Math.round(v)).join(' '), exportWindows: live ? undefined : E.map((v) => Math.round(v)).join(' '), dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, vst3Gain: +(wet3 - dry).toFixed(2), vst3Latency: latency3, au, monitoring, bridge, mcp, instrument: +plays.toFixed(1), automation: +automated.toFixed(1), saved: saved.slice(0, 12), exportsIdentical: same, exportRms: +exportRms.toFixed(1), liveVsExport: +liveVsExport.toFixed(2), frozen: fr.frozen.join('+'), frozenOk, crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
 }
 

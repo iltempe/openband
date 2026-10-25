@@ -20,7 +20,7 @@ const special = (name, description, shape, kind, opts) => add(kind, name, descri
 export const INSTRUCTIONS = `OpenBand is a GarageBand-style music studio running in the user's browser. You control it with these tools.
 
 Wrap every user request in begin_change("short label") … end_change() so the user can undo it in one step. (Commands sent without it are grouped automatically until you pause for 4 seconds.)
-When the user talks about parts of a song (verse, chorus…), call get_structure first and operate on sections (move_section, duplicate_section). Use the energy profile to make a section 'bigger' (more tracks, higher register, more notes, higher velocity) or 'smaller'. If there are no sections yet, auto_sections proposes them.
+When the user talks about parts of a song (verse, chorus…), call get_structure first and operate on sections (move_section, duplicate_section). Use the energy profile to make a section 'bigger' (more tracks, higher register, more notes, higher velocity) or 'smaller'. If there are no sections yet, auto_sections proposes them. When the user has a loop that should become a song ("make this a 3-minute song", "build it up slowly"), draw the energy with set_energy_curve (a shape or points) and call arrange_from_energy: it works on a branch, the user's notes untouched.
 For vocal lines, keep lyrics and melody aligned: set_lyrics → align_lyrics → check_prosody. Put stressed syllables on strong beats (suggest_melody_rhythm helps).
 When get_status reports teach_mode: true, explain your non-obvious musical choices (harmony, voicing, rhythm, mix) with annotate on the exact notes/region/section, using analyze_harmony to be precise. An ask event with context.explain is a request to explain that part: answer with annotate.
 In a multiplayer room (get_peers), say who you are acting for and avoid editing a track someone else has selected unless asked.
@@ -329,6 +329,27 @@ tool('split_region', 'Split a region in two at a bar (or beat): notes crossing t
   region_id: z.string(), at_bar: z.number().min(1).optional(), at_beat: z.number().min(0).optional(),
 });
 tool('auto_sections', 'Propose sections (intro, verse, chorus…) from repetitions in the music and silences. Changes nothing: add the ones you like with add_section.', {}, readOnly);
+
+// ---- draw the song (G2): energy over time → a whole arrangement
+tool('set_energy_curve', 'Draw how the song\'s energy should go over time: points [{bar (1-based), energy 0..1}] or a shape — pop (intro, verse, chorus, verse, chorus, bridge, big last chorus, outro), slow_build, edm_drop, ballad. Length: length_bars, or seconds (e.g. 210 for 3:30 at the song\'s tempo). Then arrange_from_energy.', {
+  points: z.array(z.object({ bar: z.number(), energy: z.number().min(0).max(1) })).optional(),
+  shape: z.enum(['pop', 'slow_build', 'edm_drop', 'ballad']).optional(),
+  length_bars: z.number().int().min(4).max(512).optional(),
+  seconds: z.number().min(10).max(1800).optional(),
+});
+tool('get_energy', 'The energy curve per bar: the one drawn (set_energy_curve) and the one the song has now, measured from who plays, how much and how loud (0..1).', {}, readOnly);
+tool('arrange_from_energy', 'Build the whole arrangement from the drawn energy curve and the material there is (e.g. an 8-bar loop): sections where the curve changes (intro, verse, chorus, bridge, outro), layers that come in with the energy, the drummer busier and louder, the lead doubled an octave up on the peaks, the filter opening in crescendos, more reverb in the valleys, the second verse with one layer more, transitions (riser, downlifter, reverse cymbal, fill, a stop before a drop, impact) and an ending. The user\'s notes are never changed. By default on a new branch arrangement-<n>, opened in compare view. Same seed, same result.', {
+  seed: z.number().int().optional(),
+  genre: z.string().optional().describe('Drummer style for regenerated drums: pop, rock, funk, house, edm, hiphop, trap, ballad, lofi…'),
+  as_branch: z.boolean().optional(),
+  keep_sections: z.boolean().optional().describe('Reuse the song\'s sections: a new verse plays the old verse\'s material'),
+  modulate: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional().describe('Raise the last chorus by 1 or 2 semitones'),
+}, { timeout: 60000 });
+tool('add_transition', 'Add one transition at a bar: riser and reverse_cymbal end on it, downlifter and impact start on it (audio, synthesized, on the "FX transitions" track); fill = a drum fill in the last two beats before it; stop = a bar of silence there.', {
+  at_bar: z.number().int().min(1),
+  kind: z.enum(['riser', 'downlifter', 'reverse_cymbal', 'fill', 'stop', 'impact']),
+  bars: z.number().int().min(1).max(8).optional(),
+}, { timeout: 30000 });
 
 // ---- lyrics
 

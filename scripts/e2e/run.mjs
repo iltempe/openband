@@ -42,7 +42,15 @@ function server(env = {}) {
 // Chrome sometimes takes long to start on a busy runner: wait longer, and try again.
 const launch = async (tries = 3) => {
   try {
-    return await puppeteer.launch({ executablePath: chrome, headless: true, timeout: 60000, args: ['--autoplay-policy=no-user-gesture-required', '--no-sandbox', '--disable-audio-output'] });
+    return await puppeteer.launch({ executablePath: chrome, headless: true, timeout: 60000, args: [
+        '--autoplay-policy=no-user-gesture-required',
+        '--no-sandbox',
+        '--disable-audio-output',
+        // Offline renders yield through timers: a page Chrome thinks is in the background must not be slowed down.
+        '--disable-background-timer-throttling',
+        '--disable-renderer-backgrounding',
+        '--disable-backgrounding-occluded-windows',
+      ] });
   } catch (e) {
     if (tries <= 1) throw e;
     console.log(`  (Chrome did not start: ${e.message.split('\n')[0]}; trying again)`);
@@ -558,6 +566,49 @@ tests.ghosts = async () => {
     const added = await p.evaluate(() => window.openband.useStore.getState().project.tracks.at(-1).name);
     const tracksAfter = await p.evaluate(() => window.openband.useStore.getState().project.tracks.length);
     check(harmony > 0 && tracksAfter === tracksBefore + 1 && added === 'Harmony', `Harmonize shows the chords (${harmony} notes) and Tab puts them on a new "${added}" track`);
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
+tests.arrange = async () => {
+  // G2: an 8-bar loop and a drawn energy curve become a whole song, on a branch, in compare view.
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.setViewport({ width: 1440, height: 900 });
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.evaluate(() => [...document.querySelectorAll('.tour-card button')].at(-1)?.click());
+    await p.keyboard.press('Space');
+    const r = await p.evaluate(async () => {
+      const { useStore, commands } = window.openband;
+      await commands.new_project({ name: 'Loop', bpm: 100, key: 'Am' });
+      const drums = (await commands.add_track({ kind: 'drums', name: 'Drums' })).track_id;
+      await commands.add_drummer({ track_id: drums, from_bar: 1, to_bar: 8, style: 'pop' });
+      const keys = (await commands.add_track({ kind: 'instrument', instrument: 'felt-piano', name: 'Keys' })).track_id;
+      await commands.add_chord_progression({ track_id: keys, chords: ['Am', 'F', 'C', 'G', 'Am', 'F', 'C', 'G'], start_bar: 1 });
+      const bass = (await commands.add_track({ kind: 'instrument', instrument: 'sub-bass', name: 'Bass' })).track_id;
+      await commands.add_region({ track_id: bass, start_bar: 1, length_bars: 8, notes: [0, 1, 2, 3, 4, 5, 6, 7].map((bar) => ({ pitch: ['A1', 'F1', 'C2', 'G1'][bar % 4], start: bar * 4, duration: 3.5 })) });
+      const before = JSON.stringify(useStore.getState().project.regions.filter((x) => !x.drummer).map((x) => [x.id, x.notes]));
+      await commands.set_energy_curve({ shape: 'pop', length_bars: 48 });
+      const a = await commands.arrange_from_energy({ seed: 3 });
+      const proj = useStore.getState().project;
+      const kept = JSON.parse(before).every(([id, notes]) => JSON.stringify(proj.regions.find((x) => x.id === id)?.notes) === JSON.stringify(notes));
+      const fx = proj.tracks.find((t) => t.name === 'FX transitions');
+      const audio = proj.regions.filter((x) => x.trackId === fx?.id);
+      const energy = await commands.get_energy();
+      await new Promise((r) => setTimeout(r, 500));
+      return { branch: a.branch, sections: a.sections.map((s) => s.kind), r: a.follows_the_curve, kept, transitions: audio.length, sampled: audio.every((x) => !x.audio.sampleId.startsWith('transition:')), bars: energy.bars, compare: !!document.querySelector('.ver-banner') };
+    });
+    check(/^arrangement-\d+$/.test(r.branch ?? '') && r.compare, `the arrangement is on its own branch (${r.branch}), in compare view`);
+    check(['intro', 'verse', 'chorus', 'outro'].every((k) => r.sections.includes(k)) && r.bars >= 48, `a whole song: ${r.sections.join(' · ')} (${r.bars} bars)`);
+    check(r.r > 0.7, `it follows the drawn curve (correlation ${r.r})`);
+    check(r.kept, "the user's notes are unchanged");
+    check(r.transitions > 0 && r.sampled, `${r.transitions} transitions, rendered to samples on their own track`);
   } finally {
     await b.close();
     srv.kill();

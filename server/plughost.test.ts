@@ -395,7 +395,8 @@ describe.skipIf(!ready)('low-latency monitoring', () => {
     for (let k = 0; k < n; k++) {
       await new Promise((r) => setTimeout(r, 23 + ((k * 7) % 19)));
       s.live({ kind: EVENT.NOTE_ON, key: 60 + k, value: 1 });
-      await new Promise((r) => setTimeout(r, 25));
+      // Held long enough to reach a period even when the machine is busy (on and off in the same period sound nothing).
+      await new Promise((r) => setTimeout(r, 80));
       s.live({ kind: EVENT.NOTE_OFF, key: 60 + k });
     }
     await new Promise((r) => setTimeout(r, 300));

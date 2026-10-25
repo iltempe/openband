@@ -25,7 +25,7 @@
     'hero.tag2s': 'Mix e master in un gesto',
     'facts.license': 'Licenza <b>MIT</b>',
     'facts.platforms': '<b>Browser</b>, macOS, Windows, Linux',
-    'facts.ai': '<b>142</b> strumenti per le app AI',
+    'facts.ai': '<b>146</b> strumenti per le app AI',
     'facts.lang': '<b>Italiano</b> e English',
     'facts.offline': 'Funziona <b>offline</b>',
     'how.eyebrow': 'Come cresce OpenBand',
