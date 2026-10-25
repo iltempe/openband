@@ -32,9 +32,9 @@
 | 9 | **G5** — Sound-alike come builtin `audio.match_sound` | A G5 | Prima PR: synth parametrici |
 | 10 | **E4** — Ensemble e gusto: A/B cieco tra motori, preferenze, scheduler GPU | B §7, §11 | |
 | 11 | **G6** — Pubblica (SoundCloud, YouTube, Mixcloud, Audius, Internet Archive, Wikimedia Commons, Funkwhale; Creative Commons) | A G6 | `aiDisclosure` dal ledger |
-| 12 | **G7** — Tutela (OpenTimestamps, Safe Creative) | A G7 | Manifest con il ledger |
+| 12 | **G7** — Tutela (OpenTimestamps; ~~Safe Creative~~ tolto il 25/10/2026) | A G7 | Manifest con il ledger |
 | 13 | **E5** — Tempo reale (stream OMEP, Magenta RT 2) | B §2.5, §11 | Locale/LAN |
-| 14 | **E6** — Ecosistema: registro motori, template, HeartMuLa, ComfyUI, valutazione C2PA | B §10–11 | |
+| 14 | **E6** — Ecosistema: ~~registro motori~~ (tolto il 25/10/2026), template, HeartMuLa, ComfyUI, valutazione C2PA | B §10–11 | |
 
 Dove le due parti si contraddicono, **vale la Parte B** per architettura e tool MCP, e **vale la Parte A** per il comportamento di prodotto e i criteri di accettazione delle feature G.
 
@@ -382,6 +382,8 @@ Creative Commons non è un registro: non esiste un "deposito CC". La licenza si 
 - **Pacchetto "Prova"** scaricabile: `work.json`, `work.json.ots`, i file a cui si riferisce, un `LEGGIMI.txt` con le istruzioni di verifica indipendente (`ots verify`) e un **certificato PDF** leggibile (titolo, autori, hash, data del blocco Bitcoin, link agli strumenti di verifica).
 - Ogni nuova **versione** pubblicata (G6) o salvata (F13) può essere marcata in automatico (opzione), così resta la catena delle versioni con le date.
 - Privacy: esce solo l'hash, mai l'audio né il testo.
+
+> **Fuori perimetro (decisione del 25/10/2026)**: la registrazione su Safe Creative non si implementa in questa versione (servirebbero chiavi del progetto per la sandbox e la produzione). Le voci qui sotto e il tool `register_safecreative` restano come riferimento.
 
 ### 2. Registrazione su Safe Creative
 - Adapter `src/protect/safecreative.ts`: autorizzazione utente via authkey (l'utente approva l'app sul sito Safe Creative), upload dei file dell'opera e registrazione con i metadati del Release Kit (G6): titolo, autori/crediti, tipo di opera musicale, licenza.
@@ -780,7 +782,7 @@ Regole di implementazione:
   ```
 - **Dove gira l'host**: processo locale (D1), app desktop (F26, consigliata: gestisce Python con `uv`, rileva CUDA/MPS/ROCm, scarica i pesi con checksum) o istanza self-hosted (D9). La web app pura vede solo i motori browser (Demucs) e quelli remoti dell'utente.
 - **Isolamento**: ogni motore è un processo separato. Opzione container (Docker/Podman) con GPU passthrough. **Manifest dei permessi** (rete sì/no, cartelle accessibili) mostrato all'installazione; di default nessun accesso alla rete dopo il download dei pesi e solo la cartella di lavoro del task.
-- **Registro dei motori** (`openband/engine-registry` su GitHub): indice JSON con manifest, punteggio di conformità, licenza, comando di installazione e hash. Un motore della community entra via pull request con la CI di conformità verde. Mai codice eseguito senza la conferma dell'utente.
+- ~~**Registro dei motori**~~ (fuori perimetro dal 25/10/2026) (`openband/engine-registry` su GitHub): indice JSON con manifest, punteggio di conformità, licenza, comando di installazione e hash. Un motore della community entra via pull request con la CI di conformità verde. Mai codice eseguito senza la conferma dell'utente.
 - **Segreti** (token di endpoint remoti, chiavi HF): nella keychain del sistema nell'app desktop, mai nel progetto né nel bundle web.
 
 ## 9-bis. Motori online (senza GPU)
@@ -859,7 +861,7 @@ Motori con licenze non commerciali (es. YuE2, MusicGen) si possono installare da
 | **E3 · Primi esecutori veri, online e locali** | `omep-fal` (ACE-Step, Demucs, Lyria, MiniMax, Stable Audio dal catalogo), relay deployabile, preventivi e budget; `omep-demucs` (browser), `omep-ace-step` locale, `omep-diffsinger` (locale + template cloud GPU); conformità passi 5–8 | Un utente **senza GPU**, solo con la demo online + relay + una chiave fal, aggiunge una parte allineata (±15 ms), in tonalità, isolata; voce sintetica su una strofa italiana |
 | **E4 · Ensemble e gusto** | Strategia ensemble, A/B cieco tra motori, preferenze per capability, pagina "I tuoi motori", scheduler GPU | Dopo 10 confronti il router cambia scelta in modo coerente (test con preferenze simulate) |
 | **E5 · Tempo reale** | Stream OMEP + clock, `omep-magenta-rt`, registrazione della jam | 5 minuti senza underrun, latenza compensata entro ±10 ms |
-| **E6 · Ecosistema** | Registro dei motori, `omep-template`, `omep-heartmula`, `omep-comfyui`, ledger → G6/G7, valutazione C2PA | Un motore esterno entra via PR con la CI verde |
+| **E6 · Ecosistema** | ~~Registro dei motori~~ (tolto il 25/10/2026), `omep-template`, `omep-heartmula`, `omep-comfyui`, ledger → G6/G7, valutazione C2PA | Un motore creato da `omep-template` passa la conformità in CI (senza registro non c'è la PR di ingresso) |
 
 **Cosa assorbe delle spec precedenti**: H0–H5 della bozza v0.5 (sostituite); G1, G2, G3 e G5 diventano esecutori builtin; G6 e G7 leggono il ledger; F15 (jam LLM) e lo stream OMEP convivono: il primo per le frasi MIDI, il secondo per l'audio.
 
