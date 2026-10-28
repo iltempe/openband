@@ -22,7 +22,7 @@ are added (`tools/list_changed`).
 | **Claude** | ✓ Anthropic key | Claude Desktop, Claude Code | claude.ai |
 | **OpenAI / ChatGPT** | ✓ OpenAI key (GPT-6.x) | Codex (CLI and IDE) | ChatGPT developer mode¹ |
 | **Gemini** | ✓ Gemini key | Gemini CLI | — |
-| **Ollama, LM Studio…** | ✓ no key, on your computer | — | — |
+| **Ollama, LM Studio…** | ✓ no key, on your computer | Hermes Agent (with any model, also local) | — |
 | **Others** | any OpenAI-compatible server | Cursor, VS Code, any MCP client | any client of remote MCP servers |
 
 ¹ Not tested yet with ChatGPT: it is the same remote MCP server claude.ai uses, so it should work;
@@ -72,7 +72,7 @@ hosted services other than Anthropic, OpenAI and Google must be added to `connec
 
 `npx -y --allow-remote=all https://github.com/iltempe/openband/releases/latest/download/openband.tgz setup`
 (or, in the desktop app, *AI apps → Add OpenBand to my AI apps*) finds and configures Claude Desktop,
-Claude Code, **Codex**, **Gemini CLI**, Cursor and VS Code. By hand:
+Claude Code, **Codex**, **Gemini CLI**, **Hermes Agent**, Cursor and VS Code. By hand:
 
 **Codex** (OpenAI's CLI and IDE extension), `~/.codex/config.toml`:
 
@@ -92,6 +92,16 @@ or `codex mcp add openband -- npx -y --allow-remote=all https://github.com/iltem
     "openband": { "command": "npx", "args": ["-y", "--allow-remote=all", "https://github.com/iltempe/openband/releases/latest/download/openband.tgz", "mcp"] }
   }
 }
+```
+
+**Hermes Agent** (Nous Research), `~/.hermes/config.yaml` (or `$HERMES_HOME/config.yaml`), then
+`/reload-mcp` in a Hermes chat:
+
+```yaml
+mcp_servers:
+  openband:
+    command: "npx"
+    args: ["-y", "--allow-remote=all", "https://github.com/iltempe/openband/releases/latest/download/openband.tgz", "mcp"]
 ```
 
 Then ask: *“make a lo-fi beat at 82 BPM in D minor with drums, bass and Rhodes, then loop it”*. The first

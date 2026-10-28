@@ -30,7 +30,7 @@ Then restart your AI client and ask it for a song: the studio opens in your brow
 
 > **Why not `npx openband`?** The npm name `openband` belongs to someone else, so OpenBand is installed from its GitHub Releases. `--allow-remote=all` lets npm 12 (Node 26) download a package from a URL; older npm versions ignore it.
 
-**Any AI.** In the page the chat runs Claude, OpenAI's models, Gemini or a local model with Ollama, with the same tools MCP clients get; the key stays in your browser and requests go straight to the provider. Over MCP, OpenBand works with Claude Desktop, Claude Code, Codex, Gemini CLI, Cursor, VS Code, claude.ai and ChatGPT's developer mode: see **[docs/AI-MODELS.md](docs/AI-MODELS.md)**.
+**Any AI.** In the page the chat runs Claude, OpenAI's models, Gemini or a local model with Ollama, with the same tools MCP clients get; the key stays in your browser and requests go straight to the provider. Over MCP, OpenBand works with Claude Desktop, Claude Code, Codex, Gemini CLI, Hermes Agent, Cursor, VS Code, claude.ai and ChatGPT's developer mode: see **[docs/AI-MODELS.md](docs/AI-MODELS.md)**.
 
 ## Your first song
 

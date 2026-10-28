@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import readline from 'node:readline/promises';
 import { spawnSync } from 'node:child_process';
-import { SERVER_ENTRY, codexClient, hasCommand, jsonClients, openbandEntry, readCodexEntry, readConfig, writeCodexEntry, writeEntry } from './clients.mjs';
+import { SERVER_ENTRY, codexClient, hasCommand, hermesClient, jsonClients, openbandEntry, readCodexEntry, readConfig, readHermesEntry, writeCodexEntry, writeEntry, writeHermesEntry } from './clients.mjs';
 
 export async function setup(args = []) {
   const yes = args.includes('--yes') || args.includes('-y');
@@ -35,6 +35,19 @@ export async function setup(args = []) {
       else if (await ask(`Add OpenBand to ${codex.name} (${codex.file})?`)) {
         const r = writeCodexEntry(codex);
         console.error(`✓ ${codex.name}: added${r.backup ? ` (backup: ${r.backup})` : ''}.`);
+      }
+    }
+    const hermes = hermesClient();
+    if (fs.existsSync(hermes.dir)) {
+      found.push(hermes.name);
+      if (JSON.stringify(readHermesEntry(hermes.file)) === JSON.stringify(SERVER_ENTRY)) console.error(`✓ ${hermes.name}: already set up.`);
+      else if (await ask(`Add OpenBand to ${hermes.name} (${hermes.file})?`)) {
+        try {
+          const r = writeHermesEntry(hermes);
+          console.error(`✓ ${hermes.name}: added${r.backup ? ` (backup: ${r.backup})` : ''}. Type /reload-mcp in Hermes.`);
+        } catch (e) {
+          console.error(`✗ ${hermes.name}: ${e.message}`);
+        }
       }
     }
     if (hasCommand('claude')) {

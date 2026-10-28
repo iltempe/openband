@@ -66,7 +66,7 @@
     'ai.title': 'Anche la tua AI può suonarlo.',
     'ai.lead': 'OpenBand parla MCP, lo standard aperto con cui le app AI usano gli strumenti. Chiedi una linea di basso, un mix, un arrangiamento, e guardalo accadere nello studio, a un “annulla” di distanza.',
     'ai.l1': '<span><b>Nella chat dello studio</b>: Claude, OpenAI, Gemini con la tua chiave, o un modello gratuito sul tuo computer con Ollama.</span>',
-    'ai.l2': '<span><b>Dalla tua app AI</b>: Claude Desktop, Claude Code, ChatGPT, Codex, Gemini CLI, Cursor, VS Code.</span>',
+    'ai.l2': '<span><b>Dalla tua app AI</b>: Claude Desktop, Claude Code, ChatGPT, Codex, Gemini CLI, Hermes Agent, Cursor, VS Code.</span>',
     'ai.l3': '<span><b>Ascolta prima di toccare</b>: loudness, bilanciamento, mascheramento, armonia. Spiega le sue scelte sulle note.</span>',
     'dl.eyebrow': 'Scarica',
     'dl.title': 'Prendi OpenBand. È gratis.',

@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { codexClient, jsonClients, openbandEntry, readCodexEntry, readConfig, writeCodexEntry, writeEntry } from './clients.mjs';
+import { codexClient, hermesClient, jsonClients, openbandEntry, readCodexEntry, readConfig, readHermesEntry, writeCodexEntry, writeEntry, writeHermesEntry } from './clients.mjs';
 
 /** The MCP entry for the app at `exe`, whose files (server/, dist/) are in `root`. */
 export function desktopEntry({ exe, root }) {
@@ -30,7 +30,7 @@ export function findClaudeCli(env = process.env) {
  * Cursor and VS Code through their JSON files (a .bak of each is kept), Claude Code through its CLI.
  * Returns one line per client.
  */
-export function connectClients(entry, { clients = jsonClients(), codex = codexClient(), claude = findClaudeCli(), run = spawnSync } = {}) {
+export function connectClients(entry, { clients = jsonClients(), codex = codexClient(), hermes = hermesClient(), claude = findClaudeCli(), run = spawnSync } = {}) {
   const out = [];
   for (const c of clients) {
     if (!fs.existsSync(c.dir)) {
@@ -59,6 +59,19 @@ export function connectClients(entry, { clients = jsonClients(), codex = codexCl
       }
     } catch (e) {
       out.push({ name: codex.name, status: 'failed', detail: e.message });
+    }
+  }
+  // Hermes Agent (issue #7): its config.yaml.
+  if (!hermes || !fs.existsSync(hermes.dir)) out.push({ name: hermes?.name ?? 'Hermes Agent', status: 'missing' });
+  else {
+    try {
+      if (JSON.stringify(readHermesEntry(hermes.file)) === JSON.stringify(entry)) out.push({ name: hermes.name, status: 'already' });
+      else {
+        const r = writeHermesEntry(hermes, entry);
+        out.push({ name: hermes.name, status: 'added', detail: r.backup ? `backup: ${r.backup}; /reload-mcp in Hermes` : '/reload-mcp in Hermes' });
+      }
+    } catch (e) {
+      out.push({ name: hermes.name, status: 'failed', detail: e.message });
     }
   }
   if (!claude) out.push({ name: 'Claude Code', status: 'missing' });

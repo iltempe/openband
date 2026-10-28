@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { codexClient, hasCommand, jsonClients, openbandEntry, readCodexEntry, readConfig } from './clients.mjs';
+import { codexClient, hasCommand, hermesClient, jsonClients, openbandEntry, readCodexEntry, readConfig, readHermesEntry } from './clients.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -28,7 +28,7 @@ async function whoIsOnPort(port) {
   }
 }
 
-export async function runChecks({ port = Number(process.env.OPENBAND_PORT || 7777), clients = [...jsonClients(), codexClient()] } = {}) {
+export async function runChecks({ port = Number(process.env.OPENBAND_PORT || 7777), clients = [...jsonClients(), codexClient(), hermesClient()] } = {}) {
   const checks = [];
   /** ok: true / false; warn: not a failure (e.g. a client you may not use). */
   const add = (ok, label, fix, warn = false) => checks.push({ ok, label, ...(ok ? {} : { fix }), ...(warn && !ok ? { warn: true } : {}) });
@@ -61,7 +61,7 @@ export async function runChecks({ port = Number(process.env.OPENBAND_PORT || 777
     anyClient = true;
     let entry = null;
     try {
-      entry = c.id === 'codex' ? readCodexEntry(c.file) : openbandEntry(readConfig(c.file), c.key);
+      entry = c.id === 'codex' ? readCodexEntry(c.file) : c.id === 'hermes' ? readHermesEntry(c.file) : openbandEntry(readConfig(c.file), c.key);
     } catch {
       add(false, `${c.name}: config is not valid JSON`, `Fix ${c.file}`);
       continue;
