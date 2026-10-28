@@ -1,0 +1,63 @@
+# The Flatpak of a release (issue #5): built from the release's .deb files with the same manifest a Flathub
+# submission carries (scripts/flatpak-manifest.mjs), linted with Flathub's own linter, and attached to the
+# release as a bundle anyone can install. Called by release.yml; also by hand for a tag.
+name: Flatpak
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (vX.Y.Z)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: bilelmoussaoui/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/flatpak-manifest.mjs "${{ inputs.tag }}" --out build/flatpak
+        env:
+          GH_TOKEN: ${{ github.token }}
+      # Flathub's own linter on the manifest, before a submission (it doesn't stop the release).
+      - continue-on-error: true
+        run: |
+          flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install -y --user flathub org.flatpak.Builder
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest "$PWD/build/flatpak/it.openband.OpenBand.yml"
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: build/flatpak/it.openband.OpenBand.yml
+          bundle: OpenBand-linux-x86_64.flatpak
+          cache-key: flatpak-builder-${{ inputs.tag }}
+          upload-artifact: true
+  upload:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*flatpak*'
+          merge-multiple: true
+      - shell: bash
+        run: |
+          tag="${{ inputs.tag }}"
+          f=$(ls *.flatpak | head -1)
+          cp "$f" "OpenBand-${tag#v}-linux-x86_64.flatpak"
+          [ "$f" = OpenBand-linux-x86_64.flatpak ] || cp "$f" OpenBand-linux-x86_64.flatpak
+          gh release upload "$tag" "OpenBand-${tag#v}-linux-x86_64.flatpak" OpenBand-linux-x86_64.flatpak --clobber --repo "${GITHUB_REPOSITORY}"
+        env:
+          GH_TOKEN: ${{ github.token }}
