@@ -40,6 +40,10 @@ export interface CreateArgs {
   confirm_spend?: boolean;
   /** Isolating a layer from a full mix with Demucs in the browser: the user agreed to download it. */
   confirm_download?: boolean;
+  /** music.restyle (a cover): how close to the original, 0..1 (issue #2). */
+  strength?: number;
+  /** music.restyle of an audio region: the result becomes takes of that region, next to the original. */
+  into_region?: string;
 }
 
 const INSTRUMENTS: [RegExp, string, string][] = [
@@ -119,7 +123,7 @@ async function perform(capability: Capability, candidates: EngineInfo[], scp: Sc
         const listens = e.transport !== 'builtin' && !!e.manifest.capabilities[capability]?.conditioning?.includes('context_audio');
         if (listens) audio ??= await contextAudioFor(capability, scp, target);
         const context = minimizeContext(listens ? { ...scp, context_audio: audio } : scp, e.manifest, capability);
-        const c = await callEngine(e, capability, { context, request: { text: a.text, role: a.role, instrument: a.instrument }, seed: seed + v, variants: 1 });
+        const c = await callEngine(e, capability, { context, request: { text: a.text, role: a.role, instrument: a.instrument, ...(typeof a.strength === 'number' ? { strength: a.strength } : {}) }, seed: seed + v, variants: 1 });
         const bad = checkContribution(c);
         if (bad) throw new Error(`invalid contribution: ${bad}`);
         if (quoted > 0 || c.cost_usd) recordSpend(e.id, capability, c.cost_usd ?? quoted);
@@ -293,6 +297,24 @@ async function placeAudio(made: Made[], capability: Capability, scp: Scp, a: Cre
     st().commit((d) => void d.tracks.push(track));
     return track;
   };
+  // A cover of an audio region (issue #2): the original and the cover(s) become takes of it, the cover
+  // active — compare them with A/B, keep the one you like. Nothing is laid on top of the original.
+  const into = a.into_region ? st().project.regions.find((r) => r.id === a.into_region && r.audio) : undefined;
+  if (into && capability === 'music.restyle') {
+    const now = Date.now();
+    const original: Take[] = into.takes?.length ? [] : [{ id: uid('take'), name: 'Original', notes: [], audio: { ...into.audio! }, createdAt: now - 1, author: 'user' }];
+    const takes: Take[] = ready.map((r, i) => ({ id: uid('take'), name: `Cover ${i + 1} · ${r.m.engine.manifest.engine.name}`, notes: [], audio: clip(r), createdAt: now + i, author: 'ai' }));
+    const ledger = ready.map((r, i) => ledgerEntry(r.m, capability, a, r.plan.conform, into.trackId, [into.id], [takes[i].id]));
+    st().commit((d) => {
+      const reg = d.regions.find((r) => r.id === into.id)!;
+      reg.takes = [...(reg.takes ?? []), ...original, ...takes];
+      reg.activeTakeId = takes[0].id;
+      reg.audio = { ...takes[0].audio! };
+      reg.contribution = ledger[0].id;
+      d.ledger = [...(d.ledger ?? []), ...ledger];
+    });
+    return { track_id: into.trackId, region_ids: [into.id], take_ids: takes.map((t) => t.id), corrections: ready.map((r) => r.plan.conform) };
+  }
   // Ensemble: variants that each fill the bars in one piece become takes of one region — anonymous in a
   // blind test, and what the user ranks teaches the router (taste.ts).
   if (ready.length > 1 && ready.every((r) => r.plan.repeats === 1)) {

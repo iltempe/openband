@@ -248,6 +248,14 @@ const quantizeShape = {
   swing: z.number().min(0).max(0.75).optional().describe('Off-beat grid points this much later, as a share of the grid (0.33 ≈ triplet swing)'),
   ends: z.boolean().optional().describe('Quantize note ends too (default true)'),
 };
+tool('cover_song', 'A cover of a song in the studio: its audio (an imported track or a recording: region_id, or the selected / only audio region) played again in another style by a music engine that can restyle (ACE-Step on this computer, or on fal online — the audio is uploaded there). The result is a take of that region, to compare with the original. strength: how close to the original, 0..1 (default 0.5).', {
+  region_id: z.string().optional(),
+  style: z.string().describe('The style of the cover, in words: "acoustic bossa nova", "80s synth-pop", "string quartet"'),
+  strength: z.number().min(0).max(1).optional(),
+  variants: z.number().int().min(1).max(4).optional(),
+  engine: z.string().optional().describe('Pin an engine by id (list_engines)'),
+  confirm_spend: z.boolean().optional().describe('Online engines past the budget: only after the user agreed to the quoted cost'),
+}, { timeout: 900000 });
 tool('set_track_midi_input', 'Which live MIDI a track plays: a channel (1–16), optionally only from one device (by name), even when the track is not selected; null to follow the selection again. With several tracks on their channels one keyboard — or a MIDI orchestrator such as Texturium sending 16 channels on one port — plays them all at once.', {
   track_id: z.string(),
   channel: z.number().int().min(1).max(16).nullable(),
@@ -963,7 +971,7 @@ export const TOOLSETS = {
   collab: { description: 'Rooms with other people, comments and explanations on the song', tools: ['create_room', 'join_room', 'leave_room', 'get_peers', 'annotate', 'list_annotations', 'resolve_annotation', 'delete_annotation'] },
   jam: { description: 'Jamming: answering the user\'s phrases, keeping answers, the studio\'s event stream', tools: ['play_phrase', 'keep_answer', 'keep_phrase', 'get_events', 'wait_for_event'] },
   release: { description: 'The release: metadata, licence (Creative Commons chooser and checks), cover, the Release Kit', tools: ['get_release', 'set_release', 'check_release', 'generate_cover', 'export_release_kit', 'render_video', 'list_publish_targets', 'publish', 'get_publications'] },
-  engines: { description: 'OMEP engines: which are installed, who made what (ledger), the engine policy', tools: ['list_engines', 'get_ledger', 'set_engine_policy'] },
+  engines: { description: 'OMEP engines: which are installed, who made what (ledger), the engine policy, covers of a song in another style', tools: ['list_engines', 'get_ledger', 'set_engine_policy', 'cover_song'] },
 };
 
 add('toolset', 'load_toolset', `Load a toolset when the request needs tools that are not loaded yet (they appear right after). Core and capability tools are always there. Toolsets: ${Object.entries(TOOLSETS).map(([n, t]) => `${n} — ${t.description}`).join('; ')}. "all" loads everything.`, {

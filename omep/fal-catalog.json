@@ -1,35 +1,148 @@
 {
   "about": "Models on fal.ai as OMEP engines (SPEC v0.6 §9-bis). One entry per model; adding a model is adding an entry, no code. Inputs are templates: {text} the request in words, {lyrics} the song's lyrics or [inst], {seconds} the scope's length, {bpm}, {key}, {seed}, {audio} the context audio's URL. Outputs are paths into fal's JSON answer.",
-  "verified": "2026-10-25",
+  "verified": "2026-10-28",
   "models": [
     {
       "id": "ace-step",
       "endpoint": "fal-ai/ace-step",
       "name": "ACE-Step on fal",
       "homepage": "https://fal.ai/models/fal-ai/ace-step",
-      "license": { "code": "Apache-2.0", "weights": "Apache-2.0", "commercial": "yes", "attribution": null, "conditions": null, "url": "https://github.com/ace-step/ACE-Step/blob/main/LICENSE" },
-      "capabilities": {
-        "music.song": { "conditioning": ["text", "lyrics", "bpm", "key"], "max_seconds": 240 },
-        "music.add_layer": { "conditioning": ["text", "bpm", "key"], "max_seconds": 240 }
+      "license": {
+        "code": "Apache-2.0",
+        "weights": "Apache-2.0",
+        "commercial": "yes",
+        "attribution": null,
+        "conditions": null,
+        "url": "https://github.com/ace-step/ACE-Step/blob/main/LICENSE"
       },
-      "price": { "unit": "second", "usd": 0.0002 },
-      "data_policy": { "uploads_audio": false, "retention": "as in fal's terms", "training_on_inputs": "unknown", "terms_url": "https://fal.ai/terms" },
-      "output_rights": { "commercial": "conditional", "terms_url": "https://fal.ai/terms" },
-      "input": { "tags": "{text}, {bpm} bpm, {key}", "lyrics": "{lyrics}", "duration": "{seconds}", "seed": "{seed}" },
-      "output": { "audio": "audio.url" }
+      "capabilities": {
+        "music.song": {
+          "conditioning": ["text", "lyrics", "bpm", "key"],
+          "max_seconds": 240
+        },
+        "music.add_layer": {
+          "conditioning": ["text", "bpm", "key"],
+          "max_seconds": 240
+        }
+      },
+      "price": {
+        "unit": "second",
+        "usd": 0.0002
+      },
+      "data_policy": {
+        "uploads_audio": false,
+        "retention": "as in fal's terms",
+        "training_on_inputs": "unknown",
+        "terms_url": "https://fal.ai/terms"
+      },
+      "output_rights": {
+        "commercial": "conditional",
+        "terms_url": "https://fal.ai/terms"
+      },
+      "input": {
+        "tags": "{text}, {bpm} bpm, {key}",
+        "lyrics": "{lyrics}",
+        "duration": "{seconds}",
+        "seed": "{seed}"
+      },
+      "output": {
+        "audio": "audio.url"
+      }
+    },
+    {
+      "id": "ace-step-cover",
+      "endpoint": "fal-ai/ace-step/audio-to-audio",
+      "name": "ACE-Step cover on fal",
+      "homepage": "https://fal.ai/models/fal-ai/ace-step/audio-to-audio",
+      "license": {
+        "code": "Apache-2.0",
+        "weights": "Apache-2.0",
+        "commercial": "yes",
+        "attribution": null,
+        "conditions": null,
+        "url": "https://github.com/ace-step/ACE-Step/blob/main/LICENSE"
+      },
+      "capabilities": {
+        "music.restyle": {
+          "conditioning": ["text", "lyrics", "bpm", "key", "context_audio"],
+          "max_seconds": 240
+        }
+      },
+      "price": {
+        "unit": "second",
+        "usd": 0.0002,
+        "estimated": true,
+        "note": "fal does not show this endpoint's price: estimated from fal-ai/ace-step"
+      },
+      "data_policy": {
+        "uploads_audio": true,
+        "retention": "as in fal's terms",
+        "training_on_inputs": "unknown",
+        "terms_url": "https://fal.ai/terms"
+      },
+      "output_rights": {
+        "commercial": "conditional",
+        "terms_url": "https://fal.ai/terms"
+      },
+      "input": {
+        "audio_url": "{audio}",
+        "edit_mode": "remix",
+        "original_tags": "{original}, {bpm} bpm, {key}",
+        "tags": "{text}, {bpm} bpm, {key}",
+        "original_lyrics": "{lyrics}",
+        "lyrics": "{lyrics}",
+        "seed": "{seed}"
+      },
+      "output": {
+        "audio": "audio.url"
+      }
     },
     {
       "id": "demucs",
       "endpoint": "fal-ai/demucs",
       "name": "Demucs on fal",
       "homepage": "https://fal.ai/models/fal-ai/demucs",
-      "license": { "code": "MIT", "weights": "MIT", "commercial": "yes", "attribution": null, "conditions": null, "url": "https://github.com/facebookresearch/demucs/blob/main/LICENSE" },
-      "capabilities": { "audio.separate": { "conditioning": ["context_audio"], "max_seconds": 900 } },
-      "price": { "unit": "second", "usd": 0.0007 },
-      "data_policy": { "uploads_audio": true, "retention": "as in fal's terms", "training_on_inputs": "unknown", "terms_url": "https://fal.ai/terms" },
-      "output_rights": { "commercial": "yes", "terms_url": "https://fal.ai/terms" },
-      "input": { "audio_url": "{audio}", "model": "htdemucs", "output_format": "wav" },
-      "output": { "stems": { "vocal": "vocals.url", "drums": "drums.url", "bass": "bass.url", "other": "other.url" } }
+      "license": {
+        "code": "MIT",
+        "weights": "MIT",
+        "commercial": "yes",
+        "attribution": null,
+        "conditions": null,
+        "url": "https://github.com/facebookresearch/demucs/blob/main/LICENSE"
+      },
+      "capabilities": {
+        "audio.separate": {
+          "conditioning": ["context_audio"],
+          "max_seconds": 900
+        }
+      },
+      "price": {
+        "unit": "second",
+        "usd": 0.0007
+      },
+      "data_policy": {
+        "uploads_audio": true,
+        "retention": "as in fal's terms",
+        "training_on_inputs": "unknown",
+        "terms_url": "https://fal.ai/terms"
+      },
+      "output_rights": {
+        "commercial": "yes",
+        "terms_url": "https://fal.ai/terms"
+      },
+      "input": {
+        "audio_url": "{audio}",
+        "model": "htdemucs",
+        "output_format": "wav"
+      },
+      "output": {
+        "stems": {
+          "vocal": "vocals.url",
+          "drums": "drums.url",
+          "bass": "bass.url",
+          "other": "other.url"
+        }
+      }
     }
   ]
 }

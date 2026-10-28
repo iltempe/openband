@@ -1933,6 +1933,52 @@ tests.midichannels = async () => {
   }
 };
 
+// Issue #2: a cover of a song — its audio restyled by an engine (the OMEP mock here), as a take of it.
+tests.cover = async () => {
+  const os = await import('node:os');
+  const enginesFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ob-e2e-')), 'engines.json');
+  fs.writeFileSync(enginesFile, JSON.stringify({ engines: { mock: { builtin: 'omep-mock' } } }));
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1', OPENBAND_ENGINES: enginesFile });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    const r = await p.evaluate(async () => {
+      const { commands, samples, useStore } = window.openband;
+      await commands.new_project({ name: 'Cover', bpm: 100, key: 'C' });
+      await commands.transport({ action: 'stop' });
+      // "The song": 4 bars of a struck C chord on every beat.
+      const sr = 44100, n = Math.round(9.6 * sr);
+      const dv = new DataView(new ArrayBuffer(44 + n * 2));
+      const w = (o, s) => [...s].forEach((c, i) => dv.setUint8(o + i, c.charCodeAt(0)));
+      w(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+      dv.setUint32(24, sr, true); dv.setUint32(28, sr * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, 'data'); dv.setUint32(40, n * 2, true);
+      for (let i = 0; i < n; i++) { const t = (i % (0.6 * sr)) / sr; dv.setInt16(44 + i * 2, 9000 * Math.exp(-t * 5) * [261.6, 329.6, 392].reduce((a, f) => a + Math.sin((2 * Math.PI * f * i) / sr), 0) / 3, true); }
+      const info = await samples.importSample(dv.buffer, 'my song.wav');
+      const { region_id } = await commands.add_audio_region({ sample_id: info.id, start_bar: 1, length_bars: 4 });
+      const noStyle = await Promise.resolve().then(() => commands.cover_song({ region_id, style: '' })).then(() => 'ok', (e) => e.message);
+      const out = await commands.cover_song({ style: 'bossa nova', strength: 0.4, engine: 'mock' }).catch((e) => ({ error: e.message }));
+      const region = useStore.getState().project.regions.find((x) => x.id === region_id);
+      const ledger = useStore.getState().project.ledger ?? [];
+      useStore.getState().selectRegion(region);
+      useStore.getState().set({ bottom: 'editor' });
+      await new Promise((ok) => setTimeout(ok, 300));
+      const button = [...document.querySelectorAll('.mini')].some((x) => /Make a cover/.test(x.textContent));
+      return { button, noStyle, out, takes: (region.takes ?? []).length, names: (region.takes ?? []).map((t) => t.name), active: region.activeTakeId === region.takes?.at(-1)?.id, regions: useStore.getState().project.regions.length, ledger: ledger.map((e) => `${e.engine}:${e.capability}`) };
+    });
+    check(/Say the style/.test(r.noStyle), 'a cover needs a style');
+    check(!r.out.error && r.out.cover_of, `the cover is made (${r.out.error ?? r.out.engines?.join(', ')})`);
+    check(r.takes === 2 && r.active && r.regions === 1, `the original and the cover are takes of one region, the cover active, nothing laid on top (${r.names.join(' / ')})`);
+    check(r.button, 'the audio region editor has "Make a cover…"');
+    check(r.ledger.some((x) => /restyle/.test(x)), `and the ledger says which engine made it (${r.ledger.join(', ')})`);
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);

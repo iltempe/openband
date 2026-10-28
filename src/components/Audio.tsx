@@ -1,6 +1,7 @@
 // Audio clips: waveform drawing and the clip editor shown in the bottom dock.
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { SeparateButton } from './Separation';
+import { CoverButton } from './Cover';
 import { stretchFactor } from '../audio/stretch';
 import type { Region, Track } from '../types';
 import { useStore } from '../store';
@@ -150,6 +151,7 @@ export function AudioClipEditor({ region, track }: { region: Region; track: Trac
           {t('audio.fit')}
         </button>
         <SeparateButton regionId={region.id} />
+        <CoverButton regionId={region.id} />
         <div className="eb-spacer" />
         <button className="mini" onClick={() => commands.duplicate_region({ region_id: region.id })} title={t('ed.duplicateHint')}>
           <I.Copy width={14} height={14} /> {t('ed.duplicate')}

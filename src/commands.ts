@@ -1547,6 +1547,19 @@ export const commands: Record<string, (args: P) => unknown> = {
   // ---- Ensemble (SPEC v0.6)
   create: (args) => createPart(args as CreateArgs),
   transform: (args) => transformPart(args as TransformArgs),
+  // Issue #2: a cover — the same song (an audio region: an imported track, a recording) in another style.
+  cover_song: async ({ region_id, style, strength, variants, engine, confirm_spend }) => {
+    if (!String(style ?? '').trim()) throw new Error('Say the style of the cover ("acoustic bossa nova", "80s synth-pop", "string quartet")');
+    const p = st().project;
+    const sel = p.regions.find((r) => r.id === st().selectedRegionId);
+    const audio = p.regions.filter((r) => r.audio);
+    const region = region_id ? requireRegion(p, region_id) : sel?.audio ? sel : audio.length === 1 ? audio[0] : null;
+    if (!region) throw new Error(audio.length ? 'Which song? Select its audio region (or pass region_id)' : 'Import the song first (an audio file on an audio track): the cover is made from its audio');
+    if (!region.audio) throw new Error('A cover is made from audio: this region has notes (use transform to restyle them)');
+    const s = strength === undefined ? 0.5 : Math.max(0, Math.min(1, Number(strength)));
+    const r = await transformPart({ capability: 'music.restyle', region_id: region.id, intent: String(style), strength: s, variants, engine, confirm_spend });
+    return { ...r, cover_of: region.id, style, strength: s, note: 'The cover is a take of the original region: compare them (A/B), keep the one you like.' };
+  },
   separate: (args) => separateRegion(args as SeparateArgs),
   sing: (args) => singPart(args as SingArgs),
   start_session: async (args) => (await import('./session/session')).startSession(args as import('./session/session').SessionArgs),

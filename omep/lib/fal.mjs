@@ -16,7 +16,8 @@ export function manifestFor(model, verified) {
       where: 'cloud',
       provider: 'fal',
       realtime: false,
-      pricing: { ...model.price, verified },
+      // A price fal doesn't publish is an estimate: not marked as verified.
+      pricing: { unit: model.price.unit, usd: model.price.usd, ...(model.price.estimated ? {} : { verified }) },
       data_policy: { ...model.data_policy, verified },
       output_rights: model.output_rights,
     },
@@ -58,6 +59,8 @@ export function inputFor(model, scp, request = {}, seed) {
     key: scp.song?.key ? `${scp.song.key.replace(/m$/, '')} ${/m$/.test(scp.song.key) ? 'minor' : 'major'}` : '',
     seed: seed ?? 1,
     audio: request.audio_url ?? scp.context_audio?.mix_uri ?? '',
+    // What the original sounds like, for models that ask (a cover's starting point).
+    original: request.original ?? (scp.constraints?.soft?.original_style ?? 'original recording'),
   };
   const out = {};
   for (const [k, tpl] of Object.entries(model.input ?? {})) {

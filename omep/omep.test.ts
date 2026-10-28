@@ -13,7 +13,7 @@ describe('OMEP 1.0', () => {
     expect(failed(r)).toEqual([]);
     expect(r.passed).toBe(true);
     expect(r.adherence).toBeGreaterThan(0.95);
-    expect(r.cases.map((c) => c.capability)).toEqual(['symbolic.drums', 'symbolic.accompany', 'music.add_layer']);
+    expect(r.cases.map((c) => c.capability)).toEqual(['symbolic.drums', 'symbolic.accompany', 'music.add_layer', 'music.restyle']);
     expect(r.checks.find((c) => c.id.endsWith('can be cancelled'))?.detail).toMatch(/cancelled|finished/);
   }, 60000);
 

@@ -16,11 +16,36 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js';
 import { CATALOG, EXTENSION, validate } from './lib/schemas.mjs';
-import { decodeWav, estimateBpm, estimateKey, keyOfNotes } from './lib/audio.mjs';
+import { decodeWav, encodeWav, estimateBpm, estimateKey, keyOfNotes } from './lib/audio.mjs';
 import { beatsPerBar, keySimilarity, noteNumber, scalePcs } from './lib/music.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_CONTEXT = JSON.parse(fs.readFileSync(path.join(here, 'examples', 'context.json'), 'utf8'));
+
+/**
+ * For a capability that works on the song's audio (conditioning context_audio: restyle, repaint, a layer
+ * over the mix): the context with a mix to work on — the scope's chords as plain tones, a data: WAV.
+ */
+export function withContextAudio(context) {
+  if (context.context_audio?.mix_uri) return context;
+  const bpb = beatsPerBar(context.song?.meter ?? '4/4');
+  const from = context.scope?.from_bar ?? 1;
+  const to = context.scope?.to_bar ?? from + 4;
+  const spb = 60 / (context.song?.bpm ?? 120);
+  const seconds = (to - from) * bpb * spb;
+  const sr = 22050;
+  const x = new Float32Array(Math.round(seconds * sr));
+  const minor = /m$/.test(String(context.song?.key ?? ''));
+  const root = noteNumber(String(context.song?.key ?? 'C').replace(/m$/, '') + '3') ?? 48;
+  // A chord struck on every beat, so tempo and key can be heard in it.
+  const beat = Math.round(spb * sr);
+  for (let i = 0; i < x.length; i++) {
+    const t = (i % beat) / sr;
+    const env = Math.exp(-t * 6);
+    for (const st of [0, minor ? 3 : 4, 7]) x[i] += 0.2 * env * Math.sin((2 * Math.PI * 440 * 2 ** ((root + st - 69) / 12) * i) / sr);
+  }
+  return { ...context, context_audio: { mix_uri: `data:audio/wav;base64,${encodeWav([x], sr).toString('base64')}`, from_bar: from, to_bar: to } };
+}
 
 /** 1 within `tol` (relative), falling to 0 at 4×tol. */
 const closeness = (got, want, tol) => {
@@ -129,7 +154,8 @@ export async function runConformance(target, { context = DEFAULT_CONTEXT, timeou
       const t0 = Date.now();
       let r;
       try {
-        r = await client.callTool({ name: cap, arguments: { context, seed: 7 } }, CallToolResultSchema, { timeout: timeoutMs });
+        const input = (manifest.capabilities[cap]?.conditioning ?? []).includes('context_audio') ? withContextAudio(context) : context;
+        r = await client.callTool({ name: cap, arguments: { context: input, seed: 7 } }, CallToolResultSchema, { timeout: timeoutMs });
       } catch (e) {
         check(`${cap}: answers`, false, e.message);
         continue;

@@ -10,14 +10,14 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { InMemoryTaskStore } from '@modelcontextprotocol/sdk/experimental/tasks/stores/in-memory.js';
 import { EXTENSION } from './lib/schemas.mjs';
 import { beatsPerBar, noteNumber, parseChord, parseKey, scalePcs } from './lib/music.mjs';
-import { encodeWav } from './lib/audio.mjs';
+import { decodeWav, encodeWav } from './lib/audio.mjs';
 
 const flags = new Set(process.argv.slice(2));
 const SHIFT = flags.has('--wrong-key') ? 1 : 0;
@@ -34,6 +34,7 @@ export const MANIFEST = {
     'symbolic.drums': { conditioning: ['bpm', 'meter', 'sections'] },
     'symbolic.accompany': { conditioning: ['key', 'chords', 'range'] },
     'music.add_layer': { conditioning: ['bpm', 'key', 'chords', 'text'], max_seconds: 120 },
+    'music.restyle': { conditioning: ['text', 'context_audio'], max_seconds: 600 },
   },
   outputs: ['audio/wav', 'application/x-omep-notes'],
   languages: ['en', 'it'],
@@ -130,7 +131,29 @@ function addLayer(scp, seed) {
   return { kind: 'audio', files: [{ uri: pathToFileURL(file).href, role: 'layer', format: 'wav', sample_rate: sr, channels: 1 }], alignment: { start_bar: f.from, bpm_detected: scp.song.bpm }, claims: { key: scp.song.key, bpm: scp.song.bpm, length_bars: f.bars } };
 }
 
-const RUN = { 'symbolic.drums': drums, 'symbolic.accompany': accompany, 'music.add_layer': addLayer };
+/** A "cover": the song's own audio, darker (a one-pole low-pass) and with a tremolo on its eighth notes; the same length. */
+function restyle(scp) {
+  const uri = scp.context_audio?.mix_uri;
+  if (!uri) throw new Error('music.restyle needs the song\'s audio (context_audio)');
+  const bytes = uri.startsWith('data:') ? Buffer.from(uri.slice(uri.indexOf(',') + 1), 'base64') : fs.readFileSync(fileURLToPath(uri));
+  const { sampleRate: sr, channels } = decodeWav(bytes);
+  const rate = (scp.song.bpm / 60) * 2;
+  const out = channels.map((c) => {
+    const y = new Float32Array(c.length);
+    let lp = 0;
+    for (let i = 0; i < c.length; i++) {
+      lp += 0.08 * (c[i] - lp);
+      y[i] = lp * (0.75 + 0.25 * Math.sin((2 * Math.PI * rate * i) / sr));
+    }
+    return y;
+  });
+  const file = path.join(os.tmpdir(), `omep-mock-${process.pid}-${Date.now().toString(36)}-cover.wav`);
+  fs.writeFileSync(file, encodeWav(out, sr));
+  const f = frame(scp);
+  return { kind: 'audio', files: [{ uri: pathToFileURL(file).href, role: 'full', format: 'wav', sample_rate: sr, channels: out.length }], alignment: { start_bar: f.from, bpm_detected: scp.song.bpm }, claims: { key: scp.song.key, bpm: scp.song.bpm, length_bars: f.bars } };
+}
+
+const RUN = { 'symbolic.drums': drums, 'symbolic.accompany': accompany, 'music.add_layer': addLayer, 'music.restyle': restyle };
 
 /** The tool result: a contribution as structuredContent, files also as resource links. */
 function run(capability, args) {

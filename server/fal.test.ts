@@ -75,8 +75,18 @@ describe('fal models as OMEP engines (§9-bis)', () => {
     for (const m of catalog.models) {
       const man = manifestFor(m, catalog.verified);
       expect(validate('manifest', man)).toEqual([]);
-      expect(man.runtime).toMatchObject({ where: 'cloud', provider: 'fal', pricing: { unit: 'second', verified: catalog.verified } });
+      // A price fal doesn't publish is an estimate, never shown as verified.
+      expect(man.runtime).toMatchObject({ where: 'cloud', provider: 'fal', pricing: { unit: 'second', ...(m.price.estimated ? {} : { verified: catalog.verified }) } });
+      if (m.price.estimated) expect(man.runtime.pricing.verified).toBeUndefined();
     }
+  });
+
+  it('a cover (issue #2): the song\'s audio remixed in the asked style, uploads audio', () => {
+    const cover = catalog.models.find((m: { id: string }) => m.id === 'ace-step-cover');
+    const input = inputFor(cover, { ...SCP, context_audio: { mix_uri: 'https://x/mix.wav' } } as never, { text: 'bossa nova, nylon guitar' }, 3);
+    expect(input).toEqual({ audio_url: 'https://x/mix.wav', edit_mode: 'remix', original_tags: 'original recording, 120 bpm, A minor', tags: 'bossa nova, nylon guitar, 120 bpm, A minor', original_lyrics: 'hello night', lyrics: 'hello night', seed: 3 });
+    expect(cover.data_policy.uploads_audio).toBe(true);
+    expect(Object.keys(cover.capabilities)).toEqual(['music.restyle']);
   });
 
   it('fills the model input from the song context; the price before running', () => {
