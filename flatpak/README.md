@@ -33,11 +33,12 @@ flatpak-builder --user --install-deps-from=flathub --force-clean --install build
 
 | Permission | Why |
 |---|---|
+| `--socket=wayland`, `--socket=fallback-x11` | The window: Wayland where there is one (Electron with `--ozone-platform-hint=auto`), X11 otherwise |
 | `--socket=pulseaudio` | Playback, recording, the microphone |
 | `--device=all` | MIDI keyboards and controllers (the ALSA sequencer, `/dev/snd/seq`) and audio interfaces |
 | `--share=network` | Online engines, the relay, publishing with the user's own accounts, update checks |
 | `--filesystem=xdg-music`, `xdg-download` | Songs and samples where people keep them, exports |
-| `/usr/lib/clap`, `/usr/lib/vst3`, `~/.clap`, `~/.vst3` (read-only) | The CLAP and VST3 plugins installed on the system |
+| `~/.clap`, `~/.vst3` (read-only) | The user's CLAP and VST3 plugins. `/usr` belongs to Flatpak, so plugins installed system-wide (`/usr/lib/vst3`) aren't reachable: install them in `~/.vst3` / `~/.clap` |
 | `--talk-name=org.freedesktop.Notifications` | "A new version is available", "export done" |
 
 ## On Flathub
