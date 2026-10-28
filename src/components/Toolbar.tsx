@@ -1,3 +1,4 @@
+import { openAudioSettings } from './AudioSettings';
 import { openWavExport } from './WavExport';
 import { useRef, useState } from 'react';
 import { VoiceButton } from './Voice';
@@ -201,6 +202,7 @@ function ProjectMenu() {
             <hr />
             <button onClick={() => (close(), openWavExport())}>{t('menu.exportWav')}</button>
             <button onClick={() => (close(), commands.export_midi({}))}>{t('menu.exportMidi')}</button>
+            <button onClick={() => (close(), openAudioSettings())}>{t('au.menu')}</button>
             <button
               onClick={async () => {
                 close();

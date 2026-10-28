@@ -1813,6 +1813,56 @@ tests.quantize = async () => {
   }
 };
 
+// Issue #6: a key played live sounded 100 ms late (Tone's lookAhead). Now it starts at the audio clock's now.
+// And the latency can be chosen in Audio & MIDI.
+tests.latency = async () => {
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    const r = await p.evaluate(async () => {
+      const { commands, engine, Tone, useStore } = window.openband;
+      await commands.new_project({ name: 'L', bpm: 120, key: 'C' });
+      await commands.transport({ action: 'stop' });
+      const out = {};
+      for (const instrument of ['felt-piano', 'sub-bass']) {
+        const { track_id } = await commands.add_track({ kind: 'instrument', instrument, name: instrument });
+        useStore.getState().set({ selectedTrackId: track_id });
+        await new Promise((ok) => setTimeout(ok, 300));
+        const node = engine.nodes.get(track_id);
+        const synth = node.instrument.synth;
+        let at = null;
+        const orig = synth.triggerAttack.bind(synth);
+        synth.triggerAttack = (f, time, v) => ((at = time), orig(f, time, v));
+        const ctx = Tone.getContext().rawContext;
+        const before = ctx.currentTime;
+        engine.noteOn(track_id, 60, 0.8);
+        out[instrument] = Math.round(((at ?? Infinity) - before) * 1000);
+        engine.noteOff(track_id, 60);
+      }
+      out.lookAhead = Math.round(Tone.getContext().lookAhead * 1000);
+      return out;
+    });
+    check(r['felt-piano'] < 20 && r['sub-bass'] < 20, `a key played live starts now: +${r['felt-piano']} ms (piano), +${r['sub-bass']} ms (bass), not +${r.lookAhead} ms`);
+    // Audio & MIDI: the dialog, a latency mode applied after the reload.
+    await p.evaluate(() => [...document.querySelectorAll('.menu-wrap .icon-btn')].at(-1)?.click());
+    await p.evaluate(() => [...document.querySelectorAll('.menu-wrap button')].find((x) => /Audio & MIDI/.test(x.textContent))?.click());
+    await p.waitForSelector('.modal[aria-label="Audio & MIDI"]', { timeout: 3000 });
+    const shown = await p.$eval('.modal[aria-label="Audio & MIDI"]', (el) => el.textContent);
+    check(/Output latency now: \d+ ms/.test(shown), `Audio & MIDI shows the output latency (${/Output latency now: \S+ ms/.exec(shown)?.[0]})`);
+    await p.select('.modal[aria-label="Audio & MIDI"] select', 'safe');
+    await Promise.all([p.waitForNavigation({ waitUntil: 'networkidle0' }), p.click('.modal[aria-label="Audio & MIDI"] .btn.primary')]);
+    const mode = await p.evaluate(() => localStorage.getItem('openband.latency'));
+    check(mode === 'safe', `the chosen latency is applied after the reload (${mode})`);
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);

@@ -263,7 +263,7 @@ class AudioEngine {
   }
   preview(trackId: string, pitch: number, velocity = 0.8, seconds = 0.35) {
     if (!this.contextRunning) void this.unlock();
-    this.nodes.get(trackId)?.instrument.trigger(pitch, seconds, Tone.now() + 0.01, velocity);
+    this.nodes.get(trackId)?.instrument.trigger(pitch, seconds, Tone.immediate() + 0.005, velocity);
   }
 
   // ---------- meters ----------

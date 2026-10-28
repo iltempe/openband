@@ -86,17 +86,17 @@ export class SampleInstrument implements Instrument {
     if (v && !v.released) this.release(v, time + Math.max(0.02, duration));
   }
   noteOn(pitch: number, velocity: number, time?: number) {
-    this.start(pitch, velocity, time ?? Tone.now());
+    this.start(pitch, velocity, time ?? Tone.immediate());
   }
   noteOff(pitch: number, time?: number) {
-    const t = time ?? Tone.now();
+    const t = time ?? Tone.immediate();
     this.voices.filter((v) => v.pitch === pitch && !v.released).forEach((v) => this.release(v, t));
   }
   setCutoff(v: number, time?: number) {
     this.output.frequency.rampTo(cutoffToHz(v), 0.05, time);
   }
   releaseAll() {
-    const t = Tone.now();
+    const t = Tone.immediate();
     this.voices.filter((v) => !v.released).forEach((v) => this.release(v, t, 0.08));
   }
   dispose() {

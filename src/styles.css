@@ -6093,3 +6093,19 @@ div.ca-steps {
   gap: 8px;
   margin-top: 12px;
 }
+.au-latency {
+  font-size: 14px;
+  margin: 0 0 8px;
+}
+.au-h {
+  margin: 12px 0 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.au-midi {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 12px;
+}

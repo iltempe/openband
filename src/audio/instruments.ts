@@ -240,11 +240,13 @@ class MelodicInstrument implements Instrument {
   trigger(pitch: number, duration: number, time: number, velocity: number) {
     this.synth.triggerAttackRelease(midiHz(pitch), Math.max(0.02, duration), time, velocity);
   }
+  // Played live (no time): now, not Tone's now() — that is 100 ms ahead (its lookAhead), and every key of
+  // a MIDI keyboard sounded that much late (issue #6).
   noteOn(pitch: number, velocity: number, time?: number) {
-    this.synth.triggerAttack(midiHz(pitch), time, velocity);
+    this.synth.triggerAttack(midiHz(pitch), time ?? Tone.immediate(), velocity);
   }
   noteOff(pitch: number, time?: number) {
-    this.synth.triggerRelease(midiHz(pitch), time);
+    this.synth.triggerRelease(midiHz(pitch), time ?? Tone.immediate());
   }
   setCutoff(v: number, time?: number) {
     this.output.frequency.rampTo(this.belowNyquist(cutoffToHz(v)), 0.05, time);
@@ -382,7 +384,7 @@ class DrumKit implements Instrument {
     hit(t, velocity);
   }
   noteOn(pitch: number, velocity: number, time?: number) {
-    this.trigger(pitch, 0.2, time ?? Tone.now(), velocity);
+    this.trigger(pitch, 0.2, time ?? Tone.immediate(), velocity);
   }
   noteOff() {}
   setCutoff(v: number, time?: number) {
