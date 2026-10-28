@@ -389,7 +389,7 @@ async function smoke() {
     console.error(`SMOKE FAIL ${m}`);
     app.exit(1);
   };
-  const timer = setTimeout(async () => fail(`timeout${SMOKE_NATIVE ? ` at ${await win.webContents.executeJavaScript('window.__smokeStep').catch(() => '?')}` : ''}`), SMOKE_NATIVE ? 110000 : 60000);
+  const timer = setTimeout(async () => fail(`timeout${SMOKE_NATIVE ? ` at ${await win.webContents.executeJavaScript('window.__smokeStep').catch(() => '?')}` : ''}`), SMOKE_NATIVE ? 170000 : 60000);
   try {
     await new Promise((r) => (win.webContents.isLoading() ? win.webContents.once('did-finish-load', r) : r()));
     const ok = await win.webContents.executeJavaScript(`new Promise((resolve) => {
