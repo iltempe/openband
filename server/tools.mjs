@@ -242,9 +242,21 @@ tool('update_notes', 'Change existing notes in place (keeping their ids): pitch,
 
 tool('transpose_region', 'Transpose all notes in a region by semitones.', { region_id: z.string(), semitones: z.number().int().min(-48).max(48) });
 
-tool('quantize_region', 'Snap note starts/lengths in a region to a grid in beats (0.25 = 16th, 0.5 = 8th).', {
+const quantizeShape = {
+  grid: z.number().positive().optional().describe('Grid in beats: 1 = quarter, 0.5 = 8th, 0.25 = 16th (default), 0.125 = 32nd, 1/3 and 1/6 = triplets'),
+  strength: z.number().min(0).max(1).optional().describe('How far notes move towards the grid, 0..1 (default 1; 0.5 keeps some feel)'),
+  swing: z.number().min(0).max(0.75).optional().describe('Off-beat grid points this much later, as a share of the grid (0.33 ≈ triplet swing)'),
+  ends: z.boolean().optional().describe('Quantize note ends too (default true)'),
+};
+tool('quantize_region', 'Quantize the notes of a MIDI region to the song\'s grid: in full or by a strength, with swing, ends too. One undo step.', {
   region_id: z.string(),
-  grid: z.number().positive().optional(),
+  ...quantizeShape,
+});
+tool('quantize_track', 'Quantize every MIDI region of a track (instrument or drums), or only the notes between from_bar and to_bar: same options as quantize_region. One undo step.', {
+  track_id: z.string(),
+  ...quantizeShape,
+  from_bar: z.number().int().min(1).optional(),
+  to_bar: z.number().int().min(1).optional(),
 });
 
 tool(
@@ -929,7 +941,7 @@ export const CORE = [
 export const CAPABILITY = ['create', 'transform', 'separate', 'sing', 'suggest_continuation', 'mix_pilot', 'arrange_from_energy', 'export_for_platforms', 'set_jam_mode'];
 
 export const TOOLSETS = {
-  editing: { description: 'Detailed note and region editing: transpose, quantize, update notes, drum patterns and chord progressions written out, the drummer, loop and metronome, the editor', tools: ['rename_project', 'set_master_volume', 'update_notes', 'transpose_region', 'quantize_region', 'add_drum_pattern', 'add_chord_progression', 'set_loop', 'set_metronome', 'open_editor', 'split_region', 'detect_tempo', 'add_drummer', 'regenerate_drummer'] },
+  editing: { description: 'Detailed note and region editing: transpose, quantize, update notes, drum patterns and chord progressions written out, the drummer, loop and metronome, the editor', tools: ['rename_project', 'set_master_volume', 'update_notes', 'transpose_region', 'quantize_region', 'quantize_track', 'add_drum_pattern', 'add_chord_progression', 'set_loop', 'set_metronome', 'open_editor', 'split_region', 'detect_tempo', 'add_drummer', 'regenerate_drummer'] },
   structure: { description: 'Sections (add, move, duplicate with ripple), automatic sections, the energy curve and transitions', tools: ['add_section', 'update_section', 'delete_section', 'move_section', 'duplicate_section', 'auto_sections', 'set_energy_curve', 'get_energy', 'add_transition'] },
   mix: { description: 'Effects per track, master chain, the mix pilot\'s knob, automation, meters and listening (analyze_mix, spectrogram), reference tracks', tools: ['set_track_effects', 'set_master_chain', 'set_pilot_amount', 'fix_pilot', 'set_track_role', 'set_automation', 'clear_automation', 'list_automatable', 'get_meters', 'set_monitoring', 'level_match', 'analyze_mix', 'render_spectrogram', 'import_reference', 'compare_to_reference', 'clear_reference'] },
   analysis: { description: 'Harmony and key analysis, the song linter and its fixes', tools: ['analyze_harmony', 'detect_key', 'lint_project', 'apply_fix', 'ignore_issue'] },

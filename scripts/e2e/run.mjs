@@ -1765,6 +1765,54 @@ tests.wavformats = async () => {
   }
 };
 
+// Issue #10: quantize a whole track (drums too), by a strength and with swing; one undo step; the editor's group.
+tests.quantize = async () => {
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.setViewport({ width: 1440, height: 900 });
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    const r = await p.evaluate(async () => {
+      const { commands, useStore } = window.openband;
+      await commands.new_project({ name: 'Q', bpm: 100, key: 'C' });
+      await commands.transport({ action: 'stop' });
+      const { track_id } = await commands.add_track({ kind: 'drums', name: 'Drums' });
+      // Played a little late and early, in two regions.
+      const hits = [0.06, 0.48, 1.03, 1.47].map((start) => ({ pitch: 'hihat', start, duration: 0.1, velocity: 0.8 }));
+      const offbeats = [0.06, 0.27, 0.48, 0.77].map((start) => ({ pitch: 'hihat', start, duration: 0.1, velocity: 0.8 }));
+      await commands.add_region({ track_id, start_bar: 1, length_bars: 1, notes: hits });
+      await commands.add_region({ track_id, start_bar: 2, length_bars: 1, notes: offbeats });
+      const starts = () => useStore.getState().project.regions.filter((x) => x.trackId === track_id).flatMap((x) => x.notes.map((n) => +n.start.toFixed(3)));
+      const before = starts();
+      const full = await commands.quantize_track({ track_id, grid: 0.5, ends: false });
+      const afterFull = starts();
+      await commands.undo({});
+      const undone = starts();
+      await commands.quantize_track({ track_id, grid: 0.25, swing: 0.2, ends: false, from_bar: 2, to_bar: 2 });
+      const swung = starts();
+      const audio = await commands.add_track({ kind: 'audio', name: 'Vox' });
+      const refused = await Promise.resolve().then(() => commands.quantize_track({ track_id: audio.track_id })).then(() => 'ok', (e) => e.message);
+      const reg = useStore.getState().project.regions.find((x) => x.trackId === track_id);
+      useStore.getState().selectRegion(reg);
+      useStore.getState().set({ bottom: 'editor' });
+      await new Promise((ok) => setTimeout(ok, 300));
+      const ui = [...document.querySelectorAll('.eb-group label')].some((l) => /Quantize/.test(l.textContent));
+      return { before, full, afterFull, undone, swung, refused, ui };
+    });
+    check(JSON.stringify(r.afterFull) === JSON.stringify([0, 0.5, 1, 1.5, 0, 0.5, 0.5, 1]) && r.full.regions === 2 && r.full.notes_moved === 8, `the whole drum track to 1/8 (${r.afterFull.join(' ')}, ${r.full.notes_moved} moved)`);
+    check(JSON.stringify(r.undone) === JSON.stringify(r.before), 'one undo step brings it back');
+    check(JSON.stringify(r.swung.slice(0, 4)) === JSON.stringify(r.before.slice(0, 4)) && JSON.stringify(r.swung.slice(4)) === JSON.stringify([0, 0.3, 0.5, 0.8]), `bar 2 only, 1/16 with 20 % swing (${r.swung.slice(4).join(' ')})`);
+    check(/audio track/.test(r.refused), 'an audio track says why it cannot');
+    check(r.ui, 'the editor shows the Quantize group (grid, strength, swing, region, track)');
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);

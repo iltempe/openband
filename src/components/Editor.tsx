@@ -7,7 +7,8 @@ import { getRegion, getTrack, useStore } from '../store';
 import { engine } from '../audio/engine';
 import { BEATS_PER_BAR, DRUM_PIECES, clamp, isBlackKey, noteName, uid } from '../music';
 import { useFrame, usePosition } from '../hooks';
-import { commands } from '../commands';
+import { commands, runCommand } from '../commands';
+import { GRIDS } from '../quantize';
 import * as I from './Icons';
 import { AudioClipEditor } from './Audio';
 import { useSyllablesByNote } from './Lyrics';
@@ -84,11 +85,9 @@ function EditorBar({ region, track }: { region: Region; track: Track }) {
           <button className="mini" onClick={() => commands.transpose_region({ region_id: region.id, semitones: -1 })}>−1</button>
           <button className="mini" onClick={() => commands.transpose_region({ region_id: region.id, semitones: 1 })}>+1</button>
           <button className="mini" onClick={() => commands.transpose_region({ region_id: region.id, semitones: 12 })}>+8va</button>
-          <button className="mini" onClick={() => commands.quantize_region({ region_id: region.id, grid: 0.25 })} title={t('ed.quantizeHint')}>
-            {t('ed.quantize')}
-          </button>
         </div>
       )}
+      {track.kind !== 'audio' && <QuantizeGroup regionId={region.id} trackId={track.id} />}
       <div className="eb-group">
         <label>{t('ed.velocity')}</label>
         <input
@@ -558,5 +557,58 @@ function Suggestions({ region, ppb }: { region: Region; ppb: number }) {
         )}
       </div>
     </>
+  );
+}
+
+const QKEY = 'openband.quantize';
+function QuantizeGroup({ regionId, trackId }: { regionId: string; trackId: string }) {
+  const t = useT();
+  const [q, setQ] = useState<{ grid: string; strength: number; swing: number }>(() => {
+    try {
+      return { grid: '1/16', strength: 1, swing: 0, ...JSON.parse(localStorage.getItem(QKEY) ?? '{}') };
+    } catch {
+      return { grid: '1/16', strength: 1, swing: 0 };
+    }
+  });
+  const change = (next: typeof q) => {
+    setQ(next);
+    try {
+      localStorage.setItem(QKEY, JSON.stringify(next));
+    } catch {
+      // not remembered
+    }
+  };
+  const args = () => ({ grid: GRIDS.find((g) => g.id === q.grid)?.beats ?? 0.25, strength: q.strength, swing: q.swing });
+  const done = (r: { notes_moved: number }) => useStore.getState().notify(t('ed.quantized', { n: r.notes_moved }));
+  const fail = (e: unknown) => useStore.getState().notify((e as Error).message);
+  return (
+    <div className="eb-group">
+      <label>{t('ed.quantize')}</label>
+      <select value={q.grid} onChange={(e) => change({ ...q, grid: e.target.value })} title={t('ed.qGrid')}>
+        {GRIDS.map((g) => (
+          <option key={g.id}>{g.id}</option>
+        ))}
+      </select>
+      <select value={q.strength} onChange={(e) => change({ ...q, strength: Number(e.target.value) })} title={t('ed.qStrength')}>
+        {[1, 0.75, 0.5, 0.25].map((v) => (
+          <option key={v} value={v}>
+            {Math.round(v * 100)} %
+          </option>
+        ))}
+      </select>
+      <select value={q.swing} onChange={(e) => change({ ...q, swing: Number(e.target.value) })} title={t('ed.qSwing')}>
+        {[0, 0.1, 0.2, 0.33, 0.5].map((v) => (
+          <option key={v} value={v}>
+            {v ? `swing ${Math.round(v * 100)} %` : t('ed.qNoSwing')}
+          </option>
+        ))}
+      </select>
+      <button className="mini" onClick={() => void runCommand('quantize_region', { region_id: regionId, ...args() }, 'ui').then(done as never, fail)} title={t('ed.quantizeHint')}>
+        {t('ed.qRegion')}
+      </button>
+      <button className="mini" onClick={() => void runCommand('quantize_track', { track_id: trackId, ...args() }, 'ui').then(done as never, fail)} title={t('ed.qTrackHint')}>
+        {t('ed.qTrack')}
+      </button>
+    </div>
   );
 }

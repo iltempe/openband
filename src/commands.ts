@@ -1,5 +1,6 @@
 // High-level command API. This is what the MCP bridge calls, and the UI reuses parts of it.
 // Bars are 1-based (bar 1 starts at beat 0); positions inside regions are in beats.
+import { quantizeNotes, moved as movedNotes } from './quantize';
 import type { Note, Project, Region, Track, TrackKind } from './types';
 import { markFirstExport } from './firstRun';
 import { BEATS_PER_BAR, KEYS, clamp, keyInterval, normalizeKey, drumByPitch, noteName, parseChord, parsePitch, uid } from './music';
@@ -714,16 +715,33 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { region_id: r.id, semitones: s };
   },
 
-  quantize_region: ({ region_id, grid }) => {
+  quantize_region: ({ region_id, grid, strength, swing, ends }) => {
     const r = requireRegion(st().project, region_id);
-    const g = Number(grid ?? 0.25);
-    st().commit((d) => {
-      d.regions.find((y) => y.id === r.id)!.notes.forEach((n) => {
-        n.start = Math.round(n.start / g) * g;
-        n.duration = Math.max(g, Math.round(n.duration / g) * g);
-      });
-    });
-    return { region_id: r.id, grid: g };
+    if (r.audio) throw new Error('This is an audio region: quantize works on notes (audio_to_midi turns a recording into notes)');
+    const o = { grid: Number(grid ?? 0.25), strength, swing, ends };
+    const q = quantizeNotes(r.notes, r.start, o);
+    st().commit((d) => void (d.regions.find((y) => y.id === r.id)!.notes = q), { label: 'Quantize' });
+    return { region_id: r.id, grid: o.grid, notes_moved: movedNotes(r.notes, q) };
+  },
+  quantize_track: ({ track_id, grid, strength, swing, ends, from_bar, to_bar }) => {
+    const t = requireTrack(st().project, track_id);
+    if (t.kind === 'audio') throw new Error('This is an audio track: quantize works on notes (audio_to_midi turns a recording into notes)');
+    const from = from_bar !== undefined ? barToBeat(Number(from_bar)) : -Infinity;
+    const to = to_bar !== undefined ? barToBeat(Number(to_bar) + 1) : Infinity;
+    const o = { grid: Number(grid ?? 0.25), strength, swing, ends };
+    const regions = st().project.regions.filter((r) => r.trackId === t.id && !r.audio && r.start < to && r.start + r.length > from);
+    if (!regions.length) throw new Error(`"${t.name}" has no MIDI regions${from_bar !== undefined ? ' in those bars' : ''} to quantize`);
+    let movedCount = 0;
+    const out = new Map(regions.map((r) => {
+      // In a bar range only the notes inside it move.
+      const inside = r.notes.filter((n) => r.start + n.start >= from && r.start + n.start < to);
+      const q = quantizeNotes(inside, r.start, o);
+      movedCount += movedNotes(inside, q);
+      const byId = new Map(q.map((n) => [n.id, n]));
+      return [r.id, r.notes.map((n) => byId.get(n.id) ?? n)];
+    }));
+    st().commit((d) => d.regions.forEach((r) => out.has(r.id) && (r.notes = out.get(r.id)!)), { label: `Quantize ${t.name}` });
+    return { track_id: t.id, regions: regions.length, grid: o.grid, notes_moved: movedCount };
   },
 
   add_drum_pattern: ({ track_id, start_bar, bars, steps_per_bar, pattern, name }) => {
