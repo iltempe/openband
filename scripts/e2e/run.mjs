@@ -1694,6 +1694,77 @@ tests.publish = async () => {
   }
 };
 
+// Issue #8: in Firefox the studio stopped at start ("param must be an AudioParam": Firefox's AudioListener
+// has no AudioParams, and Tone.js makes a Listener for every context). It starts, plays and exports there.
+tests.firefox = async () => {
+  const firefox = process.env.FIREFOX ?? ['/Applications/Firefox.app/Contents/MacOS/firefox', '/usr/bin/firefox', 'C:\\Program Files\\Mozilla Firefox\\firefox.exe'].find((f) => fs.existsSync(f));
+  if (!firefox) return console.log('  (no Firefox: skipped)');
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await puppeteer.launch({ browser: 'firefox', executablePath: firefox, headless: true, extraPrefsFirefox: { 'media.autoplay.default': 0, 'media.autoplay.block-webaudio': false } });
+  try {
+    const p = await b.newPage();
+    const errors = [];
+    p.on('pageerror', (e) => errors.push(e.message));
+    await p.goto(`${URL}?debug`, { waitUntil: 'load' });
+    await p.waitForSelector('.welcome-choice', { timeout: 20000 });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 20000 });
+    const r = await p.evaluate(async () => {
+      const { commands, renderBuffer, useStore } = window.openband;
+      await commands.transport({ action: 'stop' });
+      const buf = await renderBuffer(useStore.getState().project, { sampleRate: 44100 });
+      let peak = 0;
+      for (let c = 0; c < buf.numberOfChannels; c++) for (const x of buf.getChannelData(c)) peak = Math.max(peak, Math.abs(x));
+      return { tracks: useStore.getState().project.tracks.length, seconds: buf.duration, peak };
+    });
+    check(!errors.length, `Firefox: no page errors (${errors.join('; ') || 'none'})`);
+    check(r.tracks > 0, `Firefox: "Surprise me" makes a song and plays it (${r.tracks} tracks)`);
+    check(r.seconds > 1 && r.peak > 0.01, `Firefox: the song renders for export (${r.seconds.toFixed(1)} s, peak ${r.peak.toFixed(2)})`);
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
+// Issue #3: WAV export at other rates and depths. ffprobe reads each as what was asked.
+tests.wavformats = async () => {
+  const { execFileSync } = await import('node:child_process');
+  const os = await import('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ob-wav-'));
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    const out = await p.evaluate(async () => {
+      const { commands } = window.openband;
+      await commands.transport({ action: 'stop' });
+      const r = {};
+      for (const [k, a] of Object.entries({ def: {}, hi: { sample_rate: 48000, bit_depth: 24 }, fl: { sample_rate: 96000, bit_depth: 32 } })) r[k] = (await commands.export_wav({ ...a, return_data: true })).data_base64;
+      r.bad = await commands.export_wav({ sample_rate: 12345 }).then(() => 'ok', (e) => e.message);
+      return r;
+    });
+    const probe = (k) => {
+      const f = path.join(dir, `${k}.wav`);
+      fs.writeFileSync(f, Buffer.from(out[k], 'base64'));
+      return JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_streams', '-of', 'json', f], { encoding: 'utf8' })).streams[0];
+    };
+    const d = probe('def');
+    const h = probe('hi');
+    const fl = probe('fl');
+    check(d.sample_rate === '44100' && d.codec_name === 'pcm_s16le', `default: 44.1 kHz 16-bit (${d.sample_rate} ${d.codec_name})`);
+    check(h.sample_rate === '48000' && h.codec_name === 'pcm_s24le', `48 kHz 24-bit (${h.sample_rate} ${h.codec_name})`);
+    check(fl.sample_rate === '96000' && fl.codec_name === 'pcm_f32le', `96 kHz 32-bit float (${fl.sample_rate} ${fl.codec_name})`);
+    check(/sample_rate must be/.test(out.bad), 'an unsupported rate is refused');
+  } finally {
+    await b.close();
+    srv.kill();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);

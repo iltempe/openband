@@ -31,6 +31,7 @@ import { DawReportDialog } from './components/DawReport';
 import { CreateDialog, EnsemblePanel } from './components/Ensemble';
 import { ReleasePanel } from './components/Release';
 import { PublishConfirm } from './components/Publish';
+import { WavExport } from './components/WavExport';
 import { ExportPlatformsDialog, PilotPanel } from './components/Pilot';
 import { isRecordingTake, jumpToFlub, markFlub } from './flubLive';
 import { acceptGhost, dismissGhosts, ghostsShown, nextGhost } from './ghost';
@@ -293,6 +294,7 @@ export function App() {
       <DawReportDialog />
       <CreateDialog />
       <PublishConfirm />
+      <WavExport />
       <ExportPlatformsDialog />
       <PluginRestoreOverlay />
       <MicOverlay />

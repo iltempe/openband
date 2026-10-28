@@ -14,7 +14,7 @@ export const TOOLS = [];
 const add = (kind, name, description, shape, opts = {}) => TOOLS.push({ kind, name, description, shape, title: opts.title, timeout: opts.timeout, annotations: opts.annotations });
 const tool = (name, description, shape, opts) => add('call', name, description, shape, opts);
 const fileTool = (name, description, shape, opts) => add('file', name, description, shape, { timeout: 180000, ...opts });
-const exportTool = (name, description) => add('export', name, description, { save_to: z.string().optional().describe('Optional file path to save to (absolute or ~/...). Without it the browser downloads the file.') }, { timeout: 180000 });
+const exportTool = (name, description, shape = {}) => add('export', name, description, { ...shape, save_to: z.string().optional().describe('Optional file path to save to (absolute or ~/...). Without it the browser downloads the file.') }, { timeout: 180000 });
 const special = (name, description, shape, kind, opts) => add(kind, name, description, shape, { timeout: 180000, ...opts });
 
 export const INSTRUCTIONS = `OpenBand is a GarageBand-style music studio running in the user's browser. You control it with these tools.
@@ -300,7 +300,11 @@ tool('import_project_json', 'Replace the current project with an OpenBand projec
   project: z.union([z.string(), z.record(z.string(), z.any())]),
 });
 
-exportTool('export_wav', 'Render the whole song offline (instruments, imported sounds, audio tracks, effects and automation) as a 16-bit stereo WAV.');
+exportTool('export_wav', 'Render the whole song offline (instruments, imported sounds, audio tracks, effects and automation) as a stereo WAV: 44.1 kHz 16-bit by default, or another sample rate and bit depth (24-bit, or 32-bit float that never clips). For release-ready masters at each platform\'s loudness use export_for_platforms.', {
+  sample_rate: z.union([z.literal(44100), z.literal(48000), z.literal(88200), z.literal(96000)]).optional().describe('Hz (default 44100)'),
+  bit_depth: z.union([z.literal(16), z.literal(24), z.literal(32)]).optional().describe('16 (default), 24, or 32 = 32-bit float'),
+  dither: z.boolean().optional().describe('TPDF dither at 16 bits (default on)'),
+});
 exportTool('export_midi', 'Export the song as a Standard MIDI File (format 1): one track per instrument/drum track with General MIDI programs, drums on channel 10. Audio tracks are not included.');
 fileTool('import_midi', 'Import a MIDI file (.mid): each part becomes a track with the closest OpenBand instrument (channel 10 → drums). Adds to the current song unless replace is true; the song tempo is used when the project is empty or replaced.', {
   replace: z.boolean().optional(),

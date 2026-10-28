@@ -6081,3 +6081,15 @@ div.ca-steps {
   gap: 8px;
   margin-top: 14px;
 }
+.wav-export {
+  width: min(420px, calc(100vw - 32px));
+}
+.wav-export-body {
+  padding: 0 16px 16px;
+}
+.wav-export-body .row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}

@@ -1,3 +1,4 @@
+import { openWavExport } from './WavExport';
 import { useRef, useState } from 'react';
 import { VoiceButton } from './Voice';
 import { useConfig } from '../config';
@@ -164,16 +165,6 @@ function ProjectMenu() {
   const lang = useLang((l) => l.lang);
   const close = () => setOpen(false);
 
-  const exportWav = async () => {
-    close();
-    s.notify(t('menu.rendering'));
-    try {
-      await commands.export_wav({});
-      s.notify(t('menu.wavDone'));
-    } catch (e) {
-      s.notify(t('menu.wavFailed', { error: (e as Error).message }));
-    }
-  };
 
   return (
     <div className="menu-wrap">
@@ -208,7 +199,7 @@ function ProjectMenu() {
               {t('menu.importMidi')}
             </button>
             <hr />
-            <button onClick={exportWav}>{t('menu.exportWav')}</button>
+            <button onClick={() => (close(), openWavExport())}>{t('menu.exportWav')}</button>
             <button onClick={() => (close(), commands.export_midi({}))}>{t('menu.exportMidi')}</button>
             <button
               onClick={async () => {

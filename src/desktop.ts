@@ -1,6 +1,7 @@
 // The desktop app (desktop/main.mjs): its preload exposes `window.openbandDesktop`, a small, fixed API —
 // files opened from the operating system, the native menus, the bridge port of an MCP server that started
 // the app, and adding OpenBand to the AI apps on this computer. Absent in the browser.
+import { openWavExport } from './components/WavExport';
 import { switchBridgePort } from './bridge';
 import { commands, runCommand } from './commands';
 import { saveProject } from './importers';
@@ -50,7 +51,7 @@ async function menuAction(action: string) {
   try {
     if (action === 'new') commands.new_project({});
     else if (action === 'save') await saveProject();
-    else if (action === 'export-wav') await commands.export_wav({});
+    else if (action === 'export-wav') openWavExport();
     else if (action === 'export-midi') await commands.export_midi({});
     else if (action === 'export-dawproject') await commands.export_dawproject({});
     else if (action === 'undo') await runCommand('undo', {}, 'ui');

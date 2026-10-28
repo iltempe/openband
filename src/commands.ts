@@ -103,7 +103,7 @@ import { MAX_ANNOTATION, checkTarget, matchesTarget } from './annotations';
 import { useTeachMode } from './events';
 import { clearReference, compareToReference, importReference } from './reference';
 import { armTrack, audioRegionToMidi, audioToMidi, recordFromMic, requestRecording, setPunch, useMic, useRecSetup } from './recording';
-import { download, renderProject } from './audio/render';
+import { download, renderProject, WAV_BITS, WAV_RATES, type WavFormat } from './audio/render';
 import { PLATFORM_TARGETS, mergeMaster, type Platform } from './audio/master';
 import { fitLimiter, outOfReach } from './audio/fitLimiter';
 import { fixPilot, runPilot, setPilotAmount, setTrackRole } from './pilot/pilot';
@@ -960,14 +960,18 @@ export const commands: Record<string, (args: P) => unknown> = {
     return summarize(p);
   },
 
-  export_wav: async ({ return_data }) => {
+  export_wav: async ({ return_data, sample_rate, bit_depth, dither }) => {
+    const sampleRate = Number(sample_rate ?? 44100);
+    const bits = Number(bit_depth ?? 16);
+    if (!(WAV_RATES as readonly number[]).includes(sampleRate)) throw new Error(`sample_rate must be one of ${WAV_RATES.join(', ')}`);
+    if (!(WAV_BITS as readonly number[]).includes(bits)) throw new Error('bit_depth must be 16, 24 or 32 (float)');
     markFirstExport();
     await captureWamStates();
     const p = st().project;
-    const blob = await renderProject(p);
+    const blob = await renderProject(p, { sampleRate: sampleRate as WavFormat['sampleRate'], bits: bits as WavFormat['bits'], dither: dither ?? bits === 16 });
     if (return_data) return { bytes: blob.size, filename: `${safeName(p.name)}.wav`, data_base64: toBase64(new Uint8Array(await blob.arrayBuffer())) };
     download(blob, `${safeName(p.name)}.wav`);
-    return { exported: true, bytes: blob.size, note: 'The WAV was downloaded by the browser.' };
+    return { exported: true, bytes: blob.size, sample_rate: sampleRate, bit_depth: bits === 32 ? '32-bit float' : bits, note: 'The WAV was downloaded by the browser.' };
   },
 
   // ---------- song structure ----------

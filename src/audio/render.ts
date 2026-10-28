@@ -1,5 +1,6 @@
 // Offline rendering: the whole song, a range, or single tracks (stems), as AudioBuffers or a WAV.
 import * as Tone from 'tone';
+import { withListenerParams } from './webAudioCompat';
 import type { AutoPoint, Project, TrackFx } from '../types';
 import { faderToDb, sendToDb } from '../music';
 import { projectEnd, projectSampleIds } from '../store';
@@ -84,9 +85,21 @@ export async function renderStems(p: Project, o: RenderOptions = {}): Promise<Re
   return out;
 }
 
-/** The whole song as a 16-bit stereo WAV (what "Export song as WAV" does). */
-export async function renderProject(p: Project): Promise<Blob> {
-  return encodeWav(await renderBuffer(p));
+export const WAV_RATES = [44100, 48000, 88200, 96000] as const;
+export const WAV_BITS = [16, 24, 32] as const;
+export interface WavFormat {
+  sampleRate?: (typeof WAV_RATES)[number];
+  /** 16 or 24-bit integer, or 32-bit float. */
+  bits?: (typeof WAV_BITS)[number];
+  /** TPDF dither, for 16 bits. */
+  dither?: boolean;
+}
+
+/** The whole song as a stereo WAV (what "Export song as WAV" does): 44.1 kHz, 16-bit by default. */
+export async function renderProject(p: Project, f: WavFormat = {}): Promise<Blob> {
+  const buf = await renderBuffer(p, { sampleRate: f.sampleRate ?? 44100 });
+  const channels = Array.from({ length: Math.min(2, buf.numberOfChannels) }, (_, c) => buf.getChannelData(c));
+  return new Blob([encodePcm(channels, buf.sampleRate, f.bits ?? 16, (f.bits ?? 16) === 16 && !!f.dither) as BlobPart], { type: 'audio/wav' });
 }
 
 async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer> {
@@ -116,7 +129,7 @@ async function renderUncached(p: Project, o: RenderOptions): Promise<AudioBuffer
   // song render up to MAX_PDC_SECONDS longer, line the tracks up and trim exactly what they added.
   const nativeInstrument = (t: (typeof p.tracks)[number]) => p.instruments?.some((c) => c.id === t.instrument && c.source === 'native');
   const pdcPad = p.tracks.some((t) => (t.fx?.plugins ?? []).some((s) => s.on) || nativeInstrument(t)) ? Math.ceil(MAX_PDC_SECONDS * sampleRate) : 0;
-  const ctx = new Tone.OfflineContext(new OfflineAudioContext(2, Math.ceil((seconds + preRoll) * sampleRate) + latencyMax + pdcPad, sampleRate));
+  const ctx = new Tone.OfflineContext(withListenerParams(new OfflineAudioContext(2, Math.ceil((seconds + preRoll) * sampleRate) + latencyMax + pdcPad, sampleRate)));
   let chain: MasterChainNode | null = null;
   let keyChain: MasterChainNode | null = null;
   const fxById = new Map<string, FxChain>();
@@ -358,10 +371,10 @@ export function encodeWav(buf: AudioBuffer): Blob {
 }
 
 /**
- * A stereo WAV at 16 or 24 bits. 16 bits can be dithered (TPDF, ±1 LSB triangular noise, seeded so the
- * same song always gives the same file): what a CD master needs.
+ * A stereo WAV at 16 or 24 bits, or 32-bit float. 16 bits can be dithered (TPDF, ±1 LSB triangular noise,
+ * seeded so the same song always gives the same file): what a CD master needs.
  */
-export function encodePcm(channels: Float32Array[], sampleRate: number, bits: 16 | 24, dither = false): Uint8Array {
+export function encodePcm(channels: Float32Array[], sampleRate: number, bits: 16 | 24 | 32, dither = false): Uint8Array {
   const chans = Math.min(2, channels.length);
   const len = channels[0].length;
   const bytes = bits / 8;
@@ -373,7 +386,8 @@ export function encodePcm(channels: Float32Array[], sampleRate: number, bits: 16
   str(8, 'WAVE');
   str(12, 'fmt ');
   data.setUint32(16, 16, true);
-  data.setUint16(20, 1, true);
+  // 1 = integer PCM, 3 = IEEE float.
+  data.setUint16(20, bits === 32 ? 3 : 1, true);
   data.setUint16(22, chans, true);
   data.setUint32(24, sampleRate, true);
   data.setUint32(28, sampleRate * chans * bytes, true);
@@ -381,9 +395,14 @@ export function encodePcm(channels: Float32Array[], sampleRate: number, bits: 16
   data.setUint16(34, bits, true);
   str(36, 'data');
   data.setUint32(40, size, true);
+  let o = 44;
+  if (bits === 32) {
+    // Float keeps everything, even above 0 dBFS: no clipping, no dither.
+    for (let i = 0; i < len; i++) for (let c = 0; c < chans; c++, o += 4) data.setFloat32(o, channels[c][i], true);
+    return new Uint8Array(data.buffer);
+  }
   const full = bits === 16 ? 0x7fff : 0x7fffff;
   const rnd = seeded(0xd17e);
-  let o = 44;
   for (let i = 0; i < len; i++) {
     for (let c = 0; c < chans; c++) {
       let v = Math.max(-1, Math.min(1, channels[c][i])) * full;
