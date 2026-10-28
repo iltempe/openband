@@ -24,7 +24,7 @@ describe('online engines in the page', () => {
     expect(relayEngines()).toEqual([]);
     setRelay({ url: 'https://relay.example', token: 't0k' });
     const engines = relayEngines();
-    expect(engines.map((e) => e.id)).toEqual(['fal-ace-step', 'fal-demucs']);
+    expect(engines.map((e) => e.id)).toEqual(['fal-ace-step', 'fal-ace-step-cover', 'fal-demucs']);
     const r = route({ capability: 'music.add_layer' }, engines, DEFAULT_POLICY);
     expect(r.candidates).toEqual([]);
     expect(r.excluded[0].reason).toMatch(/online engines are off/);
