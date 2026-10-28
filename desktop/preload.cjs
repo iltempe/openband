@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('openbandDesktop', {
   onMenu: on('menu'),
   onBridgePort: on('bridge-port'),
   connectClients: () => ipcRenderer.invoke('connect-clients'),
+  update: { check: () => ipcRenderer.invoke('update-check'), install: () => ipcRenderer.invoke('update-install'), onProgress: on('update-progress'), onAvailable: on('update-available') },
   localFetch: (url, init) => ipcRenderer.invoke('local-fetch', url, init),
   ready: () => ipcRenderer.send('ready'),
   // Native plugins (G8): the audio of each plugin travels on a MessagePort handed to the page below.

@@ -45,6 +45,7 @@ for (const f of fs.readdirSync(path.join(root, 'server', 'publish'))) if (f.ends
 copy('desktop/main.mjs', 'main.mjs');
 copy('desktop/preload.cjs', 'preload.cjs');
 copy('desktop/native.mjs', 'native.mjs');
+copy('desktop/updater.mjs', 'updater.mjs');
 copy('LICENSE');
 // How to open an unsigned app on macOS: shown in the disk image, not part of the app itself.
 const OPEN_HELP = "If it won't open - Se non si apre.txt";

@@ -2,6 +2,7 @@
 // files opened from the operating system, the native menus, the bridge port of an MCP server that started
 // the app, and adding OpenBand to the AI apps on this computer. Absent in the browser.
 import { openWavExport } from './components/WavExport';
+import { openAbout, initUpdateNotice } from './components/About';
 import { switchBridgePort } from './bridge';
 import { commands, runCommand } from './commands';
 import { saveProject } from './importers';
@@ -25,6 +26,24 @@ export interface DesktopApi {
   localFetch(url: string, init: { method?: string; headers?: Record<string, string>; body?: string }): Promise<{ status: number; statusText: string; body: string }>;
   /** Ready to receive files and menu actions. */
   ready(): void;
+  /** Updating the app from inside it (issue #4); absent in older apps. */
+  update?: {
+    check(): Promise<DesktopUpdateInfo>;
+    install(): Promise<{ installing: 'replace-app' | 'run-installer' | 'replace-appimage' | 'open'; version: string; note?: string }>;
+    onProgress(cb: (p: { fraction: number; installing?: string }) => void): void;
+    onAvailable(cb: (p: { current: string; latest: string }) => void): void;
+  };
+}
+
+export interface DesktopUpdateInfo {
+  current: string;
+  latest: string;
+  update_available: boolean;
+  url: string;
+  notes: string;
+  asset: { name: string; size: number; verified: boolean } | null;
+  /** in-place: replaced and restarted; installer: the system's installer opens; page: by hand. */
+  installs: 'in-place' | 'installer' | 'page';
 }
 
 export const desktop: DesktopApi | null = typeof window !== 'undefined' ? ((window as unknown as { openbandDesktop?: DesktopApi }).openbandDesktop ?? null) : null;
@@ -40,6 +59,7 @@ export async function aiFetch(url: string, init: RequestInit = {}): Promise<Resp
 
 export function initDesktop(openFile: (file: File) => Promise<void>) {
   if (!desktop) return;
+  initUpdateNotice();
   desktop.onOpenFile(({ name, data }) => void openFile(new File([data as BlobPart], name)));
   desktop.onBridgePort((port) => switchBridgePort(port));
   desktop.onMenu((action) => void menuAction(action));
@@ -52,6 +72,7 @@ async function menuAction(action: string) {
     if (action === 'new') commands.new_project({});
     else if (action === 'save') await saveProject();
     else if (action === 'export-wav') openWavExport();
+    else if (action === 'about') openAbout();
     else if (action === 'export-midi') await commands.export_midi({});
     else if (action === 'export-dawproject') await commands.export_dawproject({});
     else if (action === 'undo') await runCommand('undo', {}, 'ui');

@@ -26,7 +26,7 @@ import { engine } from './audio/engine';
 import { loadDemo } from './demo';
 import { consumeHandoff } from './handoff';
 import { connectBridge } from './bridge';
-import { initMidi } from './input';
+import { initMidi, liveNoteOn, liveNoteOff } from './input';
 import './lintLive';
 import { initReference } from './reference';
 import { initVersions } from './versioning';
@@ -61,7 +61,7 @@ initAutoWrite();
 startLowLatency();
 initGhosts();
 // ?debug: the engine and the store on window.openband, for diagnostics and end-to-end tests.
-if (new URLSearchParams(location.search).has('debug')) (window as unknown as { openband: unknown }).openband = { engine, useStore, renderBuffer, Tone, commands, analysis: { loudness, truePeak }, native: { testSlot }, nativeStatus: useNativeStatus, restartNative, nativeParam, liveNative, freeze: { freezeNativeTracks, trackHash }, samples: { importSample }, encodePcm, lowLatency: { setLowLatency, syncMonitoring, useLowLatency }, ghost: { useGhost, requestGhosts, acceptGhost }, separation: { setModelSource, useSeparationModel }, voice: { handleHeard, setVoiceControl, useVoice, setVoskSources }, session: { scoreAndComp, summary: sessionSummary, useSession }, taste: { learnFromRanking, resetTaste, tasteByCapability }, release: { releaseKit, renderVideo }, publishing: { saveCredentials, authorizeUrl, refreshTargets, usePublish }, soundmatch: { analyseTarget, matchSound, renderCandidates, synthSchema, toUnit, yinTrack, distance, noteFeatures } };
+if (new URLSearchParams(location.search).has('debug')) (window as unknown as { openband: unknown }).openband = { engine, useStore, renderBuffer, Tone, commands, analysis: { loudness, truePeak }, native: { testSlot }, nativeStatus: useNativeStatus, restartNative, nativeParam, liveNative, freeze: { freezeNativeTracks, trackHash }, samples: { importSample }, encodePcm, lowLatency: { setLowLatency, syncMonitoring, useLowLatency }, ghost: { useGhost, requestGhosts, acceptGhost }, separation: { setModelSource, useSeparationModel }, voice: { handleHeard, setVoiceControl, useVoice, setVoskSources }, session: { scoreAndComp, summary: sessionSummary, useSession }, taste: { learnFromRanking, resetTaste, tasteByCapability }, release: { releaseKit, renderVideo }, midiInput: { liveNoteOn, liveNoteOff }, publishing: { saveCredentials, authorizeUrl, refreshTargets, usePublish }, soundmatch: { analyseTarget, matchSound, renderCandidates, synthSchema, toUnit, yinTrack, distance, noteFeatures } };
 initJam();
 initFirstRun();
 void loadKeyState();

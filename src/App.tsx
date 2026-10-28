@@ -33,6 +33,7 @@ import { ReleasePanel } from './components/Release';
 import { PublishConfirm } from './components/Publish';
 import { WavExport } from './components/WavExport';
 import { AudioSettings } from './components/AudioSettings';
+import { About } from './components/About';
 import { ExportPlatformsDialog, PilotPanel } from './components/Pilot';
 import { isRecordingTake, jumpToFlub, markFlub } from './flubLive';
 import { acceptGhost, dismissGhosts, ghostsShown, nextGhost } from './ghost';
@@ -297,6 +298,7 @@ export function App() {
       <PublishConfirm />
       <WavExport />
       <AudioSettings />
+      <About />
       <ExportPlatformsDialog />
       <PluginRestoreOverlay />
       <MicOverlay />

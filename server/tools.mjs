@@ -248,6 +248,15 @@ const quantizeShape = {
   swing: z.number().min(0).max(0.75).optional().describe('Off-beat grid points this much later, as a share of the grid (0.33 ≈ triplet swing)'),
   ends: z.boolean().optional().describe('Quantize note ends too (default true)'),
 };
+tool('set_track_midi_input', 'Which live MIDI a track plays: a channel (1–16), optionally only from one device (by name), even when the track is not selected; null to follow the selection again. With several tracks on their channels one keyboard — or a MIDI orchestrator such as Texturium sending 16 channels on one port — plays them all at once.', {
+  track_id: z.string(),
+  channel: z.number().int().min(1).max(16).nullable(),
+  device: z.string().optional().describe('Only from this MIDI input (its name); any device without'),
+});
+tool('map_midi_channels', 'Multitimbral setup in one call: channels 1–16 to the instrument and drum tracks in their order (optionally from one device), or clear: true to have every track follow the selection again.', {
+  device: z.string().optional(),
+  clear: z.boolean().optional(),
+});
 tool('quantize_region', 'Quantize the notes of a MIDI region to the song\'s grid: in full or by a strength, with swing, ends too. One undo step.', {
   region_id: z.string(),
   ...quantizeShape,
@@ -945,7 +954,7 @@ export const TOOLSETS = {
   structure: { description: 'Sections (add, move, duplicate with ripple), automatic sections, the energy curve and transitions', tools: ['add_section', 'update_section', 'delete_section', 'move_section', 'duplicate_section', 'auto_sections', 'set_energy_curve', 'get_energy', 'add_transition'] },
   mix: { description: 'Effects per track, master chain, the mix pilot\'s knob, automation, meters and listening (analyze_mix, spectrogram), reference tracks', tools: ['set_track_effects', 'set_master_chain', 'set_pilot_amount', 'fix_pilot', 'set_track_role', 'set_automation', 'clear_automation', 'list_automatable', 'get_meters', 'set_monitoring', 'level_match', 'analyze_mix', 'render_spectrogram', 'import_reference', 'compare_to_reference', 'clear_reference'] },
   analysis: { description: 'Harmony and key analysis, the song linter and its fixes', tools: ['analyze_harmony', 'detect_key', 'lint_project', 'apply_fix', 'ignore_issue'] },
-  recording: { description: 'Recording audio and MIDI, punch-in, takes and comping, blind A/B tests, flub marks', tools: ['record_audio', 'arm_track', 'set_punch', 'audio_to_midi', 'add_take', 'list_takes', 'set_active_take', 'delete_take', 'comp_takes', 'start_ab_test', 'add_flub', 'list_flubs', 'resolve_flub', 'delete_flub', 'replace_with_best_take', 'set_voice_control', 'start_session', 'stop_session', 'get_session'] },
+  recording: { description: 'Recording audio and MIDI, punch-in, takes and comping, blind A/B tests, flub marks', tools: ['record_audio', 'arm_track', 'set_track_midi_input', 'map_midi_channels', 'set_punch', 'audio_to_midi', 'add_take', 'list_takes', 'set_active_take', 'delete_take', 'comp_takes', 'start_ab_test', 'add_flub', 'list_flubs', 'resolve_flub', 'delete_flub', 'replace_with_best_take', 'set_voice_control', 'start_session', 'stop_session', 'get_session'] },
   versions: { description: 'History, versions and branches, merge, the time machine', tools: ['get_history', 'save_version', 'list_versions', 'create_branch', 'checkout', 'diff_versions', 'merge', 'get_timeline', 'preview_at', 'restore_at'] },
   lyrics: { description: 'Lyrics, aligning them to the melody, prosody, chord sheets', tools: ['set_lyrics', 'get_lyrics', 'align_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet'] },
   plugins: { description: 'WAM plugins and the user\'s installed VST3 / CLAP / AU plugins', tools: ['list_plugins', 'search_plugins', 'list_native_plugins', 'rescan_plugins', 'add_plugin', 'add_plugin_instrument', 'add_plugin_effect', 'remove_plugin_effect', 'set_plugin_bypass', 'get_plugin_params', 'set_plugin_params', 'show_plugin'] },

@@ -1,5 +1,6 @@
 // High-level command API. This is what the MCP bridge calls, and the UI reuses parts of it.
 // Bars are 1-based (bar 1 starts at beat 0); positions inside regions are in beats.
+import { channelMap } from './midiRouting';
 import { quantizeNotes, moved as movedNotes } from './quantize';
 import type { Note, Project, Region, Track, TrackKind } from './types';
 import { markFirstExport } from './firstRun';
@@ -722,6 +723,24 @@ export const commands: Record<string, (args: P) => unknown> = {
     const q = quantizeNotes(r.notes, r.start, o);
     st().commit((d) => void (d.regions.find((y) => y.id === r.id)!.notes = q), { label: 'Quantize' });
     return { region_id: r.id, grid: o.grid, notes_moved: movedNotes(r.notes, q) };
+  },
+  set_track_midi_input: ({ track_id, channel, device }) => {
+    const t = requireTrack(st().project, track_id);
+    if (t.kind === 'audio') throw new Error('An audio track records audio, not MIDI');
+    const ch = channel === null || channel === undefined || channel === 0 ? null : Math.round(Number(channel));
+    if (ch !== null && !(ch >= 1 && ch <= 16)) throw new Error('channel must be 1–16, or null to follow the selection');
+    st().commit((d) => {
+      const x = d.tracks.find((y) => y.id === t.id)!;
+      if (ch === null) delete x.midiIn;
+      else x.midiIn = { channel: ch, ...(device ? { device: String(device) } : {}) };
+    }, { label: 'MIDI input' });
+    return { track_id: t.id, midi_in: ch === null ? 'follows the selection' : { channel: ch, device: device ?? 'any' } };
+  },
+  map_midi_channels: ({ device, clear }) => {
+    const p = st().project;
+    const map = clear ? {} : channelMap(p.tracks, device);
+    st().commit((d) => d.tracks.forEach((x) => (map[x.id] ? (x.midiIn = map[x.id]) : delete x.midiIn)), { label: clear ? 'MIDI inputs cleared' : 'MIDI channels to tracks' });
+    return { tracks: p.tracks.filter((x) => map[x.id]).map((x) => ({ track_id: x.id, name: x.name, channel: map[x.id].channel })), ...(device ? { device } : {}), note: clear ? 'Every track follows the selection again.' : 'Each track now plays its channel, selected or not; other channels go to the selected track.' };
   },
   quantize_track: ({ track_id, grid, strength, swing, ends, from_bar, to_bar }) => {
     const t = requireTrack(st().project, track_id);

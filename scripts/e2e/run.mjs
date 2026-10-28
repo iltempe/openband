@@ -1863,6 +1863,76 @@ tests.latency = async () => {
   }
 };
 
+// Issue #4: the version you have, where it runs and how to update — here the studio from npx.
+tests.about = async () => {
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.evaluate(() => [...document.querySelectorAll('.menu-wrap .icon-btn')].at(-1)?.click());
+    await p.evaluate(() => [...document.querySelectorAll('.menu-wrap button')].find((x) => /About OpenBand/.test(x.textContent))?.click());
+    await p.waitForSelector('.modal.about', { timeout: 3000 });
+    const text = await p.$eval('.modal.about', (el) => el.textContent);
+    const v = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+    check(text.includes(`OpenBand ${v}`) && /studio from npx/.test(text), `About shows the version and where it runs (${/OpenBand [\d.]+ · [^✓]+/.exec(text)?.[0]})`);
+    check(/releases\/latest\/download\/openband\.tgz/.test(text), 'and how to update it (the npx command)');
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
+// Issue #9: one MIDI device, many tracks by channel (a MIDI orchestrator such as Texturium on one port).
+tests.midichannels = async () => {
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    const r = await p.evaluate(async () => {
+      const { commands, engine, useStore, midiInput } = window.openband;
+      await commands.new_project({ name: 'Orchestra', bpm: 90, key: 'C' });
+      await commands.transport({ action: 'stop' });
+      const ids = [];
+      for (const name of ['Violins', 'Violas', 'Cellos', 'Basses']) ids.push((await commands.add_track({ kind: 'instrument', instrument: 'silk-strings', name })).track_id);
+      const piano = (await commands.add_track({ kind: 'instrument', instrument: 'felt-piano', name: 'Piano' })).track_id;
+      const mapped = commands.map_midi_channels({ device: 'Texturium' });
+      // The piano stays the one you play by selecting it.
+      commands.set_track_midi_input({ track_id: piano, channel: null });
+      useStore.getState().set({ selectedTrackId: piano });
+      const heard = [];
+      const on = engine.noteOn.bind(engine);
+      const off = engine.noteOff.bind(engine);
+      const offs = [];
+      engine.noteOn = (id, pitch, v) => (heard.push([id, pitch]), on(id, pitch, v));
+      engine.noteOff = (id, pitch) => (offs.push([id, pitch]), off(id, pitch));
+      const src = (channel, device = 'Texturium') => ({ channel, device });
+      // A chord spread over four channels, as Texturium sends it; then a note on channel 9 and from another keyboard.
+      [[1, 76], [2, 67], [3, 60], [4, 48]].forEach(([ch, pitch]) => midiInput.liveNoteOn(pitch, 0.8, src(ch)));
+      midiInput.liveNoteOn(72, 0.8, src(9));
+      midiInput.liveNoteOn(74, 0.8, src(1, 'Keystation'));
+      // The selection changes while the chord is held: the note-offs still reach the same tracks.
+      useStore.getState().set({ selectedTrackId: ids[0] });
+      [[1, 76], [2, 67], [3, 60], [4, 48]].forEach(([ch, pitch]) => midiInput.liveNoteOff(pitch, src(ch)));
+      const name = (id) => useStore.getState().project.tracks.find((t) => t.id === id).name;
+      return { mapped: mapped.tracks.map((x) => `${x.name}:${x.channel}`), heard: heard.map(([id, p]) => `${name(id)}:${p}`), offs: offs.map(([id, p]) => `${name(id)}:${p}`), midiIn: useStore.getState().project.tracks[0].midiIn };
+    });
+    check(r.mapped.join(' ') === 'Violins:1 Violas:2 Cellos:3 Basses:4 Piano:5', `channels 1–16 to the tracks in order (${r.mapped.join(' ')})`);
+    check(r.heard.slice(0, 4).join(' ') === 'Violins:76 Violas:67 Cellos:60 Basses:48', `a chord on four channels plays four tracks at once, none selected (${r.heard.slice(0, 4).join(' ')})`);
+    check(r.heard[4] === 'Piano:72' && r.heard[5] === 'Piano:74', `an unclaimed channel and another keyboard go to the selected track (${r.heard.slice(4).join(' ')})`);
+    check(r.offs.join(' ') === 'Violins:76 Violas:67 Cellos:60 Basses:48', 'note-offs reach the same tracks after the selection changed');
+    check(r.midiIn?.channel === 1 && r.midiIn?.device === 'Texturium', 'saved with the song (channel and device)');
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);

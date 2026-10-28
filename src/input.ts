@@ -1,4 +1,5 @@
 // Live input: musical typing (computer keyboard), Web MIDI, and recording into regions.
+import { routeMidi, type MidiSource } from './midiRouting';
 import { create } from 'zustand';
 import { setMidiInputs } from './firstRun';
 import type { Note } from './types';
@@ -143,21 +144,31 @@ function watchPhrase() {
   }, 250);
 }
 
-export function liveNoteOn(pitch: number, velocity = st().velocity) {
-  const trackId = st().selectedTrackId ?? st().project.tracks[0]?.id;
-  if (!trackId) return;
+/** Which tracks each held note sounds on, so its note-off reaches the same ones (by channel and pitch). */
+const held = new Map<string, string[]>();
+const heldKey = (pitch: number, src?: MidiSource) => `${src?.device ?? ''}|${src?.channel ?? 0}|${pitch}`;
+
+/** A note played live: from a MIDI device (src: its channel, its name) or the computer keyboard. */
+export function liveNoteOn(pitch: number, velocity = st().velocity, src?: MidiSource) {
+  const s = st();
+  const targets = src ? routeMidi(s.project.tracks, s.selectedTrackId, src) : [s.selectedTrackId ?? s.project.tracks[0]?.id].filter((x): x is string => !!x);
+  if (!targets.length) return;
+  held.set(heldKey(pitch, src), targets);
+  const trackId = targets[0];
   phraseTrack = trackId;
   phrases.noteOn(pitch, velocity, phraseClock(), engine.position);
   watchPhrase();
   if (!engine.contextRunning) void engine.unlock();
-  engine.noteOn(trackId, pitch, velocity);
+  for (const id of targets) engine.noteOn(id, pitch, velocity);
   useLive.setState((s) => ({ active: [...s.active.filter((p) => p !== pitch), pitch] }));
-  if (rec && rec.trackId === trackId) rec.pending.set(pitch, { start: engine.position, velocity, pass: rec.pass });
+  if (rec && targets.includes(rec.trackId)) rec.pending.set(pitch, { start: engine.position, velocity, pass: rec.pass });
 }
 
-export function liveNoteOff(pitch: number) {
-  const trackId = st().selectedTrackId ?? st().project.tracks[0]?.id;
-  if (trackId) engine.noteOff(trackId, pitch);
+export function liveNoteOff(pitch: number, src?: MidiSource) {
+  const key = heldKey(pitch, src);
+  const targets = held.get(key) ?? [st().selectedTrackId ?? st().project.tracks[0]?.id].filter((x): x is string => !!x);
+  held.delete(key);
+  for (const id of targets) engine.noteOff(id, pitch);
   phrases.noteOff(pitch, phraseClock());
   useLive.setState((s) => ({ active: s.active.filter((p) => p !== pitch) }));
   const p = rec?.pending.get(pitch);
@@ -188,8 +199,9 @@ export function initMidi() {
           input.onmidimessage = (e) => {
             const [status, d1, d2] = e.data ?? [];
             const cmd = status & 0xf0;
-            if (cmd === 0x90 && d2 > 0) liveNoteOn(d1, d2 / 127);
-            else if (cmd === 0x80 || (cmd === 0x90 && d2 === 0)) liveNoteOff(d1);
+            const src = { channel: (status & 0x0f) + 1, device: input.name ?? undefined };
+            if (cmd === 0x90 && d2 > 0) liveNoteOn(d1, d2 / 127, src);
+            else if (cmd === 0x80 || (cmd === 0x90 && d2 === 0)) liveNoteOff(d1, src);
             // A pedal (CC64 by default, or the one learned) marks a flub while recording.
             // A pedal held to talk (G4) is the voice's; otherwise the flub pedal's (F18).
             else if (cmd === 0xb0 && !voiceCC(d1, d2)) onControlChange(d1, d2);

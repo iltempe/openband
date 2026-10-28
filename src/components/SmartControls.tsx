@@ -1,3 +1,5 @@
+import { useDevices } from '../firstRun';
+import { runCommand } from '../commands';
 import type { CSSProperties } from 'react';
 import type { Track } from '../types';
 import { getTrack, useStore } from '../store';
@@ -96,6 +98,7 @@ function TrackControls({ track }: { track: Track }) {
           </select>
           )}
           <div className="smart-desc">{audio ? t('audio.trackDesc') : preset && (preset.custom ? preset.description : presetDescription(preset))}</div>
+          {!audio && <MidiInRow track={track} />}
         </div>
       </div>
       <div className="smart-knobs">
@@ -127,5 +130,33 @@ function TrackControls({ track }: { track: Track }) {
         (track.kind === 'instrument' && <SynthEditor track={track} />) || (track.kind === 'audio' && <ToneMatch track={track} />)
       )}
     </div>
+  );
+}
+
+/** Which live MIDI this track plays (issue #9): the selected track's, or one channel (of one device). */
+function MidiInRow({ track }: { track: Track }) {
+  const t = useT();
+  const inputs = useDevices((d) => d.midiInputs);
+  const set = (channel: number | null, device?: string) => void runCommand('set_track_midi_input', { track_id: track.id, channel, ...(device ? { device } : {}) }, 'ui').catch((e) => useStore.getState().notify((e as Error).message));
+  return (
+    <label className="midi-in">
+      <span>{t('mi.label')}</span>
+      <select value={track.midiIn?.channel ?? 0} onChange={(e) => set(Number(e.target.value) || null, track.midiIn?.device)} title={t('mi.hint')}>
+        <option value={0}>{t('mi.follow')}</option>
+        {Array.from({ length: 16 }, (_, i) => (
+          <option key={i} value={i + 1}>
+            {t('mi.channel', { n: i + 1 })}
+          </option>
+        ))}
+      </select>
+      {track.midiIn && (
+        <select value={track.midiIn.device ?? ''} onChange={(e) => set(track.midiIn!.channel, e.target.value || undefined)}>
+          <option value="">{t('mi.anyDevice')}</option>
+          {[...new Set([...inputs, ...(track.midiIn.device ? [track.midiIn.device] : [])])].map((n) => (
+            <option key={n}>{n}</option>
+          ))}
+        </select>
+      )}
+    </label>
   );
 }

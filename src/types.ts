@@ -123,6 +123,12 @@ export interface Track {
   /** The synth preset's parameters that differ from the preset (G5), by id (attack, cutoff, fm_index…). */
   synthParams?: Record<string, number>;
   /**
+   * Live MIDI in (issue #9): a track with a channel plays what arrives on it (from that device, if named)
+   * even when not selected — one keyboard or a MIDI orchestrator (Texturium) drives up to 16 tracks by
+   * channel. Without: the selected track plays what no other track takes.
+   */
+  midiIn?: { channel: number; device?: string };
+  /**
    * The render cache of a track with native plugins (G8.4): its audio before the fader, played where the
    * plugins can't run (the browser, a computer without them). hash: of what it was made from.
    */

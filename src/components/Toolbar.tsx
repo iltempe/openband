@@ -1,4 +1,5 @@
 import { openAudioSettings } from './AudioSettings';
+import { openAbout, useAbout } from './About';
 import { openWavExport } from './WavExport';
 import { useRef, useState } from 'react';
 import { VoiceButton } from './Voice';
@@ -165,6 +166,7 @@ function ProjectMenu() {
   const t = useT();
   const lang = useLang((l) => l.lang);
   const close = () => setOpen(false);
+  const available = useAbout((a) => a.available);
 
 
   return (
@@ -203,6 +205,10 @@ function ProjectMenu() {
             <button onClick={() => (close(), openWavExport())}>{t('menu.exportWav')}</button>
             <button onClick={() => (close(), commands.export_midi({}))}>{t('menu.exportMidi')}</button>
             <button onClick={() => (close(), openAudioSettings())}>{t('au.menu')}</button>
+            <button onClick={() => (close(), openAbout())}>
+              {t('about.menu')}
+              {available && <span className="ab-dot" aria-label={t('about.available', { v: available })} />}
+            </button>
             <button
               onClick={async () => {
                 close();

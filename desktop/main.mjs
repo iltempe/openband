@@ -9,11 +9,14 @@
 //
 //   npm run desktop:dev            run it from the checkout (after npm run build)
 //   node scripts/build-desktop.mjs build the installers for this platform
-import { BrowserWindow, Menu, app, dialog, ipcMain, net, protocol, session, shell, systemPreferences } from 'electron';
+import { BrowserWindow, Menu, Notification, app, dialog, ipcMain, net, protocol, session, shell, systemPreferences } from 'electron';
+import { spawn, execFileSync } from 'node:child_process';
+import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { setupNative } from './native.mjs';
+import { assetName, download, installPlan, latestRelease, macSwapScript } from './updater.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // Packaged and staged builds keep dist/ and server/ next to this file; in the checkout they are one up.
@@ -205,14 +208,68 @@ async function connectFromMenu() {
 
 // ---------------------------------------------------------------- updates
 
+// Issue #4: the studio shows the version and updates the app from inside it (About OpenBand); a new
+// version found at start is announced with a system notification and in the studio.
+const updateAsset = () => assetName({ platform: process.platform, arch: process.arch, appImage: !!process.env.APPIMAGE });
+
+async function updateInfo() {
+  const r = await latestRelease({ fetchImpl: net.fetch.bind(net) });
+  const asset = r.assets.find((a) => a.name === updateAsset());
+  const { newer } = await import(pathToFileURL(path.join(ROOT, 'server', 'update.mjs')).toString());
+  return { current: version, latest: r.version, update_available: newer(r.version, version), url: r.url, notes: r.notes.slice(0, 4000), asset: asset ? { name: asset.name, size: asset.size, verified: !!asset.sha256 } : null, // in-place: replaced and restarted; installer: the system's installer opens (.deb); page: by hand.
+    installs: !asset?.sha256 ? 'page' : process.platform === 'linux' && !process.env.APPIMAGE ? 'installer' : 'in-place' };
+}
+
 async function checkUpdates({ manual = false } = {}) {
+  if (manual) return void send('menu', 'about');
   const { checkForUpdate } = await import(pathToFileURL(path.join(ROOT, 'server', 'update.mjs')).toString());
-  // A manual check skips the once-a-day cache.
-  const r = await checkForUpdate({ current: version, ...(manual ? { now: Date.now() + 2 * 86400000 } : {}) });
-  if (r?.update_available) {
-    const { response } = await dialog.showMessageBox(win, { type: 'info', buttons: ['Download', 'Later'], message: `OpenBand ${r.latest} is available`, detail: `You have ${version}. Download the new version and install it over this one: your songs stay.` });
-    if (response === 0) void shell.openExternal(`https://github.com/iltempe/openband/releases/tag/v${r.latest}`);
-  } else if (manual) await dialog.showMessageBox(win, { type: 'info', message: r ? `OpenBand ${version} is the latest version.` : 'Could not check for updates (offline?).' });
+  const r = await checkForUpdate({ current: version });
+  if (!r?.update_available) return;
+  send('update-available', { current: version, latest: r.latest });
+  if (Notification.isSupported()) {
+    const n = new Notification({ title: `OpenBand ${r.latest} is available`, body: `You have ${version}. Click to update: your songs stay.` });
+    n.on('click', () => (win?.show(), win?.focus(), send('menu', 'about')));
+    n.show();
+  }
+}
+
+let updating = false;
+async function installUpdate(e) {
+  if (updating) throw new Error('An update is already under way');
+  updating = true;
+  try {
+    const r = await latestRelease({ fetchImpl: net.fetch.bind(net) });
+    const asset = r.assets.find((a) => a.name === updateAsset());
+    if (!asset) throw new Error(`No ${updateAsset() ?? 'package'} for this computer in ${r.version}`);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'openband-update-'));
+    const file = await download(asset, dir, { fetchImpl: net.fetch.bind(net), onProgress: (f) => e.sender.send('update-progress', { fraction: f }) });
+    const plan = installPlan({ platform: process.platform, file, exe: app.getPath('exe'), appImage: process.env.APPIMAGE });
+    e.sender.send('update-progress', { fraction: 1, installing: plan.kind });
+    if (plan.kind === 'replace-app') {
+      execFileSync('ditto', ['-x', '-k', plan.zip, dir]);
+      const newApp = path.join(dir, path.basename(plan.bundle));
+      if (!fs.existsSync(newApp)) throw new Error('The update has no OpenBand.app inside');
+      const script = path.join(dir, 'swap.sh');
+      fs.writeFileSync(script, macSwapScript({ pid: process.pid, newApp, bundle: plan.bundle }), { mode: 0o755 });
+      spawn('/bin/sh', [script], { detached: true, stdio: 'ignore' }).unref();
+      setTimeout(() => app.quit(), 300);
+    } else if (plan.kind === 'run-installer') {
+      spawn(plan.file, plan.args, { detached: true, stdio: 'ignore' }).unref();
+      setTimeout(() => app.quit(), 300);
+    } else if (plan.kind === 'replace-appimage') {
+      fs.chmodSync(plan.file, 0o755);
+      fs.copyFileSync(plan.file, `${plan.target}.new`);
+      fs.chmodSync(`${plan.target}.new`, 0o755);
+      fs.renameSync(`${plan.target}.new`, plan.target);
+      spawn(plan.target, [], { detached: true, stdio: 'ignore' }).unref();
+      setTimeout(() => app.quit(), 300);
+    } else {
+      await shell.openPath(plan.file);
+    }
+    return { installing: plan.kind, version: r.version, ...(plan.why ? { note: plan.why } : {}) };
+  } finally {
+    updating = false;
+  }
 }
 
 // ---------------------------------------------------------------- menus
@@ -223,7 +280,7 @@ function buildMenu() {
   // Shortcuts the studio handles itself are shown but not captured (registerAccelerator: false).
   const shown = (accelerator) => ({ accelerator, registerAccelerator: false });
   const template = [
-    ...(mac ? [{ role: 'appMenu', submenu: [{ role: 'about' }, { label: 'Check for Updates…', click: () => void checkUpdates({ manual: true }) }, { type: 'separator' }, { role: 'services' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] }] : []),
+    ...(mac ? [{ role: 'appMenu', submenu: [{ label: 'About OpenBand', click: () => send('menu', 'about') }, { label: 'Check for Updates…', click: () => void checkUpdates({ manual: true }) }, { type: 'separator' }, { role: 'services' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] }] : []),
     {
       label: 'File',
       submenu: [
@@ -267,7 +324,7 @@ function buildMenu() {
         { label: 'OpenBand on GitHub', click: () => void shell.openExternal('https://github.com/iltempe/openband') },
         { label: 'Desktop app guide', click: () => void shell.openExternal('https://github.com/iltempe/openband/blob/main/docs/DESKTOP.md') },
         { label: 'Report a Problem', click: () => void shell.openExternal('https://github.com/iltempe/openband/issues/new?template=bug.yml') },
-        ...(mac ? [] : [{ type: 'separator' }, { label: 'Check for Updates…', click: () => void checkUpdates({ manual: true }) }, { label: `About OpenBand ${version}`, click: () => void dialog.showMessageBox(win, { message: `OpenBand ${version}`, detail: 'An open-source music studio that you — or your AI — can play. MIT license.' }) }]),
+        ...(mac ? [] : [{ type: 'separator' }, { label: 'Check for Updates…', click: () => void checkUpdates({ manual: true }) }, { label: `About OpenBand ${version}`, click: () => send('menu', 'about') }]),
       ],
     },
   ];
@@ -292,6 +349,11 @@ ipcMain.handle('local-fetch', async (e, url, init = {}) => {
   return { status: res.status, statusText: res.statusText, body: await res.text() };
 });
 ipcMain.handle('connect-clients', (e) => (e.sender === win?.webContents ? connectClients() : []));
+ipcMain.handle('update-check', (e) => (e.sender === win?.webContents ? updateInfo() : null));
+ipcMain.handle('update-install', (e) => {
+  if (e.sender !== win?.webContents) throw new Error('not allowed');
+  return installUpdate(e);
+});
 setupNative({ root: ROOT, getWin: () => win });
 
 app.setAboutPanelOptions?.({ applicationName: 'OpenBand', applicationVersion: version, copyright: 'MIT license' });

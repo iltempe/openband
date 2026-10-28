@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { useT } from '../i18n';
+import { useStore } from '../store';
+import { runCommand } from '../commands';
 import { useDevices, measureLatency } from '../firstRun';
 import { LATENCY_KEY, LATENCY_MODES, latencyMode, type LatencyMode } from '../audio/context';
 
@@ -50,6 +52,15 @@ export function AudioSettings() {
           <p className="ca-note">{t('au.modeHint')}</p>
           <h4 className="au-h">{t('au.midi')}</h4>
           <ul className="au-midi">{midiInputs.length ? midiInputs.map((n) => <li key={n}>🎹 {n}</li>) : <li className="ca-note">{t('au.noMidi')}</li>}</ul>
+          <p className="ca-note">{t('au.channelsHint')}</p>
+          <div className="row left">
+            <button className="btn" onClick={() => void runCommand('map_midi_channels', {}, 'ui').then((r) => useStore.getState().notify(t('au.mapped', { n: (r as { tracks: unknown[] }).tracks.length })))}>
+              {t('au.map')}
+            </button>
+            <button className="mini" onClick={() => void runCommand('map_midi_channels', { clear: true }, 'ui')}>
+              {t('au.unmap')}
+            </button>
+          </div>
           <p className="ca-note">{t('au.linux')}</p>
           <div className="row">
             <button className="btn" onClick={close}>
