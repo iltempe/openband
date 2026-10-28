@@ -15,7 +15,7 @@ Windows e Linux, con il server MCP incluso: niente browser, niente Node, niente 
 | macOS, Intel | [OpenBand-mac-x64.dmg](https://github.com/iltempe/openband/releases/latest/download/OpenBand-mac-x64.dmg) |
 | Windows 10 e 11 (x64) | [OpenBand-win-x64.exe](https://github.com/iltempe/openband/releases/latest/download/OpenBand-win-x64.exe) |
 | Windows su ARM | [OpenBand-win-arm64.exe](https://github.com/iltempe/openband/releases/latest/download/OpenBand-win-arm64.exe) |
-| Linux (Ubuntu, Debian…) | [OpenBand-linux-amd64.deb](https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-amd64.deb) · [AppImage](https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-x86_64.AppImage) (anche `arm64`) |
+| Linux (Ubuntu, Debian…) | [OpenBand-linux-amd64.deb](https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-amd64.deb) · [AppImage](https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-x86_64.AppImage) (anche `arm64`) · [Flatpak](https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-x86_64.flatpak) (dalla v0.6.35, vedi [flatpak/README.md](../flatpak/README.md)) |
 
 Tutti i file sono nella [pagina delle release](https://github.com/iltempe/openband/releases/latest).
 
@@ -37,6 +37,16 @@ quindi il sistema ti chiede una conferma, una volta sola:
 - **Linux**: `sudo apt install ./OpenBand-linux-amd64.deb`, oppure rendi eseguibile l'AppImage
   (`chmod +x OpenBand-*.AppImage`) e avviala. Da Ubuntu 24.04 in poi l'AppImage potrebbe non partire
   per le regole di sandbox di AppArmor: usa il `.deb`, oppure avviala con `--no-sandbox`.
+
+## Aggiornamenti
+
+*⋯ → Informazioni su OpenBand* (o *About OpenBand* nel menu dell'app) mostra la versione che hai e cerca
+quella nuova; all'avvio l'app controlla una volta al giorno e, se c'è, mostra una notifica di sistema.
+**Aggiorna ora** scarica dall'ultima release il pacchetto per il tuo computer, lo verifica con lo SHA-256 che
+GitHub pubblica, lo installa e riavvia OpenBand da solo: su macOS sostituisce l'app, su Windows l'installer
+gira in silenzio, l'AppImage viene sostituita; un `.deb` si apre nell'installer di sistema (installarlo
+richiede la tua password). Un Flatpak lo aggiorna Flatpak. Brani e impostazioni restano. Vale dalla
+v0.6.35 in poi: le versioni precedenti si aggiornano a mano una volta.
 
 ## Collega la tua AI
 

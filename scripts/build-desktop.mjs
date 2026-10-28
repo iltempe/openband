@@ -76,7 +76,9 @@ const builder = require('electron-builder');
 const electronVersion = require('electron/package.json').version;
 const assoc = [
   { ext: 'openband', name: 'OpenBand song', role: 'Editor', mimeType: 'application/x-openband' },
-  { ext: ['mid', 'midi'], name: 'MIDI file', role: 'Viewer', mimeType: 'audio/midi' },
+  // One entry per extension: with an array, the Linux mime file got the invalid glob "*.mid,midi".
+  { ext: 'mid', name: 'MIDI file', role: 'Viewer', mimeType: 'audio/midi' },
+  { ext: 'midi', name: 'MIDI file', role: 'Viewer', mimeType: 'audio/midi' },
   { ext: 'dawproject', name: 'DAWproject', role: 'Editor', mimeType: 'application/x-dawproject' },
 ];
 // The native plugin host (G8) for an architecture: macOS has one universal binary.
@@ -135,7 +137,7 @@ const makeConfig = (a) => ({
     category: 'Audio',
     maintainer: 'OpenBand contributors <openband@users.noreply.github.com>',
     synopsis: 'Music studio that you — or your AI — can play',
-    mimeTypes: assoc.map((a) => a.mimeType),
+    // The mime types come from fileAssociations (listing them here too repeated them in the .desktop file).
   },
   deb: { artifactName: '${productName}-${version}-linux-${arch}.${ext}' },
 });

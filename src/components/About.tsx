@@ -92,6 +92,8 @@ export function About() {
                       <progress className="rel-progress" value={progress} />
                       <p className="ca-note">{progress < 1 ? t('about.downloading', { pct: Math.round(progress * 100) }) : t('about.restarting')}</p>
                     </>
+                  ) : info.installs === 'flatpak' ? (
+                    <p className="ca-note">{t('about.flatpak')}</p>
                   ) : info.installs === 'page' ? (
                     <a className="btn primary" href={info.url} target="_blank" rel="noreferrer">
                       {t('about.download')}

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=OpenBand
+GenericName=Music studio
+Comment=An open-source music studio that you — or your AI — can play
+Comment[it]=Uno studio musicale open source che puoi suonare tu, o la tua AI
+Exec=openband %U
+Icon=it.openband.OpenBand
+Terminal=false
+Type=Application
+StartupWMClass=OpenBand
+Categories=AudioVideo;Audio;Music;Midi;Sequencer;
+Keywords=DAW;music;MIDI;audio;recording;synth;AI;
+MimeType=application/x-openband;audio/midi;application/x-dawproject;

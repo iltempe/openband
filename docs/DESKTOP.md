@@ -15,7 +15,7 @@ Windows and Linux, with the MCP server built in: no browser, no Node, no command
 | macOS, Intel | [OpenBand-mac-x64.dmg](https://github.com/iltempe/openband/releases/latest/download/OpenBand-mac-x64.dmg) |
 | Windows 10 and 11 (x64) | [OpenBand-win-x64.exe](https://github.com/iltempe/openband/releases/latest/download/OpenBand-win-x64.exe) |
 | Windows on ARM | [OpenBand-win-arm64.exe](https://github.com/iltempe/openband/releases/latest/download/OpenBand-win-arm64.exe) |
-| Linux (Ubuntu, Debian…) | [OpenBand-linux-amd64.deb](https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-amd64.deb) · [AppImage](https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-x86_64.AppImage) (also `arm64`) |
+| Linux (Ubuntu, Debian…) | [OpenBand-linux-amd64.deb](https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-amd64.deb) · [AppImage](https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-x86_64.AppImage) (also `arm64`) · [Flatpak](https://github.com/iltempe/openband/releases/latest/download/OpenBand-linux-x86_64.flatpak) (from v0.6.35, see [flatpak/README.md](../flatpak/README.md)) |
 
 All files are on the [releases page](https://github.com/iltempe/openband/releases/latest).
 
@@ -36,6 +36,16 @@ system asks you to confirm once:
 - **Linux**: `sudo apt install ./OpenBand-linux-amd64.deb`, or make the AppImage executable
   (`chmod +x OpenBand-*.AppImage`) and run it. On Ubuntu 24.04 and later the AppImage may not start
   because of AppArmor's sandbox rules: use the `.deb`, or start it with `--no-sandbox`.
+
+## Updates
+
+*⋯ → About OpenBand* (or *About OpenBand* in the app's menu) shows the version you have and checks for a new
+one; at start the app checks once a day and, if there is one, shows a system notification. **Update now**
+downloads the package for your computer from the latest release, checks it against the SHA-256 GitHub
+publishes for it, installs it and restarts OpenBand by itself: on macOS the app is replaced, on Windows the
+installer runs silently, the AppImage is replaced; a `.deb` opens in the system's software installer
+(installing it needs your password). A Flatpak is updated by Flatpak. Your songs and settings stay. This
+works from v0.6.35 on: older versions are updated by hand once.
 
 ## Connect your AI
 

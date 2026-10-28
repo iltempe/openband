@@ -217,7 +217,8 @@ async function updateInfo() {
   const asset = r.assets.find((a) => a.name === updateAsset());
   const { newer } = await import(pathToFileURL(path.join(ROOT, 'server', 'update.mjs')).toString());
   return { current: version, latest: r.version, update_available: newer(r.version, version), url: r.url, notes: r.notes.slice(0, 4000), asset: asset ? { name: asset.name, size: asset.size, verified: !!asset.sha256 } : null, // in-place: replaced and restarted; installer: the system's installer opens (.deb); page: by hand.
-    installs: !asset?.sha256 ? 'page' : process.platform === 'linux' && !process.env.APPIMAGE ? 'installer' : 'in-place' };
+    // Inside a Flatpak, updates come from Flatpak (Flathub or the bundle), never from the app itself.
+    installs: process.env.FLATPAK_ID ? 'flatpak' : !asset?.sha256 ? 'page' : process.platform === 'linux' && !process.env.APPIMAGE ? 'installer' : 'in-place' };
 }
 
 async function checkUpdates({ manual = false } = {}) {
@@ -235,6 +236,7 @@ async function checkUpdates({ manual = false } = {}) {
 
 let updating = false;
 async function installUpdate(e) {
+  if (process.env.FLATPAK_ID) throw new Error('This OpenBand is a Flatpak: update it with "flatpak update it.openband.OpenBand" or your software center');
   if (updating) throw new Error('An update is already under way');
   updating = true;
   try {

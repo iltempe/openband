@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>it.openband.OpenBand</id>
+  <name>OpenBand</name>
+  <summary>A music studio that you — or your AI — can play</summary>
+  <summary xml:lang="it">Uno studio musicale che puoi suonare tu, o la tua AI</summary>
+  <developer id="it.openband">
+    <name>OpenBand contributors</name>
+  </developer>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>OpenBand is a free, open-source music studio (DAW): instruments, drums, audio tracks, effects, mixing and mastering, each step a gesture instead of a manual.</p>
+    <ul>
+      <li>Play with a MIDI keyboard, record your voice or instrument, and arrange the song in sections</li>
+      <li>Mix and master in one gesture, for every streaming platform</li>
+      <li>Load the CLAP and VST3 plugins you already have</li>
+      <li>Any AI can play it too, through MCP: Claude, ChatGPT, Gemini, Hermes or a local model</li>
+      <li>Release your song with a Creative Commons licence, a cover and a video</li>
+    </ul>
+    <p xml:lang="it">OpenBand è uno studio musicale (DAW) libero e open source: strumenti, batteria, tracce audio, effetti, mix e master, ogni passo un gesto invece di un manuale.</p>
+  </description>
+  <launchable type="desktop-id">it.openband.OpenBand.desktop</launchable>
+  <url type="homepage">https://www.openband.it</url>
+  <url type="bugtracker">https://github.com/iltempe/openband/issues</url>
+  <url type="vcs-browser">https://github.com/iltempe/openband</url>
+  <url type="contribute">https://www.openband.it/contribute.html</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>The studio: tracks, regions and the sound library</caption>
+      <image>https://www.openband.it/img/studio.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Mix and master in one gesture</caption>
+      <image>https://www.openband.it/img/pilot.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Native CLAP and VST3 plugins</caption>
+      <image>https://www.openband.it/img/native-plugins.png</image>
+    </screenshot>
+  </screenshots>
+  <branding>
+    <color type="primary" scheme_preference="light">#b14cff</color>
+    <color type="primary" scheme_preference="dark">#3a1d5c</color>
+  </branding>
+  <content_rating type="oars-1.1"/>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+  </categories>
+  <releases>
+    <!-- RELEASES: filled in by scripts/flatpak-manifest.mjs -->
+  </releases>
+</component>

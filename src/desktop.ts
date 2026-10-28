@@ -43,7 +43,7 @@ export interface DesktopUpdateInfo {
   notes: string;
   asset: { name: string; size: number; verified: boolean } | null;
   /** in-place: replaced and restarted; installer: the system's installer opens; page: by hand. */
-  installs: 'in-place' | 'installer' | 'page';
+  installs: 'in-place' | 'installer' | 'page' | 'flatpak';
 }
 
 export const desktop: DesktopApi | null = typeof window !== 'undefined' ? ((window as unknown as { openbandDesktop?: DesktopApi }).openbandDesktop ?? null) : null;

@@ -135,3 +135,42 @@ jobs:
           gh release upload "${GITHUB_REF_NAME}" "${files[@]}" "${stable[@]}" --clobber
         env:
           GH_TOKEN: ${{ github.token }}
+
+  # The Flatpak (issue #5): built from the .deb files just uploaded, with the same manifest a Flathub
+  # submission carries (scripts/flatpak-manifest.mjs), and attached as a bundle anyone can install.
+  flatpak:
+    needs: desktop
+    runs-on: ubuntu-latest
+    container:
+      image: bilelmoussaoui/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/flatpak-manifest.mjs "${GITHUB_REF_NAME}" --out build/flatpak
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: build/flatpak/it.openband.OpenBand.yml
+          bundle: OpenBand-linux-x86_64.flatpak
+          cache-key: flatpak-builder-${{ github.ref_name }}
+          upload-artifact: true
+  flatpak-upload:
+    needs: flatpak
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*flatpak*'
+          merge-multiple: true
+      - shell: bash
+        run: |
+          f=$(ls *.flatpak | head -1)
+          cp "$f" "OpenBand-${GITHUB_REF_NAME#v}-linux-x86_64.flatpak"
+          [ "$f" = OpenBand-linux-x86_64.flatpak ] || cp "$f" OpenBand-linux-x86_64.flatpak
+          gh release upload "${GITHUB_REF_NAME}" "OpenBand-${GITHUB_REF_NAME#v}-linux-x86_64.flatpak" OpenBand-linux-x86_64.flatpak --clobber --repo "${GITHUB_REPOSITORY}"
+        env:
+          GH_TOKEN: ${{ github.token }}
