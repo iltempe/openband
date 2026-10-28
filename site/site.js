@@ -80,7 +80,7 @@
     'dl.winx64': 'Scarica (64 bit)',
     'dl.winarm': 'ARM (Snapdragon)',
     'dl.winnote': 'SmartScreen può chiedere una volta: “Ulteriori informazioni → Esegui comunque”.',
-    'dl.linreq': 'AppImage, o .deb per Debian / Ubuntu',
+    'dl.linreq': 'AppImage, .deb per Debian / Ubuntu, o Flatpak',
     'dl.linarm': 'ARM64:',
     'dl.web': 'Senza installare',
     'dl.webp': 'Apri lo studio in Chrome, Edge o Safari, e installalo come app dal browser per usarlo offline. <a href="https://iltempe.github.io/openband/">Apri lo studio →</a>',
