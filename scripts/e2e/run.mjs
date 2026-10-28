@@ -978,12 +978,13 @@ tests.acestep = async () => {
       const region = useStore.getState().project.regions.find((x) => x.id === layer.region_ids[0]);
       const restyle = await commands.transform({ region_id: region.id, intent: 'make it a bossa nova', capability: 'music.restyle', engine: 'ace-step' });
       const p1 = useStore.getState().project;
-      return { layer, restyle, ledger: (p1.ledger ?? []).map((e) => `${e.engine}:${e.capability}`), audio: p1.regions.filter((x) => x.audio).length };
+      return { layer, restyle, ledger: (p1.ledger ?? []).map((e) => `${e.engine}:${e.capability}`), audio: p1.regions.filter((x) => x.audio).length, takes: (p1.regions.find((x) => x.id === region.id)?.takes ?? []).map((t) => t.name) };
     });
     check(r.layer.engines?.includes('ACE-Step 1.5') && tasks[0]?.fields.task_type === 'lego' && /strings track/.test(tasks[0].fields.instruction), `a layer from ACE-Step on this computer, as a lego task (${tasks[0]?.fields.instruction})`);
     check(Math.abs(tasks[0]?.seconds - 8) < 0.05, `ACE-Step heard the song's mix of exactly those bars (${tasks[0]?.seconds?.toFixed(2)} s for 4 bars at 120 BPM)`);
     check(tasks[1]?.fields.task_type === 'cover' && Math.abs(tasks[1].seconds - 8) < 0.05 && r.restyle.capability === 'music.restyle', `a restyle sends that part to ACE-Step as a cover (${tasks[1]?.seconds?.toFixed(2)} s)`);
-    check(r.ledger.filter((x) => x.startsWith('ace-step:')).length === 2 && r.audio >= 2, `both are in the song and in the ledger (${r.ledger.join(', ')})`);
+    // The restyle is a take of the layer's region, next to the original (issue #2), not a region on top.
+    check(r.ledger.filter((x) => x.startsWith('ace-step:')).length === 2 && r.audio >= 1 && r.takes.length === 2, `both are in the song and in the ledger (${r.ledger.join(', ')}; takes ${r.takes.join(' / ')})`);
   } finally {
     await b.close();
     srv.kill();

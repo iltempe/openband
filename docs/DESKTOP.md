@@ -68,8 +68,8 @@ would both add the OpenBand tools.
   *View*, *Window*, *Help*. The studio's shortcuts work as in the browser.
 - **Songs** are kept in the app's own storage, separate from the browser's: to move a song between the
   two, save it as `.openband` and open it on the other side.
-- **Updates**: the app checks GitHub for a new version once a day and offers the download (*Check for
-  Updates…* in the menu). Installing over the old version keeps your songs.
+- **Updates**: the app checks GitHub for a new version once a day, tells you with a notification, and
+  updates itself from *About OpenBand* (see [Updates](#updates)). Your songs stay.
 - **Plugins**: the web plugins (WAM) work as in the browser. Native VST3 / CLAP / AU plugins are being
   built in phases ([SPEC v0.6, G8](SPEC-v0.6.md), [ADR 0001](adr/0001-desktop.md)); see
   [Native plugins](#native-plugins) below.
@@ -121,6 +121,7 @@ format — any of them works, and everything below holds for all of them.
   that plugin, the track plays the frozen audio (**❄ Frozen** next to its name) and you can still mix it;
   if you change its notes there, the badge says **Out of date** — open the song in the desktop app to freeze
   it again, or click the badge to choose another instrument.
+- **MIDI effects** (an orchestrator such as Texturium, an arpeggiator; VST3, AU MIDI FX, CLAP note effects) are listed with the instruments: put one on a track and play it, and what it plays goes to the tracks that listen to its channels (Smart Controls → *MIDI in*: its name as the device). Live only: record the parts to export them.
 - Coming next: native windows on Linux; Audio Units v3 that only run as app extensions are not tested yet.
 
 ## Building it

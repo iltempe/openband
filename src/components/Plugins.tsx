@@ -55,7 +55,7 @@ function InstalledPlugins({ kind, query, trackId, onAdded }: { kind: Mode; query
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (!dn) return null;
   const q = query.trim().toLowerCase();
-  const usable = (found?.plugins ?? []).filter((p) => p.kind !== 'note-effect' && (kind === 'any' || p.kind === kind));
+  const usable = (found?.plugins ?? []).filter((p) => kind === 'any' || p.kind === kind);
   // A description ("riverbero ampio", "warm tube drive") ranks them as the WAM list is ranked; a name still matches.
   const keyOf = (p: { path: string; id: string }) => `${p.path}:${p.id}`;
   const order = q ? rankNativePlugins(usable, query, kind === 'any' ? undefined : kind).map(keyOf) : [];

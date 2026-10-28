@@ -1,7 +1,8 @@
 // Test plugins for the VST3 side of openband-plughost (G8.5), built with the VST3 SDK's plugin classes.
 // Never shipped: built only with OPENBAND_FIXTURES, into ob-vst3-fixtures.vst3.
 //   OB VST3 Gain   an effect: output = input × Gain (default 0.5, −6 dB), 256 samples late (it reports it)
-//   OB VST3 Synth  an instrument: a sine per held note, sample-accurate, × Level (default 0.5)
+//   OB VST3 Synth  an instrument: a sine per held note, sample-accurate, × Level (default 0.5); it also plays
+//                  each note an octave up on channel 2 of its event output (MIDI out, issue #9)
 // The state of both is their one parameter as a float.
 #include "base/source/fstreamer.h"
 #include "pluginterfaces/base/ibstream.h"
@@ -29,7 +30,7 @@ class Fixture : public AudioEffect {
   tresult PLUGIN_API initialize(FUnknown *context) override {
     tresult r = AudioEffect::initialize(context);
     if (r != kResultOk) return r;
-    if (synth) addEventInput(STR16("Notes"), 1);
+    if (synth) addEventInput(STR16("Notes"), 1), addEventOutput(STR16("Echo"), 16);
     else addAudioInput(STR16("In"), SpeakerArr::kStereo);
     addAudioOutput(STR16("Out"), SpeakerArr::kStereo);
     return kResultOk;
@@ -59,6 +60,13 @@ class Fixture : public AudioEffect {
       for (int32 i = 0; i < d.inputEvents->getEventCount(); i++) {
         Event e;
         if (d.inputEvents->getEvent(i, e) == kResultOk) events.push_back(e);
+      }
+    if (synth && d.outputEvents)
+      for (Event e : events) {
+        if (e.type == Event::kNoteOnEvent) e.noteOn.channel = 1, e.noteOn.pitch += 12;
+        else if (e.type == Event::kNoteOffEvent) e.noteOff.channel = 1, e.noteOff.pitch += 12;
+        else continue;
+        d.outputEvents->addEvent(e);
       }
     if (!d.numOutputs || !d.outputs[0].channelBuffers32) return kResultOk;
     float **out = d.outputs[0].channelBuffers32;

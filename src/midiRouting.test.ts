@@ -21,6 +21,11 @@ describe('live MIDI routing', () => {
     expect(routeMidi(d, 'b', { channel: 1, device: 'Texturium' })).toEqual(['a']);
     expect(routeMidi(d, 'b', { channel: 1, device: 'Keystation' })).toEqual(['b']);
   });
+  it("a plugin's notes (issue #9): never back to its own track, and dropped when no track takes them", () => {
+    const d = [t('orch', 'instrument', { channel: 1 }), t('vln', 'instrument', { channel: 1, device: 'Texturium' }), t('piano', 'instrument')];
+    expect(routeMidi(d, 'piano', { channel: 1, device: 'Texturium', exclude: 'orch', fallback: false })).toEqual(['vln']);
+    expect(routeMidi(d, 'piano', { channel: 7, device: 'Texturium', exclude: 'orch', fallback: false })).toEqual([]);
+  });
   it('maps channels 1..16 to the instrument and drum tracks in order', () => {
     const m = channelMap([t('a', 'instrument'), t('v', 'audio'), t('d', 'drums')], 'Texturium');
     expect(m).toEqual({ a: { channel: 1, device: 'Texturium' }, d: { channel: 2, device: 'Texturium' } });

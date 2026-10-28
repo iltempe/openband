@@ -104,6 +104,9 @@ struct V3 {
   std::vector<ParameterInfo> params;
   ParameterChanges changes{1024};
   EventList list{1024};
+  // What the plugin plays (a MIDI effect, an orchestrator: issue #9), back to the host as CLAP notes.
+  EventList outList{1024};
+  bool eventsOut = false;
   std::mutex mu;
   std::vector<std::pair<ParamID, ParamValue>> fromWindow;  // edits in the plugin's window → the processor
   std::vector<OutEvent> out;                               // → CLAP output events
@@ -207,6 +210,7 @@ bool p_activate(const clap_plugin_t *p, double sr, uint32_t, uint32_t max) {
   if (v->inCh) v->component->activateBus(kAudio, kInput, 0, true);
   v->component->activateBus(kAudio, kOutput, 0, true);
   if (v->events) v->component->activateBus(kEvent, kInput, 0, true);
+  if (v->eventsOut) v->component->activateBus(kEvent, kOutput, 0, true);
   v->active = v->component->setActive(true) == kResultOk;
   return v->active;
 }
@@ -292,8 +296,24 @@ clap_process_status p_process(const clap_plugin_t *p, const clap_process_t *pr) 
   d.outputs = &out;
   d.inputParameterChanges = &v->changes;
   d.inputEvents = &v->list;
+  v->outList.clear();
+  d.outputEvents = v->eventsOut ? &v->outList : nullptr;
   d.processContext = &ctx;
   v->processor->process(d);
+  for (int32 i = 0, n = v->eventsOut ? v->outList.getEventCount() : 0; i < n; i++) {
+    Event e{};
+    if (v->outList.getEvent(i, e) != kResultOk) continue;
+    if (e.type != Event::kNoteOnEvent && e.type != Event::kNoteOffEvent) continue;
+    const bool on = e.type == Event::kNoteOnEvent;
+    clap_event_note_t ev{};
+    ev.header = {sizeof ev, (uint32_t)(e.sampleOffset < 0 ? 0 : e.sampleOffset), CLAP_CORE_EVENT_SPACE_ID, (uint16_t)(on ? CLAP_EVENT_NOTE_ON : CLAP_EVENT_NOTE_OFF), 0};
+    ev.note_id = -1;
+    ev.port_index = 0;
+    ev.channel = on ? e.noteOn.channel : e.noteOff.channel;
+    ev.key = on ? e.noteOn.pitch : e.noteOff.pitch;
+    ev.velocity = on ? e.noteOn.velocity : e.noteOff.velocity;
+    pr->out_events->try_push(pr->out_events, &ev.header);
+  }
 
   std::lock_guard<std::mutex> l(v->mu);
   for (auto &e : v->out) {
@@ -621,6 +641,7 @@ extern "C" const clap_plugin_t *ob_vst3_create(const char *path, const char *uid
   v->outCh = channels(component, kOutput);
   if (!v->outCh) v->outCh = 2;
   v->events = component->getBusCount(kEvent, kInput) > 0;
+  v->eventsOut = component->getBusCount(kEvent, kOutput) > 0;
   for (int32 i = 0; i < v->controller->getParameterCount(); i++) {
     ParameterInfo pi{};
     if (v->controller->getParameterInfo(i, pi) == kResultOk) v->params.push_back(pi);

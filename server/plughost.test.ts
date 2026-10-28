@@ -38,7 +38,7 @@ describe('plugin folders', () => {
 describe.skipIf(!ready)('openband-plughost with the fixtures', () => {
   it('scans a bundle: ids, names, kinds', async () => {
     const list = await scanBundle(host!, fixtures);
-    expect(list.map((p) => p.id)).toEqual(['org.openband.fixture.gain', 'org.openband.fixture.delay', 'org.openband.fixture.crash', 'org.openband.fixture.synth']);
+    expect(list.map((p) => p.id)).toEqual(['org.openband.fixture.gain', 'org.openband.fixture.delay', 'org.openband.fixture.crash', 'org.openband.fixture.synth', 'org.openband.fixture.orchestra']);
     expect(list[3].kind).toBe('instrument');
     expect(list[0]).toMatchObject({ format: 'clap', name: 'OB Fixture Gain', vendor: 'OpenBand', kind: 'effect', path: fixtures });
   });
@@ -145,6 +145,31 @@ describe.skipIf(!ready)('openband-plughost with the fixtures', () => {
     s.close();
   });
 
+  it('a MIDI effect (an orchestrator, issue #9): the notes it plays come back with their channel', async () => {
+    const s = new PlugHostSession(host!);
+    const info = await s.load({ path: fixtures, id: 'org.openband.fixture.orchestra' });
+    expect(info).toMatchObject({ inputs: 0 });
+    const silence = () => [new Float32Array(128), new Float32Array(128)];
+    const midi = new Promise<{ offset: number; status: number; data1: number; data2: number }[]>((r) => s.once('midi', r));
+    const p = next(s);
+    s.process(0, silence(), [{ offset: 20, kind: EVENT.NOTE_ON, key: 60, value: 0.8 }]);
+    await p;
+    const out = await midi;
+    // C4 in → C4 on channel 1, C3 on channel 2, G4 on channel 3 (CLAP notes), C4 on channel 4 (raw MIDI).
+    expect(out.map((e) => [e.status, e.data1])).toEqual([
+      [0x90, 60],
+      [0x91, 48],
+      [0x92, 67],
+      [0x93, 60],
+    ]);
+    expect(out.every((e) => e.offset === 20)).toBe(true);
+    expect(out[0].data2).toBe(102); // velocity 0.8
+    const off = new Promise<{ status: number }[]>((r) => s.once('midi', r));
+    s.process(1, silence(), [{ offset: 0, kind: EVENT.NOTE_OFF, key: 60, value: 0 }]);
+    expect((await off).map((e) => e.status)).toEqual([0x80, 0x81, 0x82, 0x83]);
+    s.close();
+  });
+
   it("says when the plugin's own controls move: value, gesture, state changed", async () => {
     const s = new PlugHostSession(host!);
     await s.load({ path: fixtures, id: 'org.openband.fixture.synth' });
@@ -207,6 +232,18 @@ describe.skipIf(!host || !fs.existsSync(vst3))('openband-plughost with VST3 plug
       ['vst3', GAIN3, 'OB VST3 Gain', 'effect'],
       ['vst3', SYNTH3, 'OB VST3 Synth', 'instrument'],
     ]);
+  });
+
+  it("a VST3 plugin's event output (MIDI out, issue #9) comes back as MIDI with its channel", async () => {
+    const s = new PlugHostSession(host!);
+    await s.load({ path: vst3, id: SYNTH3, sampleRate: 48000, maxBlock: 128 });
+    const midi = new Promise<{ offset: number; status: number; data1: number; data2: number }[]>((r) => s.once('midi', r));
+    const p = next(s);
+    s.process(0, blockOf(128, () => 0), [{ offset: 10, kind: EVENT.NOTE_ON, key: 60, value: 1 }]);
+    await p;
+    const out = await midi;
+    expect(out).toEqual([{ offset: 10, status: 0x91, data1: 72, data2: 127 }]);
+    s.close();
   });
 
   it('runs an effect: gain, its latency, parameters, state', async () => {

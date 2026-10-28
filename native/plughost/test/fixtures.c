@@ -5,6 +5,9 @@
 //   org.openband.fixture.synth   an instrument: a sine per note, starting on the event's exact sample; a
 //                                "Level" parameter (id 2) applied at its event's sample; note 127 acts like
 //                                the plugin's own window: it moves Level (with a gesture) and marks the state dirty
+//   org.openband.fixture.orchestra  a MIDI effect, like an orchestrator (issue #9): each note in plays a chord
+//                                out on three channels (the key on 0, an octave down on 1, a fifth up on
+//                                2, as CLAP notes) and the key on channel 3 as raw MIDI; no sound
 // Built with -DOB_HANG it is ob-hang.clap instead, whose entry never returns from init (scan timeout).
 #include <clap/clap.h>
 #include <math.h>
@@ -24,7 +27,7 @@
 typedef struct {
   clap_plugin_t plugin;
   const clap_host_t *host;
-  int kind; // 0 gain, 1 delay, 2 crash, 3 synth
+  int kind; // 0 gain, 1 delay, 2 crash, 3 synth, 4 orchestra
   double gain_db;
   double crash;
   double level;
@@ -38,16 +41,18 @@ typedef struct {
 
 static const char *FEATURES[] = {CLAP_PLUGIN_FEATURE_AUDIO_EFFECT, CLAP_PLUGIN_FEATURE_UTILITY, NULL};
 static const char *SYNTH_FEATURES[] = {CLAP_PLUGIN_FEATURE_INSTRUMENT, CLAP_PLUGIN_FEATURE_SYNTHESIZER, NULL};
-#define NDESC 4
+static const char *NOTE_FX_FEATURES[] = {CLAP_PLUGIN_FEATURE_NOTE_EFFECT, NULL};
+#define NDESC 5
 static const clap_plugin_descriptor_t DESC[NDESC] = {
     {CLAP_VERSION_INIT, "org.openband.fixture.gain", "OB Fixture Gain", "OpenBand", "", "", "", "1.0.0", "A gain for tests", FEATURES},
     {CLAP_VERSION_INIT, "org.openband.fixture.delay", "OB Fixture Delay", "OpenBand", "", "", "", "1.0.0", "256 samples of latency, for tests", FEATURES},
     {CLAP_VERSION_INIT, "org.openband.fixture.crash", "OB Fixture Crash", "OpenBand", "", "", "", "1.0.0", "Crashes on demand, for tests", FEATURES},
     {CLAP_VERSION_INIT, "org.openband.fixture.synth", "OB Fixture Synth", "OpenBand", "", "", "", "1.0.0", "A sine per note, for tests", SYNTH_FEATURES},
+    {CLAP_VERSION_INIT, "org.openband.fixture.orchestra", "OB Fixture Orchestra", "OpenBand", "", "", "", "1.0.0", "Each note out as a chord on three channels, for tests", NOTE_FX_FEATURES},
 };
 
 // ---- audio ports: one stereo in, one stereo out
-static uint32_t ports_count(const clap_plugin_t *p, bool in) { return in && ((fx_t *)p->plugin_data)->kind == 3 ? 0 : 1; }
+static uint32_t ports_count(const clap_plugin_t *p, bool in) { return in && ((fx_t *)p->plugin_data)->kind >= 3 ? 0 : 1; }
 static bool ports_get(const clap_plugin_t *p, uint32_t i, bool in, clap_audio_port_info_t *info) {
   (void)p;
   if (i) return false;
@@ -62,13 +67,9 @@ static bool ports_get(const clap_plugin_t *p, uint32_t i, bool in, clap_audio_po
 }
 static const clap_plugin_audio_ports_t PORTS = {ports_count, ports_get};
 
-static uint32_t notes_count(const clap_plugin_t *p, bool in) {
-  (void)p;
-  return in ? 1 : 0;
-}
+static uint32_t notes_count(const clap_plugin_t *p, bool in) { return in || ((fx_t *)p->plugin_data)->kind == 4 ? 1 : 0; }
 static bool notes_get(const clap_plugin_t *p, uint32_t i, bool in, clap_note_port_info_t *info) {
-  (void)p;
-  if (i || !in) return false;
+  if (i || (!in && ((fx_t *)p->plugin_data)->kind != 4)) return false;
   memset(info, 0, sizeof *info);
   info->supported_dialects = CLAP_NOTE_DIALECT_CLAP;
   info->preferred_dialect = CLAP_NOTE_DIALECT_CLAP;
@@ -227,9 +228,30 @@ static clap_process_status synth_process(fx_t *f, const clap_process_t *pr) {
   return CLAP_PROCESS_CONTINUE;
 }
 
+/** The orchestra: each note in comes out as three notes on three channels, and as MIDI on a fourth. */
+static clap_process_status orchestra_process(const clap_process_t *pr) {
+  for (uint32_t i = 0; i < pr->in_events->size(pr->in_events); i++) {
+    const clap_event_header_t *h = pr->in_events->get(pr->in_events, i);
+    if (h->space_id != CLAP_CORE_EVENT_SPACE_ID || (h->type != CLAP_EVENT_NOTE_ON && h->type != CLAP_EVENT_NOTE_OFF)) continue;
+    const clap_event_note_t *n = (const clap_event_note_t *)h;
+    const int shift[3] = {0, -12, 7};
+    for (int c = 0; c < 3; c++) {
+      clap_event_note_t o = *n;
+      o.channel = (int16_t)c;
+      o.key = (int16_t)(n->key + shift[c]);
+      pr->out_events->try_push(pr->out_events, &o.header);
+    }
+    clap_event_midi_t m = {{sizeof m, h->time, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_MIDI, 0}, 0, {(uint8_t)((h->type == CLAP_EVENT_NOTE_ON ? 0x90 : 0x80) | 3), (uint8_t)n->key, (uint8_t)(n->velocity * 127)}};
+    pr->out_events->try_push(pr->out_events, &m.header);
+  }
+  for (uint32_t i = 0; i < pr->frames_count; i++) pr->audio_outputs[0].data32[0][i] = pr->audio_outputs[0].data32[1][i] = 0;
+  return CLAP_PROCESS_CONTINUE;
+}
+
 static clap_process_status fx_process(const clap_plugin_t *p, const clap_process_t *pr) {
   fx_t *f = (fx_t *)p->plugin_data;
   if (f->kind == 3) return synth_process(f, pr);
+  if (f->kind == 4) return orchestra_process(pr);
   for (uint32_t i = 0; i < pr->in_events->size(pr->in_events); i++) apply_event(f, pr->in_events->get(pr->in_events, i));
   if (f->kind == 2 && f->crash > 0.5) abort();
   const float g = (float)pow(10.0, f->gain_db / 20.0);
@@ -254,7 +276,7 @@ static const void *fx_ext(const clap_plugin_t *p, const char *id) {
   if (!strcmp(id, CLAP_EXT_PARAMS)) return &PARAMS;
   if (!strcmp(id, CLAP_EXT_LATENCY) && f->kind == 1) return &LATENCY;
   if (!strcmp(id, CLAP_EXT_STATE) && (f->kind == 0 || f->kind == 3)) return &STATE;
-  if (!strcmp(id, CLAP_EXT_NOTE_PORTS) && f->kind == 3) return &NOTE_PORTS;
+  if (!strcmp(id, CLAP_EXT_NOTE_PORTS) && f->kind >= 3) return &NOTE_PORTS;
   return NULL;
 }
 static void fx_main(const clap_plugin_t *p) { (void)p; }

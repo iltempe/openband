@@ -601,6 +601,34 @@ async function smokeNative(SOFT_LIVE, IS_MAC) {
   const addedFx = ref ? await commands.add_plugin_effect({ track_id: t, plugin: ref }) : null;
   const mcp = { listed: listed.plugins.length, ref: ref ?? null, added: addedFx?.format ?? null };
   const mcpOk = ref === `native:vst3:${gain3.id}` && mcp.added === 'vst3';
+  // Issue #9: a MIDI effect on a track (the orchestra fixture: each note out on three channels) plays
+  // three other tracks, each listening to one of its channels, from one key pressed on its own track.
+  step('orchestra');
+  const orch = scan.plugins.find((p) => p.id === 'org.openband.fixture.orchestra');
+  let orchestra = null;
+  if (orch) {
+    useStore.getState().commit((d) => void (d.instruments = [...(d.instruments ?? []), { id: 'nat_orch', name: orch.name, kind: 'instrument', source: 'native', zones: [], attack: 0, release: 0, format: 'clap', native: { id: orch.id, vendor: orch.vendor, version: orch.version, path_hint: orch.path } }]));
+    const o = (await commands.add_track({ kind: 'instrument', name: 'Orchestra' })).track_id;
+    useStore.getState().commit((d) => void (d.tracks.find((x) => x.id === o).instrument = 'nat_orch'));
+    const names = ['Violins', 'Cellos', 'Horns'];
+    const sec = [];
+    for (const [i, name] of names.entries()) {
+      const id = (await commands.add_track({ kind: 'instrument', instrument: 'silk-strings', name })).track_id;
+      commands.set_track_midi_input({ track_id: id, channel: i + 1, device: orch.name });
+      sec.push(id);
+    }
+    for (let i = 0; i < 150 && !status.getState()[`${o}:instrument`]?.latency; i++) await wait(100);
+    const heard = [];
+    const on = engine.noteOn.bind(engine);
+    engine.noteOn = (id, p, v) => (heard.push([id, p]), on(id, p, v));
+    useStore.getState().set({ selectedTrackId: o });
+    window.openband.midiInput.liveNoteOn(60, 0.8);
+    for (let i = 0; i < 50 && heard.filter(([id]) => sec.includes(id)).length < 3; i++) await wait(100);
+    window.openband.midiInput.liveNoteOff(60);
+    engine.noteOn = on;
+    orchestra = heard.filter(([id]) => sec.includes(id)).map(([id, p]) => `${names[sec.indexOf(id)]}:${p}`).join(' ');
+  }
+  const orchOk = orchestra === 'Violins:60 Cellos:48 Horns:67';
   // G8.7: the selected track's native instrument on the host's own output (the null device here): it
   // starts, a key pressed is heard there, and it stops.
   step('monitoring');
@@ -617,8 +645,8 @@ async function smokeNative(SOFT_LIVE, IS_MAC) {
   await ll.syncMonitoring();
   const monitoring = { backend: mon?.backend ?? null, buffer: mon ? mon.period * mon.periods : null, heard, off: ll.useLowLatency.getState().trackId === null };
   const monOk = monitoring.backend === 'Null' && !!heard && monitoring.off;
-  const ok = monOk && mcpOk && latency === 6 * 128 && vst3 && auOk && !!crashed && restarted && (live || SOFT_LIVE) && same && exportRms > -40 && frozenOk;
-  return { ok, live, liveWindows: live ? undefined : L.map((v) => Math.round(v)).join(' '), exportWindows: live ? undefined : E.map((v) => Math.round(v)).join(' '), dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, vst3Gain: +(wet3 - dry).toFixed(2), vst3Latency: latency3, au, monitoring, bridge, mcp, instrument: +plays.toFixed(1), automation: +automated.toFixed(1), saved: saved.slice(0, 12), exportsIdentical: same, exportRms: +exportRms.toFixed(1), liveVsExport: +liveVsExport.toFixed(2), frozen: fr.frozen.join('+'), frozenOk, crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
+  const ok = orchOk && monOk && mcpOk && latency === 6 * 128 && vst3 && auOk && !!crashed && restarted && (live || SOFT_LIVE) && same && exportRms > -40 && frozenOk;
+  return { ok, orchestra, live, liveWindows: live ? undefined : L.map((v) => Math.round(v)).join(' '), exportWindows: live ? undefined : E.map((v) => Math.round(v)).join(' '), dry: +dry.toFixed(1), gain: +(wet - dry).toFixed(2), latency, vst3Gain: +(wet3 - dry).toFixed(2), vst3Latency: latency3, au, monitoring, bridge, mcp, instrument: +plays.toFixed(1), automation: +automated.toFixed(1), saved: saved.slice(0, 12), exportsIdentical: same, exportRms: +exportRms.toFixed(1), liveVsExport: +liveVsExport.toFixed(2), frozen: fr.frozen.join('+'), frozenOk, crashFixture: +(before - dry).toFixed(2), crashed, bypassed: +(after - dry).toFixed(2), restarted, back: +(back - dry).toFixed(2) };
 }
 
 /** OPENBAND_DESKTOP_SHOT=file.png (docs): the studio with the AI panel on the "AI apps" tab, then quit. */

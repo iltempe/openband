@@ -103,7 +103,9 @@ export function nativePlugins(o: { rescan?: boolean } = {}) {
     nativeScan = (async () => {
       const retry = o.rescan ? ((await before?.catch(() => null))?.failed ?? []).map((f) => f.path) : [];
       const r = await dn.scan({ retry });
-      return { plugins: r.plugins.filter((p) => p.kind !== 'note-effect'), failed: r.failed };
+      // A MIDI effect (an orchestrator, an arpeggiator: issue #9) goes on a track like an instrument: it
+      // takes the track's notes, and what it plays goes to the tracks listening to it (Smart Controls → MIDI in).
+      return { plugins: r.plugins.map((p) => (p.kind === 'note-effect' ? { ...p, kind: 'instrument' as const } : p)), failed: r.failed };
     })();
     nativeScan.catch(() => (nativeScan = null));
   }

@@ -138,7 +138,18 @@ export async function scanPlugins({ host = hostBinary(), dirs = pluginDirs(), ca
 // ---------------------------------------------------------------- one plugin in a host process
 
 const T = { LOAD: 1, PROCESS: 2, PARAM: 3, GET_STATE: 4, SET_STATE: 5, QUIT: 6, GUI_OPEN: 7, GUI_CLOSE: 8, GET_VALUES: 10, RENDER_MODE: 11, MONITOR: 12, LIVE: 13 };
-const R = { LOADED: 1, BLOCK: 2, STATE: 4, STATE_SET: 5, LATENCY: 7, ERROR: 8, PARAM_CHANGED: 9, GESTURE: 10, STATE_DIRTY: 11, GUI: 12, VALUES: 13, MONITOR: 14, HEARD: 15 };
+const R = { LOADED: 1, BLOCK: 2, STATE: 4, STATE_SET: 5, LATENCY: 7, ERROR: 8, PARAM_CHANGED: 9, GESTURE: 10, STATE_DIRTY: 11, GUI: 12, VALUES: 13, MONITOR: 14, HEARD: 15, MIDI_OUT: 16 };
+
+/** A MIDI_OUT frame: the notes and MIDI a plugin played, [{ offset, status, data1, data2 }]. */
+export function parseMidiOut(payload) {
+  const n = payload.readUInt32LE(0);
+  const out = [];
+  for (let i = 0; i < n && 4 + i * 8 + 8 <= payload.length; i++) {
+    const o = 4 + i * 8;
+    out.push({ offset: payload.readUInt32LE(o), status: payload[o + 4], data1: payload[o + 5], data2: payload[o + 6] });
+  }
+  return out;
+}
 /** Event kinds inside a block (see native/plughost/src/plughost.c). */
 export const EVENT = { NOTE_ON: 0, NOTE_OFF: 1, PARAM: 2, ALL_NOTES_OFF: 3 };
 
@@ -205,6 +216,7 @@ export class PlugHostSession extends EventEmitter {
       else if (type === R.GESTURE) this.emit('gesture', JSON.parse(payload.toString('utf8')));
       else if (type === R.STATE_DIRTY) this.emit('dirty');
       else if (type === R.HEARD) this.emit('heard', JSON.parse(payload.toString('utf8')));
+      else if (type === R.MIDI_OUT) this.emit('midi', parseMidiOut(payload));
       else if (type === R.GUI && !this.waiting.some((x) => x.type === R.GUI)) this.emit('gui', JSON.parse(payload.toString('utf8')));
       else {
         const w = this.waiting.find((x) => x.type === type || type === R.ERROR);

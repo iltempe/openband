@@ -8,10 +8,12 @@
 #include <clap/clap.h>
 
 #import <AudioToolbox/AudioToolbox.h>
+#import <CoreMIDI/CoreMIDI.h>
 #import <AudioUnit/AUCocoaUIView.h>
 #import <Cocoa/Cocoa.h>
 #import <CoreAudioKit/CoreAudioKit.h>
 
+#include <array>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -49,7 +51,8 @@ std::string str(CFStringRef s) {
   return CFStringGetCString(s, b, sizeof b, kCFStringEncodingUTF8) ? b : "";
 }
 
-const OSType KINDS[] = {kAudioUnitType_Effect, kAudioUnitType_MusicEffect, kAudioUnitType_MusicDevice};
+// MIDI processors (MIDI FX, aumi) too: orchestrators and arpeggiators that play other tracks (issue #9).
+const OSType KINDS[] = {kAudioUnitType_Effect, kAudioUnitType_MusicEffect, kAudioUnitType_MusicDevice, kAudioUnitType_MIDIProcessor};
 
 struct OutEvent {
   uint16_t type;
@@ -77,9 +80,30 @@ struct AU {
   NSView *view = nil;
   std::mutex mu;
   std::vector<OutEvent> out;
+  /** MIDI the AU played (its MIDI output callback, during render), as bytes: status, data1, data2. */
+  std::vector<std::array<uint8_t, 3>> midiOut;
 };
 
 AU *self(const clap_plugin_t *p) { return (AU *)p->plugin_data; }
+
+/** Channel messages the AU sends out (called during AudioUnitRender, on the audio thread). */
+OSStatus midiOutput(void *ref, const AudioTimeStamp *, UInt32, const MIDIPacketList *list) {
+  AU *a = (AU *)ref;
+  const MIDIPacket *p = &list->packet[0];
+  for (UInt32 k = 0; k < list->numPackets; k++, p = MIDIPacketNext(p))
+    for (UInt16 i = 0; i < p->length;) {
+      uint8_t st = p->data[i];
+      if (st < 0x80 || st >= 0xF0) {
+        i++;
+        continue;
+      }
+      const int len = (st & 0xF0) == 0xC0 || (st & 0xF0) == 0xD0 ? 2 : 3;
+      if (i + len > p->length) break;
+      a->midiOut.push_back({st, p->data[i + 1], len == 3 ? p->data[i + 2] : (uint8_t)0});
+      i += len;
+    }
+  return noErr;
+}
 
 OSStatus inputProc(void *ref, AudioUnitRenderActionFlags *, const AudioTimeStamp *, UInt32, UInt32 frames, AudioBufferList *io) {
   AU *a = (AU *)ref;
@@ -135,6 +159,9 @@ bool initialize(AU *a) {
   AudioUnitSetProperty(a->unit, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Global, 0, &max, sizeof max);
   AudioUnitSetProperty(a->unit, kAudioUnitProperty_OfflineRender, kAudioUnitScope_Global, 0, &off, sizeof off);
   a->initialized = AudioUnitInitialize(a->unit) == noErr;
+  // Its MIDI output, when it has one (MIDI FX, instruments that play other parts).
+  AUMIDIOutputCallbackStruct mo{midiOutput, a};
+  AudioUnitSetProperty(a->unit, kAudioUnitProperty_MIDIOutputCallback, kAudioUnitScope_Global, 0, &mo, sizeof mo);
   return a->initialized;
 }
 void uninitialize(AU *a) {
@@ -226,6 +253,16 @@ clap_process_status p_process(const clap_plugin_t *p, const clap_process_t *pr) 
     at = to;
   }
   a->input = nullptr;
+  for (auto &m : a->midiOut) {
+    clap_event_midi_t ev{};
+    ev.header = {sizeof ev, 0, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_MIDI, 0};
+    ev.port_index = 0;
+    ev.data[0] = m[0];
+    ev.data[1] = m[1];
+    ev.data[2] = m[2];
+    pr->out_events->try_push(pr->out_events, &ev.header);
+  }
+  a->midiOut.clear();
 
   std::lock_guard<std::mutex> l(a->mu);
   for (auto &e : a->out) {
@@ -473,7 +510,7 @@ extern "C" int ob_au_scan(char *out, size_t cap) {
       if (AudioComponentGetDescription(c, &d) != noErr) continue;
       std::string vendor, name;
       names(c, vendor, name);
-      std::string features = kind == kAudioUnitType_MusicDevice ? "\"instrument\"" : kind == kAudioUnitType_MusicEffect ? "\"audio-effect\",\"note-input\"" : "\"audio-effect\"";
+      std::string features = kind == kAudioUnitType_MusicDevice ? "\"instrument\"" : kind == kAudioUnitType_MIDIProcessor ? "\"note-effect\"" : kind == kAudioUnitType_MusicEffect ? "\"audio-effect\",\"note-input\"" : "\"audio-effect\"";
       if (n++) list += ",";
       list += "{\"format\":\"au\",\"id\":" + json(idOf(d)) + ",\"name\":" + json(name) + ",\"vendor\":" + json(vendor) + ",\"version\":" + json(versionOf(c)) + ",\"description\":" + json(fourcc(kind)) + ",\"features\":[" + features + "]}";
     }
@@ -500,7 +537,8 @@ extern "C" const clap_plugin_t *ob_au_create(const char *uid, const clap_host_t 
   a->host = host;
   a->cd = d;
   a->unit = unit;
-  a->instrument = d.componentType == kAudioUnitType_MusicDevice;
+  // A MIDI processor takes notes like an instrument, and has no audio in.
+  a->instrument = d.componentType == kAudioUnitType_MusicDevice || d.componentType == kAudioUnitType_MIDIProcessor;
   a->inCh = a->instrument ? 0 : 2;
   names(c, a->vendor, a->name);
   a->version = versionOf(c);

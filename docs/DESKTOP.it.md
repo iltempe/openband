@@ -70,8 +70,8 @@ collegarla: le app AI ricordano dove si trova. Usa l'app oppure l'estensione per
   browser.
 - **Le canzoni** stanno nella memoria dell'app, separata da quella del browser: per spostare una canzone
   tra i due, salvala come `.openband` e aprila dall'altra parte.
-- **Aggiornamenti**: una volta al giorno l'app controlla su GitHub se c'è una nuova versione e ti
-  propone di scaricarla (*Check for Updates…* nel menu). Installandola sopra la vecchia, le canzoni restano.
+- **Aggiornamenti**: una volta al giorno l'app controlla su GitHub se c'è una nuova versione, te lo dice
+  con una notifica e si aggiorna da sola da *Informazioni su OpenBand* (vedi [Aggiornamenti](#aggiornamenti)). Le canzoni restano.
 - **Plugin**: i plugin web (WAM) funzionano come nel browser. I plugin nativi VST3 / CLAP / AU si
   costruiscono per fasi ([SPEC v0.6, G8](SPEC-v0.6.md), [ADR 0001](adr/0001-desktop.md)); vedi
   [Plugin nativi](#plugin-nativi) qui sotto.
@@ -125,6 +125,7 @@ formato: va bene uno qualsiasi, e tutto quello che segue vale per tutti.
   computer senza quel plugin, la traccia suona l'audio congelato (**❄ Congelata** accanto al nome) e puoi
   comunque mixarla; se lì cambi le sue note, il badge dice **Non aggiornata**: apri la canzone nell'app
   desktop per congelarla di nuovo, o clicca il badge per scegliere un altro strumento.
+- **Effetti MIDI** (un orchestratore come Texturium, un arpeggiatore; VST3, AU MIDI FX, effetti di nota CLAP) compaiono tra gli strumenti: mettine uno su una traccia e suonalo, e quello che suona va alle tracce in ascolto sui suoi canali (Smart Controls → *Ingresso MIDI*: il suo nome come dispositivo). Solo dal vivo: registra le parti per esportarle.
 - Prossimi passi: finestre native su Linux; gli Audio Unit v3 che girano solo come estensioni di app non sono ancora provati.
 
 ## Compilarla

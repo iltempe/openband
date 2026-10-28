@@ -2,6 +2,63 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.35 "Your issues: Firefox, export, latency, quantize, updates, Hermes, covers, MIDI channels, Flatpak"
+
+All the open issues of the repository, in one delivery.
+
+### Fixes
+- **Firefox (#8)**: the studio stopped at start with *"param must be an AudioParam"* and a black screen. Two things are missing from Firefox's Web Audio on the native context that Web Audio Modules need: the AudioListener's AudioParams and `AudioParam.cancelAndHoldAtTime`. Tone.js uses both. `src/audio/webAudioCompat.ts` fills them in. e2e *firefox*: the studio starts, plays and renders in Firefox.
+- **MIDI latency (#6)**: every key played live through OpenBand's own synths, sampler and drums was scheduled at Tone.js's `now()`, which is the audio clock plus its 100 ms lookAhead. They now start at once: measured +0 ms instead of +100. WAM and native plugins already started at once.
+- **Linux packages**: the `.deb` listed its file types three times and had an invalid `*.mid,midi` glob.
+
+### New
+- **WAV export (#3)**: *Export song as WAV…* opens a dialog: 44.1, 48, 88.2 or 96 kHz; 16-bit with TPDF dither, 24-bit, or 32-bit float (it never clips). The choice is remembered. `export_wav` gains `sample_rate`, `bit_depth` and `dither`.
+- **Audio & MIDI (#6)** in the ⋯ menu:
+  - the output latency now;
+  - a latency mode (*lowest*, *low* (default), *balanced*, *safe*), which sets the AudioContext's latencyHint and is applied with a reload;
+  - the MIDI inputs;
+  - on Linux, how to shrink the sound server's buffer (`PULSE_LATENCY_MSEC`).
+- **Quantize (#10)**: the editor's *Quantize* group, now for drums too:
+  - grid 1/4 to 1/32 and triplets, **strength** and **swing**;
+  - *Region* or the whole *Track*, one undo step each.
+  `quantize_region` gains `strength`, `swing` and `ends`. New **`quantize_track`** does a whole track, or only some bars. The logic is pure (`src/quantize.ts`, unit-tested).
+- **Updates from inside the app (#4)**: *⋯ → About OpenBand* (also in the app's menus) shows the version and where it runs. In the desktop app, **Update now**:
+  - downloads the latest release's package for the computer and checks it against the SHA-256 GitHub publishes for it;
+  - installs it and restarts OpenBand by itself: macOS swaps the .app once the app has quit, Windows runs the installer silently, an AppImage is replaced;
+  - a `.deb` opens in the system's installer, because installing it needs the user's password;
+  - inside a Flatpak, Flatpak updates the app.
+
+  A new version found at start brings a system notification and a dot in the menu. `desktop/updater.mjs` is unit-tested, including a real swap of an app bundle. This works from v0.6.35 on: older versions are updated by hand once.
+- **Hermes Agent (#7)**: Nous Research's agent reads its MCP servers from `~/.hermes/config.yaml`. *Add OpenBand to my AI apps*, `openband setup` and `openband doctor` now handle it. OpenBand's entry goes under `mcp_servers` at the file's own indent; the rest of the file is kept, with a `.bak`. Tested by reading the result with a real YAML parser. Not tried in a live Hermes session.
+- **Make a cover (#2)**: on an audio region, or with `cover_song`. Give a style in words, how close to the original (*close*, *balanced*, *free*) and 1–3 versions. The original and the covers become **takes of the region**, with the cover active, in the ledger. Engines that can restyle:
+  - ACE-Step on the computer (its *cover* mode);
+  - new in the fal catalog, **`ace-step-cover`** (`fal-ai/ace-step/audio-to-audio`, *remix*). It uploads the audio to fal. Its price is an estimate, because fal doesn't publish it, and it is not marked as verified.
+
+  The OMEP mock gains `music.restyle`, and conformance now gives capabilities that need the song's audio a mix to work on.
+- **One MIDI device, many tracks (#9, first part)**:
+  - a track can play one MIDI channel, optionally from one device, even when it isn't selected;
+  - several tracks on one channel layer;
+  - note-offs reach the tracks their note-ons went to;
+  - *Channels 1–16 to the tracks* sets all of them in one gesture; `set_track_midi_input` and `map_midi_channels` do the same for the AI.
+
+  A MIDI orchestrator such as **Texturium**, standalone in *MIDI Channels* mode on one port, now plays up to 16 OpenBand tracks without virtual buses.
+- **MIDI effects as plugins inside the desktop app (#9)**: the native plugin host now returns the notes and MIDI a plugin plays, with their channel, in a new `MIDI_OUT` frame. This covers CLAP note and MIDI events, a VST3 plugin's event output bus, and an AU's MIDI output callback; AU MIDI processors (MIDI FX) are scanned too. MIDI effects (*note-effect* plugins) now appear among the instruments. Load **Texturium as a VST3 or AU** on a track and play it: its notes go to the tracks that listen to its channels (MIDI in: its name as the device, or any device). They never go back to its own track, and nothing plays when no track listens. Its name appears among the MIDI sources.
+  - Tested in the host with a new CLAP fixture, *OB Fixture Orchestra* (each note out as a chord on three channels, plus raw MIDI on a fourth), and with the VST3 fixture's new event output.
+  - In the desktop app's native smoke, one key on the orchestra's track plays *Violins* C4, *Cellos* C3 and *Horns* G4, each on its channel.
+  - The AU path builds but has no fixture.
+  - Live only: a MIDI effect's notes aren't rendered into exports; record the parts first.
+- **Flatpak (#5)**:
+  - `flatpak/` holds `it.openband.OpenBand`, with its desktop file, AppStream metainfo and a README;
+  - `scripts/flatpak-manifest.mjs` writes the manifest for each release from its `.deb` files, with their URL and SHA-256, on the Electron base app with zypak;
+  - `release.yml` builds **`OpenBand-linux-x86_64.flatpak`** and attaches it to the release, which now has 26 assets.
+
+  The job also runs Flathub's own linter on the manifest. Submitting to Flathub is a pull request to flathub/flathub.
+- MCP tools: `quantize_track`, `set_track_midi_input`, `map_midi_channels`, `cover_song` (173 in all).
+
+### Tests
+- New e2e checks: *firefox*, *wavformats* (ffprobe reads each format), *quantize*, *latency*, *about*, *midichannels* and *cover*.
+- New unit tests: quantize, MIDI routing, the updater, Hermes's YAML, the fal cover input and the Commons cases.
+
 ## v0.6.34 "G6c1: publish to the Internet Archive and Wikimedia Commons"
 
 ### G6c1 · Publishing, with your own accounts and your click (SPEC v0.6 G6)

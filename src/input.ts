@@ -1,7 +1,8 @@
 // Live input: musical typing (computer keyboard), Web MIDI, and recording into regions.
 import { routeMidi, type MidiSource } from './midiRouting';
 import { create } from 'zustand';
-import { setMidiInputs } from './firstRun';
+import { setMidiInputs, useDevices } from './firstRun';
+import { nativeHooks } from './audio/native';
 import type { Note } from './types';
 import { BEATS_PER_BAR, uid } from './music';
 import { engine } from './audio/engine';
@@ -185,6 +186,25 @@ export function typingPitch(key: string): number | undefined {
   const off = TYPING_KEYS[key];
   return off === undefined ? undefined : (s.octave + 1) * 12 + off;
 }
+
+// ---------- MIDI from plugins (issue #9) ----------
+
+/**
+ * What a native MIDI effect played (an orchestrator such as Texturium, an arpeggiator): its notes go to the
+ * tracks that listen to its channels — by the plugin's name as device, or any device — never back to its
+ * own track, and nowhere if no track listens. Its name becomes a MIDI source to pick in MIDI in.
+ */
+nativeHooks.onMidi = (key, name, events) => {
+  const own = key.split(':')[0];
+  const names = useDevices.getState().midiInputs;
+  if (!names.includes(name)) setMidiInputs([...names, name]);
+  for (const e of events) {
+    const cmd = e.status & 0xf0;
+    const src = { channel: (e.status & 0x0f) + 1, device: name, exclude: own, fallback: false };
+    if (cmd === 0x90 && e.data2 > 0) liveNoteOn(e.data1, e.data2 / 127, src);
+    else if (cmd === 0x80 || (cmd === 0x90 && e.data2 === 0)) liveNoteOff(e.data1, src);
+  }
+};
 
 // ---------- Web MIDI ----------
 

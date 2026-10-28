@@ -69,6 +69,8 @@ export function setupNative({ root, getWin }) {
     session.on('param', toPage('param'));
     session.on('gesture', toPage('gesture'));
     session.on('dirty', toPage('dirty'));
+    // What a MIDI effect played (issue #9): the page plays it on the tracks listening to it.
+    session.on('midi', (events) => toPage('midi')({ events }));
     session.on('gui', toPage('gui'));
     session.on('heard', toPage('heard'));
     session.on('exit', ({ crashed, signal, code }) => {

@@ -33,6 +33,9 @@
 //               13 VALUES    JSON [{id, value}]
 //               14 MONITOR   JSON {on, backend, device, period, periods, deviceRate | error}
 //               15 HEARD     JSON {wait, offset, buffer, total}  (frames from a LIVE note to its sound out)
+//               16 MIDI_OUT  u32 count, then per event u32 offset, u8 status, u8 data1, u8 data2, u8 0: the
+//                            notes and MIDI the plugin played (a MIDI effect or orchestrator, issue #9),
+//                            with their channel, to be played by the tracks listening to it
 //
 // Low-latency monitoring (G8.7): with MONITOR on, the host opens the computer's audio output itself with
 // a small buffer and runs the plugin in its callback. LIVE notes (a keyboard) play at the next period;
@@ -423,9 +426,34 @@ typedef struct {
 } out_ev_t;
 static out_ev_t OUTQ[256];
 static uint32_t outq_n;
+// ---- and the notes it plays (CLAP note events, or raw MIDI), as MIDI bytes with their channel
+typedef struct {
+  uint32_t offset;
+  uint8_t status, d1, d2;
+} midi_out_t;
+static midi_out_t MIDIQ[1024];
+static uint32_t midiq_n;
+static void midi_push(uint32_t offset, uint8_t status, uint8_t d1, uint8_t d2) {
+  if (midiq_n < 1024) MIDIQ[midiq_n++] = (midi_out_t){offset, status, d1, d2};
+}
 static bool out_push(const clap_output_events_t *l, const clap_event_header_t *e) {
   (void)l;
-  if (e->space_id != CLAP_CORE_EVENT_SPACE_ID || outq_n >= 256) return true;
+  if (e->space_id != CLAP_CORE_EVENT_SPACE_ID) return true;
+  if (e->type == CLAP_EVENT_NOTE_ON || e->type == CLAP_EVENT_NOTE_OFF) {
+    const clap_event_note_t *n = (const clap_event_note_t *)e;
+    if (n->key < 0 || n->key > 127) return true;
+    uint8_t ch = (uint8_t)((n->channel < 0 ? 0 : n->channel) & 15);
+    int v = (int)lround(n->velocity * 127);
+    if (e->type == CLAP_EVENT_NOTE_ON) midi_push(e->time, 0x90 | ch, (uint8_t)n->key, (uint8_t)(v < 1 ? 1 : v > 127 ? 127 : v));
+    else midi_push(e->time, 0x80 | ch, (uint8_t)n->key, (uint8_t)(v < 0 ? 0 : v > 127 ? 127 : v));
+    return true;
+  }
+  if (e->type == CLAP_EVENT_MIDI) {
+    const clap_event_midi_t *m = (const clap_event_midi_t *)e;
+    midi_push(e->time, m->data[0], m->data[1], m->data[2]);
+    return true;
+  }
+  if (outq_n >= 256) return true;
   if (e->type == CLAP_EVENT_PARAM_VALUE) {
     const clap_event_param_value_t *p = (const clap_event_param_value_t *)e;
     OUTQ[outq_n++] = (out_ev_t){CLAP_EVENT_PARAM_VALUE, p->param_id, p->value};
@@ -447,6 +475,20 @@ static void flush_out_events(void) {
     }
   }
   outq_n = 0;
+  if (midiq_n) {
+    static uint8_t buf2[4 + 1024 * 8];
+    memcpy(buf2, &midiq_n, 4);
+    for (uint32_t i = 0; i < midiq_n; i++) {
+      uint8_t *o = buf2 + 4 + i * 8;
+      memcpy(o, &MIDIQ[i].offset, 4);
+      o[4] = MIDIQ[i].status;
+      o[5] = MIDIQ[i].d1;
+      o[6] = MIDIQ[i].d2;
+      o[7] = 0;
+    }
+    write_frame(16, buf2, 4 + midiq_n * 8);
+    midiq_n = 0;
+  }
 }
 
 static uint32_t port_channels(const clap_plugin_t *p, bool input) {

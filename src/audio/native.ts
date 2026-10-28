@@ -80,12 +80,13 @@ interface LoadedInfo {
 /** What the plugin's own window reports (desktop app). */
 interface HostEvent {
   key: string;
-  type: 'param' | 'gesture' | 'dirty' | 'gui' | 'heard';
+  type: 'param' | 'gesture' | 'dirty' | 'gui' | 'heard' | 'midi';
   total?: number;
   id?: number;
   value?: number;
   begin?: boolean;
   open?: boolean;
+  events?: MidiOutEvent[];
 }
 interface DesktopNative {
   info(): Promise<{ available: boolean }>;
@@ -138,7 +139,17 @@ export const nativeHooks: {
   onDirty?: (key: string, name: string, stateB64: string) => void;
   /** A parameter moved in the plugin's window; gesture = a control grabbed (true) or let go (false). */
   onParam?: (key: string, id: number, value: number, gesture?: boolean) => void;
+  /** Notes and MIDI the plugin played (a MIDI effect or orchestrator, issue #9), with their channel. */
+  onMidi?: (key: string, name: string, events: MidiOutEvent[]) => void;
 } = {};
+
+/** One MIDI message a plugin sent out: offset in its block, and the three bytes. */
+export interface MidiOutEvent {
+  offset: number;
+  status: number;
+  data1: number;
+  data2: number;
+}
 export const desktopNative = (): DesktopNative | null => (typeof window !== 'undefined' ? ((window as unknown as { openbandDesktop?: { native?: DesktopNative } }).openbandDesktop?.native ?? null) : null);
 
 // The audio port of each opened plugin arrives as a window message (see desktop/preload.cjs).
@@ -350,6 +361,8 @@ export class NativeEffect {
       // Settle first: a knob turned sends many; one undo step when it stops.
       if (this.dirtyTimer) clearTimeout(this.dirtyTimer);
       this.dirtyTimer = setTimeout(() => void this.captureState(), 400);
+    } else if (e.type === 'midi' && e.events?.length) {
+      if (this.key) nativeHooks.onMidi?.(this.key, this.slot.name, e.events);
     } else if (e.type === 'gui') setStatus(this.key, { ...(useNativeStatus.getState()[this.key ?? ''] ?? {}), gui: !!e.open });
     // Monitoring: frames from a key pressed to its sound leaving the computer.
     else if (e.type === 'heard') setStatus(this.key, { ...(useNativeStatus.getState()[this.key ?? ''] ?? {}), heard: e.total });

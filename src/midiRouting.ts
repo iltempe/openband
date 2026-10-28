@@ -7,11 +7,15 @@ export interface MidiSource {
   /** 1..16 */
   channel: number;
   device?: string;
+  /** Never this track (a plugin's own track, so what it plays doesn't come back to it). */
+  exclude?: string;
+  /** What no track claims goes to the selected track (default); a plugin's notes are dropped instead. */
+  fallback?: boolean;
 }
 
 export function routeMidi(tracks: Pick<Track, 'id' | 'kind' | 'midiIn'>[], selected: string | null | undefined, src: MidiSource): string[] {
-  const claimed = tracks.filter((t) => t.kind !== 'audio' && t.midiIn && t.midiIn.channel === src.channel && (!t.midiIn.device || t.midiIn.device === src.device)).map((t) => t.id);
-  if (claimed.length) return claimed;
+  const claimed = tracks.filter((t) => t.id !== src.exclude && t.kind !== 'audio' && t.midiIn && t.midiIn.channel === src.channel && (!t.midiIn.device || t.midiIn.device === src.device)).map((t) => t.id);
+  if (claimed.length || src.fallback === false) return claimed;
   // The selected track takes the rest — unless it listens to a channel of its own.
   const sel = tracks.find((t) => t.id === selected) ?? tracks[0];
   return sel && !sel.midiIn ? [sel.id] : [];
