@@ -49,6 +49,11 @@ quota dell'API: circa 100 video al giorno per progetto.
 di reindirizzamento mostrato in *Account* (finisce con `/callback/mixcloud`), incolla client ID e secret e
 premi **Accedi**.
 
+**Funkwhale**: sulla tua istanza, *Impostazioni → Applicazioni → Nuova*, con l'URL di reindirizzamento mostrato
+in *Account* e gli scope `read:libraries` e `write:libraries`. Incolla l'indirizzo dell'istanza, ID e secret
+dell'applicazione e premi **Accedi**. Ti serve sull'istanza una libreria per ogni visibilità con cui pubblichi
+(le librerie non si creano via API).
+
 L'URL di reindirizzamento contiene la porta che usa l'OpenBand locale (7777, se non era occupata): registra
 quello che mostra *Account*.
 
@@ -69,10 +74,13 @@ studio ricontrolla tutto e ti chiede conferma:
   quella standard altrimenti; i *contenuti alterati o sintetici* vengono dichiarati quando motori di IA hanno
   fatto parte del brano (dal suo registro).
 - **Mixcloud**: un MP3 a 320 kbit/s con la copertina, al massimo 5 tag; sempre pubblico.
+- **Funkwhale**: il master in FLAC nella tua libreria visibile a *tutti* (pubblico), *la tua istanza* (non in
+  elenco) o *solo te* (privato), con titolo, descrizione, copyright, tag e licenza; seguito finché l'istanza non
+  l'ha importato. Una licenza che l'istanza non conosce viene tolta, e te lo dice.
 
-Scegli *Pubblico*, *Non in elenco* o *Privato* accanto a **Pubblica…**: vale per YouTube e SoundCloud.
+Scegli *Pubblico*, *Non in elenco* o *Privato* accanto a **Pubblica…**: vale per YouTube, SoundCloud e Funkwhale.
 
 Cosa è uscito, dove, quando e quale master restano nel brano (*Pubblicato*, `get_publications`).
 
-**In arrivo**: Audius e Funkwhale.
+**Non ancora**: Audius.
 Spotify, Apple Music e gli altri store richiedono un distributore e non hanno un'API di upload aperta, quindi OpenBand lì non pubblica.

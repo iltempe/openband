@@ -48,6 +48,11 @@ quota: about 100 videos a day per project.
 redirect URL shown in *Accounts* (it ends in `/callback/mixcloud`), paste its client ID and secret, and press
 **Sign in**.
 
+**Funkwhale**: on your instance, *Settings → Applications → New*, with the redirect URL shown in *Accounts*
+and the scopes `read:libraries` and `write:libraries`. Paste your instance's address, the application's ID
+and secret, and press **Sign in**. You need a library on the instance for each visibility you publish with
+(libraries can't be made through the API).
+
 The redirect URL contains the port the local OpenBand is using (7777 unless it was taken): register the one
 *Accounts* shows.
 
@@ -68,10 +73,13 @@ checks the release again, then asks you to confirm:
   standard one otherwise; *altered or synthetic content* is declared when AI engines made part of the song
   (from its ledger).
 - **Mixcloud**: an MP3 at 320 kbit/s with the cover, at most 5 tags; always public.
+- **Funkwhale**: the master as FLAC into your library visible to *everyone* (public), *your instance*
+  (unlisted) or *only you* (private), with title, description, copyright, tags and the licence; followed
+  until the instance has imported it. A licence the instance doesn't know is left out, and you are told.
 
-Pick *Public*, *Unlisted* or *Private* next to **Publish…**: it applies to YouTube and SoundCloud.
+Pick *Public*, *Unlisted* or *Private* next to **Publish…**: it applies to YouTube, SoundCloud and Funkwhale.
 
 What went out, where, when and which master stays in the song (*Published*, `get_publications`).
 
-**Coming next**: Audius and Funkwhale.
+**Not yet**: Audius.
 Spotify, Apple Music and the other stores need a distributor and have no open upload API, so OpenBand doesn't publish there.

@@ -13,8 +13,9 @@ import { commons } from './commons.mjs';
 import { soundcloud } from './soundcloud.mjs';
 import { youtube } from './youtube.mjs';
 import { mixcloud } from './mixcloud.mjs';
+import { funkwhale } from './funkwhale.mjs';
 
-export const ADAPTERS = [archive, commons, soundcloud, youtube, mixcloud];
+export const ADAPTERS = [archive, commons, soundcloud, youtube, mixcloud, funkwhale];
 const byId = Object.fromEntries(ADAPTERS.map((a) => [a.id, a]));
 const LOCAL_ORIGIN = /^(https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?|openband:\/\/app)$/;
 const MAX_ASSET = 4 * 1024 ** 3;
@@ -38,7 +39,8 @@ export class PublishHost {
     return `http://127.0.0.1:${this.port}/publish/oauth/callback${a?.redirectPerPlatform ? `/${a.id}` : ''}`;
   }
   endpoints(a) {
-    return a.endpoints(this.mock);
+    // Funkwhale's endpoints are on the user's own instance.
+    return a.endpoints(this.mock, this.store.get(a.id));
   }
 
   /** What is set up, per platform — never the keys themselves. */

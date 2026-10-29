@@ -143,3 +143,21 @@ export function mixcloudUpload(p: Project) {
   const r = releaseOf(p);
   return { name: `${r.title}${r.artist ? ` — ${r.artist}` : ''}`.slice(0, 100), description: longDescription(p).slice(0, 1000), tags: [...(r.genre ? [r.genre] : []), ...(r.tags ?? [])].slice(0, 5) };
 }
+
+/** Funkwhale's import metadata: title, description, copyright, tags, and the licence's code. */
+export function funkwhaleUpload(p: Project, master: string) {
+  const r = releaseOf(p);
+  const l = LICENSES[r.license as LicenseCode];
+  return {
+    import_reference: `openband-${master}`.slice(0, 50),
+    metadata: {
+      title: r.title,
+      description: longDescription(p).slice(0, 5000),
+      copyright: `${r.date.slice(0, 4)}${r.artist ? ` ${r.artist}` : ''}`.slice(0, 500),
+      position: 1,
+      ...(r.tags?.length || r.genre ? { tags: [...(r.genre ? [r.genre] : []), ...(r.tags ?? [])].map((t) => t.replace(/\s+/g, '-')) } : {}),
+      // Funkwhale's licence codes are the SPDX ones, in lowercase.
+      ...(l?.cc ? { license: l.code.toLowerCase() } : {}),
+    },
+  };
+}

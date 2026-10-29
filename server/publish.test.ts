@@ -212,3 +212,26 @@ describe('Mixcloud', () => {
     expect(r).toEqual({ id: '/openband-user/fuori/', url: `${mock}/mixcloud/site/openband-user/fuori/` });
   });
 });
+
+describe('Funkwhale', () => {
+  it("the user's instance: signs in (v2 token path when there's no v1), the library by visibility, followed until imported", async () => {
+    await host.handle({ op: 'credentials', platform: 'funkwhale', values: { instance: 'https://music.example.org', client_id: 'fw-client', client_secret: 'fw-secret' } });
+    await fetch(`${mock}/__mock/config`, { method: 'POST', body: JSON.stringify({ fwV2Only: true }) });
+    const s = await signIn('funkwhale');
+    expect(s.status).toBe(200);
+    expect(s.url).toContain('scope=read%3Alibraries+write%3Alibraries');
+    expect(fake.state.funkwhale.tokenPath).toBe('/funkwhale/api/v2/oauth/token');
+    const flac = await (await asset(new Uint8Array(3000).fill(5), 'Fuori.flac', 'audio/flac')).json();
+    const r = await host.handle({ op: 'upload', platform: 'funkwhale', privacy: 'unlisted', files: [{ asset: flac.asset, role: 'audio' }], package: { import_reference: 'openband-abc', metadata: { title: 'Fuori', copyright: '2026 iltempe', license: 'cc-by-4.0', tags: ['ambient'] } } });
+    const up = fake.state.funkwhale.uploads.at(-1);
+    expect(up).toMatchObject({ library: 'lib-instance', import_reference: 'openband-abc', size: 3000, import_status: 'finished' });
+    expect(up.import_metadata).toMatchObject({ title: 'Fuori', license: 'cc-by-4.0' });
+    expect(r.url).toBe(`${mock}/funkwhale/library/tracks/${up.track.id}`);
+  });
+  it("a licence the instance doesn't know: uploaded without it, and said", async () => {
+    const flac = await (await asset(new Uint8Array(100), 'x.flac', 'audio/flac')).json();
+    const r = await host.handle({ op: 'upload', platform: 'funkwhale', files: [{ asset: flac.asset, role: 'audio' }], package: { import_reference: 'x', metadata: { title: 'X', license: 'cc-by-9.0' } } });
+    expect(fake.state.funkwhale.uploads.at(-1).import_metadata.license).toBeUndefined();
+    expect(r.note).toMatch(/didn't know the licence "cc-by-9.0"/);
+  });
+});

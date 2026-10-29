@@ -259,6 +259,9 @@ export function PublishConfirm() {
                 {id === "mixcloud" && (
                   <div className="ca-note">{t("pub.mixcloudWarn")}</div>
                 )}
+                {id === "funkwhale" && (
+                  <div className="ca-note">{t("pub.funkwhaleWarn", { privacy: t(`pub.${c.privacy ?? "public"}` as never) })}</div>
+                )}
               </li>
             ))}
           </ul>

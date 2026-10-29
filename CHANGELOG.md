@@ -2,6 +2,22 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.37 "G6c3: publish to Funkwhale"
+
+### G6c3 · Funkwhale, your own federated instance (SPEC v0.6 G6)
+- **Funkwhale**:
+  - Its API was checked against the instance's source (stable branch), where the public documentation was silent.
+  - **Sign-in**: the user makes the application on the instance (*Settings → Applications*, scopes `read:libraries write:libraries`). An application made without signing in can't get write scopes. Then OAuth 2.0 with PKCE, which Funkwhale accepts, and the secret kept in the local OpenBand. The token comes from `/api/v1/oauth/token/`, or `/api/v2/oauth/token` where that is the instance's.
+  - **Library**: the upload goes to the user's library with the visibility chosen: *public* → everyone, *unlisted* → the instance, *private* → only you. Libraries can't be made through the API: without one, the user is told how to make it.
+  - **Upload**: `POST /api/v1/uploads/` with the FLAC master and `import_status: pending`. The `import_metadata` carry title, description with the licence and AI use, copyright, tags and the **licence code** (SPDX, lowercase). A licence the instance doesn't know is left out and the user is told, rather than failing the upload.
+  - The **import is followed** until the instance has made the track, at `/library/tracks/<id>`.
+- Notes from a platform (such as a licence left out) are passed on in `publish`'s answer and the progress line.
+- **Not done: Audius**. Uploading for a user goes through its SDK, `@audius/sdk` (42 MB, with wallet and chain libraries: Solana, Ethereum, Wormhole), and signed transactions. That is too much for the npx package and the desktop app, and it can't be checked meaningfully against a mock. Left out until there's a lighter way.
+- Tests:
+  - **Mock** (`server/publish.test.ts`, 15 in all): signs in through the v2 token path when the instance has no v1; the upload lands in the library by visibility and is followed until imported, with the track's URL; an unknown licence is dropped and said.
+  - **e2e** *publish2*, now 12 checks: the four platforms (SoundCloud, YouTube, Mixcloud, Funkwhale) in one publish.
+  - **Unit**: Funkwhale's metadata.
+
 ## v0.6.36 "G6c2: publish to SoundCloud, YouTube and Mixcloud"
 
 ### G6c2 · Three more platforms, with your own apps and your click (SPEC v0.6 G6)

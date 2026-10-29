@@ -9,15 +9,16 @@ import http from 'node:http';
 const b64url = (buf) => Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const rnd = () => crypto.randomBytes(12).toString('hex');
 
-export function createFakePlatforms({ archiveKeys = { access: 'ACCESS', secret: 'SECRET' }, wikimediaClient = 'commons-client', apps = { soundcloud: { id: 'sc-client', secret: 'sc-secret' }, google: { id: 'yt-client', secret: 'yt-secret' }, mixcloud: { id: 'mc-client', secret: 'mc-secret' } } } = {}) {
+export function createFakePlatforms({ archiveKeys = { access: 'ACCESS', secret: 'SECRET' }, wikimediaClient = 'commons-client', apps = { soundcloud: { id: 'sc-client', secret: 'sc-secret' }, google: { id: 'yt-client', secret: 'yt-secret' }, mixcloud: { id: 'mc-client', secret: 'mc-secret' }, funkwhale: { id: 'fw-client', secret: 'fw-secret' } } } = {}) {
   const state = {
     archive: {},
     commons: { files: {}, stash: {} },
     oauth: { codes: {}, access: {}, refresh: {} },
-    config: { archive503: 0, expireNext: false, failChunk: null, scExpireNext: false, ytFailAt: null, ytExpireNext: false, mcRateLimit: 0 },
+    config: { archive503: 0, expireNext: false, failChunk: null, scExpireNext: false, ytFailAt: null, ytExpireNext: false, mcRateLimit: 0, fwV2Only: false, fwLicenses: ['cc0-1.0', 'cc-by-4.0', 'cc-by-sa-4.0', 'cc-by-nc-4.0', 'cc-by-nc-sa-4.0', 'cc-by-nd-4.0', 'cc-by-nc-nd-4.0'] },
     soundcloud: { tracks: [] },
     youtube: { sessions: {}, videos: [] },
     mixcloud: { tokens: {}, uploads: [], codes: {} },
+    funkwhale: { uploads: [], polls: 0 },
     log: [],
   };
   const body = (req) => new Promise((ok) => {
@@ -280,6 +281,58 @@ export function createFakePlatforms({ archiveKeys = { access: 'ACCESS', secret: 
       const key = `/openband-user/${String(fields.name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}/`;
       state.mixcloud.uploads.push({ key, fields });
       return json(res, 200, { result: { success: true, key, message: 'Uploaded' } });
+    }
+    // ---- Funkwhale: an instance (OAuth with PKCE optional, libraries, uploads imported in the background)
+    if (p === '/funkwhale/authorize') {
+      const q = url.searchParams;
+      if (q.get('client_id') !== apps.funkwhale.id) return res.writeHead(400).end('unknown client');
+      if (!/write:libraries/.test(q.get('scope') ?? '')) return res.writeHead(400).end('write:libraries expected');
+      const code = rnd();
+      state.oauth.codes[code] = { challenge: q.get('code_challenge'), redirect: q.get('redirect_uri'), app: 'funkwhale' };
+      const back = new URL(q.get('redirect_uri'));
+      back.searchParams.set('code', code);
+      back.searchParams.set('state', q.get('state'));
+      return res.writeHead(302, { location: back.toString() }).end();
+    }
+    if ((p === '/funkwhale/api/v1/oauth/token/' && !state.config.fwV2Only) || p === '/funkwhale/api/v2/oauth/token') {
+      const f = new URLSearchParams(String(await body(req)));
+      if (f.get('client_id') !== apps.funkwhale.id || f.get('client_secret') !== apps.funkwhale.secret) return json(res, 401, { error: 'invalid_client' });
+      if (f.get('grant_type') === 'authorization_code') {
+        const c = state.oauth.codes[f.get('code')];
+        delete state.oauth.codes[f.get('code')];
+        if (!c || c.app !== 'funkwhale' || c.redirect !== f.get('redirect_uri')) return json(res, 400, { error: 'invalid_grant' });
+        if (c.challenge && b64url(crypto.createHash('sha256').update(f.get('code_verifier') ?? '').digest()) !== c.challenge) return json(res, 400, { error: 'invalid_grant' });
+        state.funkwhale.tokenPath = p;
+        return json(res, 200, issue());
+      }
+      if (f.get('grant_type') === 'refresh_token' && state.oauth.refresh[f.get('refresh_token')]) {
+        delete state.oauth.refresh[f.get('refresh_token')];
+        state.oauth.refreshed = (state.oauth.refreshed ?? 0) + 1;
+        return json(res, 200, issue());
+      }
+      return json(res, 400, { error: 'invalid_grant' });
+    }
+    if (p.startsWith('/funkwhale/api/v1/') && p !== '/funkwhale/api/v1/oauth/token/') {
+      const raw = req.method === 'POST' ? await body(req) : null;
+      if (!tokenOk(req.headers.authorization, 'Bearer')) return json(res, 401, { detail: 'Authentication credentials were not provided.' });
+      if (p === '/funkwhale/api/v1/libraries/') return json(res, 200, { count: 3, results: ['me', 'instance', 'everyone'].map((l) => ({ uuid: `lib-${l}`, name: l, privacy_level: l })) });
+      if (p === '/funkwhale/api/v1/uploads/' && req.method === 'POST') {
+        const form = await new Response(raw, { headers: { 'content-type': req.headers['content-type'] } }).formData();
+        const meta = JSON.parse(String(form.get('import_metadata') ?? '{}'));
+        if (!meta.title) return json(res, 400, { import_metadata: { title: ['This field is required.'] } });
+        if (meta.license && !state.config.fwLicenses.includes(meta.license)) return json(res, 400, { import_metadata: { license: [`Object with code=${meta.license} does not exist.`] } });
+        if (!['draft', 'pending'].includes(String(form.get('import_status')))) return json(res, 400, { import_status: ['Newly created Uploads need to have import_status of draft or pending'] });
+        const f = form.get('audio_file');
+        const up = { uuid: rnd(), library: form.get('library'), import_status: 'pending', import_reference: form.get('import_reference'), import_metadata: meta, size: f?.size, filename: f?.name, track: null };
+        state.funkwhale.uploads.push(up);
+        return json(res, 201, up);
+      }
+      if (p === '/funkwhale/api/v1/uploads/' && req.method === 'GET') {
+        // The instance finishes importing on the second look.
+        state.funkwhale.polls++;
+        for (const u of state.funkwhale.uploads) if (u.import_status === 'pending' && state.funkwhale.polls >= 2) Object.assign(u, { import_status: 'finished', track: { id: 41 + state.funkwhale.uploads.indexOf(u), title: u.import_metadata.title } });
+        return json(res, 200, { count: state.funkwhale.uploads.length, results: [...state.funkwhale.uploads].reverse() });
+      }
     }
     res.writeHead(404).end();
   });

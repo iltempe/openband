@@ -1,6 +1,6 @@
 // What each platform is sent (SPEC v0.6 G6): the Internet Archive item and the Wikimedia Commons file page.
 import { describe, expect, it } from 'vitest';
-import { archiveIdentifier, archiveItem, commonsFilename, commonsPage, mixcloudUpload, soundcloudTrack, usesGeneratedMedia, youtubeVideo } from './prepare';
+import { archiveIdentifier, archiveItem, commonsFilename, commonsPage, funkwhaleUpload, mixcloudUpload, soundcloudTrack, usesGeneratedMedia, youtubeVideo } from './prepare';
 import { emptyProject } from '../store';
 import type { Project, ReleaseMeta } from '../types';
 
@@ -67,5 +67,14 @@ describe('SoundCloud, YouTube, Mixcloud', () => {
     const m = mixcloudUpload(song({ genre: 'House', tags: ['a', 'b', 'c', 'd', 'e', 'f'] }));
     expect(m.tags).toEqual(['House', 'a', 'b', 'c', 'd']);
     expect(m.name).toBe('Notte à Trastevere — iltempe');
+  });
+});
+
+describe('Funkwhale', () => {
+  it('import metadata: title, copyright, tags without spaces, the licence code in lowercase', () => {
+    const f = funkwhaleUpload(song({ genre: 'Ambient', tags: ['night sky'] }), 'abc123');
+    expect(f.import_reference).toBe('openband-abc123');
+    expect(f.metadata).toMatchObject({ title: 'Notte à Trastevere', copyright: '2026 iltempe', position: 1, tags: ['Ambient', 'night-sky'], license: 'cc-by-4.0' });
+    expect(funkwhaleUpload(song({ license: 'all-rights-reserved' }), 'x').metadata).not.toHaveProperty('license');
   });
 });

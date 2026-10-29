@@ -9,11 +9,11 @@ import type { Publication } from '../types';
 import { checkReleaseCommand } from './commands';
 import { PLATFORMS, platformById } from './check';
 import { releaseFiles } from './kit';
-import { archiveItem, commonsFilename, commonsPage, mixcloudUpload, soundcloudTrack, youtubeVideo } from './prepare';
+import { archiveItem, commonsFilename, commonsPage, funkwhaleUpload, mixcloudUpload, soundcloudTrack, youtubeVideo } from './prepare';
 import { releaseOf } from './release';
 
 /** The platforms with an adapter in this version; the others come next. */
-export const SUPPORTED = ['archive', 'wikimedia', 'soundcloud', 'youtube', 'mixcloud'] as const;
+export const SUPPORTED = ['archive', 'wikimedia', 'soundcloud', 'youtube', 'mixcloud', 'funkwhale'] as const;
 /** Uploads there are always public. */
 const ALWAYS_PUBLIC = new Set(['archive', 'wikimedia', 'mixcloud']);
 
@@ -160,6 +160,7 @@ export async function publish(a: PublishArgs) {
   const master = hex(await crypto.subtle.digest('SHA-256', files[flacName] as BufferSource)).slice(0, 16);
   const published: Publication[] = [];
   const failed: { platform: string; error: string }[] = [];
+  const notes: { platform: string; note: string }[] = [];
   const setProgress = (id: string, v: { fraction: number; note?: string; error?: string; url?: string }) => usePublish.setState((s) => ({ progress: { ...s.progress, [id]: v } }));
   for (const id of platforms) {
     setProgress(id, { fraction: 0 });
@@ -178,6 +179,9 @@ export async function publish(a: PublishArgs) {
       } else if (id === 'soundcloud') {
         pkg = soundcloudTrack(p, privacy);
         out.push({ bytes: files[flacName], name: flacName, role: 'audio' }, { bytes: await artwork(p), name: 'cover.png', role: 'artwork' });
+      } else if (id === 'funkwhale') {
+        pkg = funkwhaleUpload(p, master);
+        out.push({ bytes: files[flacName], name: flacName, role: 'audio' });
       } else if (id === 'mixcloud') {
         pkg = mixcloudUpload(p);
         setProgress(id, { fraction: 0, note: 'MP3' });
@@ -192,18 +196,19 @@ export async function publish(a: PublishArgs) {
       }
       const sent = [];
       for (const f of out) sent.push({ asset: await sendAsset(f.bytes, f.name, typeOf(f.name)), name: f.name, type: typeOf(f.name), ...(f.role ? { role: f.role } : {}) });
-      const r = await publishRequest<{ id: string; url: string }>('upload', { platform: id, files: sent, package: pkg, privacy }, (fraction, note) => setProgress(id, { fraction, note }));
+      const r = await publishRequest<{ id: string; url: string; note?: string }>('upload', { platform: id, files: sent, package: pkg, privacy }, (fraction, note) => setProgress(id, { fraction, note }));
       const pub: Publication = { platform: id, id: r.id, url: r.url, at: Date.now(), master, privacy };
       published.push(pub);
       // What went out stays recorded: not an undo step.
       useStore.getState().commit((d) => void (d.publications = [...(d.publications ?? []), pub]), { history: false });
-      setProgress(id, { fraction: 1, url: r.url });
+      setProgress(id, { fraction: 1, url: r.url, ...(r.note ? { note: r.note } : {}) });
+      if (r.note) notes.push({ platform: id, note: r.note });
     } catch (e) {
       failed.push({ platform: id, error: (e as Error).message });
       setProgress(id, { fraction: 0, error: (e as Error).message });
     }
   }
-  return { published: published.map((x) => ({ platform: x.platform, url: x.url, id: x.id })), ...(failed.length ? { failed } : {}), master };
+  return { published: published.map((x) => ({ platform: x.platform, url: x.url, id: x.id })), ...(failed.length ? { failed } : {}), ...(notes.length ? { notes } : {}), master };
 }
 
 export function getPublications() {

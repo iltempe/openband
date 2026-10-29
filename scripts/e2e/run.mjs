@@ -2010,7 +2010,8 @@ tests.publish2 = async () => {
       await publishing.saveCredentials('soundcloud', { client_id: 'sc-client', client_secret: 'sc-secret' });
       await publishing.saveCredentials('youtube', { client_id: 'yt-client', client_secret: 'yt-secret' });
       await publishing.saveCredentials('mixcloud', { client_id: 'mc-client', client_secret: 'mc-secret' });
-      return { sc: await publishing.authorizeUrl('soundcloud'), yt: await publishing.authorizeUrl('youtube'), mc: await publishing.authorizeUrl('mixcloud') };
+      await publishing.saveCredentials('funkwhale', { instance: 'https://music.example.org', client_id: 'fw-client', client_secret: 'fw-secret' });
+      return { sc: await publishing.authorizeUrl('soundcloud'), yt: await publishing.authorizeUrl('youtube'), mc: await publishing.authorizeUrl('mixcloud'), fw: await publishing.authorizeUrl('funkwhale') };
     });
     for (const [k, u] of Object.entries(urls)) {
       const w = await ctx.newPage();
@@ -2018,24 +2019,26 @@ tests.publish2 = async () => {
       check(/Signed in to/.test(await w.content()), `${k}: signed in through the local OpenBand`);
       await w.close();
     }
-    await p.waitForFunction(() => ['soundcloud', 'youtube', 'mixcloud'].every((id) => window.openband.publishing.usePublish.getState().targets?.find((x) => x.id === id)?.authorized), { timeout: 5000 });
+    await p.waitForFunction(() => ['soundcloud', 'youtube', 'mixcloud', 'funkwhale'].every((id) => window.openband.publishing.usePublish.getState().targets?.find((x) => x.id === id)?.authorized), { timeout: 5000 });
     const refused = await p.evaluate(() => window.openband.commands.publish({ platforms: ['mixcloud'], privacy: 'unlisted' }).then(() => 'ok', (e) => e.message));
     check(/always public/.test(refused), `Mixcloud has no unlisted uploads: refused before anything (${refused})`);
-    const job = p.evaluate(() => window.openband.commands.publish({ platforms: ['soundcloud', 'youtube', 'mixcloud'] }).catch((e) => ({ error: e.message })));
+    const job = p.evaluate(() => window.openband.commands.publish({ platforms: ['soundcloud', 'youtube', 'mixcloud', 'funkwhale'] }).catch((e) => ({ error: e.message })));
     await p.waitForSelector('.pub-confirm .btn.primary', { timeout: 5000 });
     const dialog = await p.$eval('.pub-confirm', (el) => el.textContent);
     check(/YouTube API quota/.test(dialog) && /320 kbit/.test(dialog), 'the confirmation says what each platform gets');
     await p.click('.pub-confirm .btn.primary');
     const r = await job;
-    check(r.published?.length === 3 && !r.failed, `published to all three (${JSON.stringify(r.failed ?? r.error ?? r.published?.map((x) => x.platform))})`);
+    check(r.published?.length === 4 && !r.failed, `published to all four (${JSON.stringify(r.failed ?? r.error ?? r.published?.map((x) => x.platform))})`);
     const sc = fake.state.soundcloud.tracks.at(-1)?.fields ?? {};
     check(sc['track[license]'] === 'cc-by' && sc['track[tag_list]'] === 'piano "night sky"' && /\.flac$/.test(sc['track[asset_data]']?.name) && sc['track[artwork_data]']?.size > 1000, `SoundCloud: FLAC, artwork, cc-by, tags (${sc['track[asset_data]']?.name}, ${sc['track[artwork_data]']?.size} B)`);
     const yt = fake.state.youtube.videos.at(-1);
     check(yt && yt.size > 50000 && yt.status.license === 'creativeCommon' && yt.snippet.categoryId === '10', `YouTube: the MP4 made here, ${yt?.size} bytes, through the resumable upload, CC BY, Music`);
     const mc = fake.state.mixcloud.uploads.at(-1)?.fields ?? {};
     check(mc.mp3?.size > 10000 && mc.mp3.head.charCodeAt(0) === 0xff && mc.picture?.size > 1000 && mc.name === 'Fuori — iltempe', `Mixcloud: an MP3 (${mc.mp3?.size} B, MPEG frames) with the picture`);
+    const fw = fake.state.funkwhale.uploads.at(-1);
+    check(fw?.library === 'lib-everyone' && fw.import_metadata.license === 'cc-by-4.0' && fw.import_status === 'finished' && r.published.find((x) => x.platform === 'funkwhale')?.url.endsWith(`/library/tracks/${fw.track.id}`), `Funkwhale: the FLAC in the public library, cc-by-4.0, followed until imported (${fw?.library}, track ${fw?.track?.id})`);
     const pubs = await p.evaluate(() => window.openband.commands.get_publications());
-    check(pubs.publications.length === 3, 'the three publications are kept in the song');
+    check(pubs.publications.length === 4, 'the four publications are kept in the song');
   } finally {
     await b.close();
     srv.kill();
