@@ -17,6 +17,23 @@ export interface Manifest {
   /** The song's version: the hash of its canonical project. */
   project_version: string;
   made_with: string;
+  /**
+   * Who made what (SPEC v0.6 §6, from the contribution ledger): so the timestamp also proves how much of
+   * the work is human. Absent in manifests stamped before v0.6.41.
+   */
+  contributions?: Contributions;
+}
+
+export interface Contributions {
+  /** Share of the bars of content made by engines, 0..1 (0: all human). */
+  ai_share: number;
+  tracks: { name: string; bars: number; ai_share: number; engines: string[] }[];
+  /** Each engine that made something still in the song, with its licence. */
+  engines: { id: string; name: string; version?: string; capabilities: string[]; license: string; commercial: 'yes' | 'no' | 'conditional' }[];
+  attributions: string[];
+  /** SHA-256 of the ledger's canonical JSON, and how many entries it has. */
+  ledger_sha256: string;
+  ledger_entries: number;
 }
 
 const sortKeys = (v: unknown): unknown => (Array.isArray(v) ? v.map(sortKeys) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys((v as Record<string, unknown>)[k])])) : v);

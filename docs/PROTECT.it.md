@@ -31,6 +31,16 @@ Nella scheda **Pubblica**, sotto *Tutela*, OpenBand può marcare il tuo brano in
 Il master viene conservato esattamente com'era al momento della marca, come campione salvato con il brano:
 un nuovo render dello stesso brano differisce negli ultimi bit, e la prova riguarda proprio quei byte.
 
+### Quanto è umano
+
+Il manifest dice anche **chi ha fatto cosa**, preso dal registro dei contributi. Registra la quota del
+brano fatta da persone e da motori AI, traccia per traccia e in tutto. Elenca i motori le cui parti sono
+ancora nel brano, con le loro licenze, e le attribuzioni che richiedono, più un hash dell'intero registro.
+Così la marca temporale prova non solo che il brano esisteva, ma quanto ne hai fatto tu. Il certificato lo
+dice in una riga: *Fatto da persone: 100%*, oppure la quota e i motori. Le prove fatte prima della v0.6.41
+non lo contengono. Inserire le stesse informazioni nei file audio come Content Credentials C2PA è stato
+valutato e rimandato: vedi [ADR 0003](adr/0003-c2pa.md).
+
 ## Il pacchetto Prova
 `Pacchetto Prova` (o `export_proof_package`) salva uno zip che chiunque può verificare senza OpenBand:
 - `work.json` e `work.json.ots`, il manifest e la sua prova OpenTimestamps;

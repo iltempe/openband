@@ -11,7 +11,8 @@ import { canonicalJSON } from '../versions/canonical';
 import { releaseOf } from '../publish/release';
 import { LICENSES, type LicenseCode } from '../publish/license';
 import type { Project, Protection } from '../types';
-import { canonicalManifest, sha256Hex, type Manifest, type WorkFile } from './manifest';
+import { canonicalManifest, sha256Hex, type Contributions, type Manifest, type WorkFile } from './manifest';
+import { contributionsOf } from './contributions';
 import { certificatePdf } from './pdf';
 
 export const PARTS = ['master', 'project', 'lyrics', 'chords'] as const;
@@ -57,8 +58,10 @@ export async function manifestOf(p: Project, files: Record<string, { name: strin
     files: hashed,
     project_version: await sha256Hex(projectBytes(p)),
     made_with: 'OpenBand — https://www.openband.it',
+    contributions: await contributionsOf(p),
   };
 }
+
 
 const record = (fn: (list: Protection[]) => Protection[]) => st().commit((d) => void (d.protections = fn(d.protections ?? [])), { history: false });
 
@@ -154,6 +157,7 @@ export async function proofPackage(protectionId?: string): Promise<{ zip: Uint8A
     { text: m.title, size: 16, bold: true, gap: 10 },
     { text: m.authors.length ? `By ${m.authors.join(', ')}` : '' },
     { text: `Declared date: ${m.declared_date} · Licence: ${m.license}` },
+    ...(m.contributions ? [{ text: humanLine(m.contributions) }] : []),
     { text: when ? `Anchored in Bitcoin block ${prot.height}, which existed on ${when}.` : `Submitted on ${new Date(prot.at).toISOString().slice(0, 10)}; Bitcoin confirmation pending (upgrade it in OpenBand, or with "ots upgrade").`, bold: true, gap: 12 },
     { text: `Manifest (work.json) SHA-256: ${prot.digest}`, size: 9, gap: 10 },
     ...Object.values(m.files).map((f) => ({ text: `${f.name}: ${f.sha256}`, size: 9 })),
@@ -164,12 +168,19 @@ export async function proofPackage(protectionId?: string): Promise<{ zip: Uint8A
   return { zip: zipSync(out), name: `${safe(m.title)} - Proof.zip`, files: Object.keys(out), ...(changed.length ? { changed } : {}) };
 }
 
+/** "Made by people: 100%" — or the share, and the engines that made the rest. */
+function humanLine(c: Contributions) {
+  const human = Math.round((1 - c.ai_share) * 100);
+  return c.ai_share === 0 ? 'Made by people: 100% (no part by an AI engine).' : `Made by people: ${human}%; by AI engines: ${100 - human}% (${c.engines.map((e) => e.name).join(', ')}).`;
+}
+
 function readme(m: Manifest, prot: Protection, when: string | null, changed: string[]) {
   return [
     `Proof of existence — ${m.title}`,
     '',
     when ? `Anchored in Bitcoin block ${prot.height} (${when}).` : 'Pending: Bitcoin confirms the timestamp in a few hours. Upgrade it with "ots upgrade work.json.ots" or in OpenBand.',
     '',
+    ...(m.contributions ? [humanLine(m.contributions), ''] : []),
     'To verify it yourself:',
     '1. Install the OpenTimestamps client (https://opentimestamps.org).',
     '2. ots verify work.json.ots   — checks the proof of work.json against Bitcoin.',

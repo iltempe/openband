@@ -43,3 +43,32 @@ describe('the certificate', () => {
     expect(Buffer.from(certificatePdf([{ text: 'a — b' }])).toString('latin1')).toContain('(a \x97 b)');
   });
 });
+
+describe('the ledger in the manifest', () => {
+  it('says how much is human, which engines made the rest and under which licence; deleted parts no longer count', async () => {
+    const { contributionsOf } = await import('./contributions');
+    const lic = { code: 'Apache-2.0', weights: 'CC-BY-4.0', commercial: 'yes' as const, attribution: 'Magenta RealTime 2 by Google (weights CC BY 4.0)' };
+    const p = {
+      tracks: [{ id: 't1', name: 'Piano' }, { id: 't2', name: 'Live' }],
+      regions: [
+        { id: 'r1', trackId: 't1', start: 0, length: 16, notes: [] },
+        { id: 'r2', trackId: 't2', start: 0, length: 16, notes: [], contribution: 'c1' },
+      ],
+      ledger: [
+        { id: 'c1', at: 1, source: 'engine', engine: 'mrt', engineName: 'Magenta RealTime 2', capability: 'stream.jam', requestedBy: 'user', conform: [], license: lic, trackId: 't2', regionIds: ['r2'] },
+        { id: 'c0', at: 0, source: 'engine', engine: 'gone', capability: 'music.song', requestedBy: 'ai', conform: [], license: { code: 'MIT', weights: null, commercial: 'no' }, trackId: 't1', regionIds: ['deleted'] },
+      ],
+    } as unknown as import('../types').Project;
+    const c = await contributionsOf(p);
+    expect(c.ai_share).toBe(0.5);
+    expect(c.tracks).toEqual([{ name: 'Piano', bars: 4, ai_share: 0, engines: [] }, { name: 'Live', bars: 4, ai_share: 1, engines: ['Magenta RealTime 2'] }]);
+    expect(c.engines).toEqual([{ id: 'mrt', name: 'Magenta RealTime 2', capabilities: ['stream.jam'], license: 'Apache-2.0, weights CC-BY-4.0', commercial: 'yes' }]);
+    expect(c.attributions).toContain(lic.attribution);
+    expect(c.ledger_entries).toBe(2);
+    expect(c.ledger_sha256).toMatch(/^[0-9a-f]{64}$/);
+    // The same ledger, the same hash: the manifest stays canonical.
+    expect((await contributionsOf(structuredClone(p))).ledger_sha256).toBe(c.ledger_sha256);
+    const human = await contributionsOf({ ...p, regions: [p.regions[0]], ledger: [] } as never);
+    expect(human).toMatchObject({ ai_share: 0, engines: [], ledger_entries: 0 });
+  });
+});

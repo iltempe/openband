@@ -60,6 +60,18 @@ const BUILTIN = {
   }),
   // The user's ComfyUI workflows ("mapping": which workflow plays which capability; "url": ComfyUI).
   'omep-comfyui': (e) => ({ command: process.execPath, args: [path.join(ROOT, 'omep', 'comfyui-engine.mjs'), ...(e.mapping ? ['--mapping', String(e.mapping).replace(/^~(?=\/|$)/, os.homedir())] : []), ...(e.url ? ['--url', String(e.url)] : [])] }),
+  // HeartMuLa: the user's clone of heartlib ("repo") and its Python; "model_path" (default <repo>/ckpt), "lazy_load".
+  'omep-heartmula': (e) => ({
+    command: process.execPath,
+    args: [
+      path.join(ROOT, 'omep', 'heartmula-engine.mjs'),
+      ...(e.repo ? ['--repo', String(e.repo).replace(/^~(?=\/|$)/, os.homedir())] : []),
+      ...(e.python ? ['--python', String(e.python).replace(/^~(?=\/|$)/, os.homedir())] : []),
+      ...(e.model_path ? ['--model-path', String(e.model_path).replace(/^~(?=\/|$)/, os.homedir())] : []),
+      ...(e.version ? ['--version', String(e.version)] : []),
+      ...(e.lazy_load ? ['--lazy-load'] : []),
+    ],
+  }),
   'omep-ace-step': (e) => ({ command: process.execPath, args: [path.join(ROOT, 'omep', 'ace-step-engine.mjs'), ...(e.model ? ['--model', String(e.model)] : []), ...(e.url ? ['--url', String(e.url)] : [])] }),
 };
 const AUDIO = { '.wav': 'audio/wav', '.flac': 'audio/flac', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg' };

@@ -88,6 +88,29 @@ chiede OpenBand:
 Il risultato viene tagliato alle battute e conformato come quello di ogni motore (tempo, tonalità,
 livello), nel registro.
 
+### HeartMuLa sul tuo computer
+
+[HeartMuLa](https://github.com/HeartMuLa/heartlib) (Apache-2.0, codice e pesi) scrive **canzoni intere da
+testo e tag**. Installalo come dice il suo README: clona heartlib, fai `pip install -e .` in un tuo Python
+3.10 e scarica i checkpoint nella sua cartella `ckpt/`. Poi, in `~/.openband/engines.json`:
+
+```json
+"heartmula": { "builtin": "omep-heartmula", "repo": "~/heartlib", "python": "~/heartlib/.venv/bin/python", "lazy_load": true }
+```
+
+OpenBand esegue lo script di heartlib, `examples/run_music_generation.py`, nella tua copia. Il testo va con
+i segni di sezione di HeartMuLa (`[Verse]`, `[Chorus]`… dalle tue sezioni). I tag sono le tue parole, il
+tempo e la tonalità, scritti come li vuole (`indie pop,warm,96 bpm,f# minor`). Chiede la durata delle
+battute che hai scelto. heartlib vuole una GPU NVIDIA: `lazy_load` aiuta se la memoria è poca, e OpenBand
+lo suggerisce quando la GPU la esaurisce. Suona solo `music.song`:
+- heartlib non accetta ancora una registrazione di riferimento, quindi niente cover;
+- il suo modello per le cover, MuLaCover, è **non commerciale**;
+- il suo trascrittore di testi dà testo senza tempi, che l'`audio.transcribe` di OMEP 1.0 (note) non
+  prevede.
+
+Non ha seed: la stessa richiesta dà ogni volta una canzone diversa. Provato contro un sostituto dello
+script; non ancora eseguito con il modello vero.
+
 ### I tuoi workflow ComfyUI
 
 Se fai già musica in ComfyUI, i suoi workflow possono diventare motori. Esporta ciascuno con **File → Export

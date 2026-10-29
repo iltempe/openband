@@ -31,6 +31,16 @@ toolset).
 The master is kept exactly as it was timestamped, as a sample saved with the song: a new render of the same
 song differs in its last bits, and the proof covers those exact bytes.
 
+### How much is human
+
+The manifest also carries **who made what**, from the contribution ledger. It records the share of the
+song made by people and by AI engines, for each track and in all. It lists the engines whose parts are
+still in the song, with their licences, and the attributions they require, plus a hash of the whole
+ledger. So the timestamp proves not only that the song existed, but how much of it you made. The
+certificate says it in one line: *Made by people: 100%*, or the share and the engines. Proofs made before
+v0.6.41 don't have it. Embedding the same information in the audio files as C2PA Content Credentials was
+evaluated and put off: see [ADR 0003](adr/0003-c2pa.md).
+
 ## The Proof package
 `Proof package` (or `export_proof_package`) saves a zip that anyone can verify without OpenBand:
 - `work.json` and `work.json.ots`, the manifest and its OpenTimestamps proof;

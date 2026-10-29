@@ -2,7 +2,40 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.41 "E6b: HeartMuLa, and how much of the song is human"
+
+### E6 · The ecosystem, part 2 (SPEC v0.6 §6, §10, E6)
+- **`omep-heartmula`**: HeartMuLa (heartlib; Apache-2.0 code and weights) on the user's computer, for `music.song`.
+  - heartlib has no server or package CLI. The engine runs heartlib's own `examples/run_music_generation.py` in the user's clone, with the user's Python, so none of its Python API is guessed.
+  - **Lyrics** go with HeartMuLa's section markers (`[Verse]`, `[Chorus]`…, from the song's sections; an instrumental gets the markers alone).
+  - **Tags** are written as it reads them: lowercase, comma-separated, with the tempo and key in words. Both lyrics and tags go as files, because the script reads a string that looks like a path as a file.
+  - It asks for the scope's length and supports `lazy_load`. Errors come back in words, and when the GPU runs out of memory OpenBand suggests `lazy_load`.
+  - In engines.json: `{ "builtin": "omep-heartmula", "repo": "~/heartlib", "python": "…", "model_path": "…", "lazy_load": true }`.
+  - **Left out, and why**:
+    - covers: heartlib has no reference-audio mode yet ("ref_audio is not supported yet"), and MuLaCover's weights are CC BY-NC;
+    - lyrics transcription: HeartTranscriptor gives text without timings, which OMEP 1.0's `audio.transcribe` (notes) doesn't carry;
+    - seed: there is none, so the engine declares itself stochastic.
+  - **Not yet run with the real model**: tested against a stand-in of the script.
+- **The ledger in the proof of existence** (G7): the work's manifest now carries `contributions`, so the timestamp also proves how much of the work is human. It includes:
+  - the human / AI share of the song and of each track;
+  - the engines whose parts are still in it, with their licences and whether commercial use is allowed;
+  - the attributions;
+  - the hash of the whole ledger.
+  - The certificate and the README say it in one line ("Made by people: 100%", or the share and the engines).
+  - Proofs stamped before keep their manifest byte for byte.
+- **C2PA, evaluated: not now** ([ADR 0003](docs/adr/0003-c2pa.md)):
+  - Validators show any signer that isn't on the C2PA trust list as untrusted, and the CAI SDK refuses self-signed certificates.
+  - Ogg/Opus has no embedding.
+  - No music platform we could find reads or keeps C2PA in audio, and re-encoding breaks it.
+  - Provenance travels instead in the Release Kit's credits and in the G7 proof, which is verifiable outside the audio. The ADR has the plan (IPTC source type from the ledger, ingredients, CAWG training-mining) and when to revisit it.
+- With E6, SPEC v0.6 is complete, minus what was taken out of scope on 2026-10-25 (the engine registry and Safe Creative).
+- Tests:
+  - HeartMuLa: conformance through the stand-in script, which runs in the clone with the same arguments and plays at the tempo and in the key of the tags it got. Also the tags and lyrics format, and the missing-clone and out-of-memory messages.
+  - The manifest's contributions: shares, engines and licences, deleted parts no longer counted, a canonical hash, and an all-human song.
+
 ## v0.6.40 "E6a: your ComfyUI workflows, your own engine"
+
+> The v0.6.40 tag has no release: its verify step failed on a test that assumed a `build/` folder (there is none before a build). Its changes ship in v0.6.41.
 
 ### E6 · The ecosystem, part 1: `omep-template` and `omep-comfyui` (SPEC v0.6 §10, E6)
 - **`omep-template`**: `openband omep-new <folder>` (or `node omep/new-engine.mjs`) makes a complete OMEP engine, a standalone Node project. It has its manifest, one capability (`symbolic.drums`, a seeded groove), the Contribution, `npm run conformance`, and a README on what to change: licence, conditioning, tasks for long jobs, audio files, real time. The id, name, licence and homepage are filled in.

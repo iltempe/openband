@@ -10,6 +10,7 @@ const here = path.dirname(new URL(import.meta.url).pathname);
 describe('omep-template', () => {
   it('an engine made from the template passes conformance as it comes', async () => {
     // Inside the repo, so the engine finds the MCP SDK in its node_modules.
+    fs.mkdirSync(path.join(here, '..', 'build'), { recursive: true }); // not there before a build
     const dir = fs.mkdtempSync(path.join(here, '..', 'build', 'omep-tpl-'));
     fs.rmSync(dir, { recursive: true });
     try {

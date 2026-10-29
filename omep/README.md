@@ -15,6 +15,7 @@ depend on it.
 - Conformance suite: [`conformance.mjs`](conformance.mjs) (`omep-conformance`).
 - **Template** for a new engine: [`template/`](template/README.md) — `openband omep-new <folder>` (or
   `node omep/new-engine.mjs <folder>`) makes one that passes conformance as it comes.
+- Adapters in this repo: ACE-Step, DiffSinger, HeartMuLa ([`heartmula-engine.mjs`](heartmula-engine.mjs)), fal, Magenta RealTime 2.
 - Bridges: [`comfyui-engine.mjs`](comfyui-engine.mjs) (the user's ComfyUI workflows, through a declarative
   [mapping](comfyui/omep.example.json)), and the streaming engines of §8.
 - Example context: [`examples/context.json`](examples/context.json).

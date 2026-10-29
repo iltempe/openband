@@ -84,6 +84,29 @@ and in `~/.openband/engines.json`: `"ace-step": { "builtin": "omep-ace-step", "m
 
 What comes back is cut to the bars and conformed like any engine's (tempo, key, level), in the ledger.
 
+### HeartMuLa on your computer
+
+[HeartMuLa](https://github.com/HeartMuLa/heartlib) (Apache-2.0, code and weights) writes **whole songs from
+lyrics and tags**. Install it as its README says: clone heartlib, `pip install -e .` in a Python 3.10 of your
+own, and download the checkpoints into its `ckpt/` folder. Then, in `~/.openband/engines.json`:
+
+```json
+"heartmula": { "builtin": "omep-heartmula", "repo": "~/heartlib", "python": "~/heartlib/.venv/bin/python", "lazy_load": true }
+```
+
+OpenBand runs heartlib's own `examples/run_music_generation.py` in your clone. The lyrics go with
+HeartMuLa's section markers (`[Verse]`, `[Chorus]`… from your sections). The tags are your words, the tempo
+and the key, written as it wants them (`indie pop,warm,96 bpm,f# minor`). It asks for the length of the
+bars you chose. heartlib needs an NVIDIA GPU: `lazy_load` helps when memory is short, and OpenBand
+suggests it when the GPU runs out. It plays `music.song` only:
+- heartlib can't yet take a reference recording, so there are no covers;
+- its cover model, MuLaCover, is **non-commercial**;
+- its lyrics transcriber gives text without timings, which OMEP 1.0's `audio.transcribe` (notes)
+  doesn't carry.
+
+It has no seed, so the same request gives a different song each time. Tested against a stand-in of the
+script; not yet run with the real model.
+
 ### Your ComfyUI workflows
 
 If you already make music in ComfyUI, its workflows can be engines. Export each one with **File → Export
