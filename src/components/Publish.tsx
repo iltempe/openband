@@ -113,6 +113,7 @@ export function PublishSection() {
   const { targets, progress } = usePublish();
   const project = useStore((s) => s.project);
   const [chosen, setChosen] = useState<string[]>([]);
+  const [privacy, setPrivacy] = useState<'public' | 'unlisted' | 'private'>('public');
   useEffect(() => {
     if (!available) return;
     void refreshTargets().catch(() => {});
@@ -176,11 +177,16 @@ export function PublishSection() {
             {t("pub.inCc")}
           </button>
         )}
+        <select value={privacy} onChange={(e) => setPrivacy(e.target.value as typeof privacy)} title={t("pub.privacyHint")}>
+          <option value="public">{t("pub.public")}</option>
+          <option value="unlisted">{t("pub.unlisted")}</option>
+          <option value="private">{t("pub.private")}</option>
+        </select>
         <button
           className="btn primary"
           disabled={!chosen.length}
           onClick={() =>
-            void runCommand("publish", { platforms: chosen }, "ui").catch(
+            void runCommand("publish", { platforms: chosen, privacy }, "ui").catch(
               notify,
             )
           }
@@ -243,6 +249,15 @@ export function PublishConfirm() {
                 )}
                 {id === "wikimedia" && (
                   <div className="ca-note">{t("pub.commonsWarn")}</div>
+                )}
+                {id === "youtube" && (
+                  <div className="ca-note">{t("pub.youtubeWarn", { privacy: t(`pub.${c.privacy ?? "public"}` as never) })}</div>
+                )}
+                {id === "soundcloud" && (
+                  <div className="ca-note">{t("pub.soundcloudWarn", { privacy: t(`pub.${c.privacy === "public" ? "public" : "private"}` as never) })}</div>
+                )}
+                {id === "mixcloud" && (
+                  <div className="ca-note">{t("pub.mixcloudWarn")}</div>
                 )}
               </li>
             ))}

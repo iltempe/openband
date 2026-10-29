@@ -10,8 +10,11 @@ import { PublishStore } from './store.mjs';
 import { authorizeUrl, exchangeCode } from './oauth.mjs';
 import { archive } from './archive.mjs';
 import { commons } from './commons.mjs';
+import { soundcloud } from './soundcloud.mjs';
+import { youtube } from './youtube.mjs';
+import { mixcloud } from './mixcloud.mjs';
 
-export const ADAPTERS = [archive, commons];
+export const ADAPTERS = [archive, commons, soundcloud, youtube, mixcloud];
 const byId = Object.fromEntries(ADAPTERS.map((a) => [a.id, a]));
 const LOCAL_ORIGIN = /^(https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?|openband:\/\/app)$/;
 const MAX_ASSET = 4 * 1024 ** 3;
@@ -30,8 +33,9 @@ export class PublishHost {
     this.assets = new Map();
     this.pendingAuth = new Map();
   }
-  redirectUri() {
-    return `http://127.0.0.1:${this.port}/publish/oauth/callback`;
+  /** Where the platform sends the user back; per platform for those that don't return the state (Mixcloud). */
+  redirectUri(a) {
+    return `http://127.0.0.1:${this.port}/publish/oauth/callback${a?.redirectPerPlatform ? `/${a.id}` : ''}`;
   }
   endpoints(a) {
     return a.endpoints(this.mock);
@@ -49,7 +53,7 @@ export class PublishHost {
         authorized: a.auth === 'keys' ? a.configured(cfg) : !!cfg.access,
         fields: a.fields.map((f) => ({ ...f, set: !!cfg[f.key === 'access_token' ? 'access' : f.key], ...(f.secret ? {} : { value: cfg[f.key] ?? '' }) })),
         help: a.help,
-        ...(a.auth === 'oauth' ? { redirect_uri: this.redirectUri() } : {}),
+        ...(a.auth === 'oauth' ? { redirect_uri: this.redirectUri(a) } : {}),
       };
     });
   }
@@ -60,7 +64,7 @@ export class PublishHost {
     if (!url.pathname.startsWith('/publish/')) return false;
     const origin = req.headers.origin;
     const cors = origin && LOCAL_ORIGIN.test(origin) ? { 'access-control-allow-origin': origin, vary: 'origin' } : {};
-    if (url.pathname === '/publish/oauth/callback') return this.callback(url, res), true;
+    if (url.pathname === '/publish/oauth/callback' || url.pathname.startsWith('/publish/oauth/callback/')) return this.callback(url, res), true;
     if (req.method === 'OPTIONS') {
       res.writeHead(cors['access-control-allow-origin'] ? 204 : 403, { ...cors, 'access-control-allow-methods': 'POST', 'access-control-allow-headers': 'content-type, x-openband-token, x-openband-name', 'access-control-max-age': '600' });
       return res.end(), true;
@@ -94,7 +98,10 @@ export class PublishHost {
   }
 
   async callback(url, res) {
-    const state = url.searchParams.get('state');
+    let state = url.searchParams.get('state');
+    // A platform that doesn't return the state: the sign-in started last for it, from the callback's path.
+    const byPath = url.pathname.split('/')[4];
+    if (!state && byPath) state = [...this.pendingAuth].filter(([, v]) => v.platform === byPath).sort((x, y) => y[1].at - x[1].at)[0]?.[0] ?? null;
     const pend = state && this.pendingAuth.get(state);
     const page = (title, text) => `<!doctype html><meta charset="utf-8"><title>${title}</title><body style="font:16px system-ui;padding:40px;background:#111;color:#eee"><h2>${title}</h2><p>${text}</p></body>`;
     if (!pend) {
@@ -107,7 +114,8 @@ export class PublishHost {
       if (err) throw new Error(url.searchParams.get('error_description') || err);
       const a = byId[pend.platform];
       const cfg = this.store.get(a.id);
-      const t = await exchangeCode({ token: this.endpoints(a).token, clientId: cfg.client_id, clientSecret: cfg.client_secret, redirectUri: this.redirectUri(), code: url.searchParams.get('code'), verifier: pend.verifier }, this.fetch);
+      const how = { token: this.endpoints(a).token, clientId: cfg.client_id, clientSecret: cfg.client_secret, redirectUri: this.redirectUri(a), code: url.searchParams.get('code'), verifier: pend.verifier };
+      const t = a.exchange ? await a.exchange(how, this.fetch) : await exchangeCode(how, this.fetch);
       this.store.set(a.id, { access: t.access, refresh: t.refresh, expires_at: t.expires_at });
       this.notify({ type: 'publish_authorized', platform: a.id, ok: true });
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(page(`Signed in to ${a.name}`, 'You can close this window and go back to OpenBand.'));
@@ -139,7 +147,7 @@ export class PublishHost {
         const cfg = this.store.get(a.id);
         if (!a.configured(cfg)) throw new Error(`${a.name}: add your app's client key first`);
         const ep = this.endpoints(a);
-        const r = authorizeUrl({ authorize: ep.authorize, clientId: cfg.client_id, redirectUri: this.redirectUri(), scopes: a.scopes });
+        const r = authorizeUrl({ authorize: ep.authorize, clientId: cfg.client_id, redirectUri: this.redirectUri(a), scopes: a.scopes, extra: a.authorizeExtra ?? {} });
         this.pendingAuth.set(r.state, { platform: a.id, verifier: r.verifier, at: Date.now() });
         return { url: r.url };
       }
@@ -150,7 +158,7 @@ export class PublishHost {
         const files = (msg.files ?? []).map((f) => {
           const asset = this.assets.get(f.asset);
           if (!asset) throw new Error('A file to publish is missing: prepare it again');
-          return { ...asset, name: f.name ?? asset.name, type: f.type ?? asset.type };
+          return { ...asset, name: f.name ?? asset.name, type: f.type ?? asset.type, ...(f.role ? { role: f.role } : {}) };
         });
         this.log(`publishing to ${a.name}`);
         try {

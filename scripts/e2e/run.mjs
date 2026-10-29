@@ -1654,7 +1654,7 @@ tests.publish = async () => {
       return out;
     });
     check(!r1.targets.includes('S3CRET-E2E-7f3a'), 'the page learns which accounts are set up, never the secret');
-    check(r1.listed.available && r1.listed.targets.find((x) => x.id === 'archive')?.ready && !r1.listed.targets.find((x) => x.id === 'soundcloud')?.supported, 'list_publish_targets: the Archive ready, SoundCloud not supported yet');
+    check(r1.listed.available && r1.listed.targets.find((x) => x.id === 'archive')?.ready && r1.listed.targets.find((x) => x.id === 'soundcloud')?.supported && !r1.listed.targets.find((x) => x.id === 'audius')?.supported, 'list_publish_targets: the Archive ready, SoundCloud supported, Audius not yet');
     check(/set up the account/.test(r1.unsigned), `Commons before signing in: refused (${r1.unsigned})`);
     check(/did not confirm/.test(r1.unconfirmed) && !Object.keys(fake.state.archive).length, `publish without the user's click → error, nothing uploaded (${r1.unconfirmed})`);
     check(/Internet Archive.*Creative Commons/.test(r1.arr), `the Archive without a CC licence: blocked, with why (${r1.arr})`);
@@ -1977,6 +1977,70 @@ tests.cover = async () => {
   } finally {
     await b.close();
     srv.kill();
+  }
+};
+
+// G6c2: SoundCloud, YouTube and Mixcloud through the local server against their mock: each signs in (Mixcloud
+// without a state), the user confirms, and what arrives is checked: FLAC and artwork with SoundCloud's licence
+// name, the MP4 made in the page through YouTube's resumable upload, an MP3 at 320 kbit/s for Mixcloud.
+tests.publish2 = async () => {
+  const os = await import('node:os');
+  const { createFakePlatforms } = await import('../../server/fixtures/fake-platforms.mjs');
+  const fake = createFakePlatforms();
+  const mock = `http://127.0.0.1:${await fake.listen()}`;
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ob-pub2-'));
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1', OPENBAND_PUBLISH_MOCK: mock, OPENBAND_PUBLISH: path.join(tmp, 'publish.json') });
+  const b = await launch();
+  try {
+    const ctx = await b.createBrowserContext();
+    const p = await ctx.newPage();
+    await p.setViewport({ width: 1440, height: 900 });
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.waitForFunction(() => window.openband.useStore.getState().bridgeStatus === 'connected', { timeout: 10000 });
+    const urls = await p.evaluate(async () => {
+      const { commands, publishing } = window.openband;
+      await commands.new_project({ name: 'Fuori', bpm: 120, key: 'C' });
+      await commands.transport({ action: 'stop' });
+      const { track_id } = await commands.add_track({ kind: 'instrument', instrument: 'felt-piano', name: 'Keys' });
+      await commands.add_region({ track_id, start_bar: 1, length_bars: 2, notes: [60, 64, 67, 72].map((pitch, i) => ({ pitch, start: i, duration: 0.9, velocity: 0.8 })) });
+      await commands.set_release({ title: 'Fuori', artist: 'iltempe', license: 'CC-BY-4.0', genre: 'Ambient', tags: ['piano', 'night sky'] });
+      await commands.generate_cover({ seed: 4 });
+      await publishing.saveCredentials('soundcloud', { client_id: 'sc-client', client_secret: 'sc-secret' });
+      await publishing.saveCredentials('youtube', { client_id: 'yt-client', client_secret: 'yt-secret' });
+      await publishing.saveCredentials('mixcloud', { client_id: 'mc-client', client_secret: 'mc-secret' });
+      return { sc: await publishing.authorizeUrl('soundcloud'), yt: await publishing.authorizeUrl('youtube'), mc: await publishing.authorizeUrl('mixcloud') };
+    });
+    for (const [k, u] of Object.entries(urls)) {
+      const w = await ctx.newPage();
+      await w.goto(u, { waitUntil: 'networkidle0' });
+      check(/Signed in to/.test(await w.content()), `${k}: signed in through the local OpenBand`);
+      await w.close();
+    }
+    await p.waitForFunction(() => ['soundcloud', 'youtube', 'mixcloud'].every((id) => window.openband.publishing.usePublish.getState().targets?.find((x) => x.id === id)?.authorized), { timeout: 5000 });
+    const refused = await p.evaluate(() => window.openband.commands.publish({ platforms: ['mixcloud'], privacy: 'unlisted' }).then(() => 'ok', (e) => e.message));
+    check(/always public/.test(refused), `Mixcloud has no unlisted uploads: refused before anything (${refused})`);
+    const job = p.evaluate(() => window.openband.commands.publish({ platforms: ['soundcloud', 'youtube', 'mixcloud'] }).catch((e) => ({ error: e.message })));
+    await p.waitForSelector('.pub-confirm .btn.primary', { timeout: 5000 });
+    const dialog = await p.$eval('.pub-confirm', (el) => el.textContent);
+    check(/YouTube API quota/.test(dialog) && /320 kbit/.test(dialog), 'the confirmation says what each platform gets');
+    await p.click('.pub-confirm .btn.primary');
+    const r = await job;
+    check(r.published?.length === 3 && !r.failed, `published to all three (${JSON.stringify(r.failed ?? r.error ?? r.published?.map((x) => x.platform))})`);
+    const sc = fake.state.soundcloud.tracks.at(-1)?.fields ?? {};
+    check(sc['track[license]'] === 'cc-by' && sc['track[tag_list]'] === 'piano "night sky"' && /\.flac$/.test(sc['track[asset_data]']?.name) && sc['track[artwork_data]']?.size > 1000, `SoundCloud: FLAC, artwork, cc-by, tags (${sc['track[asset_data]']?.name}, ${sc['track[artwork_data]']?.size} B)`);
+    const yt = fake.state.youtube.videos.at(-1);
+    check(yt && yt.size > 50000 && yt.status.license === 'creativeCommon' && yt.snippet.categoryId === '10', `YouTube: the MP4 made here, ${yt?.size} bytes, through the resumable upload, CC BY, Music`);
+    const mc = fake.state.mixcloud.uploads.at(-1)?.fields ?? {};
+    check(mc.mp3?.size > 10000 && mc.mp3.head.charCodeAt(0) === 0xff && mc.picture?.size > 1000 && mc.name === 'Fuori — iltempe', `Mixcloud: an MP3 (${mc.mp3?.size} B, MPEG frames) with the picture`);
+    const pubs = await p.evaluate(() => window.openband.commands.get_publications());
+    check(pubs.publications.length === 3, 'the three publications are kept in the song');
+  } finally {
+    await b.close();
+    srv.kill();
+    await fake.close();
+    fs.rmSync(tmp, { recursive: true, force: true });
   }
 };
 

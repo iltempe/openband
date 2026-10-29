@@ -142,3 +142,73 @@ describe('Wikimedia Commons', () => {
     await expect(host.handle({ op: 'upload', platform: 'wikimedia', files: [{ asset: a.asset }], package: { filename: 'y.flac', text: 'x' } })).rejects.toThrow(/Not signed in/);
   });
 });
+
+// G6c2: SoundCloud, YouTube, Mixcloud.
+const signIn = async (platform: string) => {
+  const { url } = await host.handle({ op: 'authorize', platform });
+  const back = (await fetch(url, { redirect: 'manual' })).headers.get('location')!;
+  const done = await fetch(back);
+  return { url, back, status: done.status, text: await done.text() };
+};
+
+describe('SoundCloud', () => {
+  it('signs in (PKCE and the app secret) and uploads the master, artwork and metadata', async () => {
+    await host.handle({ op: 'credentials', platform: 'soundcloud', values: { client_id: 'sc-client', client_secret: 'sc-secret' } });
+    const s = await signIn('soundcloud');
+    expect(s.status).toBe(200);
+    expect(s.url).toContain('code_challenge_method=S256');
+    const flac = await (await asset(new Uint8Array(4000).fill(3), 'Fuori.flac', 'audio/flac')).json();
+    const art = await (await asset(new Uint8Array(500).fill(9), 'cover.png', 'image/png')).json();
+    await fetch(`${mock}/__mock/config`, { method: 'POST', body: JSON.stringify({ scExpireNext: true }) });
+    const before = fake.state.oauth.refreshed ?? 0;
+    const r = await host.handle({ op: 'upload', platform: 'soundcloud', files: [{ asset: flac.asset, role: 'audio' }, { asset: art.asset, role: 'artwork' }], package: { track: { title: 'Fuori', description: 'x', genre: 'Lo-fi', tag_list: '"lo fi" notte', license: 'cc-by', sharing: 'private' } } });
+    const t = fake.state.soundcloud.tracks.at(-1);
+    expect(t.fields).toMatchObject({ 'track[title]': 'Fuori', 'track[license]': 'cc-by', 'track[sharing]': 'private', 'track[tag_list]': '"lo fi" notte' });
+    expect(t.fields['track[asset_data]']).toMatchObject({ name: 'Fuori.flac', size: 4000 });
+    expect(t.fields['track[artwork_data]']).toMatchObject({ name: 'cover.png', size: 500 });
+    expect(fake.state.oauth.refreshed).toBe(before + 1); // the token expired on the way: renewed once
+    expect(r.url).toMatch(/track-1000$/);
+  });
+});
+
+describe('YouTube', () => {
+  it('signs in for an offline token, then the resumable upload goes on after a dropped piece', async () => {
+    await host.handle({ op: 'credentials', platform: 'youtube', values: { client_id: 'yt-client', client_secret: 'yt-secret' } });
+    const s = await signIn('youtube');
+    expect(s.status).toBe(200);
+    expect(s.url).toContain('access_type=offline');
+    const size = 20 * 1024 * 1024 + 77;
+    const mp4 = await (await asset(new Uint8Array(size).map((_, i) => i % 199), 'Fuori.mp4', 'video/mp4')).json();
+    await fetch(`${mock}/__mock/config`, { method: 'POST', body: JSON.stringify({ ytFailAt: 8 * 1024 * 1024, ytExpireNext: true }) });
+    const progress: number[] = [];
+    const meta = { snippet: { title: 'Fuori', description: 'x', tags: ['lo-fi'], categoryId: '10' }, status: { privacyStatus: 'unlisted', license: 'creativeCommon', selfDeclaredMadeForKids: false, containsSyntheticMedia: true } };
+    const r = await host.handle({ op: 'upload', platform: 'youtube', files: [{ asset: mp4.asset, role: 'video' }], package: meta }, (f: number) => progress.push(f));
+    const v = fake.state.youtube.videos.at(-1);
+    expect(v.size).toBe(size);
+    expect(v.snippet.title).toBe('Fuori');
+    expect(v.status).toMatchObject({ privacyStatus: 'unlisted', license: 'creativeCommon', containsSyntheticMedia: true });
+    // Three pieces of 8 MiB, one dropped half-way and sent again from where it stopped.
+    expect(v.puts).toBeGreaterThanOrEqual(4);
+    expect(r).toEqual({ id: v.id, url: `https://www.youtube.com/watch?v=${v.id}` });
+    expect(progress.at(-1)).toBe(1);
+  });
+});
+
+describe('Mixcloud', () => {
+  it("signs in without a state (the callback is Mixcloud's own), uploads the MP3, waits when rate-limited", async () => {
+    await host.handle({ op: 'credentials', platform: 'mixcloud', values: { client_id: 'mc-client', client_secret: 'mc-secret' } });
+    const t = (await host.handle({ op: 'targets' })).targets.find((x: { id: string }) => x.id === 'mixcloud');
+    expect(t.redirect_uri).toMatch(/\/publish\/oauth\/callback\/mixcloud$/);
+    const s = await signIn('mixcloud');
+    expect(s.back).not.toContain('state=');
+    expect(s.status).toBe(200);
+    const mp3 = await (await asset(Uint8Array.from([0x49, 0x44, 0x33, 1, 2, 3]), 'Fuori.mp3', 'audio/mpeg')).json();
+    const pic = await (await asset(new Uint8Array(100), 'cover.png', 'image/png')).json();
+    await fetch(`${mock}/__mock/config`, { method: 'POST', body: JSON.stringify({ mcRateLimit: 1 }) });
+    const r = await host.handle({ op: 'upload', platform: 'mixcloud', files: [{ asset: mp3.asset, role: 'audio' }, { asset: pic.asset, role: 'artwork' }], package: { name: 'Fuori', description: 'x', tags: ['a', 'b', 'c', 'd', 'e', 'f'] } });
+    const u = fake.state.mixcloud.uploads.at(-1);
+    expect(u.fields.mp3).toMatchObject({ head: 'ID3' });
+    expect(Object.keys(u.fields).filter((k) => /^tags-\d-tag$/.test(k))).toHaveLength(5);
+    expect(r).toEqual({ id: '/openband-user/fuori/', url: `${mock}/mixcloud/site/openband-user/fuori/` });
+  });
+});

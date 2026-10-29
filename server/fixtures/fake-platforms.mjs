@@ -9,12 +9,15 @@ import http from 'node:http';
 const b64url = (buf) => Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const rnd = () => crypto.randomBytes(12).toString('hex');
 
-export function createFakePlatforms({ archiveKeys = { access: 'ACCESS', secret: 'SECRET' }, wikimediaClient = 'commons-client' } = {}) {
+export function createFakePlatforms({ archiveKeys = { access: 'ACCESS', secret: 'SECRET' }, wikimediaClient = 'commons-client', apps = { soundcloud: { id: 'sc-client', secret: 'sc-secret' }, google: { id: 'yt-client', secret: 'yt-secret' }, mixcloud: { id: 'mc-client', secret: 'mc-secret' } } } = {}) {
   const state = {
     archive: {},
     commons: { files: {}, stash: {} },
     oauth: { codes: {}, access: {}, refresh: {} },
-    config: { archive503: 0, expireNext: false, failChunk: null },
+    config: { archive503: 0, expireNext: false, failChunk: null, scExpireNext: false, ytFailAt: null, ytExpireNext: false, mcRateLimit: 0 },
+    soundcloud: { tracks: [] },
+    youtube: { sessions: {}, videos: [] },
+    mixcloud: { tokens: {}, uploads: [], codes: {} },
     log: [],
   };
   const body = (req) => new Promise((ok) => {
@@ -147,6 +150,136 @@ export function createFakePlatforms({ archiveKeys = { access: 'ACCESS', secret: 
         return json(res, 200, { upload: { result: 'Success', filename, imageinfo: { descriptionurl: fileUrl } } });
       }
       return json(res, 200, { error: { code: 'badvalue', info: 'unknown action' } });
+    }
+    // ---- SoundCloud and Google: OAuth 2.0 with PKCE and the app's secret
+    const oauthApp = p.startsWith('/soundcloud/') ? 'soundcloud' : p.startsWith('/google/') ? 'google' : null;
+    if (oauthApp && (p === '/soundcloud/authorize' || p === '/google/auth')) {
+      const q = url.searchParams;
+      if (q.get('client_id') !== apps[oauthApp].id) return res.writeHead(400).end('unknown client');
+      if (q.get('code_challenge_method') !== 'S256' || !q.get('code_challenge')) return res.writeHead(400).end('PKCE required');
+      if (oauthApp === 'google' && (!/youtube\.upload/.test(q.get('scope') ?? '') || q.get('access_type') !== 'offline')) return res.writeHead(400).end('scope youtube.upload and access_type=offline expected');
+      const code = rnd();
+      state.oauth.codes[code] = { challenge: q.get('code_challenge'), redirect: q.get('redirect_uri'), app: oauthApp };
+      const back = new URL(q.get('redirect_uri'));
+      back.searchParams.set('code', code);
+      back.searchParams.set('state', q.get('state'));
+      return res.writeHead(302, { location: back.toString() }).end();
+    }
+    if (oauthApp && (p === '/soundcloud/oauth/token' || p === '/google/token') && req.method === 'POST') {
+      const f = new URLSearchParams(String(await body(req)));
+      if (f.get('client_id') !== apps[oauthApp].id || f.get('client_secret') !== apps[oauthApp].secret) return json(res, 401, { error: 'invalid_client' });
+      if (f.get('grant_type') === 'authorization_code') {
+        const c = state.oauth.codes[f.get('code')];
+        delete state.oauth.codes[f.get('code')];
+        if (!c || c.app !== oauthApp || c.redirect !== f.get('redirect_uri')) return json(res, 400, { error: 'invalid_grant' });
+        if (b64url(crypto.createHash('sha256').update(f.get('code_verifier') ?? '').digest()) !== c.challenge) return json(res, 400, { error: 'invalid_grant', error_description: 'PKCE verification failed' });
+        return json(res, 200, issue());
+      }
+      if (f.get('grant_type') === 'refresh_token') {
+        if (!state.oauth.refresh[f.get('refresh_token')]) return json(res, 400, { error: 'invalid_grant' });
+        delete state.oauth.refresh[f.get('refresh_token')];
+        state.oauth.refreshed = (state.oauth.refreshed ?? 0) + 1;
+        return json(res, 200, issue());
+      }
+      return json(res, 400, { error: 'unsupported_grant_type' });
+    }
+    const tokenOk = (header, scheme) => {
+      const t = new RegExp(`^${scheme} (.+)$`).exec(header ?? '')?.[1];
+      return !!t && !!state.oauth.access[t] && state.oauth.access[t].expires > Date.now() ? t : null;
+    };
+    const expire = (key, t) => {
+      if (!state.config[key]) return false;
+      state.config[key] = false;
+      state.oauth.access[t].expires = 0;
+      return true;
+    };
+    // ---- SoundCloud API
+    if (p === '/soundcloud/api/tracks' && req.method === 'POST') {
+      const raw = await body(req);
+      const t = tokenOk(req.headers.authorization, 'OAuth');
+      if (!t || expire('scExpireNext', t)) return json(res, 401, { error: 'invalid_token' });
+      const form = await new Response(raw, { headers: { 'content-type': req.headers['content-type'] } }).formData();
+      const fields = {};
+      for (const [k, v] of form) fields[k] = typeof v === 'string' ? v : { name: v.name, size: v.size, type: v.type };
+      const id = 1000 + state.soundcloud.tracks.length;
+      state.soundcloud.tracks.push({ id, fields });
+      return json(res, 201, { id, permalink_url: `http://${req.headers.host}/soundcloud/site/track-${id}` });
+    }
+    // ---- YouTube: the resumable upload
+    if (p === '/youtube/upload/youtube/v3/videos' && req.method === 'POST') {
+      const raw = await body(req);
+      const t = tokenOk(req.headers.authorization, 'Bearer');
+      if (!t || expire('ytExpireNext', t)) return json(res, 401, { error: { code: 401, status: 'UNAUTHENTICATED', message: 'Invalid Credentials' } });
+      if (url.searchParams.get('uploadType') !== 'resumable') return json(res, 400, { error: { message: 'resumable expected' } });
+      const sid = rnd();
+      state.youtube.sessions[sid] = { meta: JSON.parse(String(raw)), total: Number(req.headers['x-upload-content-length']), type: req.headers['x-upload-content-type'], received: [], size: 0, puts: 0 };
+      return res.writeHead(200, { location: `http://${req.headers.host}/youtube/session/${sid}` }).end();
+    }
+    const yt = /^\/youtube\/session\/(\w+)$/.exec(p);
+    if (yt && req.method === 'PUT') {
+      const raw = await body(req);
+      const s = state.youtube.sessions[yt[1]];
+      if (!s) return res.writeHead(404).end();
+      if (!tokenOk(req.headers.authorization, 'Bearer')) return json(res, 401, { error: { code: 401 } });
+      const cr = String(req.headers['content-range'] ?? '');
+      const answer = () => {
+        if (s.size === s.total) {
+          const id = `vid${state.youtube.videos.length + 1}`;
+          if (!s.id) state.youtube.videos.push({ id, ...s.meta, size: s.size, puts: s.puts });
+          s.id ??= id;
+          return json(res, 200, { id: s.id, kind: 'youtube#video' });
+        }
+        return res.writeHead(308, s.size ? { range: `bytes=0-${s.size - 1}` } : {}).end();
+      };
+      if (/^bytes \*\//.test(cr)) return answer();
+      const m = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(cr);
+      if (!m) return json(res, 400, { error: { message: 'Content-Range' } });
+      s.puts++;
+      if (state.config.ytFailAt === Number(m[1])) {
+        state.config.ytFailAt = null;
+        // Half of the piece arrived before the connection dropped.
+        const half = Math.floor(raw.length / 2);
+        s.received.push(raw.subarray(0, half));
+        s.size += half;
+        return json(res, 503, { error: { code: 503, message: 'Backend Error' } });
+      }
+      if (Number(m[1]) !== s.size) return json(res, 400, { error: { message: `expected ${s.size}` } });
+      s.received.push(raw);
+      s.size += raw.length;
+      return answer();
+    }
+    // ---- Mixcloud: OAuth with a GET exchange and no state, then the upload
+    if (p === '/mixcloud/oauth/authorize') {
+      const q = url.searchParams;
+      if (q.get('client_id') !== apps.mixcloud.id) return res.writeHead(400).end('unknown client');
+      const code = rnd();
+      state.mixcloud.codes[code] = q.get('redirect_uri');
+      const back = new URL(q.get('redirect_uri'));
+      back.searchParams.set('code', code);
+      return res.writeHead(302, { location: back.toString() }).end();
+    }
+    if (p === '/mixcloud/oauth/access_token') {
+      const q = url.searchParams;
+      const redirect = state.mixcloud.codes[q.get('code')];
+      delete state.mixcloud.codes[q.get('code')];
+      if (q.get('client_id') !== apps.mixcloud.id || q.get('client_secret') !== apps.mixcloud.secret || !redirect || redirect !== q.get('redirect_uri')) return json(res, 400, { error: { type: 'OAuthException', message: 'bad code' } });
+      const token = rnd();
+      state.mixcloud.tokens[token] = true;
+      return json(res, 200, { access_token: token });
+    }
+    if (p === '/mixcloud/api/upload/' && req.method === 'POST') {
+      const raw = await body(req);
+      if (!state.mixcloud.tokens[url.searchParams.get('access_token')]) return json(res, 401, { error: { type: 'OAuthException', message: 'Invalid token' } });
+      if (state.config.mcRateLimit > 0) {
+        state.config.mcRateLimit--;
+        return json(res, 403, { error: { type: 'RateLimitException', message: 'Too many requests', retry_after: 1 } });
+      }
+      const form = await new Response(raw, { headers: { 'content-type': req.headers['content-type'] } }).formData();
+      const fields = {};
+      for (const [k, v] of form) fields[k] = typeof v === 'string' ? v : { name: v.name, size: v.size, type: v.type, head: Buffer.from(await v.slice(0, 3).arrayBuffer()).toString('latin1') };
+      const key = `/openband-user/${String(fields.name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}/`;
+      state.mixcloud.uploads.push({ key, fields });
+      return json(res, 200, { result: { success: true, key, message: 'Uploaded' } });
     }
     res.writeHead(404).end();
   });

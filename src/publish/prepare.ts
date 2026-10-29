@@ -86,3 +86,60 @@ export function commonsPage(p: Project): string {
     '',
   ].join('\n');
 }
+
+// ---- SoundCloud, YouTube, Mixcloud (G6c2)
+
+/** SoundCloud's names for the licences. */
+export const SOUNDCLOUD_LICENSE: Record<LicenseCode, string> = {
+  'all-rights-reserved': 'all-rights-reserved',
+  'CC0-1.0': 'no-rights-reserved',
+  'CC-BY-4.0': 'cc-by',
+  'CC-BY-SA-4.0': 'cc-by-sa',
+  'CC-BY-NC-4.0': 'cc-by-nc',
+  'CC-BY-ND-4.0': 'cc-by-nd',
+  'CC-BY-NC-SA-4.0': 'cc-by-nc-sa',
+  'CC-BY-NC-ND-4.0': 'cc-by-nc-nd',
+};
+
+/** The text that goes with the song everywhere: description, licence, AI use, where it was made. */
+function longDescription(p: Project): string {
+  const r = releaseOf(p);
+  const l = LICENSES[r.license as LicenseCode];
+  return [r.description, l?.cc ? `Licence: ${l.name} — ${l.url}` : null, `AI use: ${r.aiDisclosure}`, 'Made with OpenBand — https://www.openband.it'].filter(Boolean).join('\n\n');
+}
+
+/** Did any engine (an AI model) make part of it? From the ledger, not from what anyone says. */
+export const usesGeneratedMedia = (p: Project) => (p.ledger ?? []).some((e) => e.source !== 'builtin');
+
+export function soundcloudTrack(p: Project, privacy: 'public' | 'private' | 'unlisted' = 'public') {
+  const r = releaseOf(p);
+  return {
+    track: {
+      title: r.title,
+      description: longDescription(p),
+      ...(r.genre ? { genre: r.genre } : {}),
+      // Tags with spaces are quoted, as SoundCloud's tag_list wants.
+      tag_list: (r.tags ?? []).map((t) => (/\s/.test(t) ? `"${t.replace(/"/g, '')}"` : t)).join(' '),
+      license: SOUNDCLOUD_LICENSE[r.license as LicenseCode] ?? 'all-rights-reserved',
+      // SoundCloud has public and private (a private link is how it is unlisted).
+      sharing: privacy === 'public' ? 'public' : 'private',
+    },
+  };
+}
+
+export function youtubeVideo(p: Project, privacy: 'public' | 'private' | 'unlisted' = 'public') {
+  const r = releaseOf(p);
+  const tags: string[] = [];
+  let len = 0;
+  for (const t of [...(r.tags ?? []), ...(r.genre ? [r.genre] : [])]) if ((len += t.length + 1) <= 480) tags.push(t);
+  const desc = longDescription(p);
+  return {
+    snippet: { title: `${r.title}${r.artist ? ` — ${r.artist}` : ''}`.slice(0, 100), description: desc.slice(0, 4900), tags, categoryId: '10', ...(r.language ? { defaultLanguage: r.language, defaultAudioLanguage: r.language } : {}) },
+    status: { privacyStatus: privacy, license: r.license === 'CC-BY-4.0' ? 'creativeCommon' : 'youtube', selfDeclaredMadeForKids: false, containsSyntheticMedia: usesGeneratedMedia(p) },
+  };
+}
+
+export function mixcloudUpload(p: Project) {
+  const r = releaseOf(p);
+  return { name: `${r.title}${r.artist ? ` — ${r.artist}` : ''}`.slice(0, 100), description: longDescription(p).slice(0, 1000), tags: [...(r.genre ? [r.genre] : []), ...(r.tags ?? [])].slice(0, 5) };
+}

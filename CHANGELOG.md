@@ -2,6 +2,39 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.36 "G6c2: publish to SoundCloud, YouTube and Mixcloud"
+
+### G6c2 · Three more platforms, with your own apps and your click (SPEC v0.6 G6)
+- **SoundCloud**:
+  - sign-in is OAuth 2.1 with PKCE through secure.soundcloud.com, using the user's own app; its client secret stays in the local OpenBand;
+  - the upload is one multipart `POST /tracks` with the master as FLAC, the cover as artwork, the title, a description with the licence and the AI-use statement, the genre, and the tags (quoted when they have spaces);
+  - the **licence** is given in SoundCloud's terms (`cc-by`, `no-rights-reserved` for CC0…);
+  - sharing is *public*, or *private* for anything else;
+  - a token that expires mid-way is renewed once.
+- **YouTube**:
+  - sign-in is OAuth 2.0 with Google, through the user's *Desktop app* client, with an offline token so it renews itself;
+  - the 16:9 video is made in the studio (G6b) and sent with the Data API's **resumable upload**: a session opened with the snippet and status, then pieces of 8 MiB. After a dropped connection it asks how much arrived and continues from there;
+  - privacy is *public*, *unlisted* or *private*;
+  - the licence is `creativeCommon` for CC BY and the standard one otherwise;
+  - `containsSyntheticMedia` is declared when AI engines made part of the song. This comes **from the ledger**, not from anyone's word;
+  - category Music.
+- **Mixcloud**:
+  - sign-in is OAuth 2.0 with the user's app. Mixcloud returns no `state`, so it has a callback of its own (`/publish/oauth/callback/mixcloud`); its exchange is a GET, and its token has no expiry;
+  - the upload is an **MP3 at 320 kbit/s** made in the page, with the cover and at most 5 tags;
+  - after *too many requests* it waits as told and tries again;
+  - it is always public, so *unlisted* is refused before anything is sent.
+- **MP3**: LAME through `@breezystack/lamejs` 1.2.7 (LGPL-3.0). It is used unmodified and loaded as its own chunk, only when an MP3 is made.
+- The Release tab gains *Public / Unlisted / Private* next to *Publish…*. The confirmation says what each platform gets: video and API quota for YouTube, FLAC for SoundCloud, MP3 for Mixcloud.
+- Guide: how to create the apps on SoundCloud, Google Cloud and Mixcloud, and which redirect URL to register ([docs/PUBLISHING.md](docs/PUBLISHING.md)).
+- Not yet: Audius and Funkwhale (G6c3).
+- Tests:
+  - **Against a mock of the three platforms** (`server/publish.test.ts`, 13 in all):
+    - SoundCloud: signs in with PKCE and the secret, uploads FLAC and artwork with the licence, sharing and tags, and renews an expired token once;
+    - YouTube: asks for an offline token; a 20 MB video goes in three pieces, one dropped half-way and resumed from what arrived, with the token renewed once on the way; snippet and status arrive as sent;
+    - Mixcloud: signs in without a state, waits when rate-limited, uploads the MP3 and picture with 5 tags at most.
+  - **In Chrome** (`npm run e2e`, *publish2*, 10 checks): each platform signs in through the local OpenBand; Mixcloud *unlisted* is refused; the confirmation says what each gets; all three are published after the click. SoundCloud gets FLAC, artwork, `cc-by` and the tags; YouTube gets the MP4 made in the page through the resumable upload, CC BY, Music; Mixcloud gets an MP3 with the picture. The publications are kept in the song.
+  - **Unit tests**: SoundCloud's licence names, tags and sharing; YouTube's licence, privacy and synthetic media from the ledger; Mixcloud's tags; the MP3 (ffprobe reads 320 kbit/s stereo).
+
 ## v0.6.35 "Your issues: Firefox, export, latency, quantize, updates, Hermes, covers, MIDI channels, Flatpak"
 
 All the open issues of the repository, in one delivery.

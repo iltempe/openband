@@ -1,6 +1,6 @@
 {
   "name": "openband",
-  "version": "0.6.35",
+  "version": "0.6.36",
   "description": "Open-source GarageBand-style music studio for the browser, controllable by AI through MCP",
   "keywords": [
     "daw",
@@ -59,6 +59,7 @@
     "site": "npm run build && node scripts/build-site.mjs && echo \"Preview: (cd dist && python3 -m http.server 8080) then http://localhost:8080/about/\""
   },
   "dependencies": {
+    "@breezystack/lamejs": "1.2.7",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "mp4-muxer": "5.2.2",
     "onnxruntime-web": "^1.27.0",

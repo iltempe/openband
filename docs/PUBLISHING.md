@@ -35,6 +35,22 @@ in, copy the *access* and *secret* keys into *Release → Accounts → Internet 
   **Sign in**. A Wikimedia window opens; after you allow it, OpenBand keeps the sign-in (OAuth 2.0 with
   PKCE) and renews it when it expires.
 
+**SoundCloud**: create an app at [soundcloud.com/you/apps](https://soundcloud.com/you/apps) with the
+**redirect URL** shown in *Accounts* (`http://127.0.0.1:<port>/publish/oauth/callback`), paste its client ID
+and secret, and press **Sign in**.
+
+**YouTube**: in the [Google Cloud console](https://console.cloud.google.com/apis/credentials), enable the
+*YouTube Data API v3*, set up the OAuth consent screen (add yourself as a test user) and create an OAuth
+client of type **Desktop app**. Paste its client ID and secret and press **Sign in**. Each upload uses API
+quota: about 100 videos a day per project.
+
+**Mixcloud**: create an app at [mixcloud.com/developers](https://www.mixcloud.com/developers/create/) with the
+redirect URL shown in *Accounts* (it ends in `/callback/mixcloud`), paste its client ID and secret, and press
+**Sign in**.
+
+The redirect URL contains the port the local OpenBand is using (7777 unless it was taken): register the one
+*Accounts* shows.
+
 ## 3. Publish
 Tick the platforms (*Publish in CC* ticks the ones your licence allows) and press **Publish…**. The studio
 checks the release again, then asks you to confirm:
@@ -45,7 +61,17 @@ checks the release again, then asks you to confirm:
   page holds `{{Information}}` and the licence template (`{{cc-zero}}`, `{{cc-by-4.0}}` or
   `{{cc-by-sa-4.0}}`). Commons takes only free licences: with NC or ND it is switched off.
 
+- **SoundCloud**: the master as FLAC with the cover as artwork, the licence in SoundCloud's terms (all
+  Creative Commons ones), genre and tags; *public*, or *private* (a private link) for anything else.
+- **YouTube**: the 16:9 video made in the studio (cover, spectrum, lyrics), uploaded in pieces that resume
+  after a dropped connection; *public*, *unlisted* or *private*; licence *Creative Commons* for CC BY, the
+  standard one otherwise; *altered or synthetic content* is declared when AI engines made part of the song
+  (from its ledger).
+- **Mixcloud**: an MP3 at 320 kbit/s with the cover, at most 5 tags; always public.
+
+Pick *Public*, *Unlisted* or *Private* next to **Publish…**: it applies to YouTube and SoundCloud.
+
 What went out, where, when and which master stays in the song (*Published*, `get_publications`).
 
-**Coming next**: SoundCloud, YouTube (with the generated video), Mixcloud, Audius and Funkwhale.
+**Coming next**: Audius and Funkwhale.
 Spotify, Apple Music and the other stores need a distributor and have no open upload API, so OpenBand doesn't publish there.

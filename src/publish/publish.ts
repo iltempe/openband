@@ -9,13 +9,13 @@ import type { Publication } from '../types';
 import { checkReleaseCommand } from './commands';
 import { PLATFORMS, platformById } from './check';
 import { releaseFiles } from './kit';
-import { archiveItem, commonsFilename, commonsPage } from './prepare';
+import { archiveItem, commonsFilename, commonsPage, mixcloudUpload, soundcloudTrack, youtubeVideo } from './prepare';
 import { releaseOf } from './release';
 
 /** The platforms with an adapter in this version; the others come next. */
-export const SUPPORTED = ['archive', 'wikimedia'] as const;
+export const SUPPORTED = ['archive', 'wikimedia', 'soundcloud', 'youtube', 'mixcloud'] as const;
 /** Uploads there are always public. */
-const ALWAYS_PUBLIC = new Set(['archive', 'wikimedia']);
+const ALWAYS_PUBLIC = new Set(['archive', 'wikimedia', 'mixcloud']);
 
 export interface TargetField {
   key: string;
@@ -117,7 +117,15 @@ async function sendAsset(bytes: Uint8Array, name: string, type: string): Promise
   return ((await res.json()) as { asset: string }).asset;
 }
 
-const TYPES: Record<string, string> = { flac: 'audio/flac', png: 'image/png', lrc: 'text/plain', txt: 'text/plain' };
+const TYPES: Record<string, string> = { flac: 'audio/flac', png: 'image/png', lrc: 'text/plain', txt: 'text/plain', mp3: 'audio/mpeg', mp4: 'video/mp4' };
+
+/** The cover for platforms that take artwork (1400 px: under every platform's limit). */
+async function artwork(p: import('../types').Project): Promise<Uint8Array> {
+  const r = releaseOf(p);
+  if (r.cover?.kind === 'image') return Uint8Array.from(atob(r.cover.dataUrl.slice(r.cover.dataUrl.indexOf(',') + 1)), (c) => c.charCodeAt(0));
+  const { coverPng } = await import('./cover');
+  return coverPng(r.cover?.kind === 'generated' ? r.cover : { style: 'bold', palette: 'night', seed: 1 }, { title: r.title, artist: r.artist }, 1400);
+}
 const typeOf = (name: string) => TYPES[name.split('.').pop()!.toLowerCase()] ?? 'application/octet-stream';
 
 export interface PublishArgs {
@@ -157,17 +165,33 @@ export async function publish(a: PublishArgs) {
     setProgress(id, { fraction: 0 });
     try {
       let pkg: Record<string, unknown>;
-      let send: string[];
+      // What each platform gets: bytes, a name, and its role (audio, artwork, video).
+      const out: { bytes: Uint8Array; name: string; role?: string }[] = [];
+      const base = flacName.replace(/\.flac$/, '');
       if (id === 'archive') {
         pkg = archiveItem(p, master.slice(0, 6)) as unknown as Record<string, unknown>;
-        send = [flacName, 'cover.png', ...Object.keys(files).filter((k) => /\.(lrc|txt)$/.test(k))];
-      } else {
+        for (const name of [flacName, 'cover.png', ...Object.keys(files).filter((k) => /\.(lrc|txt)$/.test(k))]) out.push({ bytes: files[name], name });
+      } else if (id === 'wikimedia') {
         const filename = commonsFilename(p);
         pkg = { filename, text: commonsPage(p), comment: `${releaseOf(p).title}: uploaded with OpenBand` };
-        send = [flacName];
+        out.push({ bytes: files[flacName], name: filename });
+      } else if (id === 'soundcloud') {
+        pkg = soundcloudTrack(p, privacy);
+        out.push({ bytes: files[flacName], name: flacName, role: 'audio' }, { bytes: await artwork(p), name: 'cover.png', role: 'artwork' });
+      } else if (id === 'mixcloud') {
+        pkg = mixcloudUpload(p);
+        setProgress(id, { fraction: 0, note: 'MP3' });
+        const { encodeMp3 } = await import('../audio/mp3');
+        out.push({ bytes: await encodeMp3([buf.getChannelData(0), buf.getChannelData(Math.min(1, buf.numberOfChannels - 1))], buf.sampleRate, 320), name: `${base}.mp3`, role: 'audio' }, { bytes: await artwork(p), name: 'cover.png', role: 'artwork' });
+      } else {
+        // YouTube: the video (cover, spectrum, lyrics), made here.
+        pkg = youtubeVideo(p, privacy);
+        setProgress(id, { fraction: 0, note: 'video' });
+        const { renderVideo } = await import('./video');
+        out.push({ bytes: (await renderVideo(p, { format: '16:9' })).mp4, name: `${base}.mp4`, role: 'video' });
       }
       const sent = [];
-      for (const name of send) sent.push({ asset: await sendAsset(files[name], name, typeOf(name)), name: id === 'wikimedia' ? (pkg.filename as string) : name, type: typeOf(name) });
+      for (const f of out) sent.push({ asset: await sendAsset(f.bytes, f.name, typeOf(f.name)), name: f.name, type: typeOf(f.name), ...(f.role ? { role: f.role } : {}) });
       const r = await publishRequest<{ id: string; url: string }>('upload', { platform: id, files: sent, package: pkg, privacy }, (fraction, note) => setProgress(id, { fraction, note }));
       const pub: Publication = { platform: id, id: r.id, url: r.url, at: Date.now(), master, privacy };
       published.push(pub);
