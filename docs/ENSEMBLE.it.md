@@ -88,6 +88,39 @@ chiede OpenBand:
 Il risultato viene tagliato alle battute e conformato come quello di ogni motore (tempo, tonalità,
 livello), nel registro.
 
+### I tuoi workflow ComfyUI
+
+Se fai già musica in ComfyUI, i suoi workflow possono diventare motori. Esporta ciascuno con **File → Export
+(API)** e scrivi una piccola mappatura che dice quale capability suona e dove va il brano: quale input di
+quale nodo riceve lo stile, il tempo, la durata delle battute richieste, il testo, il seed; oppure, per una
+cover, l'audio del brano (caricato nella cartella input di ComfyUI per un nodo LoadAudio) e l'intensità
+come denoise.
+
+```jsonc
+{ "name": "ACE-Step nel mio ComfyUI",
+  "license": { "code": "GPL-3.0", "weights": "Apache-2.0", "commercial": "yes", "attribution": null, "conditions": null },
+  "capabilities": {
+    "music.song": { "workflow": "ace-step.api.json", "output": "7", "role": "full",
+      "inputs": { "2.tags": "{intent.text}, {song.bpm} bpm, {song.key_scale}", "2.lyrics": "lyrics.text",
+                  "4.seconds": "scope.seconds", "5.seed": "seed" } } } }
+```
+
+e in `~/.openband/engines.json`: `"comfy": { "builtin": "omep-comfyui", "mapping": "~/comfy/omep.json" }`
+(più `"url"` se ComfyUI non è su `http://127.0.0.1:8188`). La mappatura viene controllata all'avvio del
+motore (un nodo o un input che non sono nel workflow, un valore che OpenBand non conosce) e gli errori di
+ComfyUI tornano a parole (un custom node mancante, un errore durante l'esecuzione). I valori disponibili e un
+esempio completo per ACE-Step con i nodi core di ComfyUI sono in
+[`omep/comfyui/`](../omep/comfyui/omep.example.json). **Dichiara la licenza** dei modelli che i tuoi workflow
+caricano: solo tu sai quali sono, e i controlli di licenza di OpenBand dipendono da questo. Provato contro un
+sostituto dell'API di ComfyUI, scritto dai sorgenti del suo server.
+
+### Scrivi il tuo motore
+
+`npx -y --allow-remote=all https://github.com/iltempe/openband/releases/latest/download/openband.tgz omep-new mio-motore`
+crea una cartella con un motore OMEP completo (manifest, una capability, la Contribution) che passa la
+conformità così com'è (`npm run conformance`); metti il tuo modello dove indicato. Vedi
+[omep/template](../omep/template/README.md).
+
 ## Le tue regole e il router
 
 *Ensemble → Le tue regole*:

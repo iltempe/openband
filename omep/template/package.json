@@ -1,0 +1,17 @@
+{
+  "name": "__ID__",
+  "version": "0.1.0",
+  "description": "__NAME__: an OMEP 1.0 music engine (MCP server)",
+  "type": "module",
+  "license": "__LICENSE__",
+  "bin": { "__ID__": "engine.mjs" },
+  "scripts": {
+    "start": "node engine.mjs",
+    "conformance": "npx -y --allow-remote=all https://github.com/iltempe/openband/releases/latest/download/openband.tgz omep-conformance -- node engine.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "zod": "^4.6.7"
+  },
+  "engines": { "node": ">=18" }
+}

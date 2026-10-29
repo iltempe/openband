@@ -2,6 +2,28 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.40 "E6a: your ComfyUI workflows, your own engine"
+
+### E6 · The ecosystem, part 1: `omep-template` and `omep-comfyui` (SPEC v0.6 §10, E6)
+- **`omep-template`**: `openband omep-new <folder>` (or `node omep/new-engine.mjs`) makes a complete OMEP engine, a standalone Node project. It has its manifest, one capability (`symbolic.drums`, a seeded groove), the Contribution, `npm run conformance`, and a README on what to change: licence, conditioning, tasks for long jobs, audio files, real time. The id, name, licence and homepage are filled in.
+  - **The acceptance**: an engine made from the template passes conformance in CI as it comes. That is the new `npm run omep:template` step, with 100% adherence. The streaming suite runs in CI too.
+- **`omep-comfyui`**: the user's own ComfyUI workflows as OMEP capabilities, through a **declarative mapping**.
+  - Each capability names a workflow exported with File → Export (API), the node inputs that get the song, the save node and the role.
+  - **Values**: tempo, key ("D minor"), meter, the scope's seconds and bars, the intent, the lyrics (or `[Instrumental]`), the seed, the strength, and the denoise for a cover. Templates such as `"{intent.text}, {song.bpm} bpm, {song.key_scale}"` and constants are allowed.
+  - **The song's audio** for a cover is uploaded to ComfyUI's input folder (`/upload/image` takes any file), and its name goes to a LoadAudio node.
+  - Workflows are queued (`/prompt`), followed (`/history`, interrupted on cancel) and downloaded (`/view`), as MCP tasks.
+  - The manifest is derived from the mapping, including what each capability conditions on. The **licence is the user's to declare**: only they know which models their workflows load.
+  - The mapping is checked at start, line by line: a missing node or input, an unknown value, a capability that doesn't make audio, a missing workflow.
+  - ComfyUI's errors come back in words: a missing custom node ("install the custom nodes this workflow uses") or a failure while running (node and exception).
+  - Example: ACE-Step 1.0 with ComfyUI's core nodes, for a song and a cover, in `omep/comfyui/`. Check it against your own setup.
+  - In engines.json: `{ "builtin": "omep-comfyui", "mapping": "…", "url": "…" }`.
+- Tests: conformance of the example mapping over a stand-in of ComfyUI's API, written from its server's sources. The stand-in makes audio as long, as fast and in the key the bound inputs ask for, so adherence is really measured. The other tests cover:
+  - the workflow fill-in (templates, constants, denoise, the uploaded file);
+  - the mapping errors;
+  - a missing custom node and a run-time failure;
+  - the template (refuses a folder that isn't empty, fills every placeholder).
+  - **Not tried with a real ComfyUI.**
+
 ## v0.6.39 "E5: jam live with a real-time model"
 
 ### E5 · Real time: the OMEP stream and Magenta RealTime 2 (SPEC v0.6 §2.5, E5)

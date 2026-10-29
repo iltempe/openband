@@ -33,6 +33,7 @@ Usage:
   openband setup       add OpenBand to Claude Desktop, Claude Code, Cursor or VS Code
   openband doctor      check Node, ports, the build and your MCP clients
   openband omep-conformance -- <engine command>   check an Open Music Engine Profile engine
+  openband omep-new <folder> [--id] [--name]       start a new OMEP engine from the template
   openband omep-mock   run the reference mock engine (MCP over stdio)
   openband --version
 
@@ -60,6 +61,11 @@ switch (cmd) {
   case 'setup':
     await (await import('../server/setup.mjs')).setup(rest);
     break;
+  case 'omep-new': {
+    process.argv = [process.argv[0], fileURLToPath(new URL('../omep/new-engine.mjs', import.meta.url)), ...rest];
+    await import('../omep/new-engine.mjs');
+    break;
+  }
   case 'omep-conformance':
     // Check an OMEP engine: openband omep-conformance -- <command> [args…]
     process.argv = [process.argv[0], fileURLToPath(new URL('../omep/conformance.mjs', import.meta.url)), ...rest];

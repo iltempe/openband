@@ -84,6 +84,37 @@ and in `~/.openband/engines.json`: `"ace-step": { "builtin": "omep-ace-step", "m
 
 What comes back is cut to the bars and conformed like any engine's (tempo, key, level), in the ledger.
 
+### Your ComfyUI workflows
+
+If you already make music in ComfyUI, its workflows can be engines. Export each one with **File → Export
+(API)**, and write a small mapping that says which capability it plays and where the song goes: which node
+input gets the style, the tempo, the length of the bars asked for, the lyrics, the seed — or, for a cover,
+the song's audio (uploaded to ComfyUI's input folder for a LoadAudio node) and the strength as denoise.
+
+```jsonc
+{ "name": "ACE-Step in my ComfyUI",
+  "license": { "code": "GPL-3.0", "weights": "Apache-2.0", "commercial": "yes", "attribution": null, "conditions": null },
+  "capabilities": {
+    "music.song": { "workflow": "ace-step.api.json", "output": "7", "role": "full",
+      "inputs": { "2.tags": "{intent.text}, {song.bpm} bpm, {song.key_scale}", "2.lyrics": "lyrics.text",
+                  "4.seconds": "scope.seconds", "5.seed": "seed" } } } }
+```
+
+and in `~/.openband/engines.json`: `"comfy": { "builtin": "omep-comfyui", "mapping": "~/comfy/omep.json" }`
+(plus `"url"` when ComfyUI is not on `http://127.0.0.1:8188`). The mapping is checked when the engine starts —
+a node or an input that isn't in the workflow, a value OpenBand doesn't know — and ComfyUI's own errors come
+back in words (a missing custom node, a failure while running). The values, and a complete example for
+ACE-Step with ComfyUI's core nodes, are in [`omep/comfyui/`](../omep/comfyui/omep.example.json). **Declare
+the licence** of the models your workflows load: only you know which ones, and OpenBand's licence checks
+depend on it. Tested against a stand-in of ComfyUI's API, written from its server's sources.
+
+### Write your own engine
+
+`npx -y --allow-remote=all https://github.com/iltempe/openband/releases/latest/download/openband.tgz omep-new my-engine`
+makes a folder with a complete OMEP engine — manifest, one capability, the Contribution — that passes
+conformance as it comes (`npm run conformance`); put your model where it says. See
+[omep/template](../omep/template/README.md).
+
 ## Your policy and the router
 
 *Ensemble → Your policy*:

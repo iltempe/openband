@@ -13,6 +13,10 @@ depend on it.
   `tool-input`.
 - Reference mock engine: [`mock-engine.mjs`](mock-engine.mjs).
 - Conformance suite: [`conformance.mjs`](conformance.mjs) (`omep-conformance`).
+- **Template** for a new engine: [`template/`](template/README.md) — `openband omep-new <folder>` (or
+  `node omep/new-engine.mjs <folder>`) makes one that passes conformance as it comes.
+- Bridges: [`comfyui-engine.mjs`](comfyui-engine.mjs) (the user's ComfyUI workflows, through a declarative
+  [mapping](comfyui/omep.example.json)), and the streaming engines of §8.
 - Example context: [`examples/context.json`](examples/context.json).
 
 ## 1. Roles

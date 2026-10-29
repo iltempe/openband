@@ -1,0 +1,29 @@
+{
+  "name": "ACE-Step in my ComfyUI",
+  "license": { "code": "GPL-3.0", "weights": "Apache-2.0", "commercial": "yes", "attribution": null, "conditions": null, "url": "https://github.com/ace-step/ACE-Step" },
+  "capabilities": {
+    "music.song": {
+      "workflow": "ace-step.api.json",
+      "inputs": {
+        "2.tags": "{intent.text}, {song.bpm} bpm, {song.key_scale}",
+        "2.lyrics": "lyrics.text",
+        "4.seconds": "scope.seconds",
+        "5.seed": "seed"
+      },
+      "output": "7",
+      "role": "full"
+    },
+    "music.restyle": {
+      "workflow": "ace-step-restyle.api.json",
+      "inputs": {
+        "2.tags": "{intent.text}, {song.bpm} bpm, {song.key_scale}",
+        "2.lyrics": "lyrics.text",
+        "8.audio": "context_audio.mix",
+        "5.denoise": "request.denoise",
+        "5.seed": "seed"
+      },
+      "output": "7",
+      "role": "full"
+    }
+  }
+}

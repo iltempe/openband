@@ -58,6 +58,8 @@ const BUILTIN = {
       ...(e.worker ? ['--worker', JSON.stringify(e.worker)] : []),
     ],
   }),
+  // The user's ComfyUI workflows ("mapping": which workflow plays which capability; "url": ComfyUI).
+  'omep-comfyui': (e) => ({ command: process.execPath, args: [path.join(ROOT, 'omep', 'comfyui-engine.mjs'), ...(e.mapping ? ['--mapping', String(e.mapping).replace(/^~(?=\/|$)/, os.homedir())] : []), ...(e.url ? ['--url', String(e.url)] : [])] }),
   'omep-ace-step': (e) => ({ command: process.execPath, args: [path.join(ROOT, 'omep', 'ace-step-engine.mjs'), ...(e.model ? ['--model', String(e.model)] : []), ...(e.url ? ['--url', String(e.url)] : [])] }),
 };
 const AUDIO = { '.wav': 'audio/wav', '.flac': 'audio/flac', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg' };
