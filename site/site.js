@@ -49,6 +49,8 @@
     'feat.pilotp': 'Scegli un genere e una piattaforma: il Mix Pilot bilancia, equalizza, panpotta, mette il sidechain e masterizza il brano per Spotify, Apple Music o il club. Ogni modifica è spiegata e dosata con una manopola.',
     'feat.create': 'Crea una parte a parole',
     'feat.createp': '“Batteria funk”, “piano arpeggiato”, “un loop di tastiere lo-fi”: i motori di OpenBand, o i modelli musicali che installi, la suonano a tempo e in tonalità con il tuo brano.',
+    'feat.engines': 'Ogni modello musicale, anche il tuo',
+    'feat.enginesp': 'ACE-Step, HeartMuLa, DiffSinger e Magenta RealTime 2 sul tuo computer, i tuoi workflow ComfyUI, o modelli online: parlano tutti un unico protocollo aperto, OMEP. Crea il tuo motore con un comando; il registro tiene chi ha fatto cosa, fino alla prova che dice quanto del brano è umano.',
     'feat.jam': "Improvvisa con l'AI",
     'feat.jamp': 'Suona una frase e ti risponde alla battuta dopo, con note che puoi tenere. Oppure improvvisa dal vivo con Magenta RealTime 2 sul tuo computer: suona con te in tempo reale, a tempo, e tieni la take.',
     'feat.rec': 'Registra come in studio',
