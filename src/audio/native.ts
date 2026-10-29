@@ -90,7 +90,7 @@ interface HostEvent {
 }
 interface DesktopNative {
   info(): Promise<{ available: boolean }>;
-  scan(o?: { retry?: string[] }): Promise<{ plugins: NativePluginInfo[]; failed: { path: string; reason: string }[]; available: boolean }>;
+  scan(o?: { retry?: string[] }): Promise<{ plugins: NativePluginInfo[]; failed: NativeScanFailure[]; available: boolean }>;
   open(o: { key: string; path: string; id: string; sampleRate: number; maxBlock: number; state?: string; offline?: boolean }): Promise<LoadedInfo>;
   batch(o: { key: string; blocks: { n: number; data: Float32Array[]; events?: unknown[] }[] }): Promise<{ n: number; data: Float32Array[] }[]>;
   restart(o: { key: string; state?: string }): Promise<LoadedInfo>;
@@ -175,6 +175,14 @@ const portFor = (key: string) =>
   });
 
 /** What the studio shows about each native plugin slot (trackId:slotId). */
+/** A bundle the scan ignored: why (server/plugdiag.mjs), and what to do. */
+export interface NativeScanFailure {
+  path: string;
+  reason: string;
+  state?: 'busy' | 'idle' | 'arch' | 'unknown';
+  hints?: string[];
+}
+
 export const useNativeStatus = create<Record<string, { crashed?: string; error?: string; latency?: number; gui?: boolean; heard?: number }>>(() => ({}));
 const setStatus = (key: string | undefined, v: { crashed?: string; error?: string; latency?: number; gui?: boolean; heard?: number }) => key && useNativeStatus.setState((s) => ({ ...s, [key]: v }));
 /** Live native effects by trackId:slotId, for Restart. */

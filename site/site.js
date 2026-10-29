@@ -200,7 +200,17 @@
       } catch {}
     },
   };
-  let lang = store.get('openband.site.lang') || (/^it\b/i.test(navigator.language || '') ? 'it' : 'en');
+  // The Italian site is /it/ (made by scripts/build-site.mjs, data-lang="it"): its own address, so a link
+  // shared from it previews in Italian — social networks read the page's tags, they run no JavaScript.
+  const pageLang = document.documentElement.dataset.lang;
+  const file = location.pathname.split('/').pop();
+  const dir = location.pathname.slice(0, location.pathname.length - file.length);
+  const enDir = pageLang === 'it' ? dir.replace(/it\/$/, '') : dir;
+  const served = /^https?:$/.test(location.protocol) && document.documentElement.dataset.langPages !== 'none';
+  const urlFor = (l) => `${l === 'it' ? `${enDir}it/` : enDir}${file === 'index.html' ? '' : file}${location.search}${location.hash}`;
+  let lang = pageLang || store.get('openband.site.lang') || (/^it\b/i.test(navigator.language || '') ? 'it' : 'en');
+  // Italian wanted on the English address: go to the Italian one (the one to share).
+  if (served && !pageLang && lang === 'it') location.replace(urlFor('it'));
   const m = () => MSG[lang];
 
   function applyLang() {
@@ -228,7 +238,9 @@
     b.addEventListener('click', () => {
       lang = lang === 'it' ? 'en' : 'it';
       store.set('openband.site.lang', lang);
-      applyLang();
+      // Served: the other language is another address. Opened from disk: switch in place.
+      if (served) location.href = urlFor(lang);
+      else applyLang();
     });
 
   // ---------------------------------------------------------------- this computer

@@ -7,7 +7,7 @@ import type { Track } from '../types';
 import { getTrack, useStore } from '../store';
 import { wamCatalog, type WamCatalogEntry } from '../audio/wam';
 import { addNativeEffect, addNativeInstrument, addPluginEffect, addPluginInstrument, captureWamStates, livePlugin, pluginSync, rankNativePlugins, removePluginEffect, searchPlugins, updateSlot } from '../plugins';
-import { desktopNative, liveNative, restartNative, useNativeStatus, type NativePluginInfo } from '../audio/native';
+import { desktopNative, liveNative, restartNative, useNativeStatus, type NativePluginInfo, type NativeScanFailure } from '../audio/native';
 import { t, useT } from '../i18n';
 import { engine } from '../audio/engine';
 import * as I from './Icons';
@@ -37,7 +37,7 @@ async function addEntry(url: string, kind: WamCatalogEntry['kind'] | 'other', tr
 function InstalledPlugins({ kind, query, trackId, onAdded }: { kind: Mode; query: string; trackId?: string; onAdded: () => void }) {
   const tr = useT();
   const dn = desktopNative();
-  const [found, setFound] = useState<{ plugins: NativePluginInfo[]; failed: { path: string; reason: string }[] } | null>(null);
+  const [found, setFound] = useState<{ plugins: NativePluginInfo[]; failed: NativeScanFailure[] } | null>(null);
   const [scanning, setScanning] = useState(false);
   const scan = async (retry: string[] = []) => {
     if (!dn) return;
@@ -123,10 +123,19 @@ function InstalledPlugins({ kind, query, trackId, onAdded }: { kind: Mode; query
           {found.failed.map((f) => (
             <div key={f.path} className="plug-ignored-row">
               <span title={f.path}>{f.path.split(/[\\/]/).pop()}</span>
-              <span className="plug-desc">{f.reason}</span>
-              <button className="mini" disabled={scanning} onClick={() => void scan([f.path])}>
-                {tr('nat.retry')}
-              </button>
+              <span className="plug-desc">
+                {f.reason}
+                {f.hints?.map((h) => (
+                  <small key={h} className="plug-hint">
+                    → {h}
+                  </small>
+                ))}
+              </span>
+              {f.state !== 'arch' && (
+                <button className="mini" disabled={scanning} onClick={() => void scan([f.path])} title={tr('nat.retryHint')}>
+                  {tr('nat.retry')}
+                </button>
+              )}
             </div>
           ))}
         </details>

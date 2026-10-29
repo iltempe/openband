@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- The social preview of www.openband.it (1200×630), rendered by scripts/build-og.mjs. ?page=contribute
-     makes the one for the "Suggest a feature" page. -->
+     makes the one for the "Suggest a feature" page, ?lang=it the Italian ones (for /it/). -->
 <html>
   <head>
     <meta charset="utf-8" />
@@ -178,7 +178,25 @@
     </div>
     <div class="badge"><span>Browser · macOS · Windows · Linux</span><span><b>€0</b> forever</span></div>
     <script>
-      if (new URLSearchParams(location.search).get('page') === 'contribute') {
+      const q = new URLSearchParams(location.search);
+      const it = q.get('lang') === 'it';
+      const set = (id, v, html) => (html ? (document.getElementById(id).innerHTML = v) : (document.getElementById(id).textContent = v));
+      if (it) {
+        document.documentElement.lang = 'it';
+        set('kicker', 'Gratis · Open source');
+        set('title', 'Fai musica.<br /><span class="grad">Gratis, per tutti.</span>', true);
+        set('sub', 'Un vero studio musicale nel browser e sul desktop. Chiunque può migliorarlo, e anche la tua AI può suonarci.');
+        set('btn', 'Apri lo studio →');
+        document.querySelector('.badge span:last-child').innerHTML = '<b>0 €</b> per sempre';
+      }
+      if (q.get('page') === 'contribute' && it) {
+        set('kicker', 'Costruito alla luce del sole');
+        set('title', 'La tua idea,<br /><span class="grad">nella prossima release.</span>', true);
+        // Italian is longer: a smaller title keeps it on two lines.
+        document.getElementById('title').style.fontSize = '54px';
+        set('sub', 'Proponi una funzione per OpenBand, lo studio musicale che chiunque può migliorare. Seguila sulla roadmap, poi suonala.');
+        set('btn', 'Proponi una funzione →');
+      } else if (q.get('page') === 'contribute') {
         document.getElementById('kicker').textContent = 'Built in the open';
         document.getElementById('title').innerHTML = 'Your idea,<br /><span class="grad">in the next release.</span>';
         document.getElementById('sub').textContent = 'Suggest a feature for OpenBand, the free music studio anyone can improve. Follow it on the public roadmap, then play it.';

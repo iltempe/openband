@@ -1,5 +1,5 @@
 // The social previews of www.openband.it (Open Graph / Twitter cards, 1200×630): scripts/og/card.html with
-// the studio's screenshot, rendered in Chrome to docs/og-card.png and docs/og-contribute.png.
+// the studio's screenshot, rendered in Chrome to docs/og-card.png and docs/og-contribute.png, and their Italian versions (-it).
 // Run after a new studio screenshot: node scripts/build-og.mjs
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,6 +28,9 @@ try {
   for (const [query, out] of [
     ['', 'docs/og-card.png'],
     ['?page=contribute', 'docs/og-contribute.png'],
+    // The Italian site (/it/): what a link shared from it shows.
+    ['?lang=it', 'docs/og-card-it.png'],
+    ['?page=contribute&lang=it', 'docs/og-contribute-it.png'],
   ]) {
     await page.goto(`${pathToFileURL(tmp).href}${query}`, { waitUntil: 'networkidle0' });
     await page.evaluate(() => document.fonts.ready);

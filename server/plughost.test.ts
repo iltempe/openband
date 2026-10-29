@@ -48,7 +48,11 @@ describe.skipIf(!ready)('openband-plughost with the fixtures', () => {
     const r = await scanPlugins({ host: host!, dirs: [build], audioUnits: false, timeoutMs: 1500 });
     expect(Date.now() - t0).toBeLessThan(8000);
     expect(r.plugins.map((p) => p.id)).toContain('org.openband.fixture.gain');
-    expect(r.failed).toEqual([{ path: hang, reason: 'did not answer in 2 s' }]);
+    expect(r.failed).toHaveLength(1);
+    // Looked at before being killed: why (waiting or working), and what to do.
+    expect(r.failed[0]).toMatchObject({ path: hang, state: expect.stringMatching(/^(idle|busy|unknown)$/) });
+    expect(r.failed[0].reason).toMatch(/scanning/);
+    expect(r.failed[0].hints.length).toBeGreaterThan(0);
   }, 20000);
 
   it('caches by modification time and retries the ignored bundle on request', async () => {
@@ -59,7 +63,8 @@ describe.skipIf(!ready)('openband-plughost with the fixtures', () => {
     expect(Date.now() - t0).toBeLessThan(500);
     expect(again.failed.length).toBe(1);
     const retried = await scanPlugins({ host: host!, dirs: [build], audioUnits: false, timeoutMs: 1000, cacheFile, retry: [hang] });
-    expect(retried.failed[0].reason).toMatch(/did not answer/);
+    // Retried with three times as long, it still hangs: the reason says so.
+    expect(retried.failed[0].reason).toMatch(/scanning/);
   }, 20000);
 
   it('runs an effect block by block: gain, parameters, state', async () => {

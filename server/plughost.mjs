@@ -9,6 +9,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { archMismatch, diagnoseStall } from './plugdiag.mjs';
+
+/**
+ * How long a plugin may take before we look at why (plugdiag.mjs) and give up: heavy instruments (Analog
+ * Lab, sampled libraries) take far longer than 10 s the first time. A retry gets three times as long.
+ * OPENBAND_PLUGIN_TIMEOUTS="scan,load,window" (seconds) overrides them.
+ */
+const env = (process.env.OPENBAND_PLUGIN_TIMEOUTS ?? '').split(',').map((x) => Number(x) * 1000);
+export const LIMITS = { scanMs: env[0] || 60000, loadMs: env[1] || 120000, windowMs: env[2] || 60000, requestMs: 30000, retryFactor: 3 };
 
 /** The "path" of every Audio Unit (G8.6): they live in the system's registry, not in files. */
 export const AU = 'au:';
@@ -69,23 +78,48 @@ export function stopScans() {
   scanning.clear();
 }
 
-/** Scan one bundle in its own process; rejects on timeout, crash or bad output. */
-export function scanBundle(host, bundle, timeoutMs = 10000) {
+/**
+ * Scan one bundle in its own process; rejects on timeout, crash or bad output. On a timeout the process
+ * is looked at first (busy, waiting, wrong CPU…): the error says why and `diagnosis` has the details.
+ */
+export function scanBundle(host, bundle, timeoutMs = LIMITS.scanMs) {
   return new Promise((resolve, reject) => {
-    const child = execFile(host, ['scan', bundle], { timeout: timeoutMs, killSignal: 'SIGKILL', maxBuffer: 4 << 20, windowsHide: true }, (err, stdout, stderr) => {
-      scanning.delete(child);
-      if (err) {
-        const why = err.killed || err.signal === 'SIGKILL' ? `did not answer in ${Math.round(timeoutMs / 1000)} s` : err.signal ? `crashed (${err.signal})` : String(stderr || err.message).trim().split('\n')[0];
-        return reject(new Error(why));
-      }
-      try {
-        const { plugins } = JSON.parse(stdout);
-        resolve(plugins.map((p) => ({ format: bundle === AU ? 'au' : /\.vst3$/i.test(bundle) ? 'vst3' : 'clap', ...p, kind: kindOf(p.features), path: bundle })));
-      } catch {
-        reject(new Error('the scan returned something that is not a plugin list'));
-      }
-    });
+    const mismatch = bundle !== AU ? archMismatch(bundle) : null;
+    if (mismatch) return reject(Object.assign(new Error(`can't load here: ${mismatch.text}`), { diagnosis: { state: 'arch', hints: [mismatch.hint], archs: mismatch.archs } }));
+    const child = spawn(host, ['scan', bundle], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     scanning.add(child);
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    child.stdout.on('data', (d) => {
+      stdout += d;
+      if (stdout.length > 4 << 20) child.kill('SIGKILL');
+    });
+    child.stderr.on('data', (d) => (stderr = (stderr + d).slice(-4000)));
+    const finish = (fn) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      scanning.delete(child);
+      fn();
+    };
+    const timer = setTimeout(async () => {
+      const diagnosis = await diagnoseStall({ pid: child.pid, bundle: bundle === AU ? null : bundle, phase: 'scanning', limitMs: timeoutMs, stderr });
+      child.kill('SIGKILL');
+      finish(() => reject(Object.assign(new Error(diagnosis.text), { diagnosis })));
+    }, timeoutMs);
+    child.on('error', (e) => finish(() => reject(new Error(`the plugin host could not start: ${e.message}`))));
+    child.on('close', (code, signal) =>
+      finish(() => {
+        if (code !== 0) return reject(new Error(signal ? `crashed (${signal})` : String(stderr || `exit ${code}`).trim().split('\n')[0]));
+        try {
+          const { plugins } = JSON.parse(stdout);
+          resolve(plugins.map((p) => ({ format: bundle === AU ? 'au' : /\.vst3$/i.test(bundle) ? 'vst3' : 'clap', ...p, kind: kindOf(p.features), path: bundle })));
+        } catch {
+          reject(new Error('the scan returned something that is not a plugin list'));
+        }
+      }),
+    );
   });
 }
 
@@ -94,7 +128,7 @@ export function scanBundle(host, bundle, timeoutMs = 10000) {
  * crash go on the ignore list with the reason, until `retry` names them. On macOS the Audio Units come from
  * the system's registry (path "au:"), listed without being loaded, every time.
  */
-export async function scanPlugins({ host = hostBinary(), dirs = pluginDirs(), cacheFile = null, timeoutMs = 10000, retry = [], audioUnits = process.platform === 'darwin' } = {}) {
+export async function scanPlugins({ host = hostBinary(), dirs = pluginDirs(), cacheFile = null, timeoutMs = LIMITS.scanMs, retry = [], audioUnits = process.platform === 'darwin' } = {}) {
   if (!host) throw new Error('The plugin host (openband-plughost) is not installed');
   let cache = { bundles: {} };
   if (cacheFile)
@@ -113,20 +147,21 @@ export async function scanPlugins({ host = hostBinary(), dirs = pluginDirs(), ca
     let entry = old && old.mtime === mtime && !retry.includes(b) ? old : null;
     if (!entry) {
       try {
-        entry = { mtime, plugins: await scanBundle(host, b, timeoutMs) };
+        // Asked to retry: it gets three times as long.
+        entry = { mtime, plugins: await scanBundle(host, b, retry.includes(b) ? timeoutMs * LIMITS.retryFactor : timeoutMs) };
       } catch (e) {
-        entry = { mtime, failed: e.message };
+        entry = { mtime, failed: e.message, ...(e.diagnosis ? { state: e.diagnosis.state, hints: e.diagnosis.hints } : {}) };
       }
     }
     next.bundles[b] = entry;
-    if (entry.failed) failed.push({ path: b, reason: entry.failed });
+    if (entry.failed) failed.push({ path: b, reason: entry.failed, ...(entry.hints ? { state: entry.state, hints: entry.hints } : {}) });
     else plugins.push(...entry.plugins);
   }
   if (audioUnits)
     try {
-      plugins.push(...(await scanBundle(host, AU, timeoutMs)));
+      plugins.push(...(await scanBundle(host, AU, retry.includes(AU) ? timeoutMs * LIMITS.retryFactor : timeoutMs)));
     } catch (e) {
-      failed.push({ path: AU, reason: e.message });
+      failed.push({ path: AU, reason: e.message, ...(e.diagnosis ? { state: e.diagnosis.state, hints: e.diagnosis.hints } : {}) });
     }
   if (cacheFile) {
     fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
@@ -137,6 +172,8 @@ export async function scanPlugins({ host = hostBinary(), dirs = pluginDirs(), ca
 
 // ---------------------------------------------------------------- one plugin in a host process
 
+/** What a request is, for the diagnosis when it stalls. */
+const PHASE = { 1: 'loading', 4: 'saving its state', 5: 'restoring its state', 7: 'opening its window', 8: 'closing its window', 10: 'reading its parameters' };
 const T = { LOAD: 1, PROCESS: 2, PARAM: 3, GET_STATE: 4, SET_STATE: 5, QUIT: 6, GUI_OPEN: 7, GUI_CLOSE: 8, GET_VALUES: 10, RENDER_MODE: 11, MONITOR: 12, LIVE: 13 };
 const R = { LOADED: 1, BLOCK: 2, STATE: 4, STATE_SET: 5, LATENCY: 7, ERROR: 8, PARAM_CHANGED: 9, GESTURE: 10, STATE_DIRTY: 11, GUI: 12, VALUES: 13, MONITOR: 14, HEARD: 15, MIDI_OUT: 16 };
 
@@ -228,14 +265,17 @@ export class PlugHostSession extends EventEmitter {
     }
   }
 
-  request(type, payload, reply, timeoutMs = 15000) {
+  request(type, payload, reply, timeoutMs = LIMITS.requestMs) {
     return new Promise((resolve, reject) => {
       const w = { type: reply, resolve, reject };
       this.waiting.push(w);
-      const timer = setTimeout(() => {
+      const timer = setTimeout(async () => {
         const i = this.waiting.indexOf(w);
         if (i >= 0) this.waiting.splice(i, 1);
-        reject(new Error('the plugin host did not answer'));
+        // Why it stalled, before the caller closes it.
+        const phase = PHASE[type] ?? 'answering';
+        const diagnosis = await diagnoseStall({ pid: this.proc.pid, bundle: this.bundle && this.bundle !== AU ? this.bundle : null, phase, limitMs: timeoutMs, stderr: this.stderr });
+        reject(Object.assign(new Error(`${this.name ?? 'The plugin'}: ${diagnosis.text}`), { diagnosis }));
       }, timeoutMs);
       const done = (fn) => (v) => (clearTimeout(timer), fn(v));
       w.resolve = done(resolve);
@@ -249,9 +289,13 @@ export class PlugHostSession extends EventEmitter {
   }
 
   /** Load a plugin: {path, id, sampleRate, maxBlock} → {name, latency, inputs, outputs, params}. */
-  async load({ path: p, id, sampleRate = 48000, maxBlock = 128 }) {
-    const r = await this.request(T.LOAD, Buffer.from(`${p}\0${id}\0${sampleRate}\0${maxBlock}\0`, 'utf8'), R.LOADED);
+  async load({ path: p, id, sampleRate = 48000, maxBlock = 128, timeoutMs = LIMITS.loadMs }) {
+    this.bundle = p;
+    const mismatch = p !== AU ? archMismatch(p) : null;
+    if (mismatch) throw Object.assign(new Error(`It can't load on this computer: ${mismatch.text}. ${mismatch.hint}`), { diagnosis: { state: 'arch', hints: [mismatch.hint] } });
+    const r = await this.request(T.LOAD, Buffer.from(`${p}\0${id}\0${sampleRate}\0${maxBlock}\0`, 'utf8'), R.LOADED, timeoutMs);
     if (!r.ok) throw new Error(r.error ?? 'the plugin did not load');
+    this.name = r.name;
     return r;
   }
 
@@ -333,7 +377,7 @@ export class PlugHostSession extends EventEmitter {
 
   /** Open the plugin's own window (floating above the app) → {open, supported?, error?}. */
   openGui(title) {
-    return this.request(T.GUI_OPEN, Buffer.from(String(title), 'utf8'), R.GUI);
+    return this.request(T.GUI_OPEN, Buffer.from(String(title), 'utf8'), R.GUI, LIMITS.windowMs);
   }
 
   closeGui() {

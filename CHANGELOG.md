@@ -2,6 +2,28 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.42 "Heavy plugins get time, and a reason when they stop"
+
+### Native plugins that take long (the Analog Lab report on TikTok)
+- **More time**: a plugin gets **60 s** to be scanned (was 10 s), **120 s** to load (was 15 s), 60 s to open its window. *Retry* on an ignored plugin gives it **three times as long**. `OPENBAND_PLUGIN_TIMEOUTS="scan,load,window"` (seconds) changes the limits.
+- **A diagnosis instead of "did not answer"** (`server/plugdiag.mjs`). When the time runs out, the plugin's process is looked at before it is stopped:
+  - **still working** (CPU, memory): it is loading its library the first time, so *Retry* gives it more time;
+  - **waiting, doing nothing**: an activation or licence window, a hidden dialog, a network check. For Arturia, Native Instruments, Waves, iZotope, Spectrasonics, iLok and others it names the app to open (Arturia Software Center, Native Access…) and what to check;
+  - **built for the other CPU** (on macOS, read from the plugin's binary): an Intel-only plugin on Apple Silicon or the reverse. It is refused at once with the reason, without waiting, and there is no *Retry*.
+  - The plugin's last error message, when there is one, is added.
+- The same diagnosis applies when a plugin stops while loading, opening its window or restoring its state. The ignored list in the plugin browser shows the reason and what to do.
+- Tests:
+  - a stand-in host whose plugins wait, burn CPU or answer late: an "Analog Lab" that waits is diagnosed as waiting for Arturia Software Center;
+  - a plugin that needs 2 s fails at 1 s and passes when retried;
+  - a binary for the other CPU is refused at once, while the right one loads;
+  - a load that never answers names its phase.
+  - The real host's hanging fixture still lands on the ignore list, now with a diagnosis.
+
+### The website in Italian has its own address
+- **www.openband.it/it/** (and `/it/contribute.html`): the Italian site at an address of its own. Its title, description and Open Graph / Twitter tags are in Italian, with **Italian social previews**: «Fai musica. Gratis, per tutti.» and «La tua idea, nella prossima release.». Social networks read a page's tags and run no JavaScript, so a link shared from the Italian site now previews in Italian.
+- Choosing Italian (or an Italian browser) on the English address goes to `/it/`: the address you copy is the Italian one. EN/IT switches between the two addresses, and the choice is remembered.
+- Both versions point to each other (`hreflang`), and the old address redirects the Italian pages too.
+
 ## v0.6.41 "E6b: HeartMuLa, and how much of the song is human"
 
 ### E6 · The ecosystem, part 2 (SPEC v0.6 §6, §10, E6)

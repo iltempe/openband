@@ -40,10 +40,11 @@ const line = `${smoke.stdout}${smoke.stderr}`.split('\n').find((l) => l.startsWi
 check(smoke.status === 0 && line.startsWith('SMOKE OK'), `the app starts and plays (${line.trim()})`);
 if (smoke.status !== 0) console.log(`${smoke.stderr}`.split('\n').slice(-15).join('\n'));
 
+// The hanging fixture only proves isolation here: it gets the old 10 s, not a real plugin's 60 s.
 // Native plugins (G8.2): the CLAP and VST3 fixtures (built by scripts/build-plughost.mjs, never shipped) on a track.
 const fixtures = path.join(root, 'build', 'plughost');
 if (fs.existsSync(path.join(fixtures, 'ob-fixtures.clap'))) {
-  const n = spawnSync(exe, ['--smoke', ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], { env: { ...env, OPENBAND_SMOKE_NATIVE: '1', OPENBAND_PLUGIN_DIRS: fixtures, OPENBAND_MONITOR_NULL: '1' }, encoding: "utf8", timeout: 180000 });
+  const n = spawnSync(exe, ['--smoke', ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], { env: { ...env, OPENBAND_SMOKE_NATIVE: '1', OPENBAND_PLUGIN_DIRS: fixtures, OPENBAND_MONITOR_NULL: '1', OPENBAND_PLUGIN_TIMEOUTS: '10' }, encoding: "utf8", timeout: 180000 });
   const res = `${n.stdout}${n.stderr}`.split('\n').find((l) => l.startsWith('SMOKE-NATIVE')) ?? `exit ${n.status}`;
   check(n.status === 0, `CLAP, VST3${process.platform === 'darwin' ? ' and AU' : ''} in the app: effects, crash isolation, instrument, automation, state, identical exports, render cache (${res.trim()})`);
   if (n.status !== 0) console.log(`${n.stderr}`.split('\n').slice(-15).join('\n'));

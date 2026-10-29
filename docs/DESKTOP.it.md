@@ -84,7 +84,16 @@ li cerca nelle cartelle standard: CLAP in macOS `~/Library/Audio/Plug-Ins/CLAP` 
 Windows `Common Files\CLAP`, Linux `~/.clap`, `/usr/lib/clap`; VST3 in macOS `~/Library/Audio/Plug-Ins/VST3` e
 `/Library/Audio/Plug-Ins/VST3`, Windows `Common Files\VST3`, Linux `~/.vst3`, `/usr/lib/vst3`. Su Mac, gli Audio
 Unit sono quelli che il sistema conosce (come in Logic o GarageBand), compresi quelli di Apple. Le esamina un plugin alla volta, ognuno in un processo a
-parte: uno che si blocca o si chiude durante la ricerca viene messo da parte (*Ignorati*, con *Riprova*).
+parte: uno che si blocca o si chiude durante la ricerca viene messo da parte (*Ignorati*, con *Riprova*). Un plugin ha 60 s per la scansione e 120 s per il caricamento, perché gli strumenti pesanti come Analog
+Lab o le grandi librerie campionate la prima volta ci mettono molto. Se il tempo scade, OpenBand lo esamina
+prima di fermarlo e dice perché:
+- **stava ancora lavorando**: occupato a caricare la sua libreria, e *Riprova* gli dà il triplo del tempo;
+- **era fermo in attesa**: di solito una finestra di attivazione o di licenza, e per Arturia, Native
+  Instruments, Waves, iLok e altri indica quale app aprire (Arturia Software Center, Native Access…);
+- **compilato per l'altra CPU**: un plugin solo Intel su Apple Silicon o viceversa, rifiutato subito con il
+  motivo.
+
+`OPENBAND_PLUGIN_TIMEOUTS="scansione,caricamento,finestra"` (in secondi) cambia i limiti.
 Ogni plugin mostra il suo formato (CLAP, VST3, AU); un plugin installato in più formati compare una volta per
 formato: va bene uno qualsiasi, e tutto quello che segue vale per tutti.
 

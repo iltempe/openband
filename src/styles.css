@@ -6188,3 +6188,10 @@ div.ca-steps {
 .pr-check label.mini {
   cursor: pointer;
 }
+
+/* Why a native plugin was ignored, and what to do (server/plugdiag.mjs). */
+.plug-hint {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+}

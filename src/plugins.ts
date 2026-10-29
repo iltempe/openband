@@ -1,7 +1,7 @@
 // Web Audio Module plugins in the project: adding/removing them, finding them from a plain-language
 // description, reading and writing their parameters, and saving their state into the project.
 import type { CustomInstrument, PluginSlot } from './types';
-import { allLiveNatives, desktopNative, liveNative, nativeHooks, type NativeEffect, type NativePluginInfo } from './audio/native';
+import { allLiveNatives, desktopNative, liveNative, nativeHooks, type NativeEffect, type NativePluginInfo, type NativeScanFailure } from './audio/native';
 import { setProjectPluginState } from './pluginHistory';
 import { getTrack, makeTrack, useStore } from './store';
 import { uid } from './music';
@@ -92,12 +92,12 @@ export async function searchPlugins(query: string, kind?: 'instrument' | 'effect
 
 // ---------- native plugins installed on this computer (G8, desktop app) ----------
 
-let nativeScan: Promise<{ plugins: NativePluginInfo[]; failed: { path: string; reason: string }[] }> | null = null;
+let nativeScan: Promise<{ plugins: NativePluginInfo[]; failed: NativeScanFailure[] }> | null = null;
 
 /** The installed native plugins (scanned once, cached; rescan: look at the folders again, retry the ignored). */
 export function nativePlugins(o: { rescan?: boolean } = {}) {
   const dn = desktopNative();
-  if (!dn) return Promise.resolve({ plugins: [] as NativePluginInfo[], failed: [] as { path: string; reason: string }[], available: false });
+  if (!dn) return Promise.resolve({ plugins: [] as NativePluginInfo[], failed: [] as NativeScanFailure[], available: false });
   if (!nativeScan || o.rescan) {
     const before = nativeScan;
     nativeScan = (async () => {
