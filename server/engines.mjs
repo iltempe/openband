@@ -72,6 +72,13 @@ const BUILTIN = {
       ...(e.lazy_load ? ['--lazy-load'] : []),
     ],
   }),
+  // The music generation gateway (docs/adr/0004): a provider's API with the user's own key ("env"), or a
+  // local model server declared here ("provider": "local"). The entry goes to the engine as --config,
+  // without "env": keys travel only in the environment, never in a command line.
+  'omep-cloud': (e) => {
+    const { env: _env, builtin: _b, ...config } = e;
+    return { command: process.execPath, args: [path.join(ROOT, 'omep', 'cloud-engine.mjs'), '--config', JSON.stringify(config)] };
+  },
   'omep-ace-step': (e) => ({ command: process.execPath, args: [path.join(ROOT, 'omep', 'ace-step-engine.mjs'), ...(e.model ? ['--model', String(e.model)] : []), ...(e.url ? ['--url', String(e.url)] : [])] }),
 };
 const AUDIO = { '.wav': 'audio/wav', '.flac': 'audio/flac', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg' };
@@ -99,6 +106,22 @@ export function readEnginesConfig(file = defaultEnginesFile()) {
     else if (typeof e.url === 'string' && /^https?:\/\//.test(e.url)) out[id] = { url: e.url, token: e.token };
   }
   return out;
+}
+
+function readRaw(file) {
+  if (!fs.existsSync(file)) return { engines: {} };
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+/** engines.json holds keys: written readable by this user only, in one step (no half-written file). */
+function writeRaw(file, raw) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify(raw, null, 2)}\n`, { mode: 0o600 });
+  fs.renameSync(tmp, file);
+  try {
+    fs.chmodSync(file, 0o600);
+  } catch {}
 }
 
 /** A file an engine produced, inline for the page (data: URI). */
@@ -190,6 +213,43 @@ export class EngineHost {
     const c = result.structuredContent;
     if (!c) throw new Error(`${id} returned no contribution (structuredContent)`);
     return { ...c, ...(c.files ? { files: c.files.map((f) => ({ ...f, uri: inline(f.uri) })) } : {}) };
+  }
+
+  /** The music services configured (omep-cloud), without their keys: whether one is set, the plan, the model. */
+  async services() {
+    const { DRIVERS } = await import('../omep/cloud/drivers/index.mjs');
+    const raw = readRaw(this.file);
+    return Object.entries(raw.engines ?? {})
+      .filter(([, e]) => e?.builtin === 'omep-cloud' && e.provider !== 'local')
+      .map(([id, e]) => ({ id, provider: e.provider, name: DRIVERS[e.provider]?.name ?? e.provider, model: e.model ?? DRIVERS[e.provider]?.defaultModel, plan: e.plan ?? null, has_key: !!e.env?.[DRIVERS[e.provider]?.keyEnv] }));
+  }
+
+  /** Add or change a music service: its key (kept if not given), plan and model. Written for this user only. */
+  async setService({ provider, key, plan, model }) {
+    const { DRIVERS } = await import('../omep/cloud/drivers/index.mjs');
+    const d = DRIVERS[provider];
+    if (!d || provider === 'local') throw new Error(`Unknown music service "${provider}" (one of ${Object.keys(DRIVERS).filter((x) => x !== 'local').join(', ')})`);
+    if (model && !d.models[model]) throw new Error(`${d.name} has no model "${model}" (one of ${Object.keys(d.models).join(', ')})`);
+    if (key !== undefined && key !== null && !/^[\x21-\x7e]{8,512}$/.test(String(key))) throw new Error(`That doesn't look like a ${d.name} key`);
+    const raw = readRaw(this.file);
+    raw.engines ??= {};
+    const id = `cloud-${provider}`;
+    const old = raw.engines[id] ?? {};
+    const env = { ...(old.env ?? {}), ...(key ? { [d.keyEnv]: String(key) } : {}) };
+    if (!env[d.keyEnv]) throw new Error(`Paste your ${d.name} API key`);
+    raw.engines[id] = { builtin: 'omep-cloud', provider, ...(model ? { model } : old.model ? { model: old.model } : {}), ...(plan ? { plan } : plan === null ? {} : old.plan ? { plan: old.plan } : {}), env };
+    writeRaw(this.file, raw);
+    await this.drop(id);
+    return { id, provider, saved: true };
+  }
+
+  async removeService(id) {
+    const raw = readRaw(this.file);
+    if (!raw.engines?.[id] || raw.engines[id].builtin !== 'omep-cloud') return { removed: false };
+    delete raw.engines[id];
+    writeRaw(this.file, raw);
+    await this.drop(id);
+    return { removed: true };
   }
 
   async drop(id) {

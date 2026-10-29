@@ -1,5 +1,6 @@
 import { RegionFlags, RulerFlags } from './Flubs';
 import { ContributionBadge } from './Ensemble';
+import { useEnsemble } from '../ensemble/engines';
 import { armTrack, useRecSetup } from '../recording';
 import { hasAutomation, targetKey } from '../automation';
 import { stretchFactor } from '../audio/stretch';
@@ -371,6 +372,18 @@ function TrackHeader({ track, selected }: { track: Track; selected: boolean }) {
           A
         </button>
         {track.kind === 'audio' && <ArmButton trackId={track.id} />}
+        <button
+          className="ms gen"
+          onClick={() => {
+            // Generate for this track: any engine — on this computer, the user's cloud services, OpenBand's own.
+            set({ selectedTrackId: track.id });
+            useEnsemble.setState({ createOpen: true });
+          }}
+          title={t('arr.generate')}
+          aria-label={t('arr.generate')}
+        >
+          ✦
+        </button>
       </div>
       <button className="th-delete" onClick={() => commands.delete_track({ track_id: track.id })} title={t('arr.deleteTrack')}>
         <I.Trash width={14} height={14} />

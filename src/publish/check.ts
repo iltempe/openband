@@ -26,6 +26,8 @@ export const PLATFORMS: Platform[] = [
   { id: 'wikimedia', name: 'Wikimedia Commons', audio: 'ogg-or-flac', needsServer: false, notes: 'Free licences only: CC0, CC BY, CC BY-SA.' },
 ];
 export const platformById = (id: string) => PLATFORMS.find((x) => x.id === id);
+/** Platforms that stream the music to listeners (what some music-service plans don't allow). */
+const STREAMING = new Set(['soundcloud', 'youtube', 'mixcloud', 'audius', 'funkwhale']);
 
 export interface ReleaseIssue {
   platform: string | null;
@@ -49,6 +51,17 @@ export function checkRelease(p: Project, platforms: string[], o: Parameters<type
     for (const m of licenseConflicts(p, code, o))
       issues.push({ platform: null, severity: 'error', code: 'license-material', message: `"${m.name}" (${m.license}) can't be released under ${lic.name}: ${m.why}`, material: { name: m.name, license: m.license, trackId: m.trackId, regionId: m.regionId } });
   if (!o.hasCover) issues.push({ platform: null, severity: platforms.includes('youtube') ? 'error' : 'warn', code: 'cover', message: 'No cover: make one (generate_cover) or add your own' });
+  // What the engines that made parts of the song allow — e.g. a music service plan without streaming
+  // distribution (ElevenLabs Starter): their conditions, from the ledger, for the parts still in the song.
+  const alive = new Set(p.regions.map((x) => x.contribution).filter(Boolean));
+  const conditioned = new Map<string, string>();
+  for (const e of (p.ledger ?? []).filter((x) => alive.has(x.id) && x.license.conditions)) conditioned.set(e.engineName ?? e.engine, e.license.conditions!);
+  for (const [engine, conditions] of conditioned) {
+    const noStreaming = /streaming services is NOT allowed/i.test(conditions);
+    const streaming = platforms.filter((id) => STREAMING.has(id));
+    if (noStreaming && streaming.length) for (const id of streaming) issues.push({ platform: id, severity: 'error', code: 'engine-terms', message: `Parts made with ${engine} can't be distributed to streaming services on your plan: ${conditions}` });
+    else issues.push({ platform: null, severity: 'warn', code: 'engine-terms', message: `Parts made with ${engine} come with conditions: ${conditions}` });
+  }
   for (const id of platforms) {
     const pl = platformById(id);
     if (!pl) {

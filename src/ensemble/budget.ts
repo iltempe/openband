@@ -63,7 +63,8 @@ export function contextSeconds(scp: Scp) {
 export function estimate(e: EngineInfo, _capability: Capability, scp: Scp, variants = 1): number {
   const p = e.manifest.runtime.pricing;
   if (!p) return 0;
-  const one = p.unit === 'second' ? contextSeconds(scp) * p.usd : p.usd;
+  // Per second or per minute of music asked for; per call or per track as it is.
+  const one = p.unit === 'second' ? contextSeconds(scp) * p.usd : p.unit === 'minute' ? (contextSeconds(scp) / 60) * p.usd : p.usd;
   return round(one * variants);
 }
 

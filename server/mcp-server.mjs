@@ -265,7 +265,16 @@ wss.on('connection', (ws, _req, kind = 'local') => {
               ? streamRelay.open(String(msg.engine), msg.args ?? {})
               : msg.op === 'stream_close'
                 ? streamRelay.close(String(msg.relay))
-                : Promise.reject(new Error(`Unknown engine op "${msg.op}"`));
+                : // The user's music services and their keys: only a studio served by this machine.
+                  ['services', 'set_service', 'remove_service'].includes(msg.op) && kind !== 'local'
+                  ? Promise.reject(new Error('Music services are set up in the studio on this computer (the OpenBand app or npx openband)'))
+                  : msg.op === 'services'
+                    ? engineHost.services()
+                    : msg.op === 'set_service'
+                      ? engineHost.setService({ provider: String(msg.provider), key: msg.key ? String(msg.key) : undefined, plan: msg.plan === null ? null : msg.plan ? String(msg.plan) : undefined, model: msg.model ? String(msg.model) : undefined })
+                      : msg.op === 'remove_service'
+                        ? engineHost.removeService(String(msg.id))
+                        : Promise.reject(new Error(`Unknown engine op "${msg.op}"`));
       job.then((r) => answer(true, r), (e) => answer(false, e.message));
       return;
     }

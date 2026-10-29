@@ -2,6 +2,40 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.43 "✦ Generate on every track, with your own music services"
+
+### The music generation gateway (ADR 0004)
+- **✦ Generate on every track**: next to M, S and A, it opens *Generate* for that track. Any engine can play the part: the ones on your computer, your music services, or OpenBand's own. The dialog says which track it is for.
+- **`omep-cloud`**, one OMEP engine per service with a driver per provider (`omep/cloud/drivers/`), on a shared runtime (`omep/cloud/runtime.mjs`). The runtime handles:
+  - MCP tasks, with progress and cancellation;
+  - retries on 429/5xx (honouring `Retry-After`) and a concurrency limit per provider;
+  - polling, and audio recognised by its bytes;
+  - errors in one shape that say what to do (key, credits, rate, moderation, copyright, language, region), with the service's suggested prompt when there is one;
+  - the "brief": style, tempo and key in words, sections with their lengths, lyrics with markers.
+- **Drivers**, written from each service's documentation (read 2026-10-30):
+  - **ElevenLabs Music**: the song's sections become a **composition plan** (each as long as its bars, with its lyric lines; v1 sections or v2 chunks). Its plan-based rights come from the plan the user declares (Music Terms, Exhibit A). Prompts naming artists or songs are stopped before sending, and its `bad_prompt` suggestion is shown.
+  - **Mureka**: `song/generate` and `instrumental/generate`, polled through `queued → running → succeeded`, WAV. `n: 1` is always sent, because the default is 2 and each song is charged. The **timings of every word** go into the contribution's alignment. Models: auto, 7.6, o2, 8, 9, 9.5 (whose `duration` is 120–300 s). The schemas were read from the rendered operation pages at platform.mureka.ai.
+  - **Stable Audio**: 2.5 (synchronous, multipart) for songs, layers, **covers** (audio-to-audio; OpenBand's "close to the original" becomes Stability's inverse `strength`) and **repaints** (inpaint, `mask_start`/`mask_end`); 3.0 queued (202 + results). Its errors are named: English only, moderation, copyrighted audio, credits.
+  - **Google Lyria** through the Gemini API (`/v1beta/interactions`): Lyria 3.5 songs and Lyria 3 Clip (30 s). The audio is found wherever the answer puts it. Outputs are watermarked (SynthID), and commercial use is "check Google's terms".
+  - **Local model servers**: any music model with an HTTP API on this computer or the LAN joins by declaring in engines.json what to call (a templated body with `{text}`, `{bpm}`, `{key}`, `{seconds}`, `{lyrics}`, `{seed}`…) and where the audio is (the answer itself, a URL or base64, optionally a queue to poll). No adapter to write.
+- **Your music services** in *Ensemble → online engines*: paste your own key, and pick the model and, for ElevenLabs, your plan.
+  - Keys are written to `~/.openband/engines.json` readable by you only, in one atomic write. They are never handed back to the page and never put on a command line (the engine gets them only in its environment).
+  - Only the studio served by this computer can set them.
+- **Rights follow your plan into the release checks**: a part made under a plan without streaming distribution (ElevenLabs Starter) stops publishing to SoundCloud, YouTube, Mixcloud, Audius and Funkwhale, with the reason. Other engines' conditions are listed as warnings.
+- The budget counts per-minute prices (ElevenLabs) by the length asked for.
+- OMEP 1.0: optional `provenance.request_id` (the provider's id for support) and `output_rights.plan`.
+- **Not yet tried with real accounts**: every driver is tested against a stand-in built from the service's documentation. Still to come: Lyria RealTime for the live jam, Lyria 2 on Vertex, the relay for the online studio, keys in the system keychain.
+- Tests:
+  - conformance of every driver against its stand-in, with 100% adherence except Mureka (it picks its own length; OpenBand fits it);
+  - ElevenLabs' composition plan from the sections, its rights by plan, a name stopped before sending, and its suggestion shown;
+  - Stable Audio's cover form, English-only and credit errors;
+  - Mureka's `n: 1`, its polling, word timings and instrumental route;
+  - a local server with a queue;
+  - no key, no request;
+  - keys written 600, never returned, never in argv;
+  - the release check for a Starter part;
+  - **e2e**: ✦ on an audio track → Generate → a local model through the gateway → a region on that track, the song's tempo and key in the request, in the ledger.
+
 ## v0.6.42 "Heavy plugins get time, and a reason when they stop"
 
 ### Native plugins that take long (the Analog Lab report on TikTok)

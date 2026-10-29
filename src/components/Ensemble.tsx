@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { useT, type MessageKey } from '../i18n';
 import { runCommand } from '../commands';
-import { useBridge } from '../bridge';
+import { engineRequest, useBridge } from '../bridge';
 import { allEngines, builtinEngines, refreshEngines, setPolicy, useEnsemble } from '../ensemble/engines';
 import { relayEngines, relaySettings, setRelay } from '../ensemble/relay';
 import { estimate, spending } from '../ensemble/budget';
@@ -105,6 +105,7 @@ export function CreateDialog() {
           <div>
             <div className="lib-title">✦ {t('en.create')}</div>
             <div className="lib-sub">{t('en.createSub')}</div>
+            {track && <div className="lib-sub en-for-track">{t('en.forTrack', { name: track.name })}</div>}
           </div>
           <button className="icon-btn" onClick={close} aria-label={t('en.close')}>
             <I.Close />
@@ -310,6 +311,88 @@ export function EnsemblePanel() {
 }
 
 /** Online engines (§9-bis): the relay for the online studio, the budget, and what each engine sends. */
+/** The services the music gateway speaks to (omep-cloud), and each user's own keys — kept on this computer. */
+const SERVICES: { id: string; name: string; models: string[]; plans?: string[]; keyUrl: string }[] = [
+  { id: 'elevenlabs', name: 'ElevenLabs Music', models: ['music_v1', 'music_v2', 'music_v2_5'], plans: ['starter', 'creator', 'pro', 'scale', 'business', 'enterprise'], keyUrl: 'https://elevenlabs.io/app/settings/api-keys' },
+  { id: 'mureka', name: 'Mureka', models: ['auto', 'mureka-9.5', 'mureka-9', 'mureka-8', 'mureka-o2', 'mureka-7.6'], keyUrl: 'https://platform.mureka.ai' },
+  { id: 'stability', name: 'Stable Audio', models: ['stable-audio-2.5', 'stable-audio-3'], keyUrl: 'https://platform.stability.ai/account/keys' },
+  { id: 'lyria', name: 'Google Lyria', models: ['lyria-3.5', 'lyria-3-clip-preview'], keyUrl: 'https://aistudio.google.com/apikey' },
+];
+
+function MusicServices() {
+  const t = useT();
+  const hasEngines = useBridge((b) => b.engines);
+  const [saved, setSaved] = useState<{ id: string; provider: string; model?: string; plan?: string | null; has_key: boolean }[] | null>(null);
+  const [form, setForm] = useState<Record<string, { key: string; model?: string; plan?: string }>>({});
+  const [msg, setMsg] = useState<string | null>(null);
+  const load = () => engineRequest<typeof saved>('services', {}, 15000).then(setSaved, (e) => setMsg((e as Error).message));
+  useEffect(() => {
+    if (hasEngines) void load();
+  }, [hasEngines]);
+  if (!hasEngines) return <p className="ca-note">{t('ms.needServer')}</p>;
+  const save = async (id: string) => {
+    const f = form[id] ?? { key: '' };
+    try {
+      await engineRequest('set_service', { provider: id, ...(f.key ? { key: f.key } : {}), ...(f.model ? { model: f.model } : {}), ...(f.plan !== undefined ? { plan: f.plan || null } : {}) }, 15000);
+      setForm((x) => ({ ...x, [id]: { ...f, key: '' } }));
+      setMsg(t('ms.saved', { name: SERVICES.find((x) => x.id === id)!.name }));
+      await load();
+      void refreshEngines(true);
+    } catch (e) {
+      setMsg((e as Error).message);
+    }
+  };
+  const remove = async (engineId: string) => {
+    await engineRequest('remove_service', { id: engineId }, 15000).catch((e) => setMsg((e as Error).message));
+    await load();
+    void refreshEngines(true);
+  };
+  return (
+    <div className="en-services">
+      <h5>{t('ms.title')}</h5>
+      <p className="ca-note">{t('ms.note')}</p>
+      {SERVICES.map((sv) => {
+        const have = saved?.find((x) => x.provider === sv.id);
+        const f = form[sv.id] ?? { key: '' };
+        const set = (patch: Partial<typeof f>) => setForm((x) => ({ ...x, [sv.id]: { ...f, ...patch } }));
+        return (
+          <div key={sv.id} className="en-service">
+            <b>{sv.name}</b> {have?.has_key && <span className="en-badge">✓ {t('ms.keySet')}</span>}
+            <div className="en-relay">
+              <input type="password" autoComplete="off" placeholder={have?.has_key ? t('ms.keyKeep') : t('ms.keyPh')} value={f.key} onChange={(e) => set({ key: e.target.value })} onKeyDown={(e) => e.stopPropagation()} />
+              <select value={f.model ?? have?.model ?? sv.models[0]} onChange={(e) => set({ model: e.target.value })} title={t('ms.model')}>
+                {sv.models.map((m) => (
+                  <option key={m}>{m}</option>
+                ))}
+              </select>
+              {sv.plans && (
+                <select value={f.plan ?? have?.plan ?? ''} onChange={(e) => set({ plan: e.target.value })} title={t('ms.planHint')}>
+                  <option value="">{t('ms.plan')}</option>
+                  {sv.plans.map((p) => (
+                    <option key={p}>{p}</option>
+                  ))}
+                </select>
+              )}
+              <button className="btn" disabled={!f.key && !have?.has_key} onClick={() => void save(sv.id)}>
+                {t('on.save')}
+              </button>
+              {have && (
+                <button className="mini" onClick={() => void remove(have.id)}>
+                  {t('ms.remove')}
+                </button>
+              )}
+              <a href={sv.keyUrl} target="_blank" rel="noreferrer">
+                {t('ms.getKey')}
+              </a>
+            </div>
+          </div>
+        );
+      })}
+      {msg && <p className="ca-note">{msg}</p>}
+    </div>
+  );
+}
+
 function OnlineEngines({ engines }: { engines: EngineInfo[] }) {
   const t = useT();
   const policy = useEnsemble((e) => e.policy);
@@ -342,6 +425,7 @@ function OnlineEngines({ engines }: { engines: EngineInfo[] }) {
         </a>
       </div>
       {msg && <p className="ca-note">{msg}</p>}
+      <MusicServices />
       <div className="en-budget">
         <label>
           {t('on.session')}

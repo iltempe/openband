@@ -10,6 +10,8 @@ suona.
 
 ## Crea una parte
 
+**✦ su qualunque traccia** apre *Genera* per quella traccia.
+
 Premi **✦ Crea** nella barra (oppure *Ensemble → Crea una parte*), descrivi cosa vuoi — *«batteria funk,
 fitta»*, *«piano arpeggiato, intimo»*, *«un loop di tastiere lo-fi»* — e scegli dove (tutta la canzone, il
 ciclo, una sezione, alcune battute). OpenBand:
@@ -87,6 +89,46 @@ chiede OpenBand:
 
 Il risultato viene tagliato alle battute e conformato come quello di ogni motore (tempo, tonalità,
 livello), nel registro.
+
+### I tuoi servizi musicali (ElevenLabs, Mureka, Stable Audio, Lyria)
+
+Se sei iscritto a un servizio di generazione musicale, OpenBand può usarlo con **il tuo account**. Attiva i
+*motori online* in *Ensemble*, poi in **I tuoi servizi musicali** incolla la tua chiave API. Resta su questo
+computer, in `~/.openband/engines.json`, leggibile solo da te, e non arriva mai alla pagina, al brano o ad
+altri. Ogni servizio diventa un motore come gli altri: ✦ su una traccia, oppure *Crea*, lo usa secondo le
+tue regole e il tuo budget. Quello che torna viene adattato al brano e annotato nel registro, con i termini
+del servizio.
+
+| Servizio | Cosa suona | Da sapere |
+|---|---|---|
+| **ElevenLabs Music** | brani e parti | Le **sezioni** del brano vanno come *composition plan*, ciascuna lunga quanto le sue battute e con le sue righe di testo. **Il tuo piano decide i diritti**: indicalo accanto alla chiave. Con Starter la distribuzione in streaming non è permessa, e i controlli di pubblicazione la bloccano. I prompt con nomi di artisti, brani o etichette vengono rifiutati, quindi descrivi il suono. Quando ElevenLabs rifiuta, viene mostrato il prompt che suggerisce. |
+| **Mureka** | brani dal tuo testo (o strumentali) | Un brano per richiesta (il default di Mureka è due, e ognuno si paga). Restituisce **i tempi di ogni parola** del testo. La durata la decide lui, tranne mureka-9.5 (2–5 minuti); OpenBand la adatta alle battute. |
+| **Stable Audio** | strumentali, cover (audio-to-audio), rifacimenti (inpaint) | **Prompt solo in inglese.** Rifiuta l'audio che riconosce come protetto da copyright. 0,08 $ a generazione. |
+| **Google Lyria** | brani con Lyria 3.5, Lyria 3 Clip (30 s) | Tramite la Gemini API (una chiave da Google AI Studio). Ogni risultato ha una filigrana SynthID. Controlla i termini di Google prima dell'uso commerciale. |
+
+Gli errori dicono cosa fare: la chiave, i crediti, un servizio occupato, un prompt rifiutato. Provato contro
+sostituti costruiti dalla documentazione di ciascun servizio (letta il 30/10/2026), **non ancora con account
+veri**. Il progetto è in [ADR 0004](adr/0004-music-gateway.md).
+
+### Un tuo server di modelli
+
+Qualunque modello musicale su questo computer o in LAN che abbia un'API HTTP (un server MusicGen, un tuo
+script) si aggancia senza scrivere un adapter. Dichiara in `~/.openband/engines.json` cosa chiamare e dove
+si trova l'audio:
+
+```json
+"musicgen": { "builtin": "omep-cloud", "provider": "local", "name": "MusicGen sul mio PC",
+  "base_url": "http://127.0.0.1:9000",
+  "license": { "code": "MIT", "weights": "CC-BY-NC-4.0", "commercial": "no", "attribution": null, "conditions": null },
+  "capabilities": { "music.add_layer": {
+    "request": { "method": "POST", "path": "/generate", "body": { "prompt": "{text}, {bpm} bpm, {key}", "duration": "{seconds}", "seed": "{seed}" } },
+    "response": { "audio": "$bytes" } } } }
+```
+
+I valori sono `{text}`, `{lyrics}`, `{seconds}`, `{bpm}`, `{key}`, `{seed}`, `{meter}` e `{title}`. La
+risposta può essere l'audio stesso (`"$bytes"`) oppure un JSON con `"audio_url"` o `"audio_base64"`. Un
+lavoro in coda aggiunge `"poll": { "id": "job_id", "path": "/jobs/{id}", "done": "status=done", "audio_url": "result.url" }`.
+Dichiarane la licenza, perché i controlli di pubblicazione dipendono da questo.
 
 ### HeartMuLa sul tuo computer
 

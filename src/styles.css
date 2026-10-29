@@ -6195,3 +6195,12 @@ div.ca-steps {
   margin-top: 3px;
   color: var(--muted);
 }
+
+/* Generate for this track (✦ in the track header). */
+.ms.gen {
+  color: var(--accent, #b14cff);
+}
+.en-for-track {
+  margin-top: 2px;
+  font-weight: 600;
+}

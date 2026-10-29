@@ -1,6 +1,14 @@
 # ADR 0004 — A music generation gateway for cloud services and local engines
 
-Status: proposed (design; not implemented) · 2026-10-30
+Status: accepted · 2026-10-30 · implemented in v0.6.43:
+- the runtime (`omep/cloud/runtime.mjs`) and the engine (`omep/cloud-engine.mjs`);
+- the drivers for Stable Audio (2.5 and 3), ElevenLabs Music, Mureka, Lyria 3.5 / 3 Clip, and declarative
+  local model servers;
+- each user's keys from the studio, and plan-based rights in the release checks;
+- ✦ Generate on every track.
+
+Not yet: fal ported onto it, Lyria RealTime, Lyria 2 on Vertex, the relay for every driver, keys in the
+system keychain.
 
 ## Context
 
@@ -31,10 +39,10 @@ show):
 | | Stable Audio | ElevenLabs Music | Mureka | Google Lyria |
 |---|---|---|---|---|
 | Auth | `Authorization: Bearer` | `xi-api-key` | `Authorization: Bearer` | Gemini API: `x-goog-api-key`; Vertex (Lyria 2): a Google Cloud project with OAuth |
-| Jobs | 2.x **synchronous** (multipart → audio bytes); 3.0 **queued** (202 + `GET /v2beta/audio/results/{id}`, kept 24 h) | **synchronous** (`POST /v1/music` → audio bytes); a streaming variant | **queued** (`/v1/song/generate` → task id, `GET /v1/song/query/{id}`); status values beyond `preparing` unconfirmed | Lyria 3 / 3.5: one request (`/v1beta/interactions`), base64 MP3; **RealTime: WebSocket**, 16-bit PCM 48 kHz stereo |
+| Jobs | 2.x **synchronous** (multipart → audio bytes); 3.0 **queued** (202 + `GET /v2beta/audio/results/{id}`, kept 24 h) | **synchronous** (`POST /v1/music` → audio bytes); a streaming variant | **queued** (`/v1/song/generate` → task id, `GET /v1/song/query/{id}`), status `preparing → queued → running → (streaming) → succeeded` (or `failed`, `timeouted`, `cancelled`) | Lyria 3 / 3.5: one request (`/v1beta/interactions`), base64 MP3; **RealTime: WebSocket**, 16-bit PCM 48 kHz stereo |
 | Can do | text-to-audio (≤190 s; 3.0 ≤380 s), **audio-to-audio** (`strength`), **inpaint** (`mask_start`/`mask_end`) | songs from a prompt or a **composition plan** (sections with durations, styles, lyric lines), inpainting and extending through a stored `song_id` | songs from lyrics and prompt, instrumentals, extend, **stems**, reference/vocal ids; many models (`mureka-7.5`…`9.5`, `o1`, `o2`) | Lyria 3.5: full songs; 3 Clip: 30 s; Lyria 2: 32.8 s instrumental clips; **RealTime**: bpm, scale, density, brightness, mute bass/drums, weighted prompts |
-| Output | mp3 or wav, 44.1 kHz stereo | mp3, pcm (`pcm_48000`), opus; WAV through this endpoint unconfirmed | `wav_url` and others; expiry unconfirmed | MP3 (WAV option for 3.5 unconfirmed); Lyria 2 WAV 48 kHz |
-| Price | 8 credits = $0.08 per generation (2.5 and 3.0); failures not charged | ~900 credits per minute, from the user's plan; API from Starter up | prepaid API balance, separate from the website; per-song price not published | Lyria 3.5 / 3 Pro $0.08 per song, 3 Clip $0.04; RealTime and Vertex prices not found |
+| Output | mp3 or wav, 44.1 kHz stereo | mp3, pcm (`pcm_48000`), opus; WAV through this endpoint unconfirmed | `url`, `flac_url`, `wav_url`, valid for 30 days; `lyrics_sections` with the timings of every line and word | MP3 (WAV option for 3.5 unconfirmed); Lyria 2 WAV 48 kHz |
+| Price | 8 credits = $0.08 per generation (2.5 and 3.0); failures not charged | ~900 credits per minute, from the user's plan; API from Starter up | prepaid API balance, separate from the website; per-song price not published; `n` defaults to 2 and each song is charged | Lyria 3.5 / 3 Pro $0.08 per song, 3 Clip $0.04; RealTime and Vertex prices not found |
 | Rights | outputs owned by the user; don't present them as human-made; keep provenance | commercial use except film/TV/radio on self-serve plans; **streaming distribution not allowed on Free and Starter**; attribution on Free; no artist names, song titles or lyrics in prompts | commercial use for paid API calls; terms of service not located | always watermarked (SynthID) for RealTime and Lyria 3; commercial terms not checked |
 | Limits worth knowing | **English prompts only** (422); **rejects audio it recognizes as copyrighted** (422); 150 requests / 10 s | concurrency 2 on Starter–Pro; `bad_prompt` with a suggested prompt | 403 from unsupported regions; concurrency by top-up tier | RealTime: changing bpm or scale needs a context reset (a hard transition); instrumental only |
 
@@ -196,8 +204,10 @@ fake servers in the tests.
 - **ElevenLabs**: the REST paths of the detailed, stream, plan and upload variants; WAV output; the real
   maximum length (5 or 10 minutes); the response header with the song id; which limit binds, credits or
   the plan's minutes.
-- **Mureka**: the OpenAPI schema (parameters, statuses, outputs, URL expiry), prices, and the terms of
-  service.
+- **Mureka**: prices and the terms of service. The operation pages were read rendered: `song/generate`
+  (lyrics ≤5000, model `auto`, `mureka-7.6`, `o2`, `8`, `9`, `9.5`; `n` ≤3; `duration` 120–300 s for 9.5 only),
+  `song/query` (statuses, choices), `instrumental`, `song/extend`, `song/stem` (mp3/m4a, ≤10 MB) and
+  `files/upload` (purposes and lengths).
 - **Lyria**: the commercial terms of the Gemini API and Vertex; RealTime's real sample rate (the docs say
   48 kHz, an example uses 44.1); WAV for 3.5; prices of RealTime and Vertex; error shapes; EU
   availability.

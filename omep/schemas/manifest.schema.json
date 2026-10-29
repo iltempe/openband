@@ -54,7 +54,8 @@
           "required": ["commercial"],
           "properties": {
             "commercial": { "enum": ["yes", "no", "conditional"] },
-            "terms_url": { "type": "string", "format": "uri" }
+            "terms_url": { "type": "string", "format": "uri" },
+            "plan": { "type": "string", "description": "The user's plan with the provider, when the rights depend on it" }
           },
           "additionalProperties": false
         }

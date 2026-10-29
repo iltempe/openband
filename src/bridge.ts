@@ -142,7 +142,7 @@ export function switchBridgePort(port: number) {
 const engineCalls = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
 let engineSeq = 0;
 /** Ask the local server's engine host (SPEC v0.6 §9): list the engines or call one. */
-export function engineRequest<T = unknown>(op: 'list' | 'call' | 'stream_open' | 'stream_close', payload: Record<string, unknown> = {}, timeoutMs = 600000): Promise<T> {
+export function engineRequest<T = unknown>(op: 'list' | 'call' | 'stream_open' | 'stream_close' | 'services' | 'set_service' | 'remove_service', payload: Record<string, unknown> = {}, timeoutMs = 600000): Promise<T> {
   if (!socket || socket.readyState !== 1 || !useBridge.getState().engines) return Promise.reject(new Error('No OpenBand server with engines is connected'));
   const id = `e${++engineSeq}`;
   return new Promise<T>((resolve, reject) => {

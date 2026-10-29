@@ -9,6 +9,8 @@ so OpenBand never calls a model by name: you ask for a part, OpenBand picks who 
 
 ## Create a part
 
+**✦ on any track** opens *Generate* for that track.
+
 Press **✦ Create** in the toolbar (or *Ensemble → Create a part*), describe what you want — *“funk drums,
 busy”*, *“arpeggiated piano, intimate”*, *“a lo-fi keys loop”* — and choose where (the whole song, the
 cycle, a section, some bars). OpenBand:
@@ -83,6 +85,45 @@ and in `~/.openband/engines.json`: `"ace-step": { "builtin": "omep-ace-step", "m
 | a restyle (`transform`, *"make it a bossa nova"*) | `cover` | that part |
 
 What comes back is cut to the bars and conformed like any engine's (tempo, key, level), in the ledger.
+
+### Your music services (ElevenLabs, Mureka, Stable Audio, Lyria)
+
+If you subscribe to a music generation service, OpenBand can use it with **your own account**. Turn on
+*online engines* in *Ensemble*, then in **Your music services** paste your API key. It stays on this
+computer, in `~/.openband/engines.json`, readable by you only, and never reaches the page, the song or
+anyone else. Each service then is an engine like the others: ✦ on a track, or *Create*, routes to it under
+your policy and budget. What comes back is fitted to the song and recorded in the ledger with the
+service's terms.
+
+| Service | What it plays | Good to know |
+|---|---|---|
+| **ElevenLabs Music** | songs and parts | The song's **sections** go as a *composition plan*, each as long as its bars, with its lyric lines. **Your plan decides the rights**: pick it next to the key. On Starter, distribution to streaming services is not allowed, and the release checks stop it. Prompts naming artists, songs or labels are refused, so describe the sound instead. When ElevenLabs refuses, its suggested prompt is shown. |
+| **Mureka** | songs from your lyrics (or instrumentals) | One song per request (Mureka's default is two, and each is charged). It sends back the **timings of every word** of the lyrics. Its length is its own, except mureka-9.5 (2–5 minutes); OpenBand fits it to the bars. |
+| **Stable Audio** | instrumentals, covers (audio-to-audio), repaints (inpaint) | **English prompts only.** It refuses audio it recognises as copyrighted. $0.08 per generation. |
+| **Google Lyria** | Lyria 3.5 songs, Lyria 3 Clip (30 s) | Through the Gemini API (a key from Google AI Studio). Every output carries a SynthID watermark. Check Google's terms before commercial use. |
+
+Errors say what to do: the key, your credits, a busy service, a refused prompt. Tested against stand-ins
+built from each service's documentation (read on 2026-10-30), **not yet with real accounts**. The design is
+in [ADR 0004](adr/0004-music-gateway.md).
+
+### A model server of your own
+
+Any music model on this computer or the LAN that has an HTTP API (a MusicGen server, your own script) can
+join without an adapter. Declare in `~/.openband/engines.json` what to call and where the audio is:
+
+```json
+"musicgen": { "builtin": "omep-cloud", "provider": "local", "name": "MusicGen on my PC",
+  "base_url": "http://127.0.0.1:9000",
+  "license": { "code": "MIT", "weights": "CC-BY-NC-4.0", "commercial": "no", "attribution": null, "conditions": null },
+  "capabilities": { "music.add_layer": {
+    "request": { "method": "POST", "path": "/generate", "body": { "prompt": "{text}, {bpm} bpm, {key}", "duration": "{seconds}", "seed": "{seed}" } },
+    "response": { "audio": "$bytes" } } } }
+```
+
+The values are `{text}`, `{lyrics}`, `{seconds}`, `{bpm}`, `{key}`, `{seed}`, `{meter}` and `{title}`. The
+answer can be the audio itself (`"$bytes"`), or JSON with `"audio_url"` or `"audio_base64"`. A queued job
+adds `"poll": { "id": "job_id", "path": "/jobs/{id}", "done": "status=done", "audio_url": "result.url" }`.
+Declare its licence, because the release checks depend on it.
 
 ### HeartMuLa on your computer
 

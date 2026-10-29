@@ -97,3 +97,19 @@ describe('the release and its checks', () => {
     expect(lrcOf(p)).toBe('[ti:Notte]\n[ar:Iltempe]\n[by:OpenBand]\n[00:01.00]notte a Trastevere\n[01:05.00]luna\n');
   });
 });
+
+describe('what the music services that made parts allow (the gateway, ledger → release checks)', () => {
+  it('a part from an ElevenLabs Starter plan stops publishing to streaming platforms, and says why', () => {
+    const p: Project = emptyProject('Starter song');
+    p.release = { license: 'all-rights-reserved', title: 'Starter song', artist: 'iltempe' } as Project['release'];
+    p.tracks.push({ id: 't1', name: 'Song' } as Project['tracks'][number]);
+    p.regions.push({ id: 'r1', trackId: 't1', name: 'Song', start: 0, length: 16, notes: [], contribution: 'c1' });
+    p.ledger = [{ id: 'c1', at: 1, source: 'engine', engine: 'cloud-elevenlabs', engineName: 'Eleven Music v1 (ElevenLabs Music)', capability: 'music.song', requestedBy: 'user', conform: [], license: { code: 'Eleven Music Terms', weights: null, commercial: 'conditional', conditions: 'Starter plan: commercial use except film, TV, radio and studio games; distribution to streaming services is NOT allowed; individual use only.' }, trackId: 't1', regionIds: ['r1'] }];
+    const issues = checkRelease(p, ['soundcloud', 'youtube', 'wikimedia'], { hasCover: true });
+    const terms = issues.filter((i) => i.code === 'engine-terms');
+    expect(terms.filter((i) => i.severity === 'error').map((i) => i.platform)).toEqual(['soundcloud', 'youtube']);
+    expect(terms[0].message).toMatch(/Eleven Music.*can't be distributed to streaming services on your plan/);
+    // Deleted, it no longer counts.
+    expect(checkRelease({ ...p, regions: [] }, ['soundcloud'], { hasCover: true }).some((i) => i.code === 'engine-terms')).toBe(false);
+  });
+});

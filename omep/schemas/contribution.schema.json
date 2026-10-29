@@ -68,6 +68,7 @@
         "context_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
         "capability": { "type": "string" },
         "voice": { "type": "string" },
+        "request_id": { "type": "string", "description": "The provider's id for this request (a cloud engine's job, task or trace id): what its support asks for." },
         "conform": { "type": "array", "items": { "type": "string" }, "description": "Corrections the studio applied (added by the studio, not the engine)." }
       },
       "additionalProperties": false

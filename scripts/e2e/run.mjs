@@ -2224,6 +2224,60 @@ tests.livejam = async () => {
   }
 };
 
+// The gateway (ADR 0004) from the ✦ Generate button of a track: a model server on this computer, declared in
+// engines.json only (provider "local"), reached through omep-cloud and the engine host; what it makes lands
+// on that track, with the song's tempo and key in the request, and in the ledger.
+tests.generate = async () => {
+  const os = await import('node:os');
+  const { createFakeCloud } = await import('../../omep/fixtures/fake-cloud.mjs');
+  const fake = createFakeCloud();
+  const base = await fake.listen();
+  const enginesFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ob-e2e-')), 'engines.json');
+  fs.writeFileSync(enginesFile, JSON.stringify({ engines: { musicgen: { builtin: 'omep-cloud', provider: 'local', name: 'My MusicGen', base_url: base, license: { code: 'MIT', weights: 'MIT', commercial: 'yes', attribution: null, conditions: null }, capabilities: { 'music.add_layer': { request: { path: '/local/generate', body: { prompt: '{text}, {bpm} bpm, {key}', duration: '{seconds}' } } } } } } }));
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1', OPENBAND_ENGINES: enginesFile });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.evaluate(async () => {
+      const { commands } = window.openband;
+      await commands.new_project({ name: 'Gateway', bpm: 96, key: 'Dm' });
+      await commands.add_track({ kind: 'audio', name: 'Pads from my model' });
+    });
+    await p.evaluate(() => [...document.querySelectorAll('.track-header')].find((h) => h.textContent.includes('Pads from my model')).querySelector('.ms.gen').click());
+    await p.waitForSelector('.en-create', { timeout: 5000 });
+    const forTrack = await p.evaluate(() => document.querySelector('.en-for-track')?.textContent ?? '');
+    await p.type('.en-create input', 'warm analog pads');
+    await p.waitForFunction(() => [...document.querySelectorAll('.en-create select option')].some((o) => o.value === 'musicgen'), { timeout: 30000 });
+    await p.evaluate(() => {
+      const sel = [...document.querySelectorAll('.en-create select')].find((x) => [...x.options].some((o) => o.value === 'musicgen'));
+      const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+      set.call(sel, 'musicgen');
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await p.click('.en-create button[type="submit"]');
+    await p.waitForFunction(() => document.querySelector('.en-create .en-result, .en-create .ca-problem'), { timeout: 60000 });
+    const r = await p.evaluate(() => {
+      const { useStore } = window.openband;
+      const pr = useStore.getState().project;
+      const track = pr.tracks.find((t) => t.name === 'Pads from my model');
+      return { result: document.querySelector('.en-create .en-result')?.textContent ?? document.querySelector('.en-create .ca-problem')?.textContent, regions: pr.regions.filter((x) => x.trackId === track.id && x.audio).length, ledger: (pr.ledger ?? []).map((e) => `${e.engine}:${e.capability}`) };
+    });
+    const sent = fake.log.find((x) => x.path === '/local/generate');
+    check(/Pads from my model/.test(forTrack), `✦ on the track opens Generate for it (${forTrack})`);
+    check(/✓/.test(r.result ?? ''), `the local model plays through the gateway (${(r.result ?? '').trim()})`);
+    check(r.regions === 1, 'what it made is a region on that track');
+    check(!!sent && /warm analog pads, 96 bpm, D minor/.test(sent.body?.prompt ?? ''), `the request carried the song's tempo and key (${sent?.body?.prompt})`);
+    check(r.ledger.includes('musicgen:music.add_layer'), `and the ledger names the model (${r.ledger.join(', ')})`);
+  } finally {
+    await b.close();
+    srv.kill();
+    await fake.close();
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);
