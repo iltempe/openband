@@ -6,7 +6,11 @@ import { runCommand } from '../commands';
 import { BEATS_PER_BAR } from '../music';
 import { dismissAnswer, useJam } from '../jamMode';
 import { phraseLength } from '../jam';
+import { useEffect, useState } from 'react';
 import { useT } from '../i18n';
+import { useBridge } from '../bridge';
+import { streamEngines, useLiveJam } from '../stream/liveJam';
+import type { EngineInfo } from '../ensemble/router';
 
 const run = (m: string, a: Record<string, unknown> = {}) => runCommand(m, a, 'ui').catch((e) => useStore.getState().notify((e as Error).message));
 
@@ -72,6 +76,91 @@ export function JamSection() {
               </button>
             ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+/** E5: a live jam with an engine that streams audio (stream.jam). */
+export function LiveJamSection() {
+  const t = useT();
+  const lj = useLiveJam();
+  const hasEngines = useBridge((b) => b.engines);
+  const [engines, setEngines] = useState<EngineInfo[] | null>(null);
+  const [engine, setEngine] = useState('');
+  const [style, setStyle] = useState(lj.style);
+  const [intensity, setIntensity] = useState(lj.intensity);
+  useEffect(() => {
+    if (!hasEngines) return void setEngines([]);
+    let alive = true;
+    streamEngines().then((e) => alive && setEngines(e), () => alive && setEngines([]));
+    return () => void (alive = false);
+  }, [hasEngines]);
+  const live = lj.status === 'live';
+  const s = lj.stats;
+  return (
+    <div className={`jam live-jam ${live ? 'on' : ''}`}>
+      <div className="ai-share">
+        <span>
+          {t('lj.title')}
+          <small>{t('lj.hint')}</small>
+        </span>
+      </div>
+      {engines && !engines.length && <small className="muted">{t('lj.none')}</small>}
+      {!!engines?.length && (
+        <>
+          <div className="jam-row">
+            <select className="ver-input" value={engine || engines[0].id} disabled={lj.status !== 'off'} onChange={(e) => setEngine(e.target.value)} title={t('lj.engine')}>
+              {engines.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.manifest.engine.name}
+                </option>
+              ))}
+            </select>
+            <label className="lj-record">
+              <input type="checkbox" checked={lj.recording} disabled={lj.status !== 'off'} onChange={(e) => useLiveJam.setState({ recording: e.target.checked })} />
+              {t('lj.record')}
+            </label>
+          </div>
+          <div className="jam-row">
+            <input className="ver-input" value={style} placeholder={t('lj.style')} onChange={(e) => setStyle(e.target.value)} />
+          </div>
+          <div className="jam-row">
+            <label className="lj-intensity">
+              {t('lj.intensity')}
+              <input type="range" min={0} max={1} step={0.05} value={intensity} onChange={(e) => setIntensity(Number(e.target.value))} />
+            </label>
+          </div>
+          <div className="jam-row">
+            {lj.status === 'off' && (
+              <button className="btn primary" onClick={() => run('start_live_jam', { engine: engine || engines[0].id, style, intensity, record: lj.recording })}>
+                {t('lj.start')}
+              </button>
+            )}
+            {lj.status === 'opening' && <span className="muted">{t('lj.opening')}</span>}
+            {live && (
+              <>
+                <button className="btn" onClick={() => run('steer_live_jam', { style, intensity })}>
+                  {t('lj.steer')}
+                </button>
+                <button className="btn primary" onClick={() => run('stop_live_jam', { keep: true })}>
+                  {t('lj.stop')}
+                </button>
+                <button className="btn" onClick={() => run('stop_live_jam', { keep: false })}>
+                  {t('lj.discard')}
+                </button>
+              </>
+            )}
+          </div>
+          {live && (
+            <div className="jam-status answering">
+              <span className="jam-dot" />
+              {t('lj.stats', { lead: s.leadMs, rtt: s.rttMs ?? '–', under: s.underruns, late: s.late, sec: s.seconds })}
+            </div>
+          )}
+          {live && s.genMs !== null && s.genMs > 40 && <small className="warn">{t('lj.slow', { ms: s.genMs })}</small>}
+          {lj.error && lj.status === 'off' && <small className="warn">{lj.error}</small>}
+        </>
       )}
     </div>
   );

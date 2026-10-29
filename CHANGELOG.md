@@ -2,6 +2,36 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.39 "E5: jam live with a real-time model"
+
+### E5 · Real time: the OMEP stream and Magenta RealTime 2 (SPEC v0.6 §2.5, E5)
+- **Live jam** in the AI panel, and `start_live_jam` / `steer_live_jam` / `stop_live_jam` (in the `jam` toolset; 180 MCP tools in all).
+  - An engine that plays in real time streams into an audio track (a new one by default) from the next bar, in time with the transport.
+  - Steer it as it plays: style in words, intensity, chords (one per bar, repeating; by default the song's harmony).
+  - *Stop and keep*: the recording becomes a region from that bar. Another jam from the same bar becomes a **take** of it.
+  - The ledger records the engine and its licence (and the attribution goes in the credits).
+  - The panel shows the latency, round trip, holes and late frames, and warns when the model is slower than real time.
+- **OMEP stream 1.0** (`omep/lib/stream.mjs`, documented in [omep/README.md §8](omep/README.md#8-streaming-streamjam)).
+  - MCP only opens and closes the stream (`stream.jam`, `request.action` open/close). Its descriptor is `ws-pcm`, 48 kHz.
+  - Audio and the clock then travel on one WebSocket. Binary frames are 40 ms of 16-bit PCM, each with a 24-byte header that carries the **beat** it must sound at and the clock epoch. Text messages are `clock`, `clock_ack`, `control`, `ready` and `error`.
+  - Time is musical: the studio anchors the stream to a bar line and plays every frame exactly at its beat, so alignment doesn't depend on the network.
+  - Latency only decides how far ahead the engine works. The engine extrapolates the studio's beat from its clock, plus half the round trip it measured.
+  - The studio's **jitter buffer** (`src/stream/jitter.ts`, pure) drops what is too late and counts the holes. It raises the lead at once when frames arrive with too little margin, and lowers it slowly, only after 30 s of wide margins.
+  - A seek, a loop or a new tempo starts a new epoch: the engine restarts there, and stale frames are dropped by their header.
+- **The local server relays the stream** (`server/streams.mjs`): the page connects to `/stream/<id>` with an id it got only over the bridge, valid once. It never reaches an engine on the LAN itself or sees its token.
+- **`omep-mock-stream`**: a pluck exactly on each beat it stamps, following the chords, with a simulated network (`latency_ms`, `jitter_ms`).
+- **`omep-magenta-rt`**: Magenta RealTime 2 (Google; code Apache-2.0, weights CC BY 4.0).
+  - It runs in the user's own Python with `magenta-rt` (MLX on Apple Silicon, JAX on NVIDIA) through `omep/magenta_rt_worker.py`, one 40 ms frame per call.
+  - MRT2 has no tempo input. The beat reaches it as drum onsets (eighths at high intensity; below 0.15 it keeps its own time) and the chords as a piano roll with an onset on every bar.
+  - **Not yet run with the real model.** The worker is written from magenta-rt 2.0.3's sources; the adapter is tested against a stand-in worker speaking the same protocol.
+- **`omep-conformance` measures streaming engines**: it opens a stream and plays a transport for 4 s. It checks the handshake, that frames decode at 48 kHz from beat 0 with contiguous beats, that the engine keeps up with real time, that frames arrive before their beat, and that the clock is answered and the stream closes.
+- Online there is no live stream (the latency of hosted APIs doesn't allow a jam): OpenBand says so and points to jam mode (F15).
+- Tests (the spec's acceptance):
+  - **5 simulated minutes without an underrun**: studio and engine on a network with 30 ms each way, up to 40 ms of jitter and 120 ms spikes on 1% of messages. There are no holes and no late frames, the frames are contiguous for 600 beats, and the lead settles under 600 ms. This held on 20 seeds.
+  - **A network that gets worse**: a few frames are late, the lead rises, and then there are no more holes.
+  - **e2e, latency compensated within ±10 ms**: the mock engine behind 50–90 ms of network, through engines.json, the engine host and the relay. Every pluck heard on the master is on the transport's beat within ±10 ms, with no underruns. The kept region starts on the stream's bar with its beats on the grid, and is in the ledger.
+  - Conformance passes for the mock and for the Magenta adapter with the stand-in worker. A missing model says what to install, and a slow model fails "keeps up with real time". The MRT2 conditioning has its own unit tests.
+
 ## v0.6.38 "G7: a proof that your song existed"
 
 ### G7 · Proof of existence with OpenTimestamps, in Bitcoin (SPEC v0.6 G7)

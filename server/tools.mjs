@@ -469,6 +469,23 @@ tool('set_jam_mode', 'Turn jam (call-and-response) mode on or off: the studio sh
   window: z.enum(['next_bar', 'next_loop']).optional(),
 });
 
+tool('start_live_jam', 'Jam live with a music engine that plays in real time (stream.jam: Magenta RealTime 2 or another OMEP streaming engine on this computer or the LAN). Its audio streams into an audio track (a new one without track_id) from the next bar, in time with the transport (started if stopped), and is recorded. Steer it with steer_live_jam; stop_live_jam keeps the recording as a region (or a take of the jam already there). Needs the OpenBand app or npx openband; online, use set_jam_mode instead.', {
+  engine: z.string().optional().describe('Engine id (list_engines); default: the first that streams'),
+  track_id: z.string().optional().describe('An audio track to play into'),
+  style: z.string().optional().describe('The style in words: "warm lo-fi keys", "funky bass and drums"'),
+  intensity: z.number().min(0).max(1).optional(),
+  chords: z.array(z.string()).optional().describe('One chord per bar, repeating (default: the song\'s harmony)'),
+  record: z.boolean().optional().describe('Record the stream (default true)'),
+}, { timeout: 180000 });
+tool('steer_live_jam', 'Steer the live jam while it plays: a new style, intensity or chords (one per bar, repeating). Also returns its state: latency, buffer, underruns.', {
+  style: z.string().optional(),
+  intensity: z.number().min(0).max(1).optional(),
+  chords: z.array(z.string()).optional(),
+});
+tool('stop_live_jam', 'Stop the live jam. keep (default true): what was recorded becomes a region on its track — or a new take when a jam already starts at that bar — with the engine in the ledger (and its attribution in the credits).', {
+  keep: z.boolean().optional(),
+}, { timeout: 120000 });
+
 tool('keep_answer', 'Keep the last answer played with play_phrase: its notes are added to the song (one undo step).', {});
 
 tool('keep_phrase', 'Keep one of the recent answers (the phrase_id returned by play_phrase, up to 20 back): its notes are added to the song where they were played (one undo step).', { phrase_id: z.string() });
@@ -980,7 +997,7 @@ export const TOOLSETS = {
   sounds: { description: 'Imported samples, sampler instruments, SoundFonts, audio regions, the CC0 loop library', tools: ['import_sample', 'list_samples', 'create_sampler_instrument', 'import_soundfont', 'add_audio_region', 'search_loops', 'add_loop', 'set_synth_params', 'sound_from_words', 'apply_patch', 'match_sound', 'tone_match'] },
   files: { description: 'Exports and imports: WAV, MIDI, project JSON, DAWproject', tools: ['export_project_json', 'import_project_json', 'export_wav', 'export_midi', 'import_midi', 'import_dawproject', 'export_dawproject'] },
   collab: { description: 'Rooms with other people, comments and explanations on the song', tools: ['create_room', 'join_room', 'leave_room', 'get_peers', 'annotate', 'list_annotations', 'resolve_annotation', 'delete_annotation'] },
-  jam: { description: 'Jamming: answering the user\'s phrases, keeping answers, the studio\'s event stream', tools: ['play_phrase', 'keep_answer', 'keep_phrase', 'get_events', 'wait_for_event'] },
+  jam: { description: 'Jamming: answering the user\'s phrases, keeping answers, the studio\'s event stream, a live jam with a real-time engine (Magenta RealTime 2)', tools: ['play_phrase', 'keep_answer', 'keep_phrase', 'get_events', 'wait_for_event', 'start_live_jam', 'steer_live_jam', 'stop_live_jam'] },
   release: { description: 'The release: metadata, licence (Creative Commons chooser and checks), cover, the Release Kit', tools: ['get_release', 'set_release', 'check_release', 'generate_cover', 'export_release_kit', 'render_video', 'list_publish_targets', 'publish', 'get_publications'] },
   protect: { description: 'Proof of existence: timestamps of the song in Bitcoin (OpenTimestamps), verifying them, the Proof package', tools: ['timestamp_work', 'get_protections', 'verify_timestamp', 'export_proof_package'] },
   engines: { description: 'OMEP engines: which are installed, who made what (ledger), the engine policy, covers of a song in another style', tools: ['list_engines', 'get_ledger', 'set_engine_policy', 'cover_song'] },

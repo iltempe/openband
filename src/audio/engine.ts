@@ -193,6 +193,14 @@ class AudioEngine {
    * AudioContext time `at`. A lookahead timer hands them to the instrument just before they sound,
    * so stopping the transport can cancel what hasn't played yet. Returns when the phrase ends.
    */
+  /** Where a live stream (OMEP stream.jam) enters a track: before its effects, as its instrument would. */
+  connectToTrack(trackId: string, node: AudioNode): boolean {
+    const n = this.nodes.get(trackId);
+    if (!n) return false;
+    Tone.connect(node, n.fx.input);
+    return true;
+  }
+
   /** Drop the notes of a scheduled phrase that haven't sounded yet (a local jam answer the AI's replaces). */
   cancelPhrase(tag: string): number {
     const before = this.phraseQueue.length;

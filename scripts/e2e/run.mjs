@@ -2131,6 +2131,99 @@ tests.protect = async () => {
   }
 };
 
+// E5: a live jam with a streaming engine (the mock, behind a simulated network of 50 ms + up to 40 ms of
+// jitter) through engines.json, the engine host and the server's relay: what the speakers get is captured
+// and every pluck — the mock plays one exactly on each beat it stamps — must sound within ±10 ms of the
+// transport's beat; no underruns; stopping keeps the recording as a region on the beat too, in the ledger.
+tests.livejam = async () => {
+  const os = await import('node:os');
+  const enginesFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ob-e2e-')), 'engines.json');
+  fs.writeFileSync(enginesFile, JSON.stringify({ engines: { stream: { builtin: 'omep-mock-stream', latency_ms: 50, jitter_ms: 40 } } }));
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1', OPENBAND_ENGINES: enginesFile });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    const r = await p.evaluate(async () => {
+      const { commands, engine, useStore, renderBuffer, Tone, liveJam } = window.openband;
+      await commands.new_project({ name: 'Live', bpm: 120, key: 'C' });
+      await commands.set_metronome({ enabled: false });
+      await commands.transport({ action: 'stop' });
+      const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
+      for (let i = 0; i < 40 && !useStore.getState().project; i++) await wait(100);
+      const started = await commands.start_live_jam({ engine: 'stream', style: 'test pattern', intensity: 0.4 }).catch((e) => ({ error: e.message }));
+      if (started.error) return { started };
+      await wait(400); // the transport really starts a moment later: the stream re-anchors once
+      const a = liveJam.liveJamAnchor();
+      const ctx = Tone.getContext().rawContext;
+      while (ctx.currentTime < a.t0 - 0.25) await wait(10);
+      const cap = await engine.captureMaster(10);
+      const live = liveJam.useLiveJam.getState().stats;
+      const stopped = await commands.stop_live_jam({ keep: true });
+      engine.stop();
+      // Onsets, robust to reverb tails: a 1 ms block 4× louder than the 60 ms before it, then the first
+      // sample above 30% of the attack's peak. At most one per 200 ms.
+      const onsets = (x, sr, t0) => {
+        const B = Math.round(sr / 1000);
+        const e = [];
+        for (let i = 0; i + B <= x.length; i += B) {
+          let m = 0;
+          for (let k = 0; k < B; k++) m = Math.max(m, Math.abs(x[i + k]));
+          e.push(m);
+        }
+        const out = [];
+        let last = -1e9;
+        for (let b = 0; b < e.length - 12; b++) {
+          let before = 0;
+          for (let k = Math.max(0, b - 60); k < b - 3; k++) before = Math.max(before, e[k]);
+          if (e[b] > 0.05 && e[b] > 4 * before && b - last > 200) {
+            let peak = 0;
+            for (let k = b; k < b + 10; k++) peak = Math.max(peak, e[k]);
+            let i = (b - 2) * B;
+            while (i < (b + 10) * B && Math.abs(x[i]) < 0.3 * peak) i++;
+            out.push(t0 + i / sr);
+            last = b;
+          }
+        }
+        return out;
+      };
+      const mono = (c) => Float32Array.from(c[0], (v, i) => (v + c[1][i]) / 2);
+      const spb = 60 / a.bpm;
+      const err = (times, origin) => times.map((t) => ((t - origin) / spb - Math.round((t - origin) / spb)) * spb * 1000);
+      const liveOn = onsets(mono(cap.channels), cap.sampleRate, cap.startTime).filter((t) => t >= a.t0 - 0.01);
+      const p2 = useStore.getState().project;
+      const region = p2.regions.find((x) => x.id === stopped.region_id);
+      const off = region ? await renderBuffer(p2, { fromBeat: region.start, toBeat: region.start + 16, tailSeconds: 0 }) : null;
+      const recOn = off ? onsets(mono([off.getChannelData(0), off.getChannelData(1)]), off.sampleRate, 0) : [];
+      return {
+        started,
+        live,
+        stopped,
+        liveCount: liveOn.length,
+        liveErr: err(liveOn, a.t0),
+        recCount: recOn.length,
+        recErr: err(recOn, 0),
+        region: region && { start: region.start, startBeat: liveJam.liveJamAnchor()?.start_beat ?? a.start_beat, length: region.length },
+        ledger: (p2.ledger ?? []).map((e) => `${e.engine}:${e.capability}`),
+      };
+    });
+    check(!r.started.error, `a live jam starts with the streaming engine (${r.started.error ?? `bar ${r.started.starts_at_bar}, lead ${r.started.lead_ms} ms`})`);
+    if (r.started.error) return;
+    const worst = (e) => Math.max(...e.map(Math.abs));
+    check(r.liveCount >= 16, `the stream is heard: ${r.liveCount} beats in the 10 s captured`);
+    check(r.liveCount && worst(r.liveErr) <= 10, `every beat of the stream sounds on the transport's beat, through 50–90 ms of network: worst ${worst(r.liveErr).toFixed(2)} ms`);
+    check(r.live.underruns === 0 && r.stopped.stats.underruns === 0, `no underruns (${r.stopped.stats.underruns}; ${r.stopped.stats.late} late, lead ${r.stopped.stats.leadMs} ms)`);
+    check(r.stopped.kept && r.region && Math.abs(r.region.start - r.region.startBeat) < 1e-6, `stopping keeps the recording as a region from the bar the stream started (${r.stopped.bars} bars)`);
+    check(r.recCount >= 16 && worst(r.recErr) <= 10, `…with its beats on the grid too: ${r.recCount} onsets, worst ${r.recCount ? worst(r.recErr).toFixed(2) : '–'} ms`);
+    check(r.ledger.includes('stream:stream.jam'), `and the ledger says which engine played it (${r.ledger.join(', ')})`);
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);

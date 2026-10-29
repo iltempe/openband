@@ -140,10 +140,39 @@ made from). Note positions are in beats from `scope.from_bar`.
 
 ## 8. Streaming (`stream.jam`)
 
-MCP is not for continuous audio. The tool returns a stream descriptor (`ws-pcm`: binary PCM 48 kHz over
-WebSocket, or `webrtc-opus` on a LAN) and a clock channel on which the studio sends transport beats
-(position, BPM, high-resolution timestamps) and the engine answers with measured offset and latency.
-Control messages (chords, style, intensity) travel on the same channel. (Detailed in OMEP 1.1.)
+MCP is not for continuous audio. MCP only opens and closes the stream: `stream.jam` with
+`request.action: "open"` (plus `style`, `chords` — one per bar, repeating — and `intensity` 0..1) returns a
+Contribution of kind `stream`:
+
+```jsonc
+{ "kind": "stream", "stream": { "transport": "ws-pcm", "protocol": "omep-stream/1.0", "url": "ws://127.0.0.1:53211/s/<session>",
+  "session": "<session>", "sample_rate": 48000, "channels": 2, "frame_samples": 1920 }, "claims": {}, "provenance": {…}, "license": {…} }
+```
+
+and `request.action: "close", session` closes it. Everything else travels on that one WebSocket
+(`omep-stream/1.0`, reference implementation [`lib/stream.mjs`](lib/stream.mjs) and
+[`lib/stream-server.mjs`](lib/stream-server.mjs)):
+
+| Direction | Frame | Content |
+|---|---|---|
+| engine → studio | binary | one audio frame: 24-byte header (LE: magic `OMS1` · seq u32 · **beat** f64 · sample rate u32 · channels u16 · epoch u16), then 16-bit PCM, interleaved |
+| engine → studio | text | `{"type":"ready","protocol","sample_rate","channels","frame_samples"}` on connect · `{"type":"clock_ack","seq","sent_ms","produced_beat","lead_ms","gen_ms"}` · `{"type":"error","message"}` |
+| studio → engine | text | `{"type":"clock","seq","beat","bpm","playing","lead_ms","rtt_ms","epoch","sent_ms"}` every ~50 ms · `{"type":"control","style","chords","intensity"}` |
+
+**Time is musical.** `beat` counts beats from the stream's start, which the studio anchors to a bar line
+(beat 0 = the next bar far enough away). Every frame says the beat its first sample sounds at, and the
+studio plays it exactly there, so alignment does not depend on the network. Latency only decides how far
+ahead the engine has to work: the engine makes frames up to `lead_ms` past the studio's beat (extrapolated
+from the last clock, plus half the round trip `rtt_ms`), and the studio raises `lead_ms` at once when frames
+arrive with too little margin, lowering it slowly when the worst margin of the last 30 s stays wide. A new
+`epoch` means the studio moved the transport (a seek, a loop, a new tempo): the engine restarts right ahead
+of it, and frames of the old epoch still in flight are dropped by their header. Frames that arrive too late
+are dropped too, and counted, with the holes they leave (underruns).
+
+An engine slower than real time (`gen_ms` above the 40 ms frame) cannot keep up and the conformance suite
+says so. The connection is the engine's own: OpenBand relays it through its local server
+(`/stream/<id>`, an id given only over the bridge), so the page never reaches a LAN engine directly.
+`webrtc-opus` is reserved for a later version.
 
 ## 9. Conformance
 
@@ -160,6 +189,10 @@ as an MCP task and a cancellation, when tasks are declared. Then it **measures**
 context — notes inside the scope, in key and in range; audio duration, tempo (onset autocorrelation) and key
 (chroma, Krumhansl–Kessler) — and prints an **adherence** score. A low score is not a failure: studios
 correct more, and their routers know.
+
+For `stream.jam` it opens a stream, plays a transport at the context's tempo for 4 s and checks the
+handshake, that frames decode at 48 kHz from beat 0 with contiguous beats, that they keep up with real time
+and arrive before their beat, that the clock is answered, and that the stream closes.
 
 Exit code `0` when every required check passes (and adherence ≥ `--min-adherence`, when given).
 

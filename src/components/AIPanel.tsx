@@ -1,6 +1,6 @@
 import { useStore } from '../store';
 import { RoomActivity } from './Collab';
-import { JamSection } from './Jam';
+import { JamSection, LiveJamSection } from './Jam';
 import { Markdown, openComments } from './Comments';
 import type { BridgeLogEntry } from '../types';
 import { useState } from 'react';
@@ -95,6 +95,7 @@ export function AIPanel() {
             </button>
           </form>
           <JamSection />
+          <LiveJamSection />
         </div>
       )}
 

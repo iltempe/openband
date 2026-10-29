@@ -175,6 +175,43 @@ found published; any voicebank whose phonemes you can map will do. Without a GPU
 [deploy/diffsinger](../deploy/diffsinger/README.md).
 
 
+## Jam live (real time)
+
+An engine that **plays in real time** — Magenta RealTime 2, or any OMEP engine with `stream.jam` — streams
+its audio into an audio track while the transport runs: *AI panel → Live jam*, or `start_live_jam`. It
+starts on the next bar, in time with the song, and you steer it as it plays (*style* in words, *intensity*,
+the chords — by default the song's own). *Stop and keep* turns what it played into a region from that bar;
+another jam from the same bar becomes a **take** of it, to compare and comp. The ledger records the engine
+and its licence (Magenta's weights are CC BY 4.0: the attribution goes in the credits by itself).
+
+It keeps time whatever the network does: every 40 ms frame carries the beat it belongs to and is played
+exactly there; the latency only decides how far ahead the engine works, and OpenBand raises it at once when
+frames arrive with too little margin. The panel shows the latency, the round trip, holes (underruns) and
+late frames. Details of the protocol: [OMEP §8](../omep/README.md#8-streaming-streamjam).
+
+### Magenta RealTime 2 on your computer
+
+In a Python of your own (3.11+), as its authors explain:
+
+```bash
+uv venv --python 3.12 ~/mrt/.venv && source ~/mrt/.venv/bin/activate
+uv pip install "magenta-rt[mlx]"            # Apple Silicon (real time)
+# uv pip install magenta-rt "jax[cuda13]"   # NVIDIA
+mrt models init && mrt models download mrt2_small
+```
+
+and in `~/.openband/engines.json`:
+`"mrt": { "builtin": "omep-magenta-rt", "python": "~/mrt/.venv/bin/python", "model": "mrt2_small" }`
+(`"backend": "jax"` on NVIDIA; `mrt2_base` needs a Pro/Max-class chip to keep up). MRT2 has no tempo
+input: OpenBand gives it the beat as drum onsets (eighths at high intensity; below 0.15 it keeps its own
+time) and the chords as a piano roll with an onset on every bar, so it plays along — how tight it sounds is
+the model's; the stream itself is always on the beat. If the model is slower than real time on your
+machine the panel says so. **Status**: the adapter is tested against a stand-in of the model's worker,
+written from magenta-rt 2.0.3's sources; it has not yet been run with the real model.
+
+Online (no OpenBand on this computer) there is no live stream — the network latency of hosted APIs doesn't
+allow a jam: use *Jam with the AI* instead, where the AI answers your phrases with MIDI.
+
 ## Your taste
 
 Ask for **variants** (2–4) and they come from **different engines** when several can play, as takes of one

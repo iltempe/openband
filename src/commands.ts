@@ -1267,6 +1267,10 @@ export const commands: Record<string, (args: P) => unknown> = {
     return playPhrase(track.id, parsed, at, !!commit);
   },
 
+  // E5: a live jam with an engine that streams audio (stream.jam).
+  start_live_jam: async (args) => (await import('./stream/liveJam')).startLiveJam(args as import('./stream/liveJam').StartLiveJamArgs),
+  steer_live_jam: async (args) => (await import('./stream/liveJam')).steerLiveJam(args as { style?: string; intensity?: number; chords?: string[] }),
+  stop_live_jam: async ({ keep }) => (await import('./stream/liveJam')).stopLiveJam({ keep: keep as boolean | undefined }),
   set_jam_mode: ({ enabled, response_track_id, window }) => {
     const id = response_track_id ? requireTrack(st().project, response_track_id).id : undefined;
     return setJamMode(enabled !== false, id, window);
@@ -1982,7 +1986,7 @@ const READ_ONLY = new Set([
   'list_samples', 'list_plugins', 'search_plugins', 'list_native_plugins', 'rescan_plugins', 'suggest_continuation', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'get_energy', 'analyze_harmony',
   'list_engines', 'get_ledger', 'set_engine_policy',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'steer_live_jam', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

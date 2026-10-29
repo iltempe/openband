@@ -27,7 +27,17 @@
     "stream": {
       "type": "object",
       "required": ["transport", "url"],
-      "properties": { "transport": { "enum": ["ws-pcm", "webrtc-opus"] }, "url": { "type": "string" }, "clock_url": { "type": "string" }, "sample_rate": { "type": "integer" } },
+      "properties": {
+        "transport": { "enum": ["ws-pcm", "webrtc-opus"] },
+        "url": { "type": "string", "description": "ws:// (or wss://) of the session; empty once closed" },
+        "clock_url": { "type": "string", "description": "Only when the clock is not on the audio socket (ws-pcm carries it on the same one)" },
+        "protocol": { "const": "omep-stream/1.0" },
+        "session": { "type": "string", "description": "What request.action \"close\" closes" },
+        "sample_rate": { "type": "integer" },
+        "channels": { "type": "integer", "minimum": 1, "maximum": 2 },
+        "frame_samples": { "type": "integer", "minimum": 1 },
+        "closed": { "type": "boolean" }
+      },
       "additionalProperties": false
     },
     "alignment": {

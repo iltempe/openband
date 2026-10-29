@@ -19,6 +19,7 @@ import { RUN } from './package.mjs';
 import { PublishHost } from './publish/index.mjs';
 import { ProtectHost } from './protect/index.mjs';
 import { EngineHost } from './engines.mjs';
+import { StreamRelay } from './streams.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -72,6 +73,8 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
 const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 /** OMEP engines the user configured (SPEC v0.6 §9). Never on a public server: there the page is a stranger's. */
 const engineHost = REMOTE ? null : new EngineHost({ log });
+/** Real-time streams from engines (stream.jam), relayed to the page on /stream/<id>. */
+const streamRelay = engineHost ? new StreamRelay({ engines: engineHost, log }) : null;
 /** Publishing (SPEC v0.6 G6): the user's keys stay in this process; never on a public server. */
 /** Timestamps (G7): only digests leave; not on a public server either (its calendars would be someone else's choice). */
 const protectHost = REMOTE ? null : new ProtectHost();
@@ -150,6 +153,8 @@ httpServer.on('upgrade', (req, socket, head) => {
     return void wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req, kind));
   }
   if (collab?.handles(pathname)) return void collab.upgrade(req, socket, head, pathname);
+  // A stream id is handed out only over the bridge; the page that got it is on this machine.
+  if (streamRelay?.handles(pathname) && isLoopback(req.socket.remoteAddress)) return void streamRelay.upgrade(req, socket, head, pathname);
   socket.destroy();
 });
 
@@ -251,7 +256,16 @@ wss.on('connection', (ws, _req, kind = 'local') => {
       // The page asks for the engines or calls one (OpenBand as an OMEP client).
       const answer = (ok, payload) => send({ type: 'engine_result', id: msg.id, ok, ...(ok ? { result: payload } : { error: payload }) });
       if (!engineHost) return void answer(false, 'Engines are not available on this server');
-      const job = msg.op === 'list' ? engineHost.list() : msg.op === 'call' ? engineHost.call(String(msg.engine), String(msg.capability), msg.args ?? {}) : Promise.reject(new Error(`Unknown engine op "${msg.op}"`));
+      const job =
+        msg.op === 'list'
+          ? engineHost.list()
+          : msg.op === 'call'
+            ? engineHost.call(String(msg.engine), String(msg.capability), msg.args ?? {})
+            : msg.op === 'stream_open'
+              ? streamRelay.open(String(msg.engine), msg.args ?? {})
+              : msg.op === 'stream_close'
+                ? streamRelay.close(String(msg.relay))
+                : Promise.reject(new Error(`Unknown engine op "${msg.op}"`));
       job.then((r) => answer(true, r), (e) => answer(false, e.message));
       return;
     }

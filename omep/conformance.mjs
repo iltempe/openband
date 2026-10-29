@@ -18,6 +18,8 @@ import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js';
 import { CATALOG, EXTENSION, validate } from './lib/schemas.mjs';
 import { decodeWav, encodeWav, estimateBpm, estimateKey, keyOfNotes } from './lib/audio.mjs';
 import { beatsPerBar, keySimilarity, noteNumber, scalePcs } from './lib/music.mjs';
+import { decodeFrame, frameBeats, SAMPLE_RATE, STREAM_PROTOCOL } from './lib/stream.mjs';
+import { WebSocket } from 'ws';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_CONTEXT = JSON.parse(fs.readFileSync(path.join(here, 'examples', 'context.json'), 'utf8'));
@@ -105,6 +107,98 @@ export async function measure(contribution, scp) {
   return { scores, adherence: values.length ? values.reduce((a, b) => a + b, 0) / values.length : 1, notes };
 }
 
+/**
+ * stream.jam (OMEP stream 1.0, lib/stream.mjs): open a session, play a transport at the context's tempo
+ * for a few seconds and check what arrives — the handshake, frames that decode, contiguous beats, how far
+ * ahead of their beat they arrive, the clock answers — then close it.
+ */
+async function streamSuite(client, manifest, context, check, cases, timeoutMs, seconds = 4) {
+  const cap = 'stream.jam';
+  const t0 = Date.now();
+  let r;
+  try {
+    r = await client.callTool({ name: cap, arguments: { context, request: { action: 'open', style: 'warm, sparse', intensity: 0.4 } } }, CallToolResultSchema, { timeout: timeoutMs });
+  } catch (e) {
+    return void check(`${cap}: opens a stream`, false, e.message);
+  }
+  const c = r.structuredContent;
+  const errs = c ? validate('contribution', c) : [r.content?.[0]?.text ?? 'no structuredContent'];
+  check(`${cap}: contribution is valid`, !r.isError && errs.length === 0, errs.join('; '));
+  if (r.isError || errs.length) return;
+  check(`${cap}: output kind fits the capability`, c.kind === 'stream', c.kind);
+  check(`${cap}: ws-pcm with the clock on the same socket`, c.stream.transport === 'ws-pcm' && /^wss?:\/\//.test(c.stream.url) && c.stream.protocol === STREAM_PROTOCOL, `${c.stream.transport} ${c.stream.url} ${c.stream.protocol ?? '(no protocol)'}`);
+  check(`${cap}: provenance names the engine`, c.provenance.engine === manifest.engine.id, c.provenance.engine);
+  const bpm = context.song?.bpm ?? 120;
+  const frames = [];
+  const acks = [];
+  let ready = null;
+  let failure = null;
+  await new Promise((done) => {
+    const ws = new WebSocket(c.stream.url);
+    ws.binaryType = 'arraybuffer';
+    const start = performance.now() + 1000; // the stream's beat 0, a second from now
+    const beatAt = (t) => ((t - start) / 60000) * bpm;
+    let seq = 0;
+    let timer = null;
+    const stop = setTimeout(() => ws.close(), seconds * 1000 + 1200);
+    ws.on('open', () => {
+      timer = setInterval(() => ws.send(JSON.stringify({ type: 'clock', seq: seq++, beat: beatAt(performance.now()), bpm, playing: true, lead_ms: 300, epoch: 1, sent_ms: performance.now() })), 50);
+    });
+    ws.on('message', (data, binary) => {
+      if (!binary) {
+        const m = JSON.parse(String(data));
+        if (m.type === 'ready') ready = m;
+        if (m.type === 'clock_ack') acks.push({ ...m, rtt: performance.now() - m.sent_ms });
+        if (m.type === 'error') failure = m.message;
+        return;
+      }
+      try {
+        const f = decodeFrame(data);
+        frames.push({ ...f, marginMs: ((f.beat - beatAt(performance.now())) * 60000) / bpm, samples: undefined, peak: Math.max(...f.samples.map(Math.abs)) });
+      } catch (e) {
+        failure = e.message;
+      }
+    });
+    ws.on('error', (e) => {
+      failure = e.message;
+      clearTimeout(stop);
+      done();
+    });
+    ws.on('close', () => {
+      clearInterval(timer);
+      clearTimeout(stop);
+      done();
+    });
+  });
+  check(`${cap}: handshake (ready, 48 kHz)`, ready?.protocol === STREAM_PROTOCOL && ready.sample_rate === SAMPLE_RATE, ready ? JSON.stringify(ready) : failure ?? 'no ready message');
+  const sorted = [...frames].sort((a, b) => a.beat - b.beat);
+  const step = sorted[0] ? frameBeats(sorted[0].frames, sorted[0].sampleRate, bpm) : 0;
+  const holes = sorted.slice(1).filter((f, i) => Math.abs(f.beat - (sorted[i].beat + step)) > 1e-6).length;
+  const covered = sorted.length * step;
+  check(`${cap}: frames decode, 48 kHz, from beat 0`, frames.length > 0 && !failure && sorted.every((f) => f.sampleRate === SAMPLE_RATE) && Math.abs(sorted[0].beat) < 1e-9, failure ?? `${frames.length} frames, first at beat ${sorted[0]?.beat}`);
+  check(`${cap}: contiguous beats, no holes`, frames.length > 0 && holes === 0, `${holes} hole(s)`);
+  check(`${cap}: keeps up with real time`, covered >= ((seconds - 0.5) * bpm) / 60, `${covered.toFixed(2)} beats in ${seconds} s at ${bpm} BPM`);
+  const late = frames.filter((f) => f.marginMs < 0).length;
+  check(`${cap}: frames arrive before their beat`, frames.length > 0 && late / frames.length <= 0.02, `${late} of ${frames.length} late`);
+  check(`${cap}: answers the clock (clock_ack)`, acks.length > 0, `${acks.length} answers`);
+  check(`${cap}: not silent`, frames.some((f) => f.peak > 0.01), '', false);
+  const margins = frames.map((f) => f.marginMs).sort((a, b) => a - b);
+  const rtt = acks.map((a) => a.rtt).sort((a, b) => a - b);
+  try {
+    const closed = await client.callTool({ name: cap, arguments: { context, request: { action: 'close', session: c.stream.session } } }, CallToolResultSchema, { timeout: timeoutMs });
+    check(`${cap}: closes`, !closed.isError, '', false);
+  } catch (e) {
+    check(`${cap}: closes`, false, e.message, false);
+  }
+  cases.push({
+    capability: cap,
+    ms: Date.now() - t0,
+    scores: { continuity: holes === 0 ? 1 : 0, punctuality: frames.length ? 1 - late / frames.length : 0 },
+    adherence: frames.length ? ((holes === 0 ? 1 : 0) + 1 - late / frames.length) / 2 : 0,
+    notes: [`${frames.length} frames`, `min margin ${margins[0]?.toFixed(0) ?? '–'} ms`, `rtt median ${rtt[rtt.length >> 1]?.toFixed(1) ?? '–'} ms`, ...(acks.at(-1)?.gen_ms !== undefined ? [`render ${acks.at(-1).gen_ms} ms/frame`] : [])],
+  });
+}
+
 const digest = (v) => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex');
 
 /** Run the suite. `target`: { command, args, env } (stdio) or { url, token } (Streamable HTTP). */
@@ -148,7 +242,7 @@ export async function runConformance(target, { context = DEFAULT_CONTEXT, timeou
         continue;
       }
       if (cap === 'stream.jam') {
-        check(`${cap}: streaming`, true, 'measured by the streaming suite (OMEP 1.0 §2.5)', false);
+        await streamSuite(client, manifest, context, check, cases, timeoutMs);
         continue;
       }
       const t0 = Date.now();

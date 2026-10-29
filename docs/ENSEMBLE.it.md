@@ -193,6 +193,44 @@ piace alle **tue** orecchie per la batteria, che può essere diverso da quello p
 pareggio non lo spostano. *Ensemble → I tuoi motori* mostra la classifica con il numero di confronti e un
 intervallo, e la dimentica su richiesta.
 
+## Jam dal vivo (tempo reale)
+
+Un motore che **suona in tempo reale** (Magenta RealTime 2, o qualunque motore OMEP con `stream.jam`) manda
+il suo audio in una traccia audio mentre il transport va: *pannello AI → Jam dal vivo*, oppure
+`start_live_jam`. Parte alla battuta successiva, a tempo con il brano, e lo guidi mentre suona (*stile* a
+parole, *intensità*, gli accordi: di default quelli del brano). *Ferma e tieni* trasforma ciò che ha suonato
+in una regione da quella battuta; un'altra jam dalla stessa battuta ne diventa una **take**, da confrontare
+e comporre. Il registro annota il motore e la licenza (i pesi di Magenta sono CC BY 4.0: l'attribuzione
+finisce da sola nei crediti).
+
+Tiene il tempo qualunque cosa faccia la rete: ogni frame da 40 ms porta il beat a cui appartiene e viene
+suonato esattamente lì; la latenza decide solo quanto in anticipo lavora il motore, e OpenBand la alza subito
+quando i frame arrivano con troppo poco margine. Il pannello mostra latenza, andata e ritorno, buchi
+(underrun) e frame in ritardo. Il protocollo: [OMEP §8](../omep/README.md#8-streaming-streamjam).
+
+### Magenta RealTime 2 sul tuo computer
+
+In un tuo Python (3.11+), come spiegano gli autori:
+
+```bash
+uv venv --python 3.12 ~/mrt/.venv && source ~/mrt/.venv/bin/activate
+uv pip install "magenta-rt[mlx]"            # Apple Silicon (tempo reale)
+# uv pip install magenta-rt "jax[cuda13]"   # NVIDIA
+mrt models init && mrt models download mrt2_small
+```
+
+e in `~/.openband/engines.json`:
+`"mrt": { "builtin": "omep-magenta-rt", "python": "~/mrt/.venv/bin/python", "model": "mrt2_small" }`
+(`"backend": "jax"` su NVIDIA; `mrt2_base` regge il tempo reale solo su chip di classe Pro/Max). MRT2 non ha
+un ingresso per il tempo: OpenBand gli dà il beat come colpi di batteria (ottavi a intensità alta; sotto 0,15
+tiene il suo tempo) e gli accordi come piano roll con un attacco a ogni battuta, così suona insieme; quanto
+suoni preciso dipende dal modello, lo stream invece è sempre sul beat. Se sul tuo computer il modello è più
+lento del tempo reale, il pannello lo dice. **Stato**: l'adapter è provato contro un sostituto del worker del
+modello, scritto dai sorgenti di magenta-rt 2.0.3; non è ancora stato eseguito con il modello vero.
+
+Online (senza OpenBand su questo computer) lo stream dal vivo non c'è: la latenza di rete delle API ospitate
+non permette una jam. Usa *Suona con l'AI*, dove l'AI risponde alle tue frasi in MIDI.
+
 ## La GPU
 
 I motori sul tuo computer che usano la scheda grafica fanno a turno: un modello pesante alla volta per GPU,

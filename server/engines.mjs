@@ -5,6 +5,7 @@
 //       "ace-step":  { "builtin": "omep-ace-step", "model": "acestep-v15-turbo" },
 //       "studio-pc": { "url": "https://192.168.1.20:8765/mcp", "token": "…" },
 //       "mock":      { "builtin": "omep-mock" },
+//       "mrt":       { "builtin": "omep-magenta-rt", "python": "~/mrt/.venv/bin/python", "model": "mrt2_small" },
 //       "fal-ace-step": { "builtin": "omep-fal", "model": "ace-step", "env": { "FAL_KEY": "…" } }
 //   } }
 //
@@ -41,6 +42,20 @@ const BUILTIN = {
       ...(e.phonemes ? ['--phonemes', JSON.stringify(e.phonemes)] : []),
       ...(e.languages ? ['--languages', JSON.stringify(e.languages)] : []),
       ...(e.voicebank ? ['--voicebank', JSON.stringify(e.voicebank)] : []),
+    ],
+  }),
+  // Streaming (stream.jam): the mock, with a simulated network ("latency_ms", "jitter_ms") for tests and demos.
+  'omep-mock-stream': (e) => ({ command: process.execPath, args: [path.join(ROOT, 'omep', 'mock-stream-engine.mjs'), ...(e.latency_ms ? ['--latency', String(Number(e.latency_ms))] : []), ...(e.jitter_ms ? ['--jitter', String(Number(e.jitter_ms))] : [])] }),
+  // Magenta RealTime 2 in the user's own Python ("python": the venv where magenta-rt is installed; "model":
+  // mrt2_small or mrt2_base; "worker": another command speaking the same protocol, as JSON argv).
+  'omep-magenta-rt': (e) => ({
+    command: process.execPath,
+    args: [
+      path.join(ROOT, 'omep', 'magenta-rt-engine.mjs'),
+      ...(e.python ? ['--python', String(e.python).replace(/^~(?=\/|$)/, os.homedir())] : []),
+      ...(e.model ? ['--model', String(e.model)] : []),
+      ...(e.backend ? ['--backend', String(e.backend)] : []),
+      ...(e.worker ? ['--worker', JSON.stringify(e.worker)] : []),
     ],
   }),
   'omep-ace-step': (e) => ({ command: process.execPath, args: [path.join(ROOT, 'omep', 'ace-step-engine.mjs'), ...(e.model ? ['--model', String(e.model)] : []), ...(e.url ? ['--url', String(e.url)] : [])] }),
