@@ -25,7 +25,7 @@ import { hasSavedProject, useStore } from './store';
 import { engine } from './audio/engine';
 import { loadDemo } from './demo';
 import { consumeHandoff } from './handoff';
-import { connectBridge } from './bridge';
+import { useBridge, connectBridge } from './bridge';
 import { initMidi, liveNoteOn, liveNoteOff } from './input';
 import './lintLive';
 import { initReference } from './reference';
@@ -69,6 +69,12 @@ initPwa();
 initDiagnostics();
 connectBridge();
 initMidi();
+// G7: pending timestamps are upgraded when the local OpenBand is there, and every 30 minutes.
+const upgradePending = () => {
+  if (useBridge.getState().protect && (useStore.getState().project.protections ?? []).some((x) => x.state === 'pending')) void import('./protect/protect').then((m) => m.upgradeProtections()).catch(() => {});
+};
+useBridge.subscribe((s, prev) => s.protect && !prev.protect && upgradePending());
+setInterval(upgradePending, 30 * 60000);
 
 // The instance's config.json (if any) is read before the first render.
 void loadConfig().finally(() => {

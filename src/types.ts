@@ -282,6 +282,7 @@ export interface Project {
   sampleLicenses?: Record<string, string>;
   /** Where the song has been published (G6). */
   publications?: Publication[];
+  protections?: Protection[];
   /** Linter configuration (F7). */
   lint?: LintConfig;
   /** Marks left while recording (F18): mistakes to fix, good parts, notes. */
@@ -501,6 +502,30 @@ export interface ReleaseMeta {
   cover?: { kind: 'generated'; style: string; palette: string; seed: number } | { kind: 'image'; dataUrl: string };
   /** How AI was used, in words (prefilled from the ledger). */
   aiDisclosure?: string;
+}
+
+/** A proof of the work's existence at a date (G7): an OpenTimestamps proof of its manifest. */
+export interface Protection {
+  id: string;
+  kind: 'opentimestamps';
+  /** When it was made (ms). */
+  at: number;
+  /** The manifest, as stamped (its exact bytes). */
+  manifest: string;
+  /** SHA-256 of the manifest (hex). */
+  digest: string;
+  /** The .ots proof, base64. */
+  ots: string;
+  state: 'pending' | 'confirmed';
+  height?: number;
+  /** The Bitcoin block's time (s), once verified. */
+  blockTime?: number;
+  includes: string[];
+  /**
+   * The master as it was stamped, kept as a sample (renders differ in the last bits from one to the next, so
+   * the proof keeps the very bytes it hashed; it also travels in .openband files).
+   */
+  masterSampleId?: string;
 }
 
 export interface Publication {

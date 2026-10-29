@@ -19,6 +19,7 @@ RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY --from=build /src/dist ./dist
 COPY server/*.mjs ./server/
 COPY server/publish/*.mjs ./server/publish/
+COPY server/protect/*.mjs ./server/protect/
 COPY bin ./bin
 USER node
 EXPOSE 7777

@@ -9,6 +9,7 @@ import { COVER_STYLES, PALETTES, drawCover } from '../publish/cover';
 import { getRelease, checkReleaseCommand } from '../publish/commands';
 import { useVideo, type VideoFormat } from '../publish/video';
 import { PublishSection } from './Publish';
+import { ProtectSection } from './Protect';
 
 const run = (m: string, a: Record<string, unknown>) => runCommand(m, a, 'ui').catch((e) => useStore.getState().notify((e as Error).message));
 
@@ -175,6 +176,7 @@ export function ReleasePanel() {
         </button>
         <VideoMaker />
         <PublishSection />
+        <ProtectSection />
       </section>
     </div>
   );

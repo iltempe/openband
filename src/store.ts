@@ -281,6 +281,7 @@ export const projectSampleIds = (p: Project) => [
   ...p.regions.flatMap((r) => (r.audio ? [r.audio.sampleId] : [])),
   ...(p.reference ? [p.reference.sampleId] : []),
   ...p.tracks.flatMap((t) => (t.frozen ? [t.frozen.sampleId] : [])),
+  ...(p.protections ?? []).flatMap((x) => (x.masterSampleId ? [x.masterSampleId] : [])),
 ];
 
 // Keep the imported-instrument registry and the sample cache in step with the project.

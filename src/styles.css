@@ -6163,3 +6163,28 @@ div.ca-steps {
 .cover-form select {
   font-size: 11px;
 }
+.rel-protect {
+  margin-top: 12px;
+}
+.pr-what {
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.pr-what p {
+  margin: 6px 0;
+}
+.pr-parts label {
+  display: inline-block;
+  margin-right: 10px;
+  font-size: 12px;
+}
+.pr-check {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.pr-check label.mini {
+  cursor: pointer;
+}

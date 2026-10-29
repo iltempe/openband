@@ -2,6 +2,35 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.6.38 "G7: a proof that your song existed"
+
+### G7 · Proof of existence with OpenTimestamps, in Bitcoin (SPEC v0.6 G7)
+- **Protect** in the Release tab, and `timestamp_work`.
+  - The work's files are made: the master WAV, the project as versioned, the lyrics and the ChordPro sheet; `include` picks which.
+  - Their SHA-256 go in a canonical manifest, `work.json`, with title, authors, declared date, licence and the song's version. The same files always give the same bytes.
+  - Only the manifest's **32-byte digest** is sent to at least two public OpenTimestamps calendars, with a random nonce first, so they never see even the manifest's digest. It goes through the local OpenBand, because the calendars send no CORS headers and so accept no requests from web pages. The audio and the text never leave.
+- **Our own OpenTimestamps client** (`server/protect/ots.mjs`): the `.ots` format (header, varuint/varbytes, sha256/append/prepend and the rest, fork, pending and Bitcoin attestations), stamping, upgrading and verifying. The official library is LGPL and isn't used.
+  - The official client's example proofs are read and written back **byte for byte**.
+  - Our client verified `hello-world.txt.ots` against real Bitcoin: block 358391, 2015-05-28.
+- **Pending → confirmed by itself**: pending proofs are upgraded when the local OpenBand connects, every 30 minutes, and on `get_protections`.
+- **Verify**, or `verify_timestamp`, checks a proof of this song, or any file with its `.ots`, against the block header from a public block explorer (Esplora: blockstream.info). It gives the block and the date the work existed by.
+- **The Proof package** (`export_proof_package`) is a zip anyone can verify without OpenBand:
+  - `work.json` and `work.json.ots`;
+  - the files the manifest lists;
+  - `README.txt` (EN/IT), on how to verify it independently with `ots verify` and `sha256sum`;
+  - a one-page **`certificate.pdf`**, written without a library.
+- **The master is kept exactly as it was stamped**: as a sample of the song, so it also travels in `.openband` files. Two of Chrome's offline renders of the same song differ in their last bits (≤ 5·10⁻⁸, inaudible, but enough to change a 16-bit WAV's hash). The proof keeps the very bytes it hashed; the project, lyrics and chords are deterministic.
+- **What it is, in the UI and the docs**: evidence of date and authorship, with the effect of a non-qualified electronic time stamp (art. 8-ter DL 135/2018, art. 41 eIDAS). It is not a registration, it doesn't collect royalties (that needs a collecting society), and it is not legal advice.
+- MCP tools, in a new `protect` toolset (177 in all): `timestamp_work`, `get_protections`, `verify_timestamp`, `export_proof_package`.
+- Out of scope, by decision: Safe Creative.
+- Guide: [docs/PROTECT.md](docs/PROTECT.md) (IT: PROTECT.it.md).
+- Tests (the spec's acceptance):
+  - **Mock calendar**: stamp → incomplete `.ots` → upgrade → complete `.ots`, which verifies against a fixture block header; a forged file's digest doesn't verify. Only 32-byte digests reach the calendars (a test on the payload).
+  - **Canonical manifest**: the same content gives the same hash.
+  - **The official examples**: read, round-tripped byte for byte, confirmed in block 358391 or pending.
+  - **The PDF**: valid structure, objects at their xref offsets.
+  - **In Chrome** (`npm run e2e`, *protect*, 12 checks), through the real local server: stamped on two mock calendars with 32-byte digests and a nonce; the deterministic files hash the same twice; upgraded once "Bitcoin" confirms; verified against the block; in the Proof package, `work.json` is what was stamped and every file matches its hash; the README explains the verification; the certificate opens (rendered with macOS's `sips`); the Release tab shows them.
+
 ## v0.6.37 "G6c3: publish to Funkwhale"
 
 ### G6c3 · Funkwhale, your own federated instance (SPEC v0.6 G6)

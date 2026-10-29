@@ -34,6 +34,8 @@ for (const f of fs.readdirSync(path.join(root, 'server'))) if (f.endsWith('.mjs'
 // Publishing adapters (G6): the user's keys stay in this process.
 fs.mkdirSync(path.join(stage, 'server', 'publish'), { recursive: true });
 for (const f of fs.readdirSync(path.join(root, 'server', 'publish'))) if (f.endsWith('.mjs')) copy(`server/publish/${f}`);
+fs.mkdirSync(path.join(stage, 'server', 'protect'), { recursive: true });
+for (const f of fs.readdirSync(path.join(root, 'server', 'protect'))) if (f.endsWith('.mjs')) copy(`server/protect/${f}`);
 copy('mcpb/icon.png', 'icon.png');
 copy('LICENSE');
 const runtime = { name: pkg.name, version: pkg.version, type: 'module', private: true, dependencies: pkg.dependencies };

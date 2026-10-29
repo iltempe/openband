@@ -42,6 +42,8 @@ for (const f of fs.readdirSync(path.join(root, 'server'))) if (f.endsWith('.mjs'
 // Publishing adapters (G6): the user's keys stay in this process.
 fs.mkdirSync(path.join(stage, 'server', 'publish'), { recursive: true });
 for (const f of fs.readdirSync(path.join(root, 'server', 'publish'))) if (f.endsWith('.mjs')) copy(`server/publish/${f}`);
+fs.mkdirSync(path.join(stage, 'server', 'protect'), { recursive: true });
+for (const f of fs.readdirSync(path.join(root, 'server', 'protect'))) if (f.endsWith('.mjs')) copy(`server/protect/${f}`);
 copy('desktop/main.mjs', 'main.mjs');
 copy('desktop/preload.cjs', 'preload.cjs');
 copy('desktop/native.mjs', 'native.mjs');

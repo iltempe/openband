@@ -17,6 +17,7 @@ import { Pairing, classifyOrigin, parseAllowedOrigins } from './pairing.mjs';
 import { checkForUpdate } from './update.mjs';
 import { RUN } from './package.mjs';
 import { PublishHost } from './publish/index.mjs';
+import { ProtectHost } from './protect/index.mjs';
 import { EngineHost } from './engines.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -72,6 +73,8 @@ const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 /** OMEP engines the user configured (SPEC v0.6 §9). Never on a public server: there the page is a stranger's. */
 const engineHost = REMOTE ? null : new EngineHost({ log });
 /** Publishing (SPEC v0.6 G6): the user's keys stay in this process; never on a public server. */
+/** Timestamps (G7): only digests leave; not on a public server either (its calendars would be someone else's choice). */
+const protectHost = REMOTE ? null : new ProtectHost();
 const publishHost = REMOTE ? null : new PublishHost({ port: PORT, log, notify: (m) => studio?.readyState === 1 && studio.send(JSON.stringify(m)) });
 const CONFIG_FILE = process.env.OPENBAND_CONFIG || '';
 /** Public instances (Docker) send the same CSP as the static hosts. */
@@ -207,7 +210,7 @@ wss.on('connection', (ws, _req, kind = 'local') => {
   const welcome = () => {
     studio = ws; // the most recent tab wins
     log(kind === 'local' ? 'studio connected' : 'studio connected (paired online demo)');
-    send({ type: 'hello', protocol: PROTOCOL, version: PKG.version, update: updateInfo, collab: COLLAB ? { lan: lanUrls(), port: PORT } : null, engines: !!engineHost, publish: !!publishHost && kind === 'local' });
+    send({ type: 'hello', protocol: PROTOCOL, version: PKG.version, update: updateInfo, collab: COLLAB ? { lan: lanUrls(), port: PORT } : null, engines: !!engineHost, publish: !!publishHost && kind === 'local', protect: !!protectHost });
   };
   let paired = kind === 'local';
   if (paired) welcome();
@@ -250,6 +253,12 @@ wss.on('connection', (ws, _req, kind = 'local') => {
       if (!engineHost) return void answer(false, 'Engines are not available on this server');
       const job = msg.op === 'list' ? engineHost.list() : msg.op === 'call' ? engineHost.call(String(msg.engine), String(msg.capability), msg.args ?? {}) : Promise.reject(new Error(`Unknown engine op "${msg.op}"`));
       job.then((r) => answer(true, r), (e) => answer(false, e.message));
+      return;
+    }
+    if (msg.type === 'protect') {
+      const answer = (ok, payload) => send({ type: 'protect_result', id: msg.id, ok, ...(ok ? { result: payload } : { error: payload }) });
+      if (!protectHost) return void answer(false, 'Timestamps need the OpenBand app or npx openband on this computer');
+      protectHost.handle(msg).then((r) => answer(true, r), (e) => answer(false, e.message));
       return;
     }
     if (msg.type === 'publish') {

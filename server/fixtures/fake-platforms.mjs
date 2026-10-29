@@ -19,6 +19,7 @@ export function createFakePlatforms({ archiveKeys = { access: 'ACCESS', secret: 
     youtube: { sessions: {}, videos: [] },
     mixcloud: { tokens: {}, uploads: [], codes: {} },
     funkwhale: { uploads: [], polls: 0 },
+    ots: { digests: [], confirmed: false, blocks: {} },
     log: [],
   };
   const body = (req) => new Promise((ok) => {
@@ -333,6 +334,58 @@ export function createFakePlatforms({ archiveKeys = { access: 'ACCESS', secret: 
         for (const u of state.funkwhale.uploads) if (u.import_status === 'pending' && state.funkwhale.polls >= 2) Object.assign(u, { import_status: 'finished', track: { id: 41 + state.funkwhale.uploads.indexOf(u), title: u.import_metadata.title } });
         return json(res, 200, { count: state.funkwhale.uploads.length, results: [...state.funkwhale.uploads].reverse() });
       }
+    }
+    // ---- OpenTimestamps calendars (/ots-a, /ots-b) and an Esplora block explorer (/esplora)
+    const cal = /^\/(ots-[ab])\/(digest|timestamp\/([0-9a-f]+))$/.exec(p);
+    if (cal) {
+      const { node, writeTimestamp, applyOp } = await import('../protect/ots.mjs');
+      const W = (await import('../protect/ots.mjs')).Writer;
+      const name = cal[1];
+      const calUri = `http://${req.headers.host}/${name}`;
+      if (cal[2] === 'digest' && req.method === 'POST') {
+        const d = await body(req);
+        state.ots.digests.push({ calendar: name, length: d.length, hex: d.toString('hex') });
+        // The calendar's own branch: prepend its time, sha256, then a promise (pending).
+        const t = node(d);
+        const op = { op: 'prepend', arg: Buffer.from(name) };
+        const n1 = node(applyOp(op, d));
+        const n2 = node(applyOp({ op: 'sha256' }, n1.msg));
+        n2.attestations.push({ kind: 'pending', uri: calUri });
+        n1.ops.push({ op: { op: 'sha256' }, next: n2 });
+        t.ops.push({ op, next: n1 });
+        const w = new W();
+        writeTimestamp(w, t);
+        return res.writeHead(200, { 'content-type': 'application/octet-stream' }).end(w.done());
+      }
+      if (cal[3]) {
+        const m = Buffer.from(cal[3], 'hex');
+        if (!state.ots.confirmed) return res.writeHead(404).end('Pending confirmation in Bitcoin blockchain');
+        // Confirmed: into a "block" with another leaf; the block's merkle root is what the branch ends at.
+        // One block per confirmed commitment, so each has its own merkle root.
+        state.ots.heights ??= {};
+        const height = (state.ots.heights[cal[3]] ??= 900000 + Object.keys(state.ots.heights).length);
+        const t = node(m);
+        const op = { op: 'append', arg: Buffer.alloc(32, height & 0xff) };
+        const n1 = node(applyOp(op, m));
+        const n2 = node(applyOp({ op: 'sha256' }, n1.msg));
+        n2.attestations.push({ kind: 'bitcoin', height });
+        n1.ops.push({ op: { op: 'sha256' }, next: n2 });
+        t.ops.push({ op, next: n1 });
+        state.ots.blocks[height] = { hash: `blk${height}`, merkle_root: Buffer.from(n2.msg).reverse().toString('hex'), timestamp: 1761700000 + height % 1000 };
+        const w = new W();
+        writeTimestamp(w, t);
+        return res.writeHead(200, { 'content-type': 'application/octet-stream' }).end(w.done());
+      }
+    }
+    const ex = /^\/esplora\/block-height\/(\d+)$/.exec(p);
+    if (ex) {
+      const b = state.ots.blocks[ex[1]];
+      return b ? res.writeHead(200).end(b.hash) : res.writeHead(404).end('Block not found');
+    }
+    const bl = /^\/esplora\/block\/(\w+)$/.exec(p);
+    if (bl) {
+      const b = Object.values(state.ots.blocks).find((x) => x.hash === bl[1]);
+      return b ? json(res, 200, { id: b.hash, merkle_root: b.merkle_root, timestamp: b.timestamp }) : res.writeHead(404).end();
     }
     res.writeHead(404).end();
   });

@@ -46,9 +46,10 @@ export interface RemoteMcpState {
   paired: boolean;
 }
 
-export const useBridge = create<{ port: number; remote: boolean; pairing: boolean; problem: BridgeProblem | null; serverVersion: string | null; update: ServerUpdate | null; remoteMcp: RemoteMcpState | null; engines: boolean; publish: boolean }>(() => ({
+export const useBridge = create<{ port: number; remote: boolean; pairing: boolean; problem: BridgeProblem | null; serverVersion: string | null; update: ServerUpdate | null; remoteMcp: RemoteMcpState | null; engines: boolean; publish: boolean; protect: boolean }>(() => ({
   engines: false,
   publish: false,
+  protect: false,
   // A page served by the OpenBand server talks to that same server (whatever free port it got);
   // Vite's dev server (5173) and the online demo default to 7777.
   port: Number(params.get('mcp') ?? (IS_LOCAL_PAGE && loc.port && loc.port !== '5173' ? loc.port : null) ?? sessionGet(PORT_KEY) ?? 7777),
@@ -154,6 +155,17 @@ export function engineRequest<T = unknown>(op: 'list' | 'call', payload: Record<
   });
 }
 
+const protectCalls = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+let protectSeq = 0;
+/** Timestamps (G7) through the local server: the calendars accept no requests from web pages. */
+export function protectRequest<T = unknown>(op: string, payload: Record<string, unknown> = {}): Promise<T> {
+  if (!socket || socket.readyState !== 1 || !useBridge.getState().protect) return Promise.reject(new Error('Timestamps need the OpenBand app or npx openband on this computer (the timestamp servers accept no requests from web pages)'));
+  const id = `t${++protectSeq}`;
+  return new Promise<T>((resolve, reject) => {
+    protectCalls.set(id, { resolve: resolve as (v: unknown) => void, reject });
+    socket!.send(JSON.stringify({ type: 'protect', id, op, ...payload }));
+  });
+}
 const publishCalls = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void; progress?: (fraction: number, note?: string) => void }>();
 let publishSeq = 0;
 export interface PublishAuthorized {
@@ -214,7 +226,7 @@ export function connectBridge() {
     send({ type: 'hello', app: 'openband', protocol: PROTOCOL, ...(viaMcp ? { remote: true } : {}), ...(remote ? { token: sessionGet(TOKEN_KEY) ?? undefined, pair: pendingCode ?? undefined } : {}) });
   };
   ws.onmessage = async (ev) => {
-    let msg: { type: string; id: string; method: string; params: Record<string, unknown>; collab?: { lan: string[]; port: number } | null; protocol?: number; update?: ServerUpdate | null; version?: string; token?: string; reason?: 'wrong' | 'expired' | 'locked' | 'missing'; attempts_left?: number; retry_in_ms?: number; remote?: boolean; code?: string; expires_in_ms?: number; engines?: boolean; publish?: boolean; ok?: boolean; result?: unknown; error?: string; fraction?: number; note?: string; platform?: string };
+    let msg: { type: string; id: string; method: string; params: Record<string, unknown>; collab?: { lan: string[]; port: number } | null; protocol?: number; update?: ServerUpdate | null; version?: string; token?: string; reason?: 'wrong' | 'expired' | 'locked' | 'missing'; attempts_left?: number; retry_in_ms?: number; remote?: boolean; code?: string; expires_in_ms?: number; engines?: boolean; publish?: boolean; protect?: boolean; ok?: boolean; result?: unknown; error?: string; fraction?: number; note?: string; platform?: string };
     try {
       msg = JSON.parse(ev.data);
     } catch {
@@ -247,7 +259,7 @@ export function connectBridge() {
     if (msg.type === 'hello') {
       setCollabServer(msg.collab ?? null);
       const mismatch = protocolProblem(msg.protocol, PROTOCOL);
-      useBridge.setState({ pairing: false, problem: mismatch ? { kind: 'protocol', server: msg.protocol!, app: PROTOCOL, version: msg.version } : null, serverVersion: msg.version ?? null, update: msg.update ?? null, engines: !!msg.engines, publish: !!msg.publish });
+      useBridge.setState({ pairing: false, problem: mismatch ? { kind: 'protocol', server: msg.protocol!, app: PROTOCOL, version: msg.version } : null, serverVersion: msg.version ?? null, update: msg.update ?? null, engines: !!msg.engines, publish: !!msg.publish, protect: !!msg.protect });
       set({ bridgeStatus: 'connected' });
       setEventSink({
         event: (event) => send({ type: 'event', event }),
@@ -261,6 +273,12 @@ export function connectBridge() {
       engineCalls.delete(msg.id);
       clearTimeout(p.timer);
       return void (msg.ok ? p.resolve(msg.result) : p.reject(new Error(msg.error || 'Engine request failed')));
+    }
+    if (msg.type === 'protect_result') {
+      const p = protectCalls.get(msg.id);
+      if (!p) return;
+      protectCalls.delete(msg.id);
+      return void (msg.ok ? p.resolve(msg.result) : p.reject(new Error(msg.error || 'Timestamp failed')));
     }
     if (msg.type === 'publish_result' || msg.type === 'publish_progress') {
       const p = publishCalls.get(msg.id);

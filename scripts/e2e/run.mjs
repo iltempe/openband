@@ -2047,6 +2047,90 @@ tests.publish2 = async () => {
   }
 };
 
+// G7: proof of existence. Timestamps through the local OpenBand on mock calendars (only 32 bytes leave), the
+// same work twice gives the same manifest, the proof completes once "Bitcoin" confirms, it verifies against
+// the mock block explorer, and the Proof package holds the manifest, the .ots, the files whose hashes it
+// lists, a README and a certificate.
+tests.protect = async () => {
+  const os = await import('node:os');
+  const crypto = await import('node:crypto');
+  const { unzipSync, strFromU8 } = await import('fflate');
+  const { execFileSync } = await import('node:child_process');
+  const { createFakePlatforms } = await import('../../server/fixtures/fake-platforms.mjs');
+  const fake = createFakePlatforms();
+  const mock = `http://127.0.0.1:${await fake.listen()}`;
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1', OPENBAND_OTS_CALENDARS: `${mock}/ots-a,${mock}/ots-b`, OPENBAND_OTS_EXPLORER: `${mock}/esplora` });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.setViewport({ width: 1440, height: 900 });
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.waitForFunction(() => window.openband.useStore.getState().bridgeStatus === 'connected', { timeout: 10000 });
+    const r1 = await p.evaluate(async () => {
+      const { commands, useStore } = window.openband;
+      await commands.new_project({ name: 'Mia', bpm: 100, key: 'Am' });
+      await commands.transport({ action: 'stop' });
+      const { track_id } = await commands.add_track({ kind: 'instrument', instrument: 'felt-piano', name: 'Piano' });
+      await commands.add_region({ track_id, start_bar: 1, length_bars: 2, notes: [57, 60, 64, 69].map((pitch, i) => ({ pitch, start: i, duration: 0.9, velocity: 0.8 })) });
+      await commands.set_lyrics({ text: 'la mi-a can-zo-ne', language: 'it' });
+      await commands.set_release({ title: 'Mia', artist: 'iltempe', license: 'CC-BY-4.0' });
+      const a = await commands.timestamp_work({});
+      const b2 = await commands.timestamp_work({});
+      const list = await commands.get_protections();
+      return { a, b2, list, stored: useStore.getState().project.protections, diff: (() => { const [x, y] = useStore.getState().project.protections.map((q) => JSON.parse(q.manifest)); return Object.keys(x.files).filter((k) => x.files[k].sha256 !== y.files[k]?.sha256).concat(x.project_version !== y.project_version ? ['project_version'] : []); })() };
+    });
+    check(r1.a.state === 'pending' && r1.a.calendars === 2 && r1.a.includes.join(',') === 'master,project,lyrics,chords', `timestamped on both calendars, pending, covering ${r1.a.includes.join(', ')}`);
+    check(fake.state.ots.digests.every((d) => d.length === 32), `only 32-byte digests reached the calendars (${fake.state.ots.digests.map((d) => d.length).join(', ')})`);
+    // The master is rendered anew each time and Chrome's offline renders differ in their last bits (≤ 1e-7):
+    // the files that are deterministic must match; the master's exact bytes are kept with each proof.
+    const det = r1.diff.filter((k) => k !== 'master');
+    check(!det.length, `the same work twice: project, lyrics and chords hash the same${det.length ? ` (differs: ${det.join(', ')})` : ''}`);
+    const m = JSON.parse(r1.stored[0].manifest);
+    check(!fake.state.ots.digests.some((d) => d.hex === r1.a.digest), 'not even the manifest\'s digest is seen: a nonce first');
+    check(r1.list.protections.length === 2 && r1.list.protections.every((x) => x.state === 'pending'), 'get_protections lists them, pending');
+    // "Bitcoin" confirms: the next look upgrades them.
+    fake.state.ots.confirmed = true;
+    const r2 = await p.evaluate(async () => {
+      const { commands } = window.openband;
+      const list = await commands.get_protections();
+      const v = await commands.verify_timestamp({ protection_id: list.protections[0].id });
+      const pkg = await commands.export_proof_package({ protection_id: list.protections[0].id, return_data: true });
+      return { list, v, pkg };
+    });
+    check(r2.list.upgraded === 2 && r2.list.protections.every((x) => x.state === 'confirmed' && x.bitcoin_block), `upgraded once confirmed (blocks ${r2.list.protections.map((x) => x.bitcoin_block).join(', ')})`);
+    check(r2.v.verified === true && r2.v.existed_by, `verified against the block header (block ${r2.v.bitcoin_block}, existed by ${r2.v.existed_by})`);
+    const z = unzipSync(Buffer.from(r2.pkg.data_base64, 'base64'));
+    const names = Object.keys(z);
+    check(['work.json', 'work.json.ots', 'README.txt', 'certificate.pdf', 'Mia.wav', 'Mia.openband.json', 'lyrics.txt', 'Mia.cho'].every((n) => names.includes(n)), `the Proof package (${names.join(', ')})`);
+    const sha = (u8) => crypto.createHash('sha256').update(u8).digest('hex');
+    check(sha(z['work.json']) === r1.a.digest && Object.values(m.files).every((f) => z[f.name] && sha(z[f.name]) === f.sha256), 'work.json is what was stamped, and every file in it matches its hash');
+    check(/ots verify work\.json\.ots/.test(strFromU8(z['README.txt'])), 'the README says how to verify it independently');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ob-proof-'));
+    fs.writeFileSync(path.join(dir, 'certificate.pdf'), z['certificate.pdf']);
+    let rendered = false;
+    try {
+      execFileSync('sips', ['-s', 'format', 'png', path.join(dir, 'certificate.pdf'), '--out', path.join(dir, 'certificate.png')], { stdio: 'ignore' });
+      rendered = fs.statSync(path.join(dir, 'certificate.png')).size > 5000;
+      if (process.env.E2E_SHOTS) fs.copyFileSync(path.join(dir, 'certificate.png'), path.join(process.env.E2E_SHOTS, 'certificate.png'));
+    } catch {
+      rendered = Buffer.from(z['certificate.pdf']).toString('latin1').startsWith('%PDF-1.4');
+    }
+    check(rendered, 'the certificate is a PDF that opens');
+    // The Release tab shows them.
+    await p.evaluate(() => window.openband.useStore.getState().set({ bottom: 'release' }));
+    await p.waitForSelector('.rel-protect', { timeout: 3000 });
+    const shown = await p.$eval('.rel-protect', (el) => el.textContent);
+    check(/in Bitcoin, block/.test(shown) && /What you get, and what not/.test(shown), 'the Release tab shows the confirmed timestamps and what they are');
+    if (process.env.E2E_SHOTS) await p.screenshot({ path: path.join(process.env.E2E_SHOTS, 'protect.png') });
+  } finally {
+    await b.close();
+    srv.kill();
+    await fake.close();
+  }
+};
+
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(tests);
 for (const name of wanted) {
   console.log(`— ${name}`);

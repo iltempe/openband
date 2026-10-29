@@ -1587,6 +1587,19 @@ export const commands: Record<string, (args: P) => unknown> = {
     download(new Blob([kit.zip as BlobPart], { type: 'application/zip' }), name);
     return { saved: name, files: kit.files, bytes: kit.zip.length };
   },
+  // G7: proof of existence (OpenTimestamps).
+  timestamp_work: async ({ include }) => (await import('./protect/protect')).timestampWork({ include }),
+  get_protections: async () => (await import('./protect/protect')).getProtections(),
+  verify_timestamp: async ({ protection_id, file_base64, ots_base64 }) => {
+    const b = (x?: string) => (x ? Uint8Array.from(atob(String(x)), (c) => c.charCodeAt(0)) : undefined);
+    return (await import('./protect/protect')).verifyTimestamp({ protection_id, file: b(file_base64), ots: b(ots_base64) });
+  },
+  export_proof_package: async ({ protection_id, return_data }) => {
+    const r = await (await import('./protect/protect')).proofPackage(protection_id);
+    if (return_data) return { filename: r.name, bytes: r.zip.length, files: r.files, data_base64: toBase64(r.zip) };
+    download(new Blob([r.zip as BlobPart], { type: 'application/zip' }), r.name);
+    return { saved: r.name, files: r.files, bytes: r.zip.length };
+  },
   list_publish_targets: async () => (await import('./publish/publish')).listPublishTargets(),
   publish: async ({ platforms, privacy, confirm_timeout_ms }) => (await import('./publish/publish')).publish({ platforms, privacy, confirm_timeout_ms }),
   get_publications: async () => (await import('./publish/publish')).getPublications(),
