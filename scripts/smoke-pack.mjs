@@ -43,7 +43,7 @@ console.log(`✓ openband mcp: initialize + tools/list (${tools.length} tools)`)
 await client.close();
 
 // openband start serves the studio.
-const child = spawn(process.execPath, [bin, 'start'], { env: { ...process.env, OPENBAND_PORT: '7782', OPENBAND_OPEN_BROWSER: '0' }, stdio: 'ignore' });
+const child = spawn(process.execPath, [bin, 'start'], { env: { ...process.env, OPENBAND_PORT: '7782', OPENBAND_OPEN_BROWSER: '0', OPENBAND_DATA: path.join(tmp, 'library') }, stdio: 'ignore' });
 let ok = false;
 for (let i = 0; i < 40 && !ok; i++) {
   await new Promise((r) => setTimeout(r, 250));
@@ -54,7 +54,12 @@ for (let i = 0; i < 40 && !ok; i++) {
     // not up yet
   }
 }
+const song = { name: 'Smoke', bpm: 90, key: 'C', tracks: [], regions: [], meta: { projectId: 'song_smoke' } };
+const put = ok && (await fetch('http://127.0.0.1:7782/api/store/v1/projects/song_smoke', { method: 'PUT', body: JSON.stringify(song) }));
+const listed = ok && (await (await fetch('http://127.0.0.1:7782/api/store/v1/projects')).json());
 child.kill();
 if (!ok) fail('openband start did not serve index.html');
 console.log('✓ openband start serves the studio (200)');
+if (put.status !== 200 || listed[0]?.id !== 'song_smoke') fail('the project store did not keep a song');
+console.log('✓ the installed package stores a project on disk');
 fs.rmSync(tmp, { recursive: true, force: true });

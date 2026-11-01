@@ -12,6 +12,16 @@ Lo studio è un'app statica, quindi gira ovunque: per una scuola, una community 
 - **Impostazioni senza ricompilare:** metti un `config.json` accanto a `index.html` (o indica con `OPENBAND_CONFIG` un file in Docker): nome dell'istanza, lingua predefinita, funzioni da disattivare (chat nel browser, plugin, stanze), URL del catalogo plugin, server di collaborazione. Vedi [`config.example.json`](../config.example.json).
 - Ogni host riceve gli stessi header: asset in cache per sempre, pagina e service worker mai, e una Content-Security-Policy (`server/csp.mjs`) che permette alla pagina di raggiungere solo il bridge sul computer dell'utente, l'API Anthropic, il catalogo plugin e i server di collaborazione. Un'istanza statica non salva nulla: le canzoni restano nel browser di chi la usa. L'isolamento cross-origin (COOP/COEP, per un futuro uso di `SharedArrayBuffer`) non è ancora attivo.
 
+## Archivio dei progetti
+
+`openband start` e `openband mcp` tengono una libreria di progetti su disco (`~/.openband/library`, oppure `OPENBAND_DATA`), raggiungibile sotto `/api/store/v1`. Su un server in ascolto in rete si attiva con `OPENBAND_STORE=1`.
+
+- Questo computer non ha bisogno di codici. La LAN e i siti permessi (`OPENBAND_ALLOWED_ORIGINS`) si abbinano una volta con il codice stampato dal server, e il browser conserva il token.
+- Da internet serve anche `OPENBAND_STORE_TOKEN`: senza, le richieste da fuori della LAN vengono rifiutate. Una richiesta che passa da un proxy o da un tunnel conta come proveniente da fuori.
+- `OPENBAND_STORE_QUOTA` limita la libreria in byte (default: 80% del disco libero all'avvio). Oltre il limite i nuovi dati vengono rifiutati con un errore chiaro e non si perde nulla.
+- Un progetto cancellato resta in `trash/` per 30 giorni. Un backup è la copia della cartella.
+- In questa versione c'è l'API; lo studio ci si collega dalla prossima (R1.c).
+
 ## Suonare insieme
 
 - **Nella stessa rete** (il modo più veloce): avvia il server MCP con `OPENBAND_COLLAB=1`; servirà anche lo studio e un relay per le stanze sul tuo indirizzo di rete locale (stampato all'avvio; il bridge dell'AI resta raggiungibile solo da questo computer). Apri una stanza con *In questa rete* e manda il link.

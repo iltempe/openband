@@ -44,6 +44,8 @@ fs.mkdirSync(path.join(stage, 'server', 'publish'), { recursive: true });
 for (const f of fs.readdirSync(path.join(root, 'server', 'publish'))) if (f.endsWith('.mjs')) copy(`server/publish/${f}`);
 fs.mkdirSync(path.join(stage, 'server', 'protect'), { recursive: true });
 for (const f of fs.readdirSync(path.join(root, 'server', 'protect'))) if (f.endsWith('.mjs')) copy(`server/protect/${f}`);
+fs.mkdirSync(path.join(stage, 'server', 'store'), { recursive: true });
+for (const f of fs.readdirSync(path.join(root, 'server', 'store'))) if (f.endsWith('.mjs')) copy(`server/store/${f}`);
 copy('desktop/main.mjs', 'main.mjs');
 copy('desktop/preload.cjs', 'preload.cjs');
 copy('desktop/native.mjs', 'native.mjs');

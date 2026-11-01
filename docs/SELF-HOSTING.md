@@ -12,6 +12,16 @@ The studio is a static app, so it runs anywhere — for a school, a community or
 - **Settings without rebuilding:** put a `config.json` next to `index.html` (or point `OPENBAND_CONFIG` to one in Docker) — instance name, default language, features to turn off (the in-browser chat, plugins, rooms), plugin catalog URL, collaboration server. See [`config.example.json`](../config.example.json).
 - Every host gets the same headers: assets cached forever, the page and the service worker never, and a Content-Security-Policy (`server/csp.mjs`) that lets the page reach only the bridge on the user's computer, the Anthropic API, the plugin catalog and the collaboration servers. A static instance stores nothing: songs stay in each visitor's browser. Cross-origin isolation (COOP/COEP, for future `SharedArrayBuffer` use) is not enabled yet.
 
+## Project store
+
+`openband start` and `openband mcp` keep a library of projects on disk (`~/.openband/library`, or `OPENBAND_DATA`), reachable under `/api/store/v1`. On a server that listens on the network, turn it on with `OPENBAND_STORE=1`.
+
+- This computer needs no code. The LAN and allowed sites (`OPENBAND_ALLOWED_ORIGINS`) pair once with the code the server prints, and the browser keeps the token.
+- From the internet, set `OPENBAND_STORE_TOKEN` as well: without it, requests from outside the LAN are refused. A request through a proxy or tunnel counts as coming from outside.
+- `OPENBAND_STORE_QUOTA` limits the library in bytes (default: 80% of the free disk at start). Over it, new data is refused with a clear error and nothing is lost.
+- A deleted project stays in `trash/` for 30 days. A backup is a copy of the folder.
+- The API is on this version; the studio connects to it from the next one (R1.c).
+
 ## Play together
 
 - **On the same network** (fastest): start the MCP server with `OPENBAND_COLLAB=1` — it then also serves the studio and a room relay on your LAN address (printed at start; the AI bridge itself stays reachable only from this computer). Open a room with *On this network* and send the link.

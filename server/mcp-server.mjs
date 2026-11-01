@@ -20,6 +20,8 @@ import { PublishHost } from './publish/index.mjs';
 import { ProtectHost } from './protect/index.mjs';
 import { EngineHost } from './engines.mjs';
 import { StreamRelay } from './streams.mjs';
+import { FsStore, defaultDataDir } from './store/fs.mjs';
+import { createStoreApi } from './store/api.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -81,10 +83,11 @@ const protectHost = REMOTE ? null : new ProtectHost();
 const publishHost = REMOTE ? null : new PublishHost({ port: PORT, log, notify: (m) => studio?.readyState === 1 && studio.send(JSON.stringify(m)) });
 const CONFIG_FILE = process.env.OPENBAND_CONFIG || '';
 /** Public instances (Docker) send the same CSP as the static hosts. */
-const CSP = process.env.OPENBAND_CSP === '1' ? (await import('./csp.mjs')).contentSecurityPolicy({ collab: process.env.OPENBAND_CSP_COLLAB ? process.env.OPENBAND_CSP_COLLAB.split(',') : undefined }) : '';
+const CSP = process.env.OPENBAND_CSP === '1' ? (await import('./csp.mjs')).contentSecurityPolicy({ collab: process.env.OPENBAND_CSP_COLLAB ? process.env.OPENBAND_CSP_COLLAB.split(',') : undefined, extraConnect: process.env.OPENBAND_CSP_CONNECT ? process.env.OPENBAND_CSP_CONNECT.split(',') : [] }) : '';
 
 const httpServer = http.createServer(async (req, res) => {
   const pathname = new URL(req.url || '/', 'http://x').pathname;
+  if (storeApi && (await storeApi.handleHttp(req, res))) return;
   if (remote && (await remote.handleHttp(req, res))) return;
   if (publishHost && (await publishHost.handleHttp(req, res))) return;
   if (pathname === '/version.json') {
@@ -133,6 +136,18 @@ const PROTOCOL = 1;
 const ALLOWED_ORIGINS = parseAllowedOrigins(process.env.OPENBAND_ALLOWED_ORIGINS);
 const pairing = new Pairing({ code: process.env.OPENBAND_PAIR_CODE || undefined });
 
+/** The project store (R1): on by default when this server is only reachable from this computer; on a network, OPENBAND_STORE=1. */
+const STORE_ON = process.env.OPENBAND_STORE === '1' || (process.env.OPENBAND_STORE !== '0' && !REMOTE && ['127.0.0.1', 'localhost', '::1'].includes(HOST));
+const storeApi = await (async () => {
+  if (!STORE_ON) return null;
+  try {
+    return createStoreApi({ store: new FsStore({ dir: defaultDataDir() }), pairing, allowedOrigins: ALLOWED_ORIGINS, log });
+  } catch (e) {
+    log(`project store unavailable: ${e.message}`);
+    return null;
+  }
+})();
+
 const isLoopback = (addr) => addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
 
 // One HTTP server, several WebSocket endpoints: route upgrades by path.
@@ -152,6 +167,7 @@ httpServer.on('upgrade', (req, socket, head) => {
     if (kind === 'reject' || (kind !== 'remote' && !isLoopback(req.socket.remoteAddress))) return void socket.destroy();
     return void wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req, kind));
   }
+  if (storeApi?.handles(pathname)) return void storeApi.upgrade(wss, req, socket, head);
   if (collab?.handles(pathname)) return void collab.upgrade(req, socket, head, pathname);
   // A stream id is handed out only over the bridge; the page that got it is on this machine.
   if (streamRelay?.handles(pathname) && isLoopback(req.socket.remoteAddress)) return void streamRelay.upgrade(req, socket, head, pathname);

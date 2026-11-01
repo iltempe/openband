@@ -20,6 +20,7 @@ COPY --from=build /src/dist ./dist
 COPY server/*.mjs ./server/
 COPY server/publish/*.mjs ./server/publish/
 COPY server/protect/*.mjs ./server/protect/
+COPY server/store/*.mjs ./server/store/
 COPY bin ./bin
 USER node
 EXPOSE 7777

@@ -1,6 +1,6 @@
 {
   "name": "openband",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Open-source GarageBand-style music studio for the browser, controllable by AI through MCP",
   "keywords": [
     "daw",
@@ -28,6 +28,7 @@
     "server/*.mjs",
     "server/publish/*.mjs",
     "server/protect/*.mjs",
+    "server/store/*.mjs",
     "omep",
     "README.md",
     "README.it.md",

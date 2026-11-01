@@ -2,6 +2,22 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.1 "The project store on disk (R1.b)"
+
+### A library of songs on the server
+- `openband start` and `openband mcp` now keep a library on disk (`~/.openband/library`, or `OPENBAND_DATA`), served under `/api/store/v1`: projects, versions (append-only, the same gzip bytes as the browser), branches, the journal and shared samples, with live `project_changed` events on a WebSocket.
+- On by default when the server listens only on this computer. On a network, `OPENBAND_STORE=1`.
+- **Nothing is overwritten**: every write of an existing project needs its etag, and a stale one gets a 409 with the current etag. Writes are atomic (temporary file, fsync, rename).
+- **Trash**: a deleted project stays 30 days. When it goes, the samples nothing else uses go with it, counting old versions too.
+- **Quota**: `OPENBAND_STORE_QUOTA`, default 80% of the free disk at start. Over it, a 507.
+- **Who may call it**: this computer freely; the LAN and allowed sites after one pairing (the token survives restarts, stored only as a hash); the internet only with `OPENBAND_STORE_TOKEN` too.
+- Deviations from the spec:
+  - stricter: "this computer" also requires a loopback Host and no forwarding headers, because a tunnel or proxy connects from 127.0.0.1 on behalf of someone else, and pairing's plain Origin check would let it through;
+  - added: `POST /pair`, `GET /status`, and `remove` on `POST /journal` (the journal compacts);
+  - a 428 for a write without `If-Match`.
+- Not done yet: the studio doesn't use it yet (R1.c), and the desktop default and Docker volume are R1.d. `OPENBAND_CSP_CONNECT` adds hosts to the CSP.
+- Tests: 19 on the store (simulated crash before the rename, etags equal to the studio's canonical form, 409/428/507, trash and reference counting, path escapes, pairing across a restart, forwarded requests refused); `smoke:pack` stores a song through the installed package.
+
 ## v0.7.0 "Storage behind an interface (R1.a)"
 
 ### First step of v0.7 "Sala prove" (docs/SPEC-v0.7.md)
