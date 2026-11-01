@@ -139,6 +139,14 @@ describe('ServerBackend', () => {
     expect((await b.projects.list()).map((p) => p.id)).toEqual(['a']);
     expect((await b.projects.get('a'))?.value.name).toBe('S');
   });
+  it('labels its writes, so a page can tell its own events from another device\'s', async () => {
+    const seen: (string | undefined)[] = [];
+    const orig = fetch;
+    const b = new ServerBackend({ url, cache: MemoryBackend(), kv: memoryKv(), client: 'page-1', fetch: ((u: string, i: RequestInit) => (seen.push((i.headers as Record<string, string>)['x-openband-client']), orig(u, i))) as typeof fetch });
+    await b.adopt(song('a'));
+    expect(seen.length).toBeGreaterThan(0);
+    expect(new Set(seen)).toEqual(new Set(['page-1']));
+  });
   it('forgetting a song stops sending it and leaves the server copy', async () => {
     const { b } = client();
     await b.adopt(song('a'));

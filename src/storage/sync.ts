@@ -58,6 +58,9 @@ function deviceName() {
   return d;
 }
 
+/** This page, in events: its own writes come back on the channel and must not look like another device's. */
+const pageId = `${deviceName()}-${Math.random().toString(36).slice(2, 8)}`;
+
 const server = () => (backend() instanceof ServerBackend ? (backend() as ServerBackend) : null);
 const idOf = (p: Project) => p.meta?.projectId ?? 'local';
 const stamp = (d = new Date()) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
@@ -89,15 +92,15 @@ function listen(b: ServerBackend, token: string | undefined, instance: string | 
   const ws = new WebSocket(url, ['openband-store', ...(token ? [`bearer.${token}`] : []), ...(instance ? [`instance.${instance}`] : [])]);
   socket = ws;
   ws.onopen = () => void b.flush();
-  ws.onmessage = (m) => void onEvent(b, JSON.parse(String(m.data)));
+  ws.onmessage = (m) => void onEvent(b, JSON.parse(String(m.data))).catch((e) => console.warn('[openband] store:', (e as Error).message));
   ws.onclose = () => {
     if (socket === ws) setTimeout(() => socket === ws && backend() === b && listen(b, token, instance), 5000);
   };
 }
 
 /** Another device changed the open song: follow it, unless there is work here still to send (then a conflict decides). */
-async function onEvent(b: ServerBackend, e: { kind: string; id?: string; etag?: string | null }) {
-  if (e.kind !== 'project_changed' || !e.id || !e.etag) return;
+async function onEvent(b: ServerBackend, e: { kind: string; id?: string; etag?: string | null; by?: string }) {
+  if (e.kind !== 'project_changed' || !e.id || !e.etag || e.by === pageId) return;
   if (idOf(useStore.getState().project) !== e.id || b.etagOf(e.id) === e.etag) return;
   if (useCollab.getState().room) return b.followed(e.id, e.etag);
   if (b.pending()) return;
@@ -113,7 +116,7 @@ function attach(url: string, token: string | undefined, instance: string | undef
     url,
     token,
     instanceToken: instance,
-    client: deviceName(),
+    client: pageId,
     own,
     keepOut: untouched,
     scope: own ? 'own' : undefined,
@@ -193,7 +196,9 @@ async function ownStore() {
   if (!['localhost', '127.0.0.1'].includes(location.hostname) || location.protocol !== 'http:') return null;
   const r = await fetch(`${location.origin}${PREFIX}/status`).catch(() => null);
   if (!r?.ok) return null;
-  return ((await r.json()) as { own?: boolean }).own ? location.origin : null;
+  // Without a store this address is the app's own index.html.
+  const status = (await r.json().catch(() => null)) as { own?: boolean } | null;
+  return status?.own ? location.origin : null;
 }
 
 /** The song a new browser starts with: until someone changes it, it isn't anybody's song. */
