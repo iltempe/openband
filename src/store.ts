@@ -9,6 +9,7 @@ import { t } from './i18n';
 import { migrate } from './migrations';
 import { backend } from './storage';
 import { readAutosave } from './storage/local';
+import { projectSampleIdsOf } from './storage/samplesOf';
 import { emitStudioEvent, notifyProjectChanged } from './events';
 
 const HISTORY_LIMIT = 120;
@@ -266,13 +267,7 @@ export const useStore = create<State>((set, get) => ({
 }));
 
 /** Every sample a project depends on (imported instruments and audio clips). */
-export const projectSampleIds = (p: Project) => [
-  ...(p.instruments ?? []).flatMap((i) => i.zones.map((z) => z.sampleId)),
-  ...p.regions.flatMap((r) => (r.audio ? [r.audio.sampleId] : [])),
-  ...(p.reference ? [p.reference.sampleId] : []),
-  ...p.tracks.flatMap((t) => (t.frozen ? [t.frozen.sampleId] : [])),
-  ...(p.protections ?? []).flatMap((x) => (x.masterSampleId ? [x.masterSampleId] : [])),
-];
+export const projectSampleIds = projectSampleIdsOf;
 
 // Keep the imported-instrument registry and the sample cache in step with the project.
 setCustomInstruments(useStore.getState().project.instruments);

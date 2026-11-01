@@ -38,6 +38,7 @@ import { initPwa } from './pwa';
 import { initDiagnostics } from './diagnostics';
 import { ErrorBoundary } from './components/Diagnostics';
 import { getConfig, loadConfig } from './config';
+import { restoreServer } from './storage/sync';
 import { savedLanguage, useLang } from './i18n';
 import { initJournal } from './journal';
 import { initAutoWrite } from './autoWrite';
@@ -78,6 +79,7 @@ useBridge.subscribe((s, prev) => s.protect && !prev.protect && upgradePending())
 setInterval(upgradePending, 30 * 60000);
 
 // The instance's config.json (if any) is read before the first render.
+void restoreServer();
 void loadConfig().finally(() => {
   const cfg = getConfig();
   if (cfg.defaultLanguage && !savedLanguage()) useLang.setState({ lang: cfg.defaultLanguage });

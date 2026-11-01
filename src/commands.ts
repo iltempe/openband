@@ -1,5 +1,6 @@
 // High-level command API. This is what the MCP bridge calls, and the UI reuses parts of it.
 // Bars are 1-based (bar 1 starts at beat 0); positions inside regions are in beats.
+import { listProjects, moveProject, openProject, storeStatus } from './storage/sync';
 import { channelMap } from './midiRouting';
 import { quantizeNotes, moved as movedNotes } from './quantize';
 import type { Note, Project, Region, Track, TrackKind } from './types';
@@ -1288,6 +1289,11 @@ export const commands: Record<string, (args: P) => unknown> = {
 
   list_versions: ({ branch }) => listVersions(branch),
 
+  list_projects: () => listProjects(),
+  open_project: ({ id }) => openProject(String(id ?? '')),
+  move_project: ({ id, to }) => moveProject(String(id ?? ''), to === 'local' ? 'local' : 'server'),
+  store_status: () => storeStatus(),
+
   create_branch: ({ name, from_version_id }) => createBranch(String(name ?? ''), from_version_id),
 
   checkout: ({ branch, version_id }) => checkout({ branch, version_id }, isAiCommand() ? 'ai' : 'user'),
@@ -1986,7 +1992,7 @@ const READ_ONLY = new Set([
   'list_samples', 'list_plugins', 'search_plugins', 'list_native_plugins', 'rescan_plugins', 'suggest_continuation', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'get_energy', 'analyze_harmony',
   'list_engines', 'get_ledger', 'set_engine_policy',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'steer_live_jam', 'list_annotations', 'list_versions', 'diff_versions', 'save_version', 'create_branch',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'steer_live_jam', 'list_annotations', 'list_versions', 'list_projects', 'store_status', 'diff_versions', 'save_version', 'create_branch',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

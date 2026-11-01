@@ -20,7 +20,9 @@ Lo studio è un'app statica, quindi gira ovunque: per una scuola, una community 
 - Da internet serve anche `OPENBAND_STORE_TOKEN`: senza, le richieste da fuori della LAN vengono rifiutate. Una richiesta che passa da un proxy o da un tunnel conta come proveniente da fuori.
 - `OPENBAND_STORE_QUOTA` limita la libreria in byte (default: 80% del disco libero all'avvio). Oltre il limite i nuovi dati vengono rifiutati con un errore chiaro e non si perde nulla.
 - Un progetto cancellato resta in `trash/` per 30 giorni. Un backup è la copia della cartella.
-- In questa versione c'è l'API; lo studio ci si collega dalla prossima (R1.c).
+- Nello studio: **Progetti → Archivio**, inserisci l'indirizzo e, se lo chiede, il codice di abbinamento. *Sposta sul server* porta lì un brano con versioni e sample.
+- Il browser resta la tua copia di lavoro: offline continui a lavorare e le modifiche partono al ritorno della rete. Una pagina in https raggiunge solo server https, quindi in LAN apri lo studio dal server stesso.
+- Se due dispositivi cambiano lo stesso brano non si sovrascrive nulla: la tua versione finisce su un branch `conflitto-<dispositivo>-<data>`, il brano aperto diventa quello del server e il pannello offre *Confronta* e *Unisci*.
 
 ## Suonare insieme
 

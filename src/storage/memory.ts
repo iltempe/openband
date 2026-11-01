@@ -1,14 +1,11 @@
 // A backend in memory, for the tests. Same rules as the server: a stale etag is refused.
 import type { Project } from '../types';
 import { MemoryJournalStore } from '../journal/timeline';
+import { ConflictError } from './conflict';
 import { summaryOf } from './local';
 import type { Backend, BranchRef, StoredSample, StoredVersion } from './types';
 
-export class ConflictError extends Error {
-  constructor(readonly etag: string) {
-    super('The project changed elsewhere');
-  }
-}
+export { ConflictError };
 
 export function MemoryBackend(): Backend & { trashed: Map<string, Project> } {
   const projects = new Map<string, { value: Project; etag: string }>();

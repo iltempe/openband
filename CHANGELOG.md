@@ -2,6 +2,25 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.2 "Songs on your server, offline too (R1.c)"
+
+### The Projects panel
+- **Projects**, next to Versions: the songs in this browser and those on a server of yours, with a sync badge (in sync, waiting to send, offline, conflict). Under *Archive*: the server's address, its state, space used and quota.
+- *Move to the server* takes a song there with its versions, branches and samples. *Keep a copy in this browser* stops syncing it; the server keeps its copy.
+- **Offline first**: every save lands in the browser, then goes to the server. Without a network it waits in an outbox, which survives a reload, and leaves when the connection is back.
+- **Live**: a change on another device appears in the open song. Samples are uploaded only if missing and fetched only when needed.
+- **Conflicts lose nothing**: if two devices change the same song, your version goes on a branch `conflitto-<device>-<date>`, the open song becomes the server's, and the panel offers *Compare* and *Merge*.
+- **The browser now lists every song it has versions of**, not only the open one. Opening another song first saves the current one as a version, so it stays in the list.
+- MCP: `list_projects`, `open_project`, `move_project`, `store_status` (toolset `versions`): 184 tools, 179 in the page.
+- Fixed on the way: the service worker would have served `/api/` from its cache, so a device kept reading a stale song.
+- Deviations from the spec:
+  - the journal follows a song on a best-effort basis and is not queued, because versions carry the history;
+  - while an offline change is waiting, another song cannot be opened, because the browser keeps one working song;
+  - "keep a copy" leaves the server's copy in place instead of deleting it;
+  - inside a room nothing is pushed: persisting a room's state is R1.d.
+- Not done yet: *Download .openband* stays in the usual Export menu rather than on each row. The Desktop default and first-run migration, Docker `/data` and room persistence are R1.d.
+- Tests: 8 on the client against the real server (adoption, samples sent only if missing, a second device, 409 → branch, outbox across a reload, offline lists). **e2e** in Chrome, run twice green: two browsers share a library, an edit follows live, offline work arrives, and concurrent edits leave the open song at the server's 130 BPM and the branch at the local 77.
+
 ## v0.7.1 "The project store on disk (R1.b)"
 
 ### A library of songs on the server

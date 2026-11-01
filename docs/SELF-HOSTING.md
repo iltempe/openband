@@ -20,7 +20,9 @@ The studio is a static app, so it runs anywhere — for a school, a community or
 - From the internet, set `OPENBAND_STORE_TOKEN` as well: without it, requests from outside the LAN are refused. A request through a proxy or tunnel counts as coming from outside.
 - `OPENBAND_STORE_QUOTA` limits the library in bytes (default: 80% of the free disk at start). Over it, new data is refused with a clear error and nothing is lost.
 - A deleted project stays in `trash/` for 30 days. A backup is a copy of the folder.
-- The API is on this version; the studio connects to it from the next one (R1.c).
+- In the studio: **Projects → Archive**, enter the address and, if asked, the pairing code. *Move to the server* puts a song there with its versions and samples.
+- The browser stays your working copy: offline you keep working, and changes leave when the network is back. A page on https can only reach an https server, so on a LAN open the studio from the server itself.
+- If two devices change the same song, nothing is overwritten: your version lands on a branch `conflitto-<device>-<date>`, the open song becomes the server's, and the panel offers *Compare* and *Merge*.
 
 ## Play together
 

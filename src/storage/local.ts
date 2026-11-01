@@ -1,5 +1,6 @@
 // This browser as a backend: the song being worked on in localStorage (one slot, as always), versions,
 // branches and samples in IndexedDB, the journal in journal/idb.ts.
+import { gunzipSync, strFromU8 } from 'fflate';
 import type { Project } from '../types';
 import { migrate } from '../migrations';
 import { idbJournal } from '../journal/idb';
@@ -20,6 +21,17 @@ export function readAutosave(): Project | null {
   }
 }
 
+/** The newest saved state of every song with versions: how a song that isn't the working one stays in the browser. */
+async function parked(): Promise<Map<string, StoredVersion>> {
+  const newest = new Map<string, StoredVersion>();
+  for (const v of (await tx<StoredVersion[]>('versions', 'readonly', (s) => s.getAll())) ?? []) {
+    const have = newest.get(v.projectId);
+    if (!have || have.createdAt <= v.createdAt) newest.set(v.projectId, v);
+  }
+  return newest;
+}
+const unpack = (v: StoredVersion) => migrate(strFromU8(gunzipSync(new Uint8Array(v.snapshot))));
+
 const etagOf = (p: Project) => String(p.meta?.updatedAt ?? 0);
 
 export const summaryOf = (p: Project, sizeBytes: number, versions: number, source: ProjectSummary['source']): ProjectSummary => ({
@@ -36,13 +48,20 @@ export const summaryOf = (p: Project, sizeBytes: number, versions: number, sourc
 export const localProjects: ProjectStore = {
   async list() {
     const p = readAutosave();
-    if (!p) return [];
-    const id = p.meta?.projectId ?? 'local';
-    return [summaryOf(p, JSON.stringify(p).length, (await localVersions.list(id).catch(() => [])).length, 'local')];
+    const out: ProjectSummary[] = [];
+    const id = p ? (p.meta?.projectId ?? 'local') : null;
+    if (p) out.push(summaryOf(p, JSON.stringify(p).length, (await localVersions.list(id!).catch(() => [])).length, 'local'));
+    for (const [pid, v] of await parked().catch(() => new Map<string, StoredVersion>())) {
+      if (pid === id) continue;
+      out.push({ ...summaryOf(unpack(v), v.snapshot.length, (await localVersions.list(pid)).length, 'local'), id: pid, updatedAt: v.createdAt });
+    }
+    return out;
   },
   async get(id) {
     const p = readAutosave();
-    return p && (p.meta?.projectId ?? 'local') === id ? { value: p, etag: etagOf(p) } : null;
+    if (p && (p.meta?.projectId ?? 'local') === id) return { value: p, etag: etagOf(p) };
+    const v = (await parked().catch(() => new Map<string, StoredVersion>())).get(id);
+    return v ? { value: unpack(v), etag: String(v.createdAt) } : null;
   },
   async put(p) {
     try {

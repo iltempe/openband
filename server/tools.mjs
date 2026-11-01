@@ -496,6 +496,14 @@ tool('save_version', 'Save the current state of the song as a version on the cur
 
 tool('list_versions', 'List saved versions (newest first) with branch, label, author, parents, which one is HEAD, and whether there are unsaved changes.', { branch: z.string().optional() }, readOnly);
 
+tool('list_projects', 'List the songs in this browser and, when the studio is connected to a server, in its library: id, name, tempo, key, versions, where each lives (source) and which is open.', {}, readOnly);
+
+tool('open_project', 'Open another song from list_projects. The song that was open stays in the list. In remote MCP mode this acts on the paired tab only.', { id: z.string() });
+
+tool('move_project', 'to "server": put a browser song in the connected server\'s library, with its versions and samples. to "local": keep a copy in this browser and stop syncing it; the server keeps its copy. Opens the song.', { id: z.string(), to: z.enum(['server', 'local']) });
+
+tool('store_status', 'Where songs are kept now: browser or server, its name, sync state (ready, pending, offline, conflict), space used and quota.', {}, readOnly);
+
 tool('create_branch', 'Create a branch (an alternative direction for the song) from a version (default: HEAD). It does not switch to it: call checkout.', {
   name: z.string(),
   from_version_id: z.string().optional(),
@@ -991,7 +999,7 @@ export const TOOLSETS = {
   mix: { description: 'Effects per track, master chain, the mix pilot\'s knob, automation, meters and listening (analyze_mix, spectrogram), reference tracks', tools: ['set_track_effects', 'set_master_chain', 'set_pilot_amount', 'fix_pilot', 'set_track_role', 'set_automation', 'clear_automation', 'list_automatable', 'get_meters', 'set_monitoring', 'level_match', 'analyze_mix', 'render_spectrogram', 'import_reference', 'compare_to_reference', 'clear_reference'] },
   analysis: { description: 'Harmony and key analysis, the song linter and its fixes', tools: ['analyze_harmony', 'detect_key', 'lint_project', 'apply_fix', 'ignore_issue'] },
   recording: { description: 'Recording audio and MIDI, punch-in, takes and comping, blind A/B tests, flub marks', tools: ['record_audio', 'arm_track', 'set_track_midi_input', 'map_midi_channels', 'set_punch', 'audio_to_midi', 'add_take', 'list_takes', 'set_active_take', 'delete_take', 'comp_takes', 'start_ab_test', 'add_flub', 'list_flubs', 'resolve_flub', 'delete_flub', 'replace_with_best_take', 'set_voice_control', 'start_session', 'stop_session', 'get_session'] },
-  versions: { description: 'History, versions and branches, merge, the time machine', tools: ['get_history', 'save_version', 'list_versions', 'create_branch', 'checkout', 'diff_versions', 'merge', 'get_timeline', 'preview_at', 'restore_at'] },
+  versions: { description: 'History, versions and branches, merge, the time machine', tools: ['get_history', 'save_version', 'list_versions', 'list_projects', 'open_project', 'move_project', 'store_status', 'create_branch', 'checkout', 'diff_versions', 'merge', 'get_timeline', 'preview_at', 'restore_at'] },
   lyrics: { description: 'Lyrics, aligning them to the melody, prosody, chord sheets', tools: ['set_lyrics', 'get_lyrics', 'align_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet'] },
   plugins: { description: 'WAM plugins and the user\'s installed VST3 / CLAP / AU plugins', tools: ['list_plugins', 'search_plugins', 'list_native_plugins', 'rescan_plugins', 'add_plugin', 'add_plugin_instrument', 'add_plugin_effect', 'remove_plugin_effect', 'set_plugin_bypass', 'get_plugin_params', 'set_plugin_params', 'show_plugin'] },
   sounds: { description: 'Imported samples, sampler instruments, SoundFonts, audio regions, the CC0 loop library', tools: ['import_sample', 'list_samples', 'create_sampler_instrument', 'import_soundfont', 'add_audio_region', 'search_loops', 'add_loop', 'set_synth_params', 'sound_from_words', 'apply_patch', 'match_sound', 'tone_match'] },

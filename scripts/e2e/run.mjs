@@ -8,6 +8,7 @@
 //   master     — the master chain meets −14 LUFS / −1 dBTP, live = export, sidechain kick → bass
 //   pilot      — the mix pilot: amount 0 changes nothing, 1 twice is idempotent, roles kept, stems = master
 //   pdc        — plugin delay compensation: a track behind a 512-sample plugin stays aligned, live and exported
+//   store      — the project library: two browsers, offline work, a conflict that loses nothing
 //   frozen     — a song with a native plugin opened in the browser plays its render cache, live and exported
 //
 //   node scripts/e2e/run.mjs [first-run|pwa ...]   (CHROME=/path/to/chrome, default: the system Chrome)
@@ -2275,6 +2276,93 @@ tests.generate = async () => {
     await b.close();
     srv.kill();
     await fake.close();
+  }
+};
+
+tests.store = async () => {
+  const os = await import('node:os');
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), 'ob-e2e-store-'));
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1', OPENBAND_DATA: data });
+  const b = await launch();
+  const open = async () => {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.setViewport({ width: 1280, height: 800 });
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.evaluate(() => window.openband.useStore.getState().set({ bottom: 'projects' }));
+    await p.waitForSelector('.pj-input');
+    await p.type('.pj-input', URL);
+    await p.evaluate(() => [...document.querySelectorAll('.pj-link .btn')].find((x) => x.textContent === 'Connect').click());
+    await p.waitForFunction(() => [...document.querySelectorAll('.pj-link .btn')].some((x) => x.textContent === 'Disconnect'), { timeout: 5000 });
+    return p;
+  };
+  const onDisk = (id) => JSON.parse(fs.readFileSync(path.join(data, 'projects', id, 'project.json'), 'utf8'));
+  const bpmIs = (id, bpm) => waitFor(() => { try { return onDisk(id).bpm === bpm; } catch { return false; } });
+  const waitFor = async (fn, ms = 8000) => {
+    for (const end = Date.now() + ms; Date.now() < end; await wait(100)) if (fn()) return true;
+    return false;
+  };
+  try {
+    const a = await open();
+    const id = await a.evaluate(async () => {
+      const { commands, useStore } = window.openband;
+      await commands.new_project({ name: 'Shared song', bpm: 100, key: 'Am' });
+      await commands.add_track({ kind: 'instrument', name: 'Keys' });
+      await commands.save_version({ label: 'First' });
+      const id = useStore.getState().project.meta.projectId;
+      await commands.move_project({ id, to: 'server' });
+      return id;
+    });
+    check(fs.existsSync(path.join(data, 'projects', id, 'project.json')), 'a song moved to the server is on its disk');
+    check(fs.readdirSync(path.join(data, 'projects', id, 'versions')).some((f) => f.endsWith('.json.gz')), '…with its versions');
+
+    const c = await open();
+    const listed = await c.evaluate(async (id) => {
+      const { commands, useStore } = window.openband;
+      const list = await commands.list_projects();
+      await commands.open_project({ id });
+      return { list: list.filter((x) => x.source === 'server').map((x) => x.name), name: useStore.getState().project.name, versions: (await commands.list_versions({})).versions.length };
+    }, id);
+    check(listed.list.includes('Shared song') && listed.name === 'Shared song', `a second browser sees the same library and opens the song (${listed.list})`);
+    check(listed.versions >= 1, `…with its history (${listed.versions} version)`);
+    await a.screenshot({ path: path.join(root, 'build', 'e2e-projects.png') });
+
+    await a.evaluate(() => window.openband.commands.set_tempo({ bpm: 110 }));
+    check(await bpmIs(id, 110), 'an edit reaches the server');
+    check(await c.waitForFunction(() => window.openband.useStore.getState().project.bpm === 110, { timeout: 8000 }).then(() => true, () => false), 'and the other browser follows it live');
+
+    await c.setOfflineMode(true);
+    await c.evaluate(() => window.openband.commands.set_tempo({ bpm: 120 }));
+    await wait(900);
+    const state = await c.evaluate(async () => (await window.openband.commands.store_status({})).state);
+    check(state === 'offline', `working offline is shown as such (${state})`);
+    await c.setOfflineMode(false);
+    check(await bpmIs(id, 120), 'back online, the offline work arrives');
+    await a.waitForFunction(() => window.openband.useStore.getState().project.bpm === 120, { timeout: 8000 });
+
+    await c.setOfflineMode(true);
+    await c.evaluate(() => window.openband.commands.set_tempo({ bpm: 77 }));
+    await wait(900);
+    await a.evaluate(() => window.openband.commands.set_tempo({ bpm: 130 }));
+    check(await bpmIs(id, 130), 'meanwhile the other browser writes');
+    await c.setOfflineMode(false);
+    const branch = await c.waitForFunction(() => document.querySelector('.pj-alert')?.textContent, { timeout: 20000 }).then((h) => h.jsonValue(), () => '');
+    check(/conflitto-/.test(branch), `concurrent edits make a conflict branch, shown in the panel (${branch.slice(0, 90)})`);
+    check(onDisk(id).bpm === 130, 'the server keeps the first write');
+    const kept = await c.evaluate(async () => {
+      const { commands, useStore } = window.openband;
+      const v = await commands.list_versions({});
+      const name = v.branches.find((x) => x.name.startsWith('conflitto-')).name;
+      const bpm = useStore.getState().project.bpm;
+      await commands.checkout({ branch: name });
+      return { bpm, mine: useStore.getState().project.bpm };
+    });
+    check(kept.bpm === 130 && kept.mine === 77, `no work is lost: open song ${kept.bpm}, the branch keeps ${kept.mine}`);
+  } finally {
+    await b.close();
+    srv.kill();
+    fs.rmSync(data, { recursive: true, force: true });
   }
 };
 

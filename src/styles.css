@@ -6204,3 +6204,79 @@ div.ca-steps {
   margin-top: 2px;
   font-weight: 600;
 }
+
+/* Projects panel (R1) */
+.pj-panel {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) 1fr 1fr;
+  gap: 18px;
+  padding: 12px 16px;
+  height: 100%;
+  overflow: auto;
+}
+.pj-panel h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.pj-link {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.pj-input {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.pj-row {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin-bottom: 6px;
+}
+.pj-name {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.pj-meta {
+  margin: 2px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.pj-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.pj-badge {
+  padding: 0 6px;
+  font-size: 11px;
+  border-radius: 8px;
+  background: var(--line);
+  color: var(--muted);
+}
+.pj-ready {
+  color: var(--play);
+}
+.pj-pending,
+.pj-offline {
+  color: var(--cycle);
+}
+.pj-alert,
+.pj-conflict {
+  color: var(--rec);
+}
+.pj-alert p {
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+.pj-alert .btn {
+  margin-right: 6px;
+}

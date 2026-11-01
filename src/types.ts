@@ -443,7 +443,7 @@ export interface LintConfig {
   ignored?: string[];
 }
 
-export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | 'flubs' | 'ensemble' | 'pilot' | 'release' | null;
+export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | 'projects' | 'flubs' | 'ensemble' | 'pilot' | 'release' | null;
 
 export interface BridgeLogEntry {
   id: string;

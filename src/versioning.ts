@@ -183,6 +183,19 @@ export async function createBranch(name: string, fromVersionId?: string) {
   return { branch: clean, head_id: from };
 }
 
+/** Keep a state on a new branch of its own, without moving HEAD or the song that is open. */
+export async function saveBranchFrom(name: string, project: Project, label: string) {
+  await ensureLoaded();
+  const s = vs();
+  const v: StoredVersion = { id: uid('ver'), projectId: s.projectId!, parentIds: s.headId ? [s.headId] : [], branch: name, label, createdAt: Date.now(), author: 'user', snapshot: pack(project) };
+  await backend().versions.put(v);
+  const ref: BranchRef = { id: `${v.projectId}:${name}`, projectId: v.projectId, name, headId: v.id, at: Date.now() };
+  await backend().versions.putBranch(ref);
+  share({ version: v, branch: ref });
+  await loadVersions();
+  return v.id;
+}
+
 /**
  * A version saved by itself before a destructive operation (F21): "Before: <what>". The state is taken
  * now (synchronously); nothing is saved for an empty song or one that equals the current version.

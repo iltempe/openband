@@ -21,6 +21,7 @@ import { MicOverlay } from './components/Mic';
 import { ABOverlay, TakesDialog } from './components/Takes';
 import { CommentsPanel, ExplainMenu } from './components/Comments';
 import { CompareBanner, RecoveryBanner, VersionsPanel } from './components/Versions';
+import { ProjectsPanel } from './components/Projects';
 import { JoinDialog } from './components/Collab';
 import { DiagnosticsPage } from './components/Diagnostics';
 import { ShortcutsSheet, TemplateGallery, TourCard, Welcome, useOverlays } from './components/Welcome';
@@ -259,6 +260,9 @@ export function App() {
                 <button className={s.bottom === 'versions' ? 'on' : ''} onClick={() => s.set({ bottom: 'versions' })}>
                   <I.Cycle width={14} height={14} /> {t('ver.tab')}
                 </button>
+                <button className={s.bottom === 'projects' ? 'on' : ''} onClick={() => s.set({ bottom: 'projects' })}>
+                  <span aria-hidden>▤</span> {t('st.tab')}
+                </button>
                 <button className={s.bottom === 'ensemble' ? 'on' : ''} onClick={() => s.set({ bottom: 'ensemble' })}>
                   <span aria-hidden>✦</span> {t('en.tab')}
                 </button>
@@ -280,6 +284,7 @@ export function App() {
                 {s.bottom === 'lyrics' && <LyricsPanel />}
                 {s.bottom === 'comments' && <CommentsPanel />}
                 {s.bottom === 'versions' && <VersionsPanel />}
+                {s.bottom === 'projects' && <ProjectsPanel />}
                 {s.bottom === 'flubs' && <FlubsPanel />}
                 {s.bottom === 'ensemble' && <EnsemblePanel />}
                 {s.bottom === 'release' && <ReleasePanel />}
