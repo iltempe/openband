@@ -2328,7 +2328,6 @@ tests.store = async () => {
     }, id);
     check(listed.list.includes('Shared song') && listed.name === 'Shared song', `a second browser sees the same library and opens the song (${listed.list})`);
     check(listed.versions >= 1, `…with its history (${listed.versions} version)`);
-    await a.screenshot({ path: path.join(root, 'build', 'e2e-projects.png') });
 
     await a.evaluate(() => window.openband.commands.set_tempo({ bpm: 110 }));
     check(await bpmIs(id, 110), 'an edit reaches the server');
