@@ -7,11 +7,10 @@ import { defaultPreset, findInstrument, setCustomInstruments } from './audio/ins
 import { ensureSamples } from './audio/samples';
 import { t } from './i18n';
 import { migrate } from './migrations';
+import { backend } from './storage';
+import { readAutosave } from './storage/local';
 import { emitStudioEvent, notifyProjectChanged } from './events';
 
-const STORAGE_KEY = 'openband.project.v2';
-/** Autosave key used by OpenBand 0.1 (schema v1), still read as a fallback. */
-const LEGACY_STORAGE_KEY = 'openband.project.v1';
 const HISTORY_LIMIT = 120;
 
 export function emptyProject(name = t('name.untitled'), bpm = 110): Project {
@@ -99,15 +98,6 @@ interface State {
   logBridge: (e: Omit<BridgeLogEntry, 'id' | 'time'>) => void;
 }
 
-function loadSaved(): Project | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
-    return raw ? migrate(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
 const entry = (project: Project, label: string, source: 'ui' | 'ai', commands: number): HistoryEntry => ({ id: uid('h'), project, label, source, commands, at: Date.now() });
@@ -133,7 +123,7 @@ export const exitAiCommand = () => void (aiDepth = Math.max(0, aiDepth - 1));
 export const isAiCommand = () => aiDepth > 0;
 
 export const useStore = create<State>((set, get) => ({
-  project: loadSaved() ?? emptyProject(),
+  project: readAutosave() ?? emptyProject(),
   past: [],
   future: [],
   activeTransaction: null,
@@ -299,16 +289,12 @@ useStore.subscribe((s, prev) => {
   if (s.project === prev.project) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    try {
-      const p = s.project;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(p.meta ? { ...p, meta: { ...p.meta, updatedAt: Date.now() } } : p));
-    } catch {
-      /* storage unavailable */
-    }
+    const p = s.project;
+    void backend().projects.put(p.meta ? { ...p, meta: { ...p.meta, updatedAt: Date.now() } } : p);
   }, 400);
 });
 
-export const hasSavedProject = () => loadSaved() !== null;
+export const hasSavedProject = () => readAutosave() !== null;
 
 // ---------- selectors ----------
 export const getTrack = (p: Project, id: string | null) => p.tracks.find((t) => t.id === id);

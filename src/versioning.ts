@@ -5,33 +5,13 @@ import { gunzipSync, gzipSync, strFromU8, strToU8 } from 'fflate';
 import type { Project } from './types';
 import { useStore } from './store';
 import { uid } from './music';
-import { db } from './audio/samples';
+import { backend, type BranchRef, type StoredVersion, type VersionMeta } from './storage';
 import { migrate } from './migrations';
 import { canonicalJSON } from './versions/canonical';
 import { diffProjects, type ProjectDiff } from './versions/diff';
 import { commonAncestor, mergeProjects, type MergeStrategy, type Pick } from './versions/merge';
 
-export interface VersionMeta {
-  id: string;
-  projectId: string;
-  parentIds: string[];
-  branch: string;
-  label: string;
-  createdAt: number;
-  author: 'user' | 'ai';
-}
-interface StoredVersion extends VersionMeta {
-  /** gzip of the project JSON. */
-  snapshot: Uint8Array;
-}
-export interface BranchRef {
-  id: string; // `${projectId}:${name}`
-  projectId: string;
-  name: string;
-  headId: string;
-  /** When the head last moved (shared rooms: the newest wins). */
-  at?: number;
-}
+export type { BranchRef, VersionMeta };
 
 // ---- sharing with a room (F16): listeners hear about every version saved / branch moved here,
 // and versions / branches from the room are stored locally.
@@ -42,24 +22,22 @@ const share = (s: Shared) => shareListeners.forEach((fn) => fn(s));
 
 /** Everything stored for a song (to give to a room). */
 export async function storedFor(projectId: string): Promise<{ versions: StoredVersion[]; branches: BranchRef[] }> {
-  const versions = ((await tx<StoredVersion[]>('versions', 'readonly', (s) => s.getAll())) ?? []).filter((v) => v.projectId === projectId);
-  const branches = ((await tx<BranchRef[]>('branches', 'readonly', (s) => s.getAll())) ?? []).filter((b) => b.projectId === projectId);
-  return { versions, branches };
+  return { versions: await backend().versions.list(projectId), branches: await backend().versions.branches(projectId) };
 }
 
 /** Versions and branch heads from a room: kept locally (versions never change; heads: the newest move wins). */
 export async function receiveShared(versions: StoredVersion[], branches: BranchRef[]) {
   let changed = 0;
   for (const v of versions) {
-    const have = await tx<StoredVersion | undefined>('versions', 'readonly', (s) => s.get(v.id));
+    const have = await backend().versions.get(v.id);
     if (have) continue;
-    await tx('versions', 'readwrite', (s) => s.put({ ...v, snapshot: new Uint8Array(v.snapshot) }));
+    await backend().versions.put({ ...v, snapshot: new Uint8Array(v.snapshot) });
     changed++;
   }
   for (const b of branches) {
-    const have = await tx<BranchRef | undefined>('branches', 'readonly', (s) => s.get(b.id));
+    const have = await backend().versions.branch(b.id);
     if (have && (have.at ?? 0) >= (b.at ?? 0)) continue;
-    await tx('branches', 'readwrite', (s) => s.put(b));
+    await backend().versions.putBranch(b);
     changed++;
   }
   if (changed && vs().projectId) await loadVersions();
@@ -82,15 +60,6 @@ const st = () => useStore.getState();
 const vs = () => useVersions.getState();
 const headKey = (projectId: string) => `openband.head.${projectId}`;
 
-async function tx<T>(store: string, mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-  const d = await db();
-  return new Promise((resolve, reject) => {
-    const req = fn(d.transaction(store, mode).objectStore(store));
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
 // No timestamp in the gzip header: the same song always packs to the same bytes (shared versions compare equal).
 const pack = (p: Project) => gzipSync(strToU8(JSON.stringify(p)), { mtime: 0 });
 const unpack = (b: Uint8Array) => migrate(strFromU8(gunzipSync(b)));
@@ -99,8 +68,8 @@ const projectIdOf = (p: Project) => p.meta?.projectId ?? 'local';
 /** Load the version list of the current song (called when the song changes). */
 export async function loadVersions() {
   const pid = projectIdOf(st().project);
-  const all = ((await tx<StoredVersion[]>('versions', 'readonly', (s) => s.getAll())) ?? []).filter((v) => v.projectId === pid);
-  const branches = ((await tx<BranchRef[]>('branches', 'readonly', (s) => s.getAll())) ?? []).filter((b) => b.projectId === pid);
+  const all = await backend().versions.list(pid);
+  const branches = await backend().versions.branches(pid);
   let head: { branch: string; headId: string | null } = { branch: 'main', headId: branches.find((b) => b.name === 'main')?.headId ?? null };
   try {
     const saved = JSON.parse(localStorage.getItem(headKey(pid)) ?? 'null');
@@ -128,7 +97,7 @@ function setHead(branch: string, headId: string | null) {
 }
 
 async function getSnapshot(id: string): Promise<Project> {
-  const v = await tx<StoredVersion | undefined>('versions', 'readonly', (s) => s.get(id));
+  const v = await backend().versions.get(id);
   if (!v) throw new Error(`Version "${id}" not found. Call list_versions.`);
   return unpack(v.snapshot);
 }
@@ -175,9 +144,9 @@ export async function saveVersion(label: string, author: 'user' | 'ai', extra: {
     author,
     snapshot: pack(project),
   };
-  await tx('versions', 'readwrite', (x) => x.put(v));
+  await backend().versions.put(v);
   const ref: BranchRef = { id: `${v.projectId}:${branch}`, projectId: v.projectId, name: branch, headId: v.id, at: Date.now() };
-  await tx('branches', 'readwrite', (x) => x.put(ref));
+  await backend().versions.putBranch(ref);
   share({ version: v, branch: ref });
   await loadVersions();
   setHead(branch, v.id);
@@ -208,7 +177,7 @@ export async function createBranch(name: string, fromVersionId?: string) {
   // Branching needs a version to start from: save the current state if there is none.
   const from = fromVersionId ? resolveRef(fromVersionId) : vs().headId ?? (await saveVersion('Start', 'user')).id;
   const ref: BranchRef = { id: `${vs().projectId}:${clean}`, projectId: vs().projectId!, name: clean, headId: from, at: Date.now() };
-  await tx('branches', 'readwrite', (x) => x.put(ref));
+  await backend().versions.putBranch(ref);
   share({ branch: ref });
   await loadVersions();
   return { branch: clean, head_id: from };
@@ -243,12 +212,12 @@ async function saveVersionOf(p: Project, label: string, author: 'user' | 'ai'): 
     // main
   }
   if (head.headId) {
-    const prev = await tx<StoredVersion | undefined>('versions', 'readonly', (s) => s.get(head.headId!));
+    const prev = await backend().versions.get(head.headId!);
     if (prev && canonicalJSON(unpack(prev.snapshot)) === canonicalJSON(p)) return null;
   }
   const v: StoredVersion = { id: uid('ver'), projectId: pid, parentIds: head.headId ? [head.headId] : [], branch: head.branch, label, createdAt: Date.now(), author, snapshot: pack(p) };
-  await tx('versions', 'readwrite', (x) => x.put(v));
-  await tx('branches', 'readwrite', (x) => x.put({ id: `${pid}:${head.branch}`, projectId: pid, name: head.branch, headId: v.id } satisfies BranchRef));
+  await backend().versions.put(v);
+  await backend().versions.putBranch({ id: `${pid}:${head.branch}`, projectId: pid, name: head.branch, headId: v.id });
   try {
     localStorage.setItem(headKey(pid), JSON.stringify({ branch: head.branch, headId: v.id }));
   } catch {

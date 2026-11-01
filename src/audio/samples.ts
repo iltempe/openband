@@ -2,6 +2,7 @@
 // AudioBuffers are cached in memory. Projects reference samples by id.
 import { create } from 'zustand';
 import { yinTrack } from '../analysis/pitchtrack';
+import { backend, type StoredSample } from '../storage';
 
 export interface SampleInfo {
   id: string;
@@ -9,43 +10,6 @@ export interface SampleInfo {
   duration: number;
   sampleRate: number;
   channels: number;
-}
-
-interface StoredSample {
-  id: string;
-  name: string;
-  type: string;
-  data: ArrayBuffer;
-}
-
-const DB_NAME = 'openband';
-const STORE = 'samples';
-
-let dbPromise: Promise<IDBDatabase> | null = null;
-/** The app's IndexedDB: v1 = samples; v2 adds versions and branches (F13); v3 the user's secrets (D4); v4 the journal (F21). */
-export function db(): Promise<IDBDatabase> {
-  dbPromise ??= new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 4);
-    req.onupgradeneeded = () => {
-      const d = req.result;
-      for (const name of [STORE, 'versions', 'branches', 'secrets']) if (!d.objectStoreNames.contains(name)) d.createObjectStore(name, { keyPath: 'id' });
-      if (!d.objectStoreNames.contains('journal')) d.createObjectStore('journal', { keyPath: 'id' }).createIndex('projectId', 'projectId');
-    };
-    // Another tab still has the older version open: it will reload on its next start.
-    req.onblocked = () => console.warn('[openband] close other OpenBand tabs to finish upgrading local storage');
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-  return dbPromise;
-}
-
-async function idb<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-  const d = await db();
-  return new Promise((resolve, reject) => {
-    const req = fn(d.transaction(STORE, mode).objectStore(STORE));
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
 }
 
 const buffers = new Map<string, AudioBuffer>();
@@ -98,7 +62,7 @@ export async function importSample(data: ArrayBuffer, name: string, type = 'audi
     }
     const stored = { id, name, type, data };
     try {
-      await idb('readwrite', (s) => s.put(stored));
+      await backend().samples.put(id, data, name, type);
     } catch {
       // storage full or unavailable: the sample still works for this session
     }
@@ -107,7 +71,7 @@ export async function importSample(data: ArrayBuffer, name: string, type = 'audi
   return useSamples.getState().info[id];
 }
 
-/** Make sure the given samples are decoded in memory (loads them from IndexedDB). */
+/** Make sure the given samples are decoded in memory (loads them from the backend). */
 export async function ensureSamples(ids: Iterable<string>): Promise<void> {
   await Promise.all([...new Set(ids)].map(loadSample));
 }
@@ -119,7 +83,7 @@ function loadSample(id: string): Promise<AudioBuffer | null> {
       id,
       (async () => {
         try {
-          const s = (await idb<StoredSample | undefined>('readonly', (st) => st.get(id))) ?? null;
+          const s = await backend().samples.get(id);
           if (!s) throw new Error('missing');
           const buf = await decode(s.data);
           register(s, buf);

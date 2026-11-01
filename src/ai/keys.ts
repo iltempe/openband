@@ -2,7 +2,7 @@
 // in the project, the autosave, a .openband bundle, an export or localStorage. "Forget key" deletes it.
 // Which provider, model and server address were picked (not secret) is remembered in localStorage.
 import { create } from 'zustand';
-import { db } from '../audio/samples';
+import { db } from '../storage/idb';
 import { providerInfo, type ProviderId } from './models';
 
 export interface KeyStore {

@@ -8,7 +8,7 @@ import { canonicalJSON } from '../versions/canonical';
 import { diffProjects } from '../versions/diff';
 import { autoVersion, createBranch, checkout, replaceProject, saveVersion, useVersions } from '../versioning';
 import { SongJournal, type JournalStore } from './timeline';
-import { idbJournal } from './idb';
+import { backend } from '../storage';
 import { t } from '../i18n';
 
 const st = () => useStore.getState();
@@ -22,17 +22,17 @@ export interface Recovery {
 export const useJournal = create<{ ready: boolean; recovery: Recovery | null; first: number | null; last: number | null }>(() => ({ ready: false, recovery: null, first: null, last: null }));
 
 let journal: SongJournal | null = null;
-let store: JournalStore = idbJournal;
+let storeOverride: JournalStore | null = null;
 /** Writes in order, one at a time. */
 let queue: Promise<unknown> = Promise.resolve();
 const enqueue = <T>(fn: () => Promise<T>) => (queue = queue.then(fn, fn)) as Promise<T>;
 
 export const journalFor = () => journal;
-/** Tests: a memory store instead of IndexedDB. */
-export const setJournalStore = (s: JournalStore) => void (store = s);
+/** Tests: a memory store instead of the backend's. */
+export const setJournalStore = (s: JournalStore) => void (storeOverride = s);
 
 async function open(projectId: string) {
-  const j = await new SongJournal(projectId, store).load();
+  const j = await new SongJournal(projectId, storeOverride ?? backend().journal).load();
   await j.compact().catch(() => 0);
   journal = j;
   useJournal.setState({ first: j.entries[0]?.at ?? null, last: j.lastAt || null });

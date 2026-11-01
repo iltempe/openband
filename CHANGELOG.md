@@ -2,6 +2,15 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.0 "Storage behind an interface (R1.a)"
+
+### First step of v0.7 "Sala prove" (docs/SPEC-v0.7.md)
+- Nothing changes for people in this release: songs, versions, samples and the journal stay where they were, under the same keys and in the same database.
+- The code that stores them now goes through `src/storage/` (`Backend` with `ProjectStore`, `VersionStore`, `SampleStore`, `JournalStore`). `LocalBackend` is this browser; `MemoryBackend` is for the tests. This is what lets the project store (R1.b, R1.c) arrive without touching the rest of the app.
+- Deviation from the spec: `VersionStore` also has `branch(id)`, because rooms compare a single branch head. The autosave is read synchronously at start (`readAutosave`), because the store starts from it.
+- Not done yet: the server backend, so there is no change in where data can live.
+- Tests: the existing tests pass unmodified; new tests cover the memory backend's stale-etag refusal and the local slot (same key, the 0.1 fallback, only the song in the slot is trashed). The e2e suite exercises the real IndexedDB paths.
+
 ## v0.6.43 "✦ Generate on every track, with your own music services"
 
 ### The music generation gateway (ADR 0004)

@@ -1,6 +1,6 @@
 // The journal in IndexedDB (store `journal`, indexed by projectId). Patches and checkpoints are gzipped.
 import { gunzipSync, gzipSync, strFromU8, strToU8 } from 'fflate';
-import { db } from '../audio/samples';
+import { db } from '../storage/idb';
 import type { JournalEntry, JournalStore } from './timeline';
 
 interface Row extends Omit<JournalEntry, 'patch' | 'project'> {
