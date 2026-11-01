@@ -7,6 +7,10 @@ Windows e Linux, con il server MCP incluso: niente browser, niente Node, niente 
 
 <img src="desktop.png" alt="L'app desktop con la scheda App AI" width="720">
 
+## Dove stanno i tuoi brani
+
+In una libreria su disco, nella cartella dati dell'app (`library`): un backup è la copia di quella cartella. Al primo avvio dopo l'aggiornamento i brani nella memoria browser dell'app vengono copiati lì, e gli originali restano. Si cambia cartella con `OPENBAND_DATA`.
+
 ## Scaricala
 
 | Sistema | File |

@@ -153,7 +153,7 @@ const isLoopback = (addr) => addr === '127.0.0.1' || addr === '::1' || addr === 
 // One HTTP server, several WebSocket endpoints: route upgrades by path.
 const wss = new WebSocketServer({ noServer: true });
 // Multiplayer endpoints load Yjs only when asked for.
-const collab = COLLAB ? (await import('./collab.mjs')).createCollab() : null;
+const collab = COLLAB ? (await import('./collab.mjs')).createCollab(storeApi ? { store: storeApi.store, emit: storeApi.emit, log, idleMs: Number(process.env.OPENBAND_ROOM_IDLE_MS) || undefined } : null) : null;
 httpServer.on('upgrade', (req, socket, head) => {
   const { pathname } = new URL(req.url || '/', 'http://x');
   if (pathname === '/bridge') {

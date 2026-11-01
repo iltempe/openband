@@ -27,6 +27,12 @@ export interface ServerOptions {
   kv: Kv;
   /** A write found the server had moved on. The song is safe in `mine`. */
   onConflict?: (mine: Project, serverEtag: string) => void;
+  /** The key for what is remembered here: the desktop's own store changes port at every start. */
+  scope?: string;
+  /** This server is the browser's own library: every song lives there. */
+  own?: boolean;
+  /** Songs not worth a place in the library yet (empty, or the untouched demo). */
+  keepOut?: (p: Project) => boolean;
   /** Pushing is paused meanwhile (in a room, the room is the source of truth). */
   paused?: () => boolean;
   onStatus?: (s: BackendStatus) => void;
@@ -63,6 +69,7 @@ export class ServerBackend implements Backend {
   /** The song as the server has it: a save that changes nothing is not sent (a song just loaded saves itself). */
   private known = new Map<string, string>();
   private fetcher: typeof fetch;
+  private adopting = new Set<string>();
 
   constructor(private o: ServerOptions) {
     this.url = o.url.replace(/\/+$/, '');
@@ -72,7 +79,7 @@ export class ServerBackend implements Backend {
     this.list = this.read('list', []);
   }
 
-  private key = (k: string) => `openband.store.${k}.${this.url}`;
+  private key = (k: string) => `openband.store.${k}.${this.o.scope ?? this.url}`;
   private read<T>(k: string, fallback: T): T {
     try {
       return JSON.parse(this.o.kv.get(this.key(k)) ?? 'null') ?? fallback;
@@ -151,6 +158,7 @@ export class ServerBackend implements Backend {
     put: async (p, ifMatch) => {
       const id = idOf(p);
       await this.o.cache.projects.put(p);
+      if (!this.tracked(id) && this.o.own && !this.o.keepOut?.(p) && !this.adopting.has(id)) await this.adopt(p);
       if (!this.tracked(id)) return { etag: '' };
       if (this.known.get(id) === canonicalJSON(p)) return { etag: this.etags[id] };
       this.latest.set(id, p);
@@ -292,12 +300,28 @@ export class ServerBackend implements Backend {
   /** Put a browser song on the server, with its history and samples. */
   async adopt(p: Project) {
     const id = idOf(p);
-    await this.o.cache.projects.put(p);
-    await this.pushSamples(p);
-    const r = await this.req(`/projects/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(p), headers: { 'content-type': 'application/json' } });
-    await this.ok(r);
-    this.etags[id] = ((await r.json()) as { etag: string }).etag;
-    this.known.set(id, canonicalJSON(p));
+    if (this.adopting.has(id)) return;
+    this.adopting.add(id);
+    try {
+      await this.pushSamples(p);
+      const r = await this.req(`/projects/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(p), headers: { 'content-type': 'application/json' } });
+      // The server already has this song and this browser forgot: the two copies are a conflict like any other.
+      if (r.status === 428 || r.status === 409) {
+        const { etag } = (await r.json()) as { etag: string };
+        this.etags[id] = etag;
+        this.conflicted = true;
+        this.o.onConflict?.(p, etag);
+        return;
+      }
+      await this.ok(r);
+      this.etags[id] = ((await r.json()) as { etag: string }).etag;
+      this.known.set(id, canonicalJSON(p));
+    } catch (e) {
+      if (e instanceof Offline) return; // the next save tries again
+      throw e;
+    } finally {
+      this.adopting.delete(id);
+    }
     for (const v of await this.o.cache.versions.list(id)) this.outbox.versions.push({ projectId: id, id: v.id });
     for (const b of await this.o.cache.versions.branches(id)) this.outbox.branches.push(b.id);
     this.save();
@@ -319,6 +343,8 @@ export class ServerBackend implements Backend {
   }
 
   etagOf = (id: string) => this.etags[id];
+  /** The room saved the song: what is open here is what the server has. */
+  followed = (id: string, etag: string) => void ((this.etags[id] = etag), this.save());
 
   /** Stop following a song: it stays on the server, and this browser keeps its own copy. */
   forget(id: string) {

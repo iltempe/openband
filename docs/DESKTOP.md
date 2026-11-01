@@ -7,6 +7,10 @@ Windows and Linux, with the MCP server built in: no browser, no Node, no command
 
 <img src="desktop.png" alt="The desktop app with the AI apps tab" width="720">
 
+## Where your songs are
+
+In a library on disk, in the app's data folder (`library`): a backup is a copy of that folder. On the first start after updating, the songs of the app's browser storage are copied there, and the originals stay. Change the folder with `OPENBAND_DATA`.
+
 ## Download
 
 | System | File |

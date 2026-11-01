@@ -7,6 +7,7 @@ import * as awarenessProtocol from 'y-protocols/awareness';
 import * as encoding from 'lib0/encoding';
 import * as decoding from 'lib0/decoding';
 import { WebSocketServer } from 'ws';
+import { persistRoom } from './store/room.mjs';
 
 const MSG_SYNC = 0;
 const MSG_AWARENESS = 1;
@@ -14,6 +15,10 @@ const MAX_ROOMS = 200;
 
 /** @type {Map<string, { doc: Y.Doc, awareness: awarenessProtocol.Awareness, conns: Map<import('ws').WebSocket, Set<number>> }>} */
 const rooms = new Map();
+/** The project store, when this server has one, with its event channel. */
+let persist = null;
+/** A room is quiet after 30 s without updates: then the store takes its song. */
+const IDLE_MS = 30000;
 
 function room(name) {
   let r = rooms.get(name);
@@ -29,6 +34,11 @@ function room(name) {
     syncProtocol.writeUpdate(enc, update);
     const msg = encoding.toUint8Array(enc);
     for (const c of r.conns.keys()) if (c !== origin) send(c, msg);
+    if (!persist) return;
+    clearTimeout(r.quiet);
+    clearTimeout(r.flushVersions);
+    r.flushVersions = setTimeout(() => safePersist(doc, false), 500);
+    r.quiet = setTimeout(() => safePersist(doc, true), persist.idleMs ?? IDLE_MS);
   });
   awareness.on('update', ({ added, updated, removed }, origin) => {
     const changed = [...added, ...updated, ...removed];
@@ -45,6 +55,14 @@ function room(name) {
   });
   rooms.set(name, r);
   return r;
+}
+
+function safePersist(doc, song) {
+  try {
+    persistRoom(doc, persist.store, { emit: persist.emit, song });
+  } catch (e) {
+    persist.log?.(`room not saved: ${e.message}`);
+  }
 }
 
 function send(ws, msg) {
@@ -138,7 +156,8 @@ function onSignal(ws) {
 }
 
 /** Route /collab/<room> and /signal upgrades; returns false for other paths. */
-export function createCollab() {
+export function createCollab(store) {
+  persist = store ?? null;
   const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 * 1024 });
   return {
     handles: (pathname) => pathname.startsWith('/collab/') || pathname === '/signal',

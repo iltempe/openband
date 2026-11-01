@@ -38,7 +38,7 @@ import { initPwa } from './pwa';
 import { initDiagnostics } from './diagnostics';
 import { ErrorBoundary } from './components/Diagnostics';
 import { getConfig, loadConfig } from './config';
-import { restoreServer } from './storage/sync';
+import { markDemo, restoreServer } from './storage/sync';
 import { savedLanguage, useLang } from './i18n';
 import { initJournal } from './journal';
 import { initAutoWrite } from './autoWrite';
@@ -49,7 +49,10 @@ import { commands } from './commands';
 import * as Tone from 'tone';
 
 // A song handed over from the online demo wins; otherwise the autosave, otherwise the demo song.
-if (!consumeHandoff() && !hasSavedProject()) loadDemo();
+if (!consumeHandoff() && !hasSavedProject()) {
+  loadDemo();
+  markDemo(useStore.getState().project);
+}
 
 engine.sync(useStore.getState().project);
 useStore.subscribe((s, prev) => {

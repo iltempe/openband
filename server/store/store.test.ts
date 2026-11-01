@@ -11,6 +11,9 @@ import { canonicalJSON } from './canonical.mjs';
 import { FsStore, StoreError, etagOf, safeId } from './fs.mjs';
 import { createStoreApi, isLocalRequest, PREFIX } from './api.mjs';
 import { Pairing } from '../pairing.mjs';
+import * as Y from 'yjs';
+import { readProject, writeProject } from '../../src/collab/binding';
+import { persistRoom, readRoomProject } from './room.mjs';
 
 const song = (id: string, name = 'S') => ({ version: 3, name, bpm: 100, key: 'C', tracks: [{ id: 't', automation: [{ target: { kind: 'fx', unit: 'eq', param: 'low' }, points: [{ beat: 2, value: 0.123456 }, { beat: 1, value: 1 }] }, { target: { kind: 'mix', param: 'volume' }, points: [] }] }], regions: [{ id: 'r', trackId: 't', start: 0.33333, length: 4, notes: [{ id: 'b', start: 1, pitch: 60 }, { id: 'a', start: 0, pitch: 62 }] }], loop: { enabled: false, start: 0, end: 16 }, masterVolume: 0.8, metronome: false, meta: { projectId: id, createdAt: 1, updatedAt: 2 } });
 
@@ -100,6 +103,33 @@ describe('FsStore', () => {
     expect(s.purgeTrash()).toBe(1);
     expect(s.sampleMeta('smp_only')).toBeNull();
     expect(s.sampleMeta('smp_shared')).toBeTruthy();
+  });
+});
+
+describe('rooms', () => {
+  const roomDoc = () => {
+    const doc = new Y.Doc();
+    writeProject(doc, song('a', 'In the room') as never, 'x');
+    return doc;
+  };
+  it('reads the same song as the studio does', () => {
+    const doc = roomDoc();
+    expect(canonicalJSON(readRoomProject(doc))).toBe(clientCanonical(readProject(doc) as never));
+  });
+  it('keeps versions and heads, and the song when asked, in spite of a stale etag', () => {
+    const store = new FsStore({ dir, quota: 1e9 });
+    store.putProject('a', song('a', 'old'));
+    const doc = roomDoc();
+    doc.getMap('versions').set('v1', { id: 'v1', projectId: 'a', parentIds: [], branch: 'main', label: 'x', createdAt: 1, author: 'user', snapshot: gzipSync('{}') });
+    doc.getMap('branches').set('a:main@me', { id: 'a:main', projectId: 'a', name: 'main', headId: 'v1', at: 3 });
+    const events: unknown[] = [];
+    persistRoom(doc, store, { emit: (e: unknown) => events.push(e) });
+    expect(store.getVersion('a', 'v1')).toBeTruthy();
+    expect(store.branches('a')[0].headId).toBe('v1');
+    expect(store.getProject('a')?.value.name).toBe('old');
+    persistRoom(doc, store, { emit: (e: unknown) => events.push(e), song: true });
+    expect(store.getProject('a')?.value.name).toBe('In the room');
+    expect(events).toHaveLength(1);
   });
 });
 

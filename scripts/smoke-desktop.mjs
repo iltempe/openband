@@ -38,6 +38,7 @@ const env = { ...baseEnv, OPENBAND_NO_UPDATE_CHECK: '1', ...(process.platform ==
 const smoke = spawnSync(exe, ['--smoke', ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], { env, encoding: 'utf8', timeout: 90000 });
 const line = `${smoke.stdout}${smoke.stderr}`.split('\n').find((l) => l.startsWith('SMOKE')) ?? `exit ${smoke.status} ${smoke.error?.message ?? ''}`;
 check(smoke.status === 0 && line.startsWith('SMOKE OK'), `the app starts and plays (${line.trim()})`);
+check(/library=\d+/.test(line), `the app stores its songs on disk (${/library=\d+/.exec(line)?.[0]})`);
 if (smoke.status !== 0) console.log(`${smoke.stderr}`.split('\n').slice(-15).join('\n'));
 
 // The hanging fixture only proves isolation here: it gets the old 10 s, not a real plugin's 60 s.

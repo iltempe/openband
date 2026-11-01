@@ -341,6 +341,22 @@ ipcMain.on('ready', (e) => {
   for (const [c, p] of pending.splice(0)) win.webContents.send(c, p);
 });
 ipcMain.on('version', (e) => (e.returnValue = version));
+ipcMain.on('store-url', (e) => (e.returnValue = storeUrl));
+
+/** The library on disk (R1): a server on loopback for this app's page, so songs survive clearing its web data. */
+let storeUrl = null;
+async function startStore() {
+  const load = (f) => import(pathToFileURL(path.join(ROOT, 'server', ...f)).href);
+  const [{ FsStore }, { createStoreApi }, { Pairing }, { WebSocketServer }, http] = await Promise.all([load(['store', 'fs.mjs']), load(['store', 'api.mjs']), load(['pairing.mjs']), import('ws'), import('node:http')]);
+  const api = createStoreApi({ store: new FsStore({ dir: process.env.OPENBAND_DATA || path.join(app.getPath('userData'), 'library') }), pairing: new Pairing(), own: true });
+  const wss = new WebSocketServer({ noServer: true });
+  const srv = http.createServer(async (req, res) => {
+    if (!(await api.handleHttp(req, res))) res.writeHead(404).end();
+  });
+  srv.on('upgrade', (req, socket, head) => (api.handles(new URL(req.url || '/', 'http://x').pathname) ? api.upgrade(wss, req, socket, head) : socket.destroy()));
+  await new Promise((resolve) => srv.listen(0, '127.0.0.1', resolve));
+  storeUrl = `http://127.0.0.1:${srv.address().port}`;
+}
 // AI servers on this computer (Ollama, LM Studio) only accept web pages they know; the app's own page
 // reaches them through here instead, loopback http only.
 ipcMain.handle('local-fetch', async (e, url, init = {}) => {
@@ -360,7 +376,8 @@ setupNative({ root: ROOT, getWin: () => win });
 
 app.setAboutPanelOptions?.({ applicationName: 'OpenBand', applicationVersion: version, copyright: 'MIT license' });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await startStore().catch((e) => console.error('project store:', e.message));
   serveStudio();
   permissions();
   buildMenu();
@@ -404,7 +421,9 @@ async function smoke() {
       step();
     })`, true);
     if (!ok.playing || !ok.desktop) return fail(JSON.stringify(ok));
-    console.log(`SMOKE OK ${version} ${ok.origin} song="${ok.song}"`);
+    const library = path.join(app.getPath('userData'), 'library', 'projects');
+    for (let i = 0; i < 50 && !fs.readdirSync(library).length; i++) await new Promise((r) => setTimeout(r, 100));
+    console.log(`SMOKE OK ${version} ${ok.origin} song="${ok.song}" library=${fs.readdirSync(library).length}`);
     if (SMOKE_NATIVE) {
       const r = await win.webContents.executeJavaScript(`(${smokeNative.toString()})(${JSON.stringify(!!process.env.CI && process.platform === 'darwin')}, ${JSON.stringify(process.platform === 'darwin')})`, true);
       console.log(`SMOKE-NATIVE ${JSON.stringify(r)}`);

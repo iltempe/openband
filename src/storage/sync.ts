@@ -1,6 +1,7 @@
 // The studio and the library on a server: connecting, opening, moving songs, and what to do when two
 // devices disagree. The HTTP part is in server.ts; this is the part that knows about the open song.
 import { create } from 'zustand';
+import { desktop } from '../desktop';
 import { idbKeyStore } from '../ai/keys';
 import { useCollab } from '../collab/session';
 import { useStore } from '../store';
@@ -14,18 +15,21 @@ import type { BackendStatus, ProjectSummary } from './types';
 
 const URL_KEY = 'openband.store.url';
 const INSTANCE_KEY = 'openband.store.instance';
+const MIGRATED_KEY = 'openband.store.migrated';
 const DEVICE_KEY = 'openband.store.device';
 const tokenRecord = (url: string) => `store-token:${url}`;
 
 export interface StoreLink {
   url: string | null;
   name: string | null;
+  /** The library of this computer (desktop, or a local server): every song lives there. */
+  own: boolean;
   status: BackendStatus;
   space: { used: number; quota: number } | null;
   /** The last conflict: the local work is safe on this branch. */
   conflict: { branch: string; versionId: string; project: string } | null;
 }
-export const useStoreLink = create<StoreLink>(() => ({ url: null, name: null, status: LocalBackend.status(), space: null, conflict: null }));
+export const useStoreLink = create<StoreLink>(() => ({ url: null, name: null, own: false, status: LocalBackend.status(), space: null, conflict: null }));
 
 const kv: Kv = {
   get: (k) => {
@@ -94,7 +98,9 @@ function listen(b: ServerBackend, token: string | undefined, instance: string | 
 /** Another device changed the open song: follow it, unless there is work here still to send (then a conflict decides). */
 async function onEvent(b: ServerBackend, e: { kind: string; id?: string; etag?: string | null }) {
   if (e.kind !== 'project_changed' || !e.id || !e.etag) return;
-  if (idOf(useStore.getState().project) !== e.id || b.pending() || b.etagOf(e.id) === e.etag || useCollab.getState().room) return;
+  if (idOf(useStore.getState().project) !== e.id || b.etagOf(e.id) === e.etag) return;
+  if (useCollab.getState().room) return b.followed(e.id, e.etag);
+  if (b.pending()) return;
   const fresh = await b.projects.get(e.id);
   if (!fresh) return;
   useStore.getState().loadProject(fresh.value);
@@ -102,12 +108,15 @@ async function onEvent(b: ServerBackend, e: { kind: string; id?: string; etag?: 
   await loadVersions();
 }
 
-function attach(url: string, token: string | undefined, instance: string | undefined) {
+function attach(url: string, token: string | undefined, instance: string | undefined, own = false) {
   const b = new ServerBackend({
     url,
     token,
     instanceToken: instance,
     client: deviceName(),
+    own,
+    keepOut: untouched,
+    scope: own ? 'own' : undefined,
     cache: LocalBackend,
     kv,
     onConflict: (mine) => void handleConflict(mine),
@@ -119,13 +128,15 @@ function attach(url: string, token: string | undefined, instance: string | undef
   clearInterval(retry);
   retry = setInterval(() => b.pending() && void b.flush(), 5000);
   window.addEventListener('online', () => backend() === b && void b.flush());
-  useStoreLink.setState({ url: b.url, status: b.status(), conflict: null });
+  useStoreLink.setState({ url: b.url, own, status: b.status(), conflict: null });
   void b.flush();
   void refreshSpace();
-  void fetch(`${b.url}/config.json`)
-    .then((r) => (r.ok ? r.json() : null))
-    .then((c) => useStoreLink.setState({ name: c?.instanceName || new URL(b.url).host }))
-    .catch(() => useStoreLink.setState({ name: new URL(b.url).host }));
+  if (own) useStoreLink.setState({ name: t('st.thisComputer') });
+  else
+    void fetch(`${b.url}/config.json`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c) => useStoreLink.setState({ name: c?.instanceName || new URL(b.url).host }))
+      .catch(() => useStoreLink.setState({ name: new URL(b.url).host }));
   return b;
 }
 
@@ -172,13 +183,54 @@ export function disconnectServer() {
   } catch {
     /* nothing to remove */
   }
-  useStoreLink.setState({ url: null, name: null, space: null, status: LocalBackend.status() });
+  useStoreLink.setState({ url: null, name: null, own: false, space: null, status: LocalBackend.status() });
+  void connectOwn();
+}
+
+/** The library of this computer: the desktop's, or that of the server this page came from on localhost. */
+async function ownStore() {
+  if (desktop) return desktop.storeUrl ?? null;
+  if (!['localhost', '127.0.0.1'].includes(location.hostname) || location.protocol !== 'http:') return null;
+  const r = await fetch(`${location.origin}${PREFIX}/status`).catch(() => null);
+  if (!r?.ok) return null;
+  return ((await r.json()) as { own?: boolean }).own ? location.origin : null;
+}
+
+/** The song a new browser starts with: until someone changes it, it isn't anybody's song. */
+let demo: { id: string; steps: number } | null = null;
+export const markDemo = (p: Project) => void (demo = { id: idOf(p), steps: useStore.getState().past.length });
+const untouched = (p: Project) => !p.tracks.length || (idOf(p) === demo?.id && useStore.getState().past.length === demo.steps);
+
+/** First run with a library: copy every song of this browser there. The originals stay. */
+async function migrate(b: ServerBackend) {
+  if (kv.get(MIGRATED_KEY)) return;
+  let n = 0;
+  for (const s of await LocalBackend.projects.list()) {
+    const got = await LocalBackend.projects.get(s.id);
+    if (!got || untouched(got.value)) continue;
+    await b.adopt(got.value);
+    n++;
+  }
+  kv.set(MIGRATED_KEY, String(Date.now()));
+  if (n) useStore.getState().notify(t('st.migrated', { n }));
+}
+
+async function connectOwn() {
+  const url = await ownStore();
+  if (!url) return;
+  const b = attach(url, undefined, undefined, true);
+  await migrate(b).catch((e) => console.warn('[openband] store:', (e as Error).message));
+  // The browser's data was cleared: the library still has the songs.
+  if (untouched(useStore.getState().project)) {
+    const [latest] = await b.projects.list();
+    if (latest) await openProject(latest.id).catch(() => null);
+  }
 }
 
 /** At start: back to the server this browser was connected to. It works offline too. */
 export async function restoreServer() {
   const url = kv.get(URL_KEY);
-  if (!url) return;
+  if (!url) return connectOwn();
   attach(url, (await idbKeyStore.get(tokenRecord(url)).catch(() => null)) ?? undefined, kv.get(INSTANCE_KEY) ?? undefined);
 }
 
@@ -202,7 +254,7 @@ export async function listProjects(): Promise<ListedProject[]> {
 async function keepCurrent() {
   const b = server();
   const p = useStore.getState().project;
-  if (p.tracks.length && !b?.tracked(idOf(p))) await saveVersion(t('st.beforeOpen'), 'user');
+  if (p.tracks.length && !b?.tracked(idOf(p)) && !useStoreLink.getState().own) await saveVersion(t('st.beforeOpen'), 'user');
 }
 
 export async function openProject(id: string) {

@@ -8,6 +8,7 @@
 //   master     — the master chain meets −14 LUFS / −1 dBTP, live = export, sidechain kick → bass
 //   pilot      — the mix pilot: amount 0 changes nothing, 1 twice is idempotent, roles kept, stems = master
 //   pdc        — plugin delay compensation: a track behind a 512-sample plugin stays aligned, live and exported
+//   library    — a local server is the browser's library: first-run copy, songs survive clearing the browser
 //   store      — the project library: two browsers, offline work, a conflict that loses nothing
 //   frozen     — a song with a native plugin opened in the browser plays its render cache, live and exported
 //
@@ -37,7 +38,7 @@ const check = (ok, label) => {
 };
 
 function server(env = {}) {
-  const p = spawn(process.execPath, [path.join(root, 'bin', 'openband.mjs'), 'start'], { env: { ...process.env, OPENBAND_PORT: String(PORT), OPENBAND_OPEN_BROWSER: '0', ...env }, stdio: ['ignore', 'ignore', 'pipe'] });
+  const p = spawn(process.execPath, [path.join(root, 'bin', 'openband.mjs'), 'start'], { env: { ...process.env, OPENBAND_PORT: String(PORT), OPENBAND_OPEN_BROWSER: '0', OPENBAND_STORE: '0', ...env }, stdio: ['ignore', 'ignore', 'pipe'] });
   return new Promise((resolve) => p.stderr.on('data', (d) => String(d).includes('bridge on') && resolve(p)));
 }
 // A fake audio output: the audio clock runs the same with or without (or with a stalled) sound device.
@@ -2282,7 +2283,7 @@ tests.generate = async () => {
 tests.store = async () => {
   const os = await import('node:os');
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'ob-e2e-store-'));
-  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1', OPENBAND_DATA: data });
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1', OPENBAND_DATA: data, OPENBAND_STORE: '1', OPENBAND_STORE_AUTO: '0' });
   const b = await launch();
   const open = async () => {
     const p = await (await b.createBrowserContext()).newPage();
@@ -2292,6 +2293,7 @@ tests.store = async () => {
     await p.waitForSelector('.t-play.on', { timeout: 5000 });
     await p.evaluate(() => window.openband.useStore.getState().set({ bottom: 'projects' }));
     await p.waitForSelector('.pj-input');
+    await p.$eval('.pj-input', (e) => e.select());
     await p.type('.pj-input', URL);
     await p.evaluate(() => [...document.querySelectorAll('.pj-link .btn')].find((x) => x.textContent === 'Connect').click());
     await p.waitForFunction(() => [...document.querySelectorAll('.pj-link .btn')].some((x) => x.textContent === 'Disconnect'), { timeout: 5000 });
@@ -2362,6 +2364,57 @@ tests.store = async () => {
   } finally {
     await b.close();
     srv.kill();
+    fs.rmSync(data, { recursive: true, force: true });
+  }
+};
+
+tests.library = async () => {
+  const os = await import('node:os');
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), 'ob-e2e-lib-'));
+  const projects = () => (fs.existsSync(path.join(data, 'projects')) ? fs.readdirSync(path.join(data, 'projects')) : []);
+  const b = await launch();
+  const begin = async (ctx) => {
+    const p = await ctx.newPage();
+    let requests = 0;
+    p.on('request', (r) => r.url().includes('/api/store') && requests++);
+    p.storeRequests = () => requests;
+    await p.goto(`${URL}?debug`, { waitUntil: 'load' });
+    await p.waitForFunction(() => window.openband, { timeout: 15000 });
+    return p;
+  };
+  try {
+    let srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1', OPENBAND_DATA: data });
+    const ctx = await b.createBrowserContext();
+    let p = await begin(ctx);
+    await p.evaluate(async () => {
+      await window.openband.commands.new_project({ name: 'Before the library', bpm: 88, key: 'Dm' });
+      await window.openband.commands.add_track({ kind: 'instrument', name: 'Piano' });
+    });
+    await wait(900);
+    const kept = await p.evaluate(() => window.openband.useStore.getState().project.meta.projectId);
+    check(projects().length === 0, 'without a library, the song stays in the browser');
+    await p.close();
+    srv.kill();
+    await new Promise((r) => srv.once('exit', r));
+    await wait(500);
+    srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1', OPENBAND_DATA: data, OPENBAND_STORE: '1' });
+    p = await begin(ctx);
+    await p.waitForFunction(() => document.querySelector('.toast')?.textContent?.includes('library') ?? false, { timeout: 8000 }).catch(() => {});
+    for (let i = 0; i < 40 && !projects().includes(kept); i++) await wait(100);
+    check(projects().includes(kept), 'first run with a library: the browser songs are copied there');
+    const before = p.storeRequests();
+    await wait(3000);
+    check(p.storeRequests() - before < 3, `a quiet studio does not talk to the library (${p.storeRequests() - before} requests in 3 s)`);
+    const still = await p.evaluate(() => localStorage.getItem('openband.project.v2')?.includes('Before the library'));
+    check(still === true, '…and the original is not deleted');
+    await p.close();
+    await ctx.close();
+    const fresh = await begin(await b.createBrowserContext());
+    const name = await fresh.waitForFunction(() => { const n = window.openband?.useStore.getState().project.name; return n === 'Before the library' && n; }, { timeout: 8000 }).then((h) => h.jsonValue(), () => null);
+    check(name === 'Before the library', `with the browser data gone, the song comes back from disk (${name})`);
+    srv.kill();
+  } finally {
+    await b.close();
     fs.rmSync(data, { recursive: true, force: true });
   }
 };

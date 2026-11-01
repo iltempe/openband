@@ -102,7 +102,8 @@ export class FsStore {
         name: p.name,
         bpm: p.bpm,
         key: p.key,
-        updatedAt: meta.updatedAt ?? 0,
+        // When the song last changed, not when it arrived here: a first-run copy keeps its order.
+        updatedAt: p.meta?.updatedAt ?? meta.updatedAt ?? 0,
         versions: this.versionMetas(id).length,
         sizeBytes: this.sizeOf(dir),
         source: 'server',

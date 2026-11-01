@@ -59,7 +59,7 @@ async function readJson(req) {
   }
 }
 
-export function createStoreApi({ store, pairing, allowedOrigins = [], storeToken = process.env.OPENBAND_STORE_TOKEN || '', log = () => {} }) {
+export function createStoreApi({ store, pairing, allowedOrigins = [], storeToken = process.env.OPENBAND_STORE_TOKEN || '', log = () => {}, own = process.env.OPENBAND_STORE_AUTO !== '0' }) {
   const events = new EventBuffer(200);
   const sockets = new Set();
   const tokensFile = path.join(store.dir, 'tokens.json');
@@ -89,7 +89,8 @@ export function createStoreApi({ store, pairing, allowedOrigins = [], storeToken
 
   function cors(req, res) {
     const origin = req.headers.origin;
-    if (!origin || classifyOrigin(origin, allowedOrigins) !== 'pair') return;
+    // The desktop app's page (openband://app) is "local" and still cross-origin to this port.
+    if (!origin || classifyOrigin(origin, allowedOrigins) === 'reject') return;
     res.setHeader('access-control-allow-origin', origin);
     res.setHeader('vary', 'Origin');
     res.setHeader('access-control-allow-headers', 'authorization, content-type, if-match, x-store-token, x-sample-name, x-openband-client');
@@ -109,7 +110,7 @@ export function createStoreApi({ store, pairing, allowedOrigins = [], storeToken
     const m = req.method;
     const by = String(req.headers['x-openband-client'] ?? '').slice(0, 64);
     const [root, id, sub, vid] = parts;
-    if (root === 'status' && m === 'GET') return json(res, 200, store.status());
+    if (root === 'status' && m === 'GET') return json(res, 200, { ...store.status(), own });
     if (root === 'samples' && id) {
       if (m === 'HEAD' || m === 'GET') {
         const s = store.sampleFile(id);
@@ -214,5 +215,5 @@ export function createStoreApi({ store, pairing, allowedOrigins = [], storeToken
     });
   }
 
-  return { handleHttp, upgrade, emit, events, handles: (pathname) => pathname === `${PREFIX}/events` };
+  return { handleHttp, upgrade, emit, events, store, handles: (pathname) => pathname === `${PREFIX}/events` };
 }

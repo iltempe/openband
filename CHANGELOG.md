@@ -2,6 +2,23 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.3 "A library on your own disk (R1.d)"
+
+### Your songs outlive the browser
+- **Desktop**: songs now live in a library on disk (`library` in the app's data folder), served to the page by a small server inside the app, on this computer only. Clearing the app's web data no longer loses them.
+- **`openband start`**: the same, with `~/.openband/library`, when you open the studio on localhost.
+- **First run with a library**: every song of this browser is copied there, with its versions and samples, and a message says how many. The originals are not deleted.
+- **If the browser's data is gone**, the newest song in the library opens by itself.
+- **Docker**: `docker-compose.yml` now has a `/data` volume with `OPENBAND_STORE=1`. Each browser pairs once. The Projects panel suggests the server's own address.
+- **Rooms** with a library: versions and branch heads are saved as they appear, and the song itself after 30 quiet seconds. Devices in the room follow without a false conflict.
+- ADR 0005: why a folder and not SQLite.
+- Deviations from the spec:
+  - the desktop store is a separate small server in the main process, because the MCP server only runs when an AI client starts it. A library created by `openband mcp` from an AI client stays separate (`~/.openband/library`);
+  - `OPENBAND_STORE_AUTO=0` keeps a local store from being used automatically (the e2e needs it);
+  - empty new songs and the untouched demo stay out of the library until someone works on them.
+- Not done yet: the acceptance run with a real Docker daemon and with the online demo against a real HTTPS server. There is no Docker daemon here, and the compose file was not started.
+- Tests: two room tests against the studio's own reader. **e2e** in Chrome: without a library songs stay in the browser; first run copies them and keeps the originals; a quiet studio sends 0 requests in 3 s; a fresh browser gets the song back from disk.
+
 ## v0.7.2 "Songs on your server, offline too (R1.c)"
 
 ### The Projects panel

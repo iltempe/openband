@@ -13,6 +13,7 @@ const size = (b: number) => (b > 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.ma
 function Row({ p, onDone }: { p: ListedProject; onDone: () => void }) {
   const t = useT();
   const url = useStoreLink((s) => s.url);
+  const own = useStoreLink((s) => s.own);
   const act = (m: string, a: Record<string, unknown>) => run(m, a).then(onDone).catch(notify);
   return (
     <div className="pj-row" data-project={p.id}>
@@ -30,12 +31,12 @@ function Row({ p, onDone }: { p: ListedProject; onDone: () => void }) {
             {t('st.openBtn')}
           </button>
         )}
-        {url && p.source === 'local' && (
+        {url && !own && p.source === 'local' && (
           <button className="btn" onClick={() => void act('move_project', { id: p.id, to: 'server' })}>
             {t('st.toServer')}
           </button>
         )}
-        {p.source === 'server' && (
+        {!own && p.source === 'server' && (
           <button className="btn" onClick={() => void act('move_project', { id: p.id, to: 'local' })}>
             {t('st.toLocal')}
           </button>
@@ -49,7 +50,7 @@ export function ProjectsPanel() {
   const t = useT();
   const link = useStoreLink();
   const [list, setList] = useState<ListedProject[]>([]);
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState(/^https?:/.test(location.protocol) ? location.origin : '');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const songId = useStore((s) => s.project.meta?.projectId);
@@ -66,7 +67,7 @@ export function ProjectsPanel() {
     <div className="pj-panel">
       <section className="pj-link">
         <h4>{t('st.archive')}</h4>
-        {link.url ? (
+        {link.url && !link.own ? (
           <>
             <div className="pj-meta">
               <b>{link.name ?? link.url}</b> · <span className={`pj-badge pj-${link.status.state}`}>{t(`st.state.${link.status.state}` as never)}</span>
@@ -78,6 +79,7 @@ export function ProjectsPanel() {
           </>
         ) : (
           <>
+            {link.own && <p className="pj-meta">{t('st.ownNote')}{link.space ? ` ${t('st.space', { used: size(link.space.used), quota: size(link.space.quota) })}` : ''}</p>}
             <p className="pj-meta">{t('st.intro')}</p>
             <input className="pj-input" aria-label={t('st.url')} placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} />
             <input className="pj-input" aria-label={t('st.code')} placeholder={t('st.code')} value={code} onChange={(e) => setCode(e.target.value)} />

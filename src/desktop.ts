@@ -15,6 +15,8 @@ export interface DesktopClientResult {
 }
 
 export interface DesktopApi {
+  /** The library on disk (R1): a loopback server of the app, on a port that changes at every start. */
+  storeUrl?: string | null;
   version: string;
   platform: string;
   onOpenFile(cb: (file: { name: string; data: Uint8Array }) => void): void;

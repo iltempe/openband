@@ -132,6 +132,7 @@ describe('ServerBackend', () => {
   it('offline, the list and the song come from what is known', async () => {
     const online = { value: true };
     const { b } = client({ online });
+    await b.projects.put(song('a'));
     await b.adopt(song('a'));
     await b.projects.list();
     online.value = false;

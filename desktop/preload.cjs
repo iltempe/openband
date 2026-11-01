@@ -5,6 +5,7 @@ const on = (channel) => (cb) => ipcRenderer.on(channel, (_e, payload) => cb(payl
 
 contextBridge.exposeInMainWorld('openbandDesktop', {
   version: ipcRenderer.sendSync('version'),
+  storeUrl: ipcRenderer.sendSync('store-url'),
   platform: process.platform,
   onOpenFile: on('open-file'),
   onMenu: on('menu'),
