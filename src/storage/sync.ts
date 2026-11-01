@@ -221,15 +221,16 @@ async function migrate(b: ServerBackend) {
 }
 
 async function connectOwn() {
+  const startedWith = idOf(useStore.getState().project);
   const url = await ownStore();
   if (!url) return;
   const b = attach(url, undefined, undefined, true);
   await migrate(b).catch((e) => console.warn('[openband] store:', (e as Error).message));
   // The browser's data was cleared: the library still has the songs.
-  if (untouched(useStore.getState().project)) {
-    const [latest] = await b.projects.list();
-    if (latest) await openProject(latest.id).catch(() => null);
-  }
+  const [latest] = await b.projects.list();
+  // Only if nothing has happened yet: a song someone started meanwhile, even an empty one, stays open.
+  const now = useStore.getState().project;
+  if (latest && idOf(now) === startedWith && untouched(now)) await openProject(latest.id).catch(() => null);
 }
 
 /** At start: back to the server this browser was connected to. It works offline too. */
