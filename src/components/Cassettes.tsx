@@ -4,6 +4,7 @@ import { useT } from '../i18n';
 import { useStore } from '../store';
 import { runCommand } from '../commands';
 import { useBurn } from '../cassette/burn';
+import { useStoreLink } from '../storage/sync';
 import { currentVersion, useDeliverConfirm } from '../cassette';
 import { decide, heatmap, intake, listenForReturns, refreshReturns, useReturns } from '../cassette/returns';
 
@@ -29,6 +30,7 @@ export function CassettesPanel() {
   const [password, setPassword] = useState('');
   const [result, setResult] = useState('');
   const step = useBurn((s) => s.step);
+  const link = useStoreLink((s) => s.url);
   const opus = useBurn((s) => s.warning === 'opus');
   const ask = useDeliverConfirm((s) => s.ask);
   const song = useStore((s) => s.project.name);
@@ -55,7 +57,7 @@ export function CassettesPanel() {
     setB([]);
     refresh();
   };
-  const deliver = (series: string, mode: 'file' | 'static') => {
+  const deliver = (series: string, mode: 'file' | 'static' | 'instance') => {
     setResult('');
     void run('deliver_cassette', { series, mode, password: password || undefined })
       .then((r) => setResult(JSON.stringify(r)))
@@ -99,6 +101,8 @@ export function CassettesPanel() {
             <div className="pj-actions">
               <button className="btn" onClick={() => deliver(c.series, 'file')}>{t('ca2.file')}</button>
               <button className="btn" onClick={() => deliver(c.series, 'static')}>{t('ca2.folder')}</button>
+              {link && <button className="btn" onClick={() => deliver(c.series, 'instance')}>{t('ca2.instance')}</button>}
+              {link && <button className="btn" onClick={() => void run('retire_cassette', { series: c.series }).catch(notify)}>{t('ca2.retire')}</button>}
               <button className="btn" onClick={() => void run('new_edition', { series: c.series }).then(refresh).catch(notify)}>{t('ca2.reprint')}</button>
             </div>
           </div>

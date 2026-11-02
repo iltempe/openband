@@ -1,5 +1,5 @@
 import { intake, refreshReturns, useReturns } from './cassette/returns';
-import { createCassette, deliverCassette, listAll, newEdition } from './cassette';
+import { createCassette, deliverCassette, listAll, newEdition, retireCassette } from './cassette';
 import { checkProposal, closeProposal, commentProposal, createProposal, exportProposal, forkProject, getProposal, importProposal, listProposals, mergeProposal, reviewProposal } from './proposals';
 import { getSnapshot, useVersions } from './versioning';
 import { measureWith, prepare as prepareStems, renderStats } from './tests/measure';
@@ -1347,7 +1347,8 @@ export const commands: Record<string, (args: P) => unknown> = {
   create_cassette: ({ title, artist, dedication, notes, sides, options, quality, signaling }) => createCassette({ title: String(title ?? ''), artist, dedication, notes, sides, options, quality, signaling }),
   list_cassettes: () => listAll(),
   new_edition: ({ series, sides }) => newEdition({ series: String(series ?? ''), sides }),
-  deliver_cassette: ({ series, mode, password, target }) => deliverCassette({ series: String(series ?? ''), mode: mode === 'static' ? 'static' : 'file', password, target }),
+  deliver_cassette: ({ series, mode, password, target }) => deliverCassette({ series: String(series ?? ''), mode: mode === 'static' ? 'static' : mode === 'instance' ? 'instance' : 'file', password, target }),
+  retire_cassette: ({ series }) => retireCassette(String(series ?? '')),
 
   list_returns: async ({ series, track }) => {
     await refreshReturns();

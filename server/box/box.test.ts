@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SAMPLE_RATE as SR } from './capture.mjs';
 import { applyFlags, BOX_DEFAULTS, parseArgs, toForget } from './config.mjs';
 import { launchdPlist, systemdUnit } from './service.mjs';
+import { tunnelCommand, tunnelUrl } from './tunnel.mjs';
 
 let dir: string;
 beforeEach(() => void (dir = fs.mkdtempSync(path.join(os.tmpdir(), 'openband-boxcli-'))));
@@ -31,6 +32,18 @@ describe('settings', () => {
     expect(u).toContain('Restart=always');
     expect(u).toContain('SupplementaryGroups=audio gpio');
     expect(launchdPlist({ node: 'n', bin: 'b', data: 'd', log: 'l' })).toContain('<key>KeepAlive</key>');
+  });
+});
+
+describe('the tunnel', () => {
+  it('finds the public address in what the tool prints', () => {
+    expect(tunnelUrl('INF |  https://calm-river.trycloudflare.com  |')).toBe('https://calm-river.trycloudflare.com');
+    expect(tunnelUrl('Available on the internet: https://box.tail1234.ts.net/')).toBe('https://box.tail1234.ts.net/');
+    expect(tunnelUrl('starting')).toBeNull();
+  });
+  it('asks each tool in its own way', () => {
+    expect(tunnelCommand('cloudflared', 7777).args).toContain('http://localhost:7777');
+    expect(tunnelCommand('tailscale', 7777)).toEqual({ cmd: 'tailscale', args: ['funnel', '7777'] });
   });
 });
 

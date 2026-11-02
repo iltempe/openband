@@ -97,6 +97,8 @@ export interface BurnSpec {
   quality?: 96 | 160 | 256;
   normalize?: boolean;
   intro?: { channels: Float32Array[]; sampleRate: number };
+  /** The instance that serves it: returns go straight there, and later prints are announced there. */
+  instance?: string;
   /** Signaling servers the musician chose: the P2P road for returns. */
   signaling?: string[];
   /** An existing series: a new print keeps its key and signature. */
@@ -162,7 +164,7 @@ export async function burn(spec: BurnSpec): Promise<StoredCassette> {
     blobs.intro = data;
     intro = await blobRef('intro', 'audio/mp4', data);
   }
-  const manifest: CassetteManifest = { format: 'openband-cassette/1', seriesId, edition, createdAt: Date.now(), title: spec.title, artist: spec.artist, dedication: spec.dedication, notes: spec.notes, jcard: { cover: await blobRef('cover', 'image/png', cover), style: 'bold' }, intro, sides, options: { ...DEFAULT_OPTIONS, ...spec.options }, author: { name: spec.artist, signKey: id.sign.publicKey, boxKey: id.box.publicKey }, returns: [...(spec.returns ?? []), ...(spec.signaling?.length ? [{ kind: 'webrtc' as const, signaling: spec.signaling, room: await returnsRoom(key) }] : [])] };
+  const manifest: CassetteManifest = { format: 'openband-cassette/1', seriesId, edition, createdAt: Date.now(), title: spec.title, artist: spec.artist, dedication: spec.dedication, notes: spec.notes, jcard: { cover: await blobRef('cover', 'image/png', cover), style: 'bold' }, intro, sides, options: { ...DEFAULT_OPTIONS, ...spec.options }, author: { name: spec.artist, signKey: id.sign.publicKey, boxKey: id.box.publicKey }, updates: spec.instance ? [`${spec.instance}/c/${seriesId}/latest.bin`] : undefined, returns: [...(spec.returns ?? []).filter((r) => r.kind !== 'webrtc'), ...(spec.instance?.startsWith('https:') ? [{ kind: 'https' as const, url: spec.instance }] : []), ...(spec.signaling?.length ? [{ kind: 'webrtc' as const, signaling: spec.signaling, room: await returnsRoom(key) }] : [])] };
   useBurn.setState({ step: 'sealing' });
   const pkg = await packCassette(manifest, blobs, key, id.sign.privateKey);
   const stored: StoredCassette = { id: `${seriesId}:${edition}`, seriesId, edition, key, title: spec.title, manifest, pkg, createdAt: manifest.createdAt };

@@ -526,7 +526,9 @@ tool('list_cassettes', 'The cassettes burnt here, with their prints.', {}, readO
 
 tool('new_edition', 'Print a cassette again, with new mixes: the same key and signature, the next print number.', { series: z.string(), sides: z.array(z.any()).optional() });
 
-tool('deliver_cassette', 'Give a cassette away: mode "file" (one .html) or "static" (a folder for any static host). The user must confirm it in the studio: a cassette given away cannot be taken back.', { series: z.string(), mode: z.enum(['file', 'static']), password: z.string().optional(), target: z.record(z.unknown()).optional() });
+tool('deliver_cassette', 'Give a cassette away: mode "file" (one .html), "static" (a folder for any static host) or "instance" (served by the connected server). The user must confirm it in the studio: a cassette given away cannot be taken back.', { series: z.string(), mode: z.enum(['file', 'static', 'instance']), password: z.string().optional(), target: z.record(z.unknown()).optional() });
+
+tool('retire_cassette', 'Take a cassette off the connected server: links stop working, except copies saved offline. The user must confirm it in the studio.', { series: z.string() });
 
 tool('list_returns', 'What listeners sent back from the cassettes: reactions, comments and voice notes, each placed on the music.', { series: z.string().optional(), track: z.string().optional() }, readOnly);
 
@@ -1049,7 +1051,7 @@ export const TOOLSETS = {
   mix: { description: 'Effects per track, master chain, the mix pilot\'s knob, automation, meters and listening (analyze_mix, spectrogram), reference tracks', tools: ['set_track_effects', 'set_master_chain', 'set_pilot_amount', 'fix_pilot', 'set_track_role', 'set_automation', 'clear_automation', 'list_automatable', 'get_meters', 'set_monitoring', 'level_match', 'analyze_mix', 'render_spectrogram', 'import_reference', 'compare_to_reference', 'clear_reference'] },
   analysis: { description: 'Harmony and key analysis, the song linter and its fixes', tools: ['analyze_harmony', 'detect_key', 'lint_project', 'apply_fix', 'ignore_issue'] },
   recording: { description: 'Recording audio and MIDI, punch-in, takes and comping, blind A/B tests, flub marks', tools: ['record_audio', 'arm_track', 'set_track_midi_input', 'map_midi_channels', 'set_punch', 'audio_to_midi', 'add_take', 'list_takes', 'set_active_take', 'delete_take', 'comp_takes', 'start_ab_test', 'add_flub', 'list_flubs', 'resolve_flub', 'delete_flub', 'replace_with_best_take', 'set_voice_control', 'start_session', 'stop_session', 'get_session'] },
-  cassette: { description: 'Cassettes: tapes to give to people, encrypted, with their own player', tools: ['create_cassette', 'list_cassettes', 'new_edition', 'deliver_cassette', 'list_returns', 'import_return'] },
+  cassette: { description: 'Cassettes: tapes to give to people, encrypted, with their own player', tools: ['create_cassette', 'list_cassettes', 'new_edition', 'deliver_cassette', 'retire_cassette', 'list_returns', 'import_return'] },
   review: { description: 'Musical pull requests: fork, propose, review, merge', tools: ['fork_project', 'create_proposal', 'list_proposals', 'get_proposal', 'comment_proposal', 'review_proposal', 'merge_proposal', 'close_proposal', 'check_proposal', 'export_proposal', 'import_proposal'] },
   tests: { description: 'Song tests: assertions on the mix and the notes, run like a CI', tools: ['list_tests', 'add_test', 'update_test', 'remove_test', 'run_tests', 'set_baseline', 'add_test_suite'] },
   versions: { description: 'History, versions and branches, merge, the time machine', tools: ['get_history', 'save_version', 'list_versions', 'analyze_rehearsal', 'list_projects', 'open_project', 'move_project', 'store_status', 'create_branch', 'checkout', 'diff_versions', 'merge', 'get_timeline', 'preview_at', 'restore_at'] },

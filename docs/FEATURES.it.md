@@ -60,7 +60,7 @@
 - **Annulla per intento**: tutto ciò che l'AI fa per una richiesta è un solo passo di annullamento con etichetta (*“Annulla: Beat lo-fi (23 comandi)”*); trascinamenti e manopole contano un passo ciascuno. **Plugin compresi**: quello che cambi nella finestra di un plugin (preset, modalità, wavetable — non solo le manopole automatizzabili) e ogni `set_plugin_params` sono anch'essi passi di annullamento, e l'annulla rimette il plugin esattamente nello stato in cui era.
 - **Annulla/ripristina**, salvataggio automatico, **esportazione WAV** con rendering offline (da 44,1 a 96 kHz, 16 bit con dither, 24 bit o 32 bit float); i progetti con suoni importati si salvano in un unico file `.openband` che contiene i campioni.
 - **Progetti e archivio**: il pannello *Progetti* elenca i brani in questo browser e su un tuo server; il browser resta la copia di lavoro, anche offline, e due dispositivi che cambiano lo stesso brano non si sovrascrivono mai ([self-hosting](SELF-HOSTING.it.md)).
-- **Controllo AI via MCP**: 209 strumenti per comporre, arrangiare, importare suoni, aggiungere plugin, mixare, automatizzare ed esportare: l'AI può aggiungere un plugin solo a partire da una descrizione come *“un overdrive valvolare caldo”*.
+- **Controllo AI via MCP**: 210 strumenti per comporre, arrangiare, importare suoni, aggiungere plugin, mixare, automatizzare ed esportare: l'AI può aggiungere un plugin solo a partire da una descrizione come *“un overdrive valvolare caldo”*.
 - Interfaccia in **inglese e italiano**: l'inglese è predefinito, si cambia dalla schermata iniziale o dal menu ⋯.
 
 | Piano roll | Mixer |

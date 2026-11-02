@@ -100,6 +100,7 @@ function listen(b: ServerBackend, token: string | undefined, instance: string | 
 
 /** Another device changed the open song: follow it, unless there is work here still to send (then a conflict decides). */
 async function onEvent(b: ServerBackend, e: { kind: string; id?: string; etag?: string | null; by?: string }) {
+  if (e.kind === 'inbox') return void import('../cassette/returns').then((m) => m.drainInbox());
   if (e.kind !== 'project_changed' || !e.id || !e.etag || e.by === pageId) return;
   if (idOf(useStore.getState().project) !== e.id || b.etagOf(e.id) === e.etag) return;
   if (useCollab.getState().room) return b.followed(e.id, e.etag);

@@ -2,6 +2,19 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.16 "From my own OpenBand (D3.b)"
+
+- **Serve a cassette from your server or Box**: *From my OpenBand* uploads it to `/c/<series>/<print>/`. The server keeps only sealed files, and its pages are marked not to be indexed.
+- **An inbox for returns**, `POST /api/cassette/v1/inbox`: open to the internet, it takes only sealed packets for a cassette it knows, up to 70 MB, 30 a minute per address, and says nothing useful to the rest. The studio collects packets at once when it is open, and removes them from the server.
+- **Tunnels**: `openband box --tunnel cloudflared|tailscale` starts one you have set up and prints the public address.
+- **Prints**: a new print updates a signed note; the player shows "Print 2 is out". Old prints keep playing.
+- **Retire**: takes it down, with a confirmation in the studio. Copies saved offline keep playing. `retire_cassette`: 210 tools, 205 in the page.
+- Deviations from the spec:
+  - the Desktop app has no tunnel switch yet: only `openband box` has it;
+  - reachability is left to your own check from the phone, with no QR yet.
+- Not tried with real tunnels: `cloudflared` and Tailscale were not run. Their output is parsed from examples.
+- Tests: serving, path escapes, retiring, the inbox's refusals, the rate limit, the tunnel's address.
+
 ## v0.7.15 "The return tape (D2.a)"
 
 - **From the player**: chills ✨, again 🔁, not sure here 🤔, a word on this moment, or a voice note up to 30 s. The first time, the listener picks a name.

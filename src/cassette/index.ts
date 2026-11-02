@@ -4,7 +4,10 @@ import { download } from '../audio/render';
 import { uid } from '../music';
 import { useStore } from '../store';
 import { saveVersion, useVersions } from '../versioning';
-import { burn, getCassette, latestOf, listCassettes, type BurnSpec, type StoredCassette } from './burn';
+import { backend } from '../storage';
+import { ServerBackend } from '../storage/server';
+import { canonical, seal, signText } from './crypto';
+import { burn, getCassette, identity, latestOf, listCassettes, type BurnSpec, type StoredCassette } from './burn';
 import type { CassetteOptions } from './format';
 import { fileCassette, folderFiles, folderZip } from './deliver';
 import { cassetteLink } from './format';
@@ -34,7 +37,7 @@ export async function createCassette(a: { title: string; artist?: string; dedica
   const title = a.title?.trim();
   if (!title) throw new Error('A cassette needs a title');
   const sides = a.sides ?? [{ name: 'A' as const, tracks: [{ versionId: await currentVersion() }] }];
-  const c = await burn({ title, artist: a.artist?.trim() || useStore.getState().project.release?.artist || 'OpenBand', dedication: a.dedication, notes: a.notes, sides, options: a.options, quality: a.quality, signaling: a.signaling });
+  const c = await burn({ title, artist: a.artist?.trim() || useStore.getState().project.release?.artist || 'OpenBand', dedication: a.dedication, notes: a.notes, sides, options: a.options, quality: a.quality, signaling: a.signaling, instance: instanceUrl() });
   void listenForReturns();
   return summary(c);
 }
@@ -47,6 +50,38 @@ export async function newEdition(a: { series: string; sides?: BurnSpec['sides'] 
   if (!last) throw new Error(`No cassette "${a.series}". Call list_cassettes.`);
   const sides = a.sides ?? last.manifest.sides.map((s) => ({ name: s.name, tracks: s.tracks.map((t) => ({ versionId: t.versionId, title: t.title, note: t.note })) }));
   return summary(await burn({ title: last.title, artist: last.manifest.artist, dedication: last.manifest.dedication, notes: last.manifest.notes, sides, options: last.manifest.options, series: { seriesId: last.seriesId, key: last.key, edition: last.edition }, returns: last.manifest.returns }));
+}
+
+const instanceUrl = () => (backend() instanceof ServerBackend ? (backend() as ServerBackend).url : undefined);
+
+/** A signed note saying which print is the latest: the player looks for it. */
+async function latestNote(c: StoredCassette) {
+  const id = await identity();
+  const note = { seriesId: c.seriesId, edition: c.edition, at: Date.now() };
+  return seal(c.key, new TextEncoder().encode(JSON.stringify({ note, signature: await signText(id.sign.privateKey, canonical(note)) })));
+}
+
+/** Upload to the connected instance: /c/<series>/<print>/. The server only ever holds what is sealed. */
+async function toInstance(c: StoredCassette, password?: string) {
+  const b = backend();
+  if (!(b instanceof ServerBackend)) throw new Error('Connect to your server first: Projects → Archive.');
+  const put = async (name: string, data: Uint8Array) => {
+    const r = await b.req(`/cassettes/${c.seriesId}/${name}`, { method: 'PUT', body: data as BodyInit });
+    if (!r.ok) throw new Error(r.status === 507 ? 'The library on the server is full' : `The server refused ${name}`);
+  };
+  for (const [name, data] of Object.entries(await folderFiles(c, password))) await put(`${c.edition}/${name}`, data);
+  await put('latest.bin', await latestNote(c));
+  return cassetteLink(`${b.url}/c/${c.seriesId}/${c.edition}/`, c.seriesId, password ? null : c.key);
+}
+
+/** Take it off the instance. Copies already saved keep playing. */
+export async function retireCassette(series: string) {
+  const c = await latestOf(series);
+  const b = backend();
+  if (!c || !(b instanceof ServerBackend)) throw new Error('Retiring needs the cassette and its server.');
+  if (!(await confirm(c.title, 'retire'))) throw new Error('Not retired: the user did not confirm it in the studio.');
+  await b.req(`/cassettes/${series}`, { method: 'DELETE' });
+  return { series, retired: true };
 }
 
 /** GitHub Pages with the musician's own token: one folder per series in their repository. */
@@ -66,10 +101,11 @@ export async function publishGitHub(c: StoredCassette, o: { token: string; repo:
   return `https://${owner}.github.io/${name}/${c.seriesId}/`;
 }
 
-export async function deliverCassette(a: { series: string; mode: 'file' | 'static'; password?: string; target?: { github?: { token: string; repo: string } } }) {
+export async function deliverCassette(a: { series: string; mode: 'file' | 'static' | 'instance'; password?: string; target?: { github?: { token: string; repo: string } } }) {
   const c = await latestOf(a.series);
   if (!c) throw new Error(`No cassette "${a.series}". Call list_cassettes.`);
   if (!(await confirm(c.title, a.mode))) throw new Error('Not delivered: the user did not confirm it in the studio. A cassette given away cannot be taken back.');
+  if (a.mode === 'instance') return { link: await toInstance(c, a.password) };
   if (a.mode === 'file') {
     const f = await fileCassette(c, a.password);
     download(new Blob([f.html], { type: 'text/html' }), f.filename);

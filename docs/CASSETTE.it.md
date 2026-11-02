@@ -17,6 +17,8 @@ Tutti i brani escono allo stesso volume (−14 LUFS, −1 dBTP), come su un nast
 - **Un file**: `Titolo – Artista.cassetta.html`, per email, chat o chiavetta. Usa una password: un file gira. Non si può ritirare. Su iPhone un `.html` ricevuto in chat spesso si apre in anteprima senza audio, quindi per gli iPhone usa un link.
 - **Cartella per un sito**: caricala dove vuoi, su qualunque spazio che serva file statici, poi aggiungi `#k=…&s=…` al suo indirizzo. Quella parte te la dà lo studio.
 
+- **Dal mio OpenBand**: quando lo studio è collegato al tuo server o Box, la cassetta è servita da `/c/<serie>/<stampa>/`. In LAN funziona subito. Per arrivare su internet, `openband box --tunnel cloudflared` o `--tunnel tailscale` avvia un tunnel che hai configurato e stampa l'indirizzo pubblico: controllalo dal telefono. Su questa strada i ritorni arrivano direttamente al tuo server in HTTPS, *Ritira* toglie la cassetta, e chi ascolta vede quando esce una nuova stampa.
+
 ## Cosa torna indietro
 
 Se lo permetti, chi ascolta può reagire su un punto, scrivere una parola o lasciare un vocale. Tutto è sigillato in modo che solo il tuo studio possa leggerlo. Ti arriva direttamente, dal tuo server di signaling mentre lo studio è aperto, oppure come file `.risposta` che ti mandano. I ritorni finiscono sulla battuta in cui sono nati e restano su quella frase anche se riarrangi il brano.

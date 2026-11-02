@@ -17,6 +17,8 @@ All songs come out at the same loudness (−14 LUFS, −1 dBTP), as on a well-ma
 - **One file**: `Title – Artist.cassetta.html`, for mail, chat or a USB stick. Use a password: a file travels. It can't be taken back. On iPhone, an `.html` received in a chat often opens as a preview with no sound, so for iPhones use a link.
 - **Folder for a site**: upload it to anything that serves static files, then add `#k=…&s=…` to its address. The studio gives you that part.
 
+- **From my OpenBand**: when the studio is connected to your server or Box, it serves the cassette at `/c/<series>/<print>/`. On a LAN it works at once. To reach the internet, `openband box --tunnel cloudflared` or `--tunnel tailscale` starts a tunnel you have set up, and prints the public address: check it from your phone. On this road listeners' returns reach your server directly over HTTPS, *Retire* takes the cassette down, and listeners see when a new print is out.
+
 ## What comes back
 
 If you allow it, listeners can react on a moment, write a word, or leave a voice note. It is sealed so only your studio can read it. It reaches you directly, through your own signaling server while the studio is open, or as a `.risposta` file they send you. Returns land on the bar where they were made, and stay on that phrase even if you rearrange the song.

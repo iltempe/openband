@@ -10,6 +10,7 @@ import { canonicalJSON as clientCanonical } from '../../src/versions/canonical';
 import { canonicalJSON } from './canonical.mjs';
 import { FsStore, StoreError, etagOf, safeId } from './fs.mjs';
 import { createStoreApi, isLocalRequest, PREFIX } from './api.mjs';
+import { RateLimit } from './cassettes.mjs';
 import { Pairing } from '../pairing.mjs';
 import * as Y from 'yjs';
 import { readProject, writeProject } from '../../src/collab/binding';
@@ -207,6 +208,40 @@ describe('the API', () => {
     await start();
     expect((await (await fetch(`${base}/projects/a/proposals`)).json()).map((p: { number: number }) => p.number)).toEqual([1, 2]);
     expect(store.branches('a').map((b: { name: string }) => b.name)).toEqual(['pr/1', 'pr/2']);
+  });
+  it('serves a cassette to anyone, and takes it down', async () => {
+    await start();
+    const root = base.replace('/api/store/v1', '');
+    expect((await fetch(`${base}/cassettes/tape1/1/index.html`, { method: 'PUT', body: '<!doctype html>' })).status).toBe(200);
+    expect((await fetch(`${base}/cassettes/tape1/1/b/x.bin`, { method: 'PUT', body: 'noise' })).status).toBe(200);
+    const page = await fetch(`${root}/c/tape1/1/`);
+    expect(page.headers.get('content-type')).toContain('text/html');
+    expect(await (await fetch(`${root}/c/tape1/1/b/x.bin`)).text()).toBe('noise');
+    expect((await fetch(`${root}/c/tape1/1/../../tokens.json`)).status).toBe(404);
+    expect((await fetch(`${root}/c/tape1/1/secret.txt`)).status).toBe(404);
+    expect((await fetch(`${base}/cassettes/tape1/../evil/x`, { method: 'PUT', body: 'x' })).status).toBeGreaterThanOrEqual(400);
+    await fetch(`${base}/cassettes/tape1`, { method: 'DELETE' });
+    expect((await fetch(`${root}/c/tape1/1/`)).status).toBe(404);
+  });
+  it('the inbox takes only sealed packets for a known cassette, and says nothing to the rest', async () => {
+    await start();
+    const inbox = `${base.replace('/api/store/v1', '')}/api/cassette/v1/inbox`;
+    const packet = JSON.stringify({ format: 'openband-reply-box/1', body: 'x' });
+    await fetch(`${base}/cassettes/tape1/1/c.bin`, { method: 'PUT', body: 'x' });
+    expect((await fetch(`${inbox}?s=nope`, { method: 'POST', body: packet })).status).toBe(404);
+    expect((await fetch(`${inbox}?s=tape1`, { method: 'POST', body: 'hello' })).status).toBe(404);
+    expect((await fetch(`${inbox}?s=tape1`, { method: 'POST', body: packet })).status).toBe(202);
+    const [id] = await (await fetch(`${base}/cassettes/inbox`)).json();
+    expect(await (await fetch(`${base}/cassettes/packet/${id}`)).json()).toMatchObject({ body: 'x' });
+    await fetch(`${base}/inbox-done/${id}`, { method: 'POST' });
+    expect(await (await fetch(`${base}/cassettes/inbox`)).json()).toEqual([]);
+  });
+  it('slows down whoever floods the inbox', () => {
+    let t = 0;
+    const r = new RateLimit({ max: 2, windowMs: 100, now: () => t });
+    expect([r.take('a'), r.take('a'), r.take('a'), r.take('b')]).toEqual([true, true, false, true]);
+    t = 200;
+    expect(r.take('a')).toBe(true);
   });
   it('tells listeners what changed, on a socket that needs no token here', async () => {
     await start();

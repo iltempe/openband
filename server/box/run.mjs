@@ -7,6 +7,7 @@ import { applyFlags, dataDir, newPin, parseArgs, readBox, toForget, writeBox } f
 import { importSession } from './project.mjs';
 import { installService, uninstallService } from './service.mjs';
 import { startControls } from './controls.mjs';
+import { startTunnel } from './tunnel.mjs';
 import { spawnSync } from 'node:child_process';
 
 const sizeOf = (dir) => fs.readdirSync(dir, { withFileTypes: true }).reduce((n, e) => n + (e.isDirectory() ? sizeOf(path.join(dir, e.name)) : fs.statSync(path.join(dir, e.name)).size), 0);
@@ -118,7 +119,7 @@ export class Box {
     } catch {
       // older Node
     }
-    return { state: !this.cfg.armed ? 'off' : r.session ? 'recording' : 'armed', level: r.gate.level ?? -120, session: r.session?.id ?? null, channels: this.cfg.channels, names: this.cfg.names, project: this.cfg.project, keep: this.cfg.keep, error: this.error, disk };
+    return { state: !this.cfg.armed ? 'off' : r.session ? 'recording' : 'armed', level: r.gate.level ?? -120, session: r.session?.id ?? null, channels: this.cfg.channels, names: this.cfg.names, project: this.cfg.project, keep: this.cfg.keep, error: this.error, disk, publicUrl: this.publicUrl ?? null };
   }
 }
 
@@ -142,6 +143,7 @@ async function serve(dir, cfg, sourceFile) {
   storeApi.box = box;
   box.recover();
   console.error(report(cfg));
+  if (cfg.tunnel) startTunnel(cfg.tunnel, cfg.port, { onUrl: (url) => ((box.publicUrl = url), console.error(`  public:  ${url}\n  Check it from your phone before you trust it.`)), onError: (m) => (box.error = m) });
   const stop = () => {
     box.recorder.stop();
     process.exit(0);

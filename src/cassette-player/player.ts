@@ -1,6 +1,6 @@
 // The cassette's own player (D1.3): plain TypeScript and DOM, bundled into every cassette. No external request,
 // ever: a cassette of today must still play when OpenBand is gone.
-import { open, fingerprint, unlockKey } from '../cassette/crypto';
+import { canonical, fingerprint, open, unlockKey, verifyText } from '../cassette/crypto';
 import { b64, newListener, sealReply, type Reply, type ReplyItem } from '../cassette/reply';
 import { sendP2P } from '../cassette/p2p';
 import { openManifest, parseLink, signerState, sideSeconds, type CassetteManifest, type CassetteTrack } from '../cassette/format';
@@ -137,7 +137,7 @@ async function deliver(u: Ui, text: string, say: (s: string) => void) {
   const { m } = u;
   for (const r of m.returns) {
     if (r.kind === 'https') {
-      const ok = await fetch(`${r.url}/api/cassette/v1/inbox`, { method: 'POST', body: text }).then((x) => x.ok, () => false);
+      const ok = await fetch(`${r.url}/api/cassette/v1/inbox?s=${m.seriesId}`, { method: 'POST', body: text }).then((x) => x.ok, () => false);
       if (ok) return say(T('Delivered.', 'Consegnato.'));
     }
     if (r.kind === 'webrtc' && (await sendP2P(r.signaling, r.room, text))) return say(T('Delivered.', 'Consegnato.'));
@@ -233,6 +233,20 @@ function returnsBox(u: Ui, track: () => CassetteTrack, now: () => number) {
     for (const q of waiting) void deliver(u, q.text, say);
   }
   return box;
+}
+
+/** A later print, if one of the declared addresses signs for it. */
+async function newerPrint(u: Ui) {
+  for (const url of u.m.updates ?? []) {
+    try {
+      const sealed = new Uint8Array(await (await fetch(url, { cache: 'no-store' })).arrayBuffer());
+      const { note, signature } = JSON.parse(new TextDecoder().decode(await open(u.key, sealed))) as { note: { edition: number; seriesId: string }; signature: string };
+      if (note.seriesId === u.m.seriesId && note.edition > u.m.edition && (await verifyText(u.m.author.signKey, canonical(note), signature))) return note.edition;
+    } catch {
+      // offline or gone: nothing to say
+    }
+  }
+  return 0;
 }
 
 function render(u: Ui, signNote: string) {
@@ -348,6 +362,7 @@ function render(u: Ui, signNote: string) {
   }
   document.body.replaceChildren(root);
   document.body.append(u.audio);
+  void newerPrint(u).then((n) => n && root.prepend($('p', 'newer', T(`Print ${n} is out: there is a new mix.`, `È uscita la stampa ${n}: c'è un nuovo mix.`))));
   drawSide();
   void urlOf(u, m.jcard.cover.id, m.jcard.cover.type).then((src) => (shell.style.backgroundImage = `url(${src})`));
   if (m.options.reactions) root.append(returnsBox(u, current, () => u.audio.currentTime));

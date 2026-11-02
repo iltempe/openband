@@ -2,7 +2,9 @@
 import { create } from 'zustand';
 import { importSample } from '../audio/samples';
 import { BEATS_PER_BAR, uid } from '../music';
+import { backend } from '../storage';
 import { tx } from '../storage/idb';
+import { ServerBackend } from '../storage/server';
 import { useStore } from '../store';
 import type { Annotation, Project } from '../types';
 import { getSnapshot } from '../versioning';
@@ -104,11 +106,25 @@ export function heatmap(returns: Pick<StoredReturn, 'items'>[], durationS: numbe
   return { hot, heard };
 }
 
+/** Whatever the instance's inbox holds comes here, and leaves the server. */
+export async function drainInbox() {
+  const b = backend();
+  if (!(b instanceof ServerBackend)) return;
+  const r = await b.req('/cassettes/inbox').catch(() => null);
+  if (!r?.ok) return;
+  for (const id of (await r.json()) as string[]) {
+    const p = await b.req(`/cassettes/packet/${id}`);
+    await intake(await p.text()).catch((e) => console.warn('[openband] return:', (e as Error).message));
+    await b.req(`/inbox-done/${id}`, { method: 'POST' });
+  }
+}
+
 let stops: (() => void)[] = [];
 /** While the studio is open, the P2P road is open. */
 export async function listenForReturns() {
   stops.forEach((s) => s());
   stops = [];
+  await drainInbox();
   const latest = new Map((await listCassettes()).map((c) => [c.seriesId, c]));
   for (const c of latest.values())
     for (const r of c.manifest.returns)

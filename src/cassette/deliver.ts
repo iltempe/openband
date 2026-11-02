@@ -12,8 +12,8 @@ const b64 = (b: Uint8Array) => {
 };
 
 /** No request but its own and the return channels it declares. */
-export const playerCsp = (returns: StoredCassette['manifest']['returns'], file: boolean) => {
-  const connect = returns.flatMap((r) => (r.kind === 'https' ? [new URL(r.url).origin] : r.signaling));
+export const playerCsp = (returns: StoredCassette['manifest']['returns'], file: boolean, updates: string[] = []) => {
+  const connect = [...returns.flatMap((r) => (r.kind === 'https' ? [new URL(r.url).origin] : r.signaling)), ...updates.map((u) => new URL(u).origin)];
   return [`default-src 'none'`, `script-src 'unsafe-inline'`, `style-src 'unsafe-inline'`, `img-src blob: data:`, `media-src blob:`, `connect-src ${file ? '' : "'self'"} blob: ${connect.join(' ')}`.replace(/\s+/g, ' ').trim(), `worker-src 'self'`].join('; ');
 };
 
@@ -34,7 +34,7 @@ async function assets() {
 export async function fileCassette(c: StoredCassette, password?: string) {
   const { script, css } = await assets();
   const data = { manifest: b64(c.pkg.manifest), blobs: Object.fromEntries(Object.entries(c.pkg.blobs).map(([k, v]) => [k, b64(v)])), ...(password ? { lock: await lockKey(c.key, password) } : {}) };
-  const html = playerHtml({ script, css, csp: playerCsp(c.manifest.returns, true), data });
+  const html = playerHtml({ script, css, csp: playerCsp(c.manifest.returns, true, c.manifest.updates), data });
   return { html, bytes: html.length, tooBig: html.length > FILE_WARN_BYTES, filename: `${c.title} – ${c.manifest.artist}.cassetta.html` };
 }
 
@@ -43,7 +43,7 @@ export async function folderFiles(c: StoredCassette, password?: string) {
   const { script, css } = await assets();
   const blobNames = Object.keys(c.pkg.blobs).map((id) => `b/${id}.bin`);
   const files: Record<string, Uint8Array> = {
-    'index.html': strToU8(playerHtml({ script, css, csp: playerCsp(c.manifest.returns, false), manifestLink: true })),
+    'index.html': strToU8(playerHtml({ script, css, csp: playerCsp(c.manifest.returns, false, c.manifest.updates), manifestLink: true })),
     'sw.js': strToU8(SW),
     'app.webmanifest': strToU8(JSON.stringify({ name: 'Cassette', display: 'standalone', start_url: '.', background_color: '#17140f', theme_color: '#17140f' })),
     'files.json': strToU8(JSON.stringify(['.', 'c.bin', ...blobNames])),

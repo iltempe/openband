@@ -51,6 +51,7 @@ export function applyFlags(cfg, f) {
   if (f.project) next.project = String(f.project);
   if (f.threshold !== undefined) next.threshold = Number(f.threshold);
   if (f.port) next.port = Number(f.port);
+  if (f.tunnel) next.tunnel = String(f.tunnel);
   if (typeof f.pin === 'string') next.pin = f.pin.replace(/\D/g, '').padStart(6, '0').slice(-6);
   return next;
 }

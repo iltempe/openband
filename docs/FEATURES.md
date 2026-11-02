@@ -60,7 +60,7 @@
 - **Undo by intent**: everything the AI does for one request is a single, labelled undo step (*“Undo: Lo-fi beat (23 commands)”*); drags and knob turns are one step each. **Plugins included**: whatever you change in a plugin's own window (presets, modes, wavetables — not just automatable knobs) and every `set_plugin_params` is an undo step too, and undo puts the plugin back in exactly the state it was in.
 - **Undo/redo**, autosave, **WAV export** with offline rendering (44.1 to 96 kHz, 16-bit with dither, 24-bit or 32-bit float); projects with imported sounds are saved as a single `.openband` file that bundles the samples.
 - **Projects and archive**: a *Projects* panel lists the songs in this browser and on a server of yours; the browser stays the working copy, offline too, and two devices editing the same song never overwrite each other ([self-hosting](SELF-HOSTING.md)).
-- **AI control via MCP**: 209 tools to compose, arrange, import sounds, add plugins, mix, automate and export — the AI can add a plugin just from a description such as *“a warm tube overdrive”*.
+- **AI control via MCP**: 210 tools to compose, arrange, import sounds, add plugins, mix, automate and export — the AI can add a plugin just from a description such as *“a warm tube overdrive”*.
 - **English and Italian** interface (switch from the start screen or the ⋯ menu).
 
 | Piano roll | Mixer |

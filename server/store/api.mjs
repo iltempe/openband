@@ -10,6 +10,7 @@ import path from 'node:path';
 import { classifyOrigin } from '../pairing.mjs';
 import { EventBuffer } from '../events.mjs';
 import { StoreError } from './fs.mjs';
+import { CassetteHost, MAX_RETURN, RateLimit } from './cassettes.mjs';
 
 export const PREFIX = '/api/store/v1';
 const MAX_JSON = 256 * 1024 * 1024;
@@ -72,6 +73,9 @@ export function createStoreApi({ store, pairing, allowedOrigins = [], storeToken
     for (const ws of sockets) if (ws.readyState === 1) ws.send(text);
   };
 
+  const cassettes = new CassetteHost(store.dir);
+  const perIp = new RateLimit({ max: 30, windowMs: 60000 });
+
   const tokenOk = (t) => typeof t === 'string' && t.length > 0 && tokens.has(sha(t));
 
   /** 'ok' or the reason to refuse. */
@@ -128,6 +132,17 @@ export function createStoreApi({ store, pairing, allowedOrigins = [], storeToken
       }
     }
     if (root === 'box' && api.box) return boxRoute(req, res, parts.slice(1));
+    if (root === 'cassettes') {
+      if (m === 'DELETE' && id) return cassettes.retire(id), json(res, 200, { ok: true });
+      if (m === 'PUT' && id) {
+        cassettes.put(id, parts.slice(2).join('/'), await readBody(req, 512 * 1024 * 1024), store);
+        return json(res, 200, { ok: true });
+      }
+      if (m === 'GET' && id === 'inbox') return json(res, 200, cassettes.inbox());
+      if (m === 'GET' && id === 'packet') return json(res, 200, JSON.parse(cassettes.read(sub).toString()));
+      if (m === 'DELETE') return json(res, 404, { error: 'Not found' });
+    }
+    if (root === 'inbox-done' && id && m === 'POST') return cassettes.drop(id), json(res, 200, { ok: true });
     if (root !== 'projects') return json(res, 404, { error: 'Not found' });
     if (!id) return m === 'GET' ? json(res, 200, store.listProjects()) : json(res, 405, { error: 'Method not allowed' });
     if (!sub) {
@@ -206,9 +221,30 @@ export function createStoreApi({ store, pairing, allowedOrigins = [], storeToken
     return json(res, 405, { error: 'Method not allowed' });
   }
 
+  /** Open to the internet, so it says nothing useful to whoever gets it wrong, and logs nothing. */
+  async function inbox(req, res) {
+    res.setHeader('access-control-allow-origin', '*');
+    if (req.method === 'OPTIONS') return res.writeHead(204, { 'access-control-allow-methods': 'POST' }).end();
+    const series = new URL(req.url, 'http://x').searchParams.get('s') ?? '';
+    const ip = String(req.headers['cf-connecting-ip'] ?? req.headers['x-forwarded-for'] ?? req.socket.remoteAddress).split(',')[0];
+    if (req.method !== 'POST' || !perIp.take(ip)) return res.writeHead(429).end();
+    try {
+      const body = await readBody(req, MAX_RETURN);
+      const box = JSON.parse(body.toString());
+      if (box.format !== 'openband-reply-box/1' || !box.body) throw new StoreError(404, 'x');
+      cassettes.accept(series, body, store);
+      emit({ kind: 'inbox' });
+      res.writeHead(202).end();
+    } catch {
+      res.writeHead(404).end();
+    }
+  }
+
   /** @returns {Promise<boolean>} whether the request was for the store. */
   async function handleHttp(req, res) {
     const pathname = new URL(req.url || '/', 'http://x').pathname;
+    if (cassettes.serve(req, res, pathname)) return true;
+    if (pathname === '/api/cassette/v1/inbox') return inbox(req, res), true;
     if (pathname !== PREFIX && !pathname.startsWith(`${PREFIX}/`)) return false;
     cors(req, res);
     if (req.method === 'OPTIONS') return res.writeHead(204).end(), true;

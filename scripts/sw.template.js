@@ -46,7 +46,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin === self.location.origin) {
     // The bridge and the server's own endpoints are never cached.
-    if (url.pathname.endsWith('/version.json') || url.pathname.includes('/bridge') || url.pathname.includes('/collab') || url.pathname.includes('/api/')) return;
+    if (url.pathname.endsWith('/version.json') || url.pathname.includes('/bridge') || url.pathname.includes('/collab') || url.pathname.includes('/api/') || url.pathname.includes('/c/')) return;
     // The website next to the studio is not part of the offline app.
     if (url.pathname.includes('/about/')) return;
     if (req.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('.html') || url.pathname.endsWith('sw.js')) return void event.respondWith(networkFirst(req));
