@@ -19,6 +19,12 @@ All songs come out at the same loudness (−14 LUFS, −1 dBTP), as on a well-ma
 
 - **From my OpenBand**: when the studio is connected to your server or Box, it serves the cassette at `/c/<series>/<print>/`. On a LAN it works at once. To reach the internet, `openband box --tunnel cloudflared` or `--tunnel tailscale` starts a tunnel you have set up, and prints the public address: check it from your phone. On this road listeners' returns reach your server directly over HTTPS, *Retire* takes the cassette down, and listeners see when a new print is out.
 
+## On paper and on real tape
+
+*Printable J-card* makes an A4 PDF to cut and fold, with the cover, the sides and a QR to the link (or a line for the password). *For a real tape* gives each side as a WAV at 48 kHz, 24 bit, with 4 s of leader and gaps, and warns if a side runs over a C60.
+
+Listeners can *Duplicate for a friend*: the same link, with their name in it, so you see who passed it to whom. Nobody can be stopped from copying a link or a file: this only says whether the player invites them to.
+
 ## For a choir or a band
 
 Name the tracks Soprano, Alto, T, Basso, Voce 2, Tromba 1… and tick *With the parts*. Each singer then picks their part in the player: *Highlighted*, *Muted* (to sing over it), *On the left*, with a speed from 50 to 100% that keeps the pitch, and a loop on a section. *Classic pack of the parts* gives the plain files. Takes sung back can be heard together, as a virtual choir, in one proposal.

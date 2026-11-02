@@ -1,5 +1,5 @@
 import { applyOverdub, intake, refreshReturns, useReturns } from './cassette/returns';
-import { createCassette, deliverCassette, exportPartsPack, listAll, prepareParts, newEdition, retireCassette } from './cassette';
+import { createCassette, deliverCassette, exportJCard, exportPartsPack, exportTape, listAll, prepareParts, newEdition, retireCassette } from './cassette';
 import { checkProposal, closeProposal, commentProposal, createProposal, exportProposal, forkProject, getProposal, importProposal, listProposals, mergeProposal, reviewProposal } from './proposals';
 import { getSnapshot, useVersions } from './versioning';
 import { measureWith, prepare as prepareStems, renderStats } from './tests/measure';
@@ -1356,6 +1356,8 @@ export const commands: Record<string, (args: P) => unknown> = {
   },
   apply_overdub: ({ return_id, with: others }) => applyOverdub(String(return_id ?? ''), (others as string[]) ?? []),
   prepare_parts: () => prepareParts(),
+  export_jcard: ({ series, base, password }) => exportJCard({ series: String(series ?? ''), base, password }),
+  export_tape: ({ series, tape, gap_seconds }) => exportTape({ series: String(series ?? ''), tape, gap_seconds }),
   export_parts_pack: ({ versions }) => exportPartsPack(versions),
   import_return: async ({ text }) => {
     const r = await intake(String(text ?? ''));

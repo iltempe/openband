@@ -2,6 +2,20 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.19 "On paper and on real tape (D3.c)"
+
+- **Printable J-card**: an A4 PDF to cut and fold, at the standard measures, with the cover, the sides, and a QR to the link, or a line to write the password by hand.
+- **For a real tape**: each side as one WAV at 48 kHz, 24 bit, with 4 s of leader and gaps, with a warning when a side runs over a C60 or C90.
+- **Duplicate for a friend**: the same link with `via=` and the listener's name, so returns show who passed it on. A player setting, not a lock: nobody can be stopped from copying a link.
+- `export_jcard`, `export_tape`: 215 tools, 210 in the page.
+- New dependency: `qrcode-generator` (MIT), for the QR. The PDF writer is OpenBand's own.
+- Deviations from the spec:
+  - the J-card's text is plain Latin, so accents are simplified;
+  - the gaps between songs are one setting for the whole tape;
+  - the chain shows who passed it on directly, not every hop.
+- Not checked: a printed J-card in a real case, and a QR scanned by a phone. The PDF's structure and the QR's finder patterns are tested.
+- Tests: the PDF's cross-reference table, escaping, the QR's shape, a side's length and layout.
+
 ## v0.7.18 "The parts cassette (D4)"
 
 - v0.7.17 below was never tagged: GitHub had no macOS runners for its checks. Its changes ship here.

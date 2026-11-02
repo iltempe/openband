@@ -28,7 +28,7 @@ export function tapeGain(lufs: number, peakDb: number, target = TARGET_LUFS, cei
 }
 
 /** Tape lengths: minutes per side. */
-export const TAPES = { C60: 30, C90: 45 };
+export const TAPES = { C60: 30, C90: 45 } as const;
 
 export async function encodeAac(channels: Float32Array[], sampleRate: number, bitrate: number) {
   if (typeof AudioEncoder === 'undefined') throw new Error('This browser cannot encode AAC. Use a recent Chrome, Edge or Safari.');
@@ -60,7 +60,7 @@ export async function encodeAac(channels: Float32Array[], sampleRate: number, bi
 
 const cache = new Map<string, { channels: Float32Array[]; durationS: number }>();
 /** A version already burnt isn't rendered again. */
-async function renderVersion(versionId: string, p: Project) {
+export async function renderVersion(versionId: string, p: Project) {
   const hit = cache.get(versionId);
   if (hit) return hit;
   const buf = await renderBuffer(p, { sampleRate: RATE, tailSeconds: 1 });

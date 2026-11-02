@@ -19,6 +19,12 @@ Tutti i brani escono allo stesso volume (−14 LUFS, −1 dBTP), come su un nast
 
 - **Dal mio OpenBand**: quando lo studio è collegato al tuo server o Box, la cassetta è servita da `/c/<serie>/<stampa>/`. In LAN funziona subito. Per arrivare su internet, `openband box --tunnel cloudflared` o `--tunnel tailscale` avvia un tunnel che hai configurato e stampa l'indirizzo pubblico: controllalo dal telefono. Su questa strada i ritorni arrivano direttamente al tuo server in HTTPS, *Ritira* toglie la cassetta, e chi ascolta vede quando esce una nuova stampa.
 
+## Su carta e su nastro vero
+
+*J-card da stampare* crea un PDF A4 da ritagliare e piegare, con copertina, lati e un QR al link (o una riga per la password). *Per un nastro vero* dà ogni lato come WAV a 48 kHz, 24 bit, con 4 s di leader e le pause, e avvisa se un lato sfora un C60.
+
+Chi ascolta può *Duplicare per un amico*: lo stesso link con il suo nome dentro, così vedi chi l'ha passata a chi. Nessuno può impedire di copiare un link o un file: questo dice solo se il lettore invita a farlo.
+
 ## Per un coro o una banda
 
 Chiama le tracce Soprano, Alto, T, Basso, Voce 2, Tromba 1… e spunta *Con le parti*. Ogni corista sceglie la sua parte nel lettore: *In evidenza*, *Muta* (per cantarci sopra), *A sinistra*, con la velocità dal 50 al 100% senza cambiare intonazione e il loop su una sezione. *Pacchetto classico delle parti* dà i file semplici. Le parti cantate che tornano si ascoltano insieme, come un coro virtuale, in una proposta.

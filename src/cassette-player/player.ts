@@ -579,6 +579,21 @@ function render(u: Ui, signNote: string) {
   void urlOf(u, m.jcard.cover.id, m.jcard.cover.type).then((src) => (shell.style.backgroundImage = `url(${src})`));
   if (m.sides.some((x) => x.tracks.some((t) => t.stems?.length))) root.append(partsBox(u, current));
   if (m.options.reactions) root.append(returnsBox(u, current, () => u.audio.currentTime));
+  if (m.options.duplicate) {
+    const dup = $('button', 'download', T('Duplicate for a friend', 'Duplica per un amico'));
+    dup.onclick = async () => {
+      const me = await listener(m);
+      if (!me) return;
+      const via = (await fingerprint(me.publicKey)).slice(0, 8);
+      const p = new URLSearchParams(location.hash.slice(1));
+      p.set('via', encodeURIComponent(me.name.slice(0, 20)) || via);
+      const link = `${location.href.split('#')[0]}#${p}`;
+      if (navigator.share) await navigator.share({ url: link }).catch(() => null);
+      else await navigator.clipboard?.writeText(link).catch(() => null);
+      dup.textContent = T('Link copied', 'Link copiato');
+    };
+    root.append(dup);
+  }
   if (m.options.download) {
     const dl = $('button', 'download', T('Download the songs', 'Scarica i brani'));
     dl.onclick = async () => {

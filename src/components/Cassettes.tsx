@@ -116,6 +116,8 @@ export function CassettesPanel() {
               {link && <button className="btn" onClick={() => deliver(c.series, 'instance')}>{t('ca2.instance')}</button>}
               {link && <button className="btn" onClick={() => void run('retire_cassette', { series: c.series }).catch(notify)}>{t('ca2.retire')}</button>}
               <button className="btn" onClick={() => void run('new_edition', { series: c.series }).then(refresh).catch(notify)}>{t('ca2.reprint')}</button>
+              <button className="btn" onClick={() => void run('export_jcard', { series: c.series, password: !!password }).catch(notify)}>{t('ca2.jcard')}</button>
+              <button className="btn" onClick={() => void run('export_tape', { series: c.series }).then((r) => setResult(JSON.stringify(r))).catch(notify)}>{t('ca2.tape')}</button>
             </div>
           </div>
         ))}

@@ -1,14 +1,18 @@
 // Cassettes in the studio: commands shared by the panel and MCP. Giving one away needs the person: it can't be taken back.
 import { create } from 'zustand';
-import { download } from '../audio/render';
+import { download, encodePcm } from '../audio/render';
+import { zipSync } from 'fflate';
+import { getSnapshot } from '../versioning';
+import { jcardPdf } from './jcard';
+import { assembleSide, sideLayout } from './tape';
 import { uid } from '../music';
 import { useStore } from '../store';
 import { saveVersion, useVersions } from '../versioning';
 import { backend } from '../storage';
 import { ServerBackend } from '../storage/server';
-import { canonical, seal, signText } from './crypto';
+import { canonical, open, seal, signText } from './crypto';
 import { ACCOMPANIMENT, partOf } from './parts';
-import { burn, getCassette, identity, partsPack, latestOf, listCassettes, type BurnSpec, type StoredCassette } from './burn';
+import { burn, getCassette, identity, partsPack, renderVersion, latestOf, listCassettes, type BurnSpec, type StoredCassette } from './burn';
 import type { CassetteOptions } from './format';
 import { fileCassette, folderFiles, folderZip } from './deliver';
 import { cassetteLink } from './format';
@@ -95,6 +99,46 @@ export async function exportPartsPack(versions?: { versionId: string; title?: st
   const filename = `${useStore.getState().project.name} – parti.zip`;
   download(new Blob([zip as BlobPart], { type: 'application/zip' }), filename);
   return { filename, bytes: zip.length };
+}
+
+/** The cover as a JPEG, for the PDF. */
+async function coverJpeg(c: StoredCassette) {
+  const bytes = await open(c.key, c.pkg.blobs.cover);
+  const bitmap = await createImageBitmap(new Blob([bytes as BlobPart], { type: 'image/png' }));
+  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+  canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
+  const jpeg = new Uint8Array(await (await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.9 })).arrayBuffer());
+  return { jpeg, width: bitmap.width, height: bitmap.height };
+}
+
+export async function exportJCard(a: { series: string; base?: string; password?: boolean }) {
+  const c = await latestOf(a.series);
+  if (!c) throw new Error(`No cassette "${a.series}". Call list_cassettes.`);
+  const link = a.base && !a.password ? cassetteLink(a.base, c.seriesId, c.key) : null;
+  const pdf = jcardPdf({ title: c.title, artist: c.manifest.artist, sides: c.manifest.sides.map((s) => ({ name: s.name, tracks: s.tracks.map((t) => t.title) })), notes: c.manifest.notes, link, cover: await coverJpeg(c) });
+  const filename = `${c.title} – J-card.pdf`;
+  download(new Blob([pdf as BlobPart], { type: 'application/pdf' }), filename);
+  return { filename, bytes: pdf.length };
+}
+
+/** For dubbing onto a real tape: each side as a WAV at 48 kHz / 24 bit, with 4 s of leader. */
+export async function exportTape(a: { series: string; tape?: 'C60' | 'C90'; gap_seconds?: number }) {
+  const c = await latestOf(a.series);
+  if (!c) throw new Error(`No cassette "${a.series}". Call list_cassettes.`);
+  const gap = a.gap_seconds ?? 4;
+  const tape = a.tape ?? 'C60';
+  const files: Record<string, Uint8Array> = {};
+  const warnings: string[] = [];
+  for (const side of c.manifest.sides) {
+    const layout = sideLayout(side.tracks.map((t) => t.durationS), gap, tape);
+    if (layout.over) warnings.push(`Side ${side.name} is ${Math.ceil(layout.over)} s over a ${tape}`);
+    const songs: Float32Array[][] = [];
+    for (const t of side.tracks) songs.push((await renderVersion(t.versionId, await getSnapshot(t.versionId))).channels);
+    files[`${c.title} – Side ${side.name}.wav`] = encodePcm(assembleSide(songs, 48000, gap), 48000, 24);
+  }
+  const zip = zipSync(files, { level: 0 });
+  download(new Blob([zip as BlobPart], { type: 'application/zip' }), `${c.title} – ${tape}.zip`);
+  return { sides: Object.keys(files), warnings };
 }
 
 /** GitHub Pages with the musician's own token: one folder per series in their repository. */
