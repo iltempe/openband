@@ -446,6 +446,8 @@ L'AI scrive i test dal linguaggio naturale: "voglio che la voce si senta sempre 
 
 # C3 · Clip verticali 9:16 per TikTok, Instagram Reels e YouTube Shorts
 
+> **Scope ridotto (decisione del 2026-11-02):** niente connessione a TikTok, Instagram o YouTube. C3 si ferma all'export del video (più la condivisione di sistema del file, che non richiede account). Cadono la pubblicazione diretta di §C3.6, gli adapter `tiktok.mjs` e `instagram.mjs`, `share_clip` verso le piattaforme e la voce 20 (C3.b), oltre ai punti 3 e 4 dell'accettazione C3.9.
+
 ## C3.1 Obiettivo
 Da **qualunque cosa** nello studio (tutto il brano, una sezione, una selezione di battute, **una sola traccia**, una take, una prova del Box, il prima/dopo di una PR) si ottiene in un gesto un **video 9:16 pronto per i social**, e lo si pubblica **direttamente**. Oggi esiste già il video di release G6 (copertina, spettro, testo, 16:9 o 9:16 dal ritornello, WebCodecs in `video.worker.ts`): C3 lo estende.
 

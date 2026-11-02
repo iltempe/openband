@@ -136,6 +136,12 @@ export class FsStore {
     return { etag };
   }
 
+  /** What the Box knows about a song, shown in the list. */
+  setBox(id, box) {
+    const file = path.join(this.projectDir(id), 'meta.json');
+    this.writeJson(file, { ...this.readJson(file, {}), box });
+  }
+
   trashProject(id) {
     const dir = this.projectDir(id);
     if (!fs.existsSync(dir)) throw new StoreError(404, 'No such project');

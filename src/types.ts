@@ -293,7 +293,22 @@ export interface Project {
   pilot?: PilotState;
   /** Who made what (SPEC v0.6 §6): one entry per engine contribution. */
   ledger?: LedgerEntry[];
+  /** Rehearsals the Box imported (R2.5). */
+  rehearsals?: Rehearsal[];
   meta?: ProjectMeta;
+}
+
+export interface Rehearsal {
+  id: string;
+  at: number;
+  label: string;
+  versionId: string;
+  sections: string[];
+  trackIds: string[];
+  /** It was cut short and mended from what reached the disk. */
+  recovered?: boolean;
+  /** "Analyse the rehearsal" (R2.5). */
+  analysis?: { songs: { section_id: string; name: string; bpm: number | null; key: string | null }[]; at: number };
 }
 
 export interface MasterChain {

@@ -1,3 +1,5 @@
+import { ensureSamples } from './audio/samples';
+import type { Rehearsal } from './types';
 // High-level command API. This is what the MCP bridge calls, and the UI reuses parts of it.
 // Bars are 1-based (bar 1 starts at beat 0); positions inside regions are in beats.
 import { listProjects, moveProject, openProject, storeStatus } from './storage/sync';
@@ -1288,6 +1290,34 @@ export const commands: Record<string, (args: P) => unknown> = {
   },
 
   list_versions: ({ branch }) => listVersions(branch),
+
+  analyze_rehearsal: async ({ session_id }) => {
+    const p = st().project;
+    const r = p.rehearsals?.find((x) => x.id === session_id) ?? p.rehearsals?.at(-1);
+    if (!r) throw new Error('No rehearsal in this song. Open the version on the branch "prove".');
+    const id = st().beginTransaction(`Analyse ${r.label}`, isAiCommand() ? 'ai' : 'user');
+    try {
+      const songs: NonNullable<Rehearsal['analysis']>['songs'] = [];
+      for (const sectionId of r.sections) {
+        const section = p.sections?.find((s) => s.id === sectionId);
+        const region = p.regions.find((x) => r.trackIds.includes(x.trackId) && section && Math.abs(x.start - section.start) < 0.01 && x.audio);
+        if (!section || !region) continue;
+        await ensureSamples([region.audio!.sampleId]);
+        const tempo = (await Promise.resolve(commands.detect_tempo({ region_id: region.id })).catch(() => null)) as { bpm: number } | null;
+        songs.push({ section_id: section.id, name: section.name, bpm: tempo?.bpm ?? null, key: null as string | null });
+      }
+      const key = await detectKey('audio').then((k) => k.key, () => null);
+      for (const s of songs) s.key = key;
+      st().commit((d) => {
+        const x = d.rehearsals?.find((y) => y.id === r.id);
+        if (x) x.analysis = { songs, at: Date.now() };
+      });
+      st().countCommand();
+      return { session_id: r.id, songs, sections: (commands.auto_sections({}) as { proposal: unknown }).proposal };
+    } finally {
+      st().endTransaction(id);
+    }
+  },
 
   list_projects: () => listProjects(),
   open_project: ({ id }) => openProject(String(id ?? '')),

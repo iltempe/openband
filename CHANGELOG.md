@@ -2,6 +2,17 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.6 "A rehearsal becomes part of the song (R2.b)"
+
+- At the end of a session the server, with no browser open, turns a rehearsal into a song: one sample per channel, one audio track per channel, a region and a section per song ("Brano 1…n"), and a version `Prova 2026-11-03 21:14` on the branch `prove`. The main branch stays what the band arranges.
+- A second rehearsal builds on the first, after it. Importing the same session twice does nothing. A MARK becomes a flub at its moment. The list of projects shows how many sessions a song has.
+- MCP: `analyze_rehearsal` measures each song's tempo, the key and proposed sections, as one undo step: 185 tools, 180 in the page.
+- Deviations from the spec:
+  - the key is one for the whole rehearsal, not one per song;
+  - the comparison of takes between rehearsals of the same song is not done: it needs to know that two songs are the same one, which takes the names the band gives them.
+- Not done yet: this runs from `openband box`, which arrives next. Audio was tested with silence in the import tests.
+- Tests: 8, including an equivalence test against the studio's own project and track shapes.
+
 ## v0.7.5 "The library no longer replaces the song you are working on"
 
 - **Fixed**, in v0.7.3 and v0.7.4: on a slow start, a save and the first-run copy could both send the same song to the library. That looked like a conflict, so the open song was replaced by the library's copy, and your version went to a `conflitto-` branch. Nothing was lost, but the song on screen changed by itself, and live playback could fall silent. If you find such a branch from a first start, your work is there.
