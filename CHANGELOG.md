@@ -17,6 +17,7 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
   - `OPENBAND_STORE_AUTO=0` keeps a local store from being used automatically (the e2e needs it);
   - empty new songs and the untouched demo stay out of the library until someone works on them.
 - Not done yet: the acceptance run with a real Docker daemon and with the online demo against a real HTTPS server. There is no Docker daemon here, and the compose file was not started.
+- Fixed before release: a page's own save could come back on the event channel and reload an older copy over the work in progress; and the library no longer replaces a song someone started in the first second.
 - Tests: two room tests against the studio's own reader. **e2e** in Chrome: without a library songs stay in the browser; first run copies them and keeps the originals; a quiet studio sends 0 requests in 3 s; a fresh browser gets the song back from disk.
 
 ## v0.7.2 "Songs on your server, offline too (R1.c)"
