@@ -6384,3 +6384,11 @@ div.ca-steps {
   flex: 1;
   background: var(--accent);
 }
+
+/* Devices (R3) */
+.dv-control {
+  display: grid;
+  grid-template-columns: 140px 1fr auto;
+  gap: 8px;
+  align-items: center;
+}

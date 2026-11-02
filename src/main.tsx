@@ -1,3 +1,4 @@
+import { initDevices } from './devices';
 import { toB64u } from './cassette/crypto';
 import { intakeReply } from './cassette/testing';
 import { getCassette, latestOf } from './cassette/burn';
@@ -86,6 +87,7 @@ useBridge.subscribe((s, prev) => s.protect && !prev.protect && upgradePending())
 setInterval(upgradePending, 30 * 60000);
 
 // The instance's config.json (if any) is read before the first render.
+initDevices();
 const testRunPort = new URLSearchParams(location.search).get('testrun');
 if (testRunPort) void import('./tests/testrun').then((m) => m.testRun(testRunPort));
 else void restoreServer();

@@ -14,6 +14,7 @@
 //   proposals  — a proposal: what changes, a blind vote, a partial merge confirmed in the studio, one undo
 //   cassette   — burn a cassette; the file hides its text, plays alone with no request, opens with a password
 //   parts      — a cassette with parts: four voices found, stems in the player, muted and slowed
+//   devices    — a simulated sensor: connected, mapped, recorded as automation, undone
 //   library    — a local server is the browser's library: first-run copy, songs survive clearing the browser
 //   store      — the project library: two browsers, offline work, a conflict that loses nothing
 //   frozen     — a song with a native plugin opened in the browser plays its render cache, live and exported
@@ -2730,6 +2731,56 @@ tests.parts = async () => {
   } finally {
     await b.close();
     srv.kill();
+  }
+};
+
+tests.devices = async () => {
+  const node = spawn(process.execPath, [path.join(root, 'omep/examples/device-pi-tof/node.mjs'), '--simulate', '--http', '7789'], { stdio: 'ignore' });
+  await wait(1500);
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.keyboard.press('Space');
+    const r = await p.evaluate(async () => {
+      const { commands, useStore } = window.openband;
+      await commands.new_project({ name: 'Theremin', bpm: 120, key: 'C' });
+      const id = commands.add_track({ kind: 'instrument', instrument: 'chip', name: 'Synth' }).track_id;
+      commands.add_region({ track_id: id, start_bar: 1, length_bars: 8, notes: [{ pitch: 'C4', start: 0, duration: 32, velocity: 0.8 }] });
+      const d = await commands.connect_device({ url: 'http://127.0.0.1:7789/' });
+      await commands.map_control({ device: d.id, control: 'distance', track_id: id, target: 'cutoff' });
+      await new Promise((r) => setTimeout(r, 1200));
+      const a = useStore.getState().project.tracks[0].cutoff;
+      await new Promise((r) => setTimeout(r, 1500));
+      const list = await commands.list_devices({});
+      return { id, name: d.name, a, b: useStore.getState().project.tracks[0].cutoff, value: Object.values(list.values)[0]?.distance, undo: useStore.getState().past.length };
+    });
+    check(r.name === 'Theremin ToF', `the device connects (${r.name})`);
+    check(r.value !== undefined, `its control arrives live (${r.value?.toFixed(3)})`);
+    check(r.a !== r.b, `the mapped control moves the parameter (${r.a.toFixed(3)} → ${r.b.toFixed(3)})`);
+    const rec = await p.evaluate(async (id) => {
+      const { commands, useStore, engine } = window.openband;
+      await commands.map_control({ device: 'pi-tof-theremin', control: 'distance', track_id: id, target: 'cutoff', write: true });
+      engine.position = 0;
+      await engine.play();
+      useStore.getState().set({ isPlaying: true });
+      await new Promise((r) => setTimeout(r, 2500));
+      engine.stop();
+      useStore.getState().set({ isPlaying: false });
+      await new Promise((r) => setTimeout(r, 100));
+      const lane = useStore.getState().project.tracks[0].automation?.find((l) => l.target.param === 'tone');
+      const points = lane?.points.length ?? 0;
+      await commands.undo({});
+      return { points, after: useStore.getState().project.tracks[0].automation?.find((l) => l.target.param === 'tone')?.points.length ?? 0 };
+    }, r.id);
+    check(rec.points > 3 && rec.after === 0, `while the song plays, the movement is automation, and one undo removes it (${rec.points} points)`);
+  } finally {
+    await b.close();
+    srv.kill();
+    node.kill();
   }
 };
 

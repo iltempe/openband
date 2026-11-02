@@ -1,3 +1,4 @@
+import type { DeviceMapping } from './devices/mapping';
 import type { Proposal } from './proposals/model';
 import type { SongTest, TestRun } from './tests/types';
 // Core data model. All musical times are expressed in beats (quarter notes).
@@ -295,6 +296,9 @@ export interface Project {
   pilot?: PilotState;
   /** Who made what (SPEC v0.6 §6): one entry per engine contribution. */
   ledger?: LedgerEntry[];
+  /** Devices (R3). */
+  devices?: { id: string; url: string; manifestHash: string }[];
+  deviceMappings?: DeviceMapping[];
   /** Proposals (C1). */
   proposals?: Proposal[];
   /** Song tests (C2). */
@@ -475,7 +479,7 @@ export interface LintConfig {
   ignored?: string[];
 }
 
-export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | 'proposals' | 'cassettes' | 'projects' | 'rehearsal' | 'flubs' | 'ensemble' | 'pilot' | 'release' | null;
+export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | 'proposals' | 'cassettes' | 'devices' | 'projects' | 'rehearsal' | 'flubs' | 'ensemble' | 'pilot' | 'release' | null;
 
 export interface BridgeLogEntry {
   id: string;

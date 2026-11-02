@@ -24,6 +24,7 @@ import { CompareBanner, RecoveryBanner, VersionsPanel } from './components/Versi
 import { ProjectsPanel } from './components/Projects';
 import { ProposalsPanel } from './components/Proposals';
 import { CassettesPanel } from './components/Cassettes';
+import { DevicesPanel } from './components/Devices';
 import { RehearsalPanel } from './components/Rehearsal';
 import { JoinDialog } from './components/Collab';
 import { DiagnosticsPage } from './components/Diagnostics';
@@ -275,6 +276,9 @@ export function App() {
                 <button className={s.bottom === 'rehearsal' ? 'on' : ''} onClick={() => s.set({ bottom: 'rehearsal' })}>
                   <span aria-hidden>●</span> {t('bx.tab')}
                 </button>
+                <button className={s.bottom === 'devices' ? 'on' : ''} onClick={() => s.set({ bottom: 'devices' })}>
+                  <span aria-hidden>◎</span> {t('dv.tab')}
+                </button>
                 <button className={s.bottom === 'ensemble' ? 'on' : ''} onClick={() => s.set({ bottom: 'ensemble' })}>
                   <span aria-hidden>✦</span> {t('en.tab')}
                 </button>
@@ -299,6 +303,7 @@ export function App() {
                 {s.bottom === 'projects' && <ProjectsPanel />}
                 {s.bottom === 'proposals' && <ProposalsPanel />}
                 {s.bottom === 'cassettes' && <CassettesPanel />}
+                {s.bottom === 'devices' && <DevicesPanel />}
                 {s.bottom === 'rehearsal' && <RehearsalPanel />}
                 {s.bottom === 'flubs' && <FlubsPanel />}
                 {s.bottom === 'ensemble' && <EnsemblePanel />}

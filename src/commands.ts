@@ -1,3 +1,4 @@
+import { connectDevice, deviceSet, mapControl, refreshDevices, unmapControl, useDevices } from './devices';
 import { applyOverdub, intake, refreshReturns, useReturns } from './cassette/returns';
 import { createCassette, deliverCassette, exportJCard, exportPartsPack, exportTape, listAll, prepareParts, newEdition, retireCassette } from './cassette';
 import { checkProposal, closeProposal, commentProposal, createProposal, exportProposal, forkProject, getProposal, importProposal, listProposals, mergeProposal, reviewProposal } from './proposals';
@@ -1364,6 +1365,15 @@ export const commands: Record<string, (args: P) => unknown> = {
     return { id: r.id, from: r.from, track: r.trackTitle };
   },
 
+  list_devices: async () => {
+    await refreshDevices();
+    return { devices: useDevices.getState().list, mappings: st().project.deviceMappings ?? [], values: useDevices.getState().values };
+  },
+  connect_device: ({ url, token }) => connectDevice(String(url ?? ''), token),
+  map_control: ({ device, control, track_id, target, curve, range, smooth_ms, write }) => mapControl({ device, control, track_id: requireTrack(st().project, track_id).id, target, curve, range, smooth_ms, write }),
+  unmap_control: ({ device, control }) => unmapControl({ device, control }),
+  device_set: ({ device, output, value }) => deviceSet(String(device), String(output), Number(value)),
+
   list_tests: () => {
     const p = st().project;
     const run = runTests(p);
@@ -2120,7 +2130,7 @@ const READ_ONLY = new Set([
   'list_samples', 'list_plugins', 'search_plugins', 'list_native_plugins', 'rescan_plugins', 'suggest_continuation', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'get_energy', 'analyze_harmony',
   'list_engines', 'get_ledger', 'set_engine_policy',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'steer_live_jam', 'list_annotations', 'list_versions', 'list_tests', 'prepare_parts', 'list_returns', 'list_cassettes', 'list_proposals', 'get_proposal', 'list_projects', 'store_status', 'diff_versions', 'save_version', 'create_branch',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'steer_live_jam', 'list_annotations', 'list_versions', 'list_tests', 'list_devices', 'prepare_parts', 'list_returns', 'list_cassettes', 'list_proposals', 'get_proposal', 'list_projects', 'store_status', 'diff_versions', 'save_version', 'create_branch',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

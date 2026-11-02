@@ -142,7 +142,11 @@ export function switchBridgePort(port: number) {
 const engineCalls = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
 let engineSeq = 0;
 /** Ask the local server's engine host (SPEC v0.6 §9): list the engines or call one. */
-export function engineRequest<T = unknown>(op: 'list' | 'call' | 'stream_open' | 'stream_close' | 'services' | 'set_service' | 'remove_service', payload: Record<string, unknown> = {}, timeoutMs = 600000): Promise<T> {
+const frameListeners = new Set<(device: string, f: { t: number; values: Record<string, number> }) => void>();
+/** A device's controls, as they come. */
+export const onDeviceFrame = (fn: (device: string, f: { t: number; values: Record<string, number> }) => void) => void frameListeners.add(fn);
+
+export function engineRequest<T = unknown>(op: 'device_list' | 'device_connect' | 'device_watch' | 'device_read' | 'device_set' | 'list' | 'call' | 'stream_open' | 'stream_close' | 'services' | 'set_service' | 'remove_service', payload: Record<string, unknown> = {}, timeoutMs = 600000): Promise<T> {
   if (!socket || socket.readyState !== 1 || !useBridge.getState().engines) return Promise.reject(new Error('No OpenBand server with engines is connected'));
   const id = `e${++engineSeq}`;
   return new Promise<T>((resolve, reject) => {
@@ -266,6 +270,10 @@ export function connectBridge() {
         projectChanged: () => send({ type: 'project_changed' }),
       });
       return;
+    }
+    if (msg.type === 'device_frame') {
+      const f = msg as unknown as { device: string; t: number; values: Record<string, number> };
+      return void frameListeners.forEach((fn) => fn(f.device, f));
     }
     if (msg.type === 'engine_result') {
       const p = engineCalls.get(msg.id);

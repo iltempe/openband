@@ -20,6 +20,7 @@ import { PublishHost } from './publish/index.mjs';
 import { ProtectHost } from './protect/index.mjs';
 import { EngineHost } from './engines.mjs';
 import { StreamRelay } from './streams.mjs';
+import { DeviceHost } from './devices.mjs';
 import { FsStore, defaultDataDir } from './store/fs.mjs';
 import { createStoreApi } from './store/api.mjs';
 import http from 'node:http';
@@ -84,6 +85,9 @@ const publishHost = REMOTE ? null : new PublishHost({ port: PORT, log, notify: (
 const CONFIG_FILE = process.env.OPENBAND_CONFIG || '';
 /** Public instances (Docker) send the same CSP as the static hosts. */
 const CSP = process.env.OPENBAND_CSP === '1' ? (await import('./csp.mjs')).contentSecurityPolicy({ collab: process.env.OPENBAND_CSP_COLLAB ? process.env.OPENBAND_CSP_COLLAB.split(',') : undefined, extraConnect: process.env.OPENBAND_CSP_CONNECT ? process.env.OPENBAND_CSP_CONNECT.split(',') : [] }) : '';
+
+/** Devices (R3): frames go to the studio over the bridge. */
+const devices = new DeviceHost({ log, onFrame: (device, f) => studio?.readyState === 1 && studio.send(JSON.stringify({ type: 'device_frame', device, t: f.t, values: f.values })) });
 
 const httpServer = http.createServer(async (req, res) => {
   const pathname = new URL(req.url || '/', 'http://x').pathname;
@@ -272,7 +276,9 @@ wss.on('connection', (ws, _req, kind = 'local') => {
     if (msg.type === 'project_changed') return void notifyProjectResource();
     if (msg.type === 'engine') {
       // The page asks for the engines or calls one (OpenBand as an OMEP client).
+      const deviceOp = { device_list: () => devices.list(), device_connect: () => (kind === 'local' ? devices.connect({ url: String(msg.url), token: msg.token }) : Promise.reject(new Error('Devices are connected from the studio on this computer'))), device_watch: () => devices.watch(String(msg.device)), device_read: () => devices.read(String(msg.device)), device_set: () => devices.set(String(msg.device), String(msg.output), Number(msg.value)) }[msg.op];
       const answer = (ok, payload) => send({ type: 'engine_result', id: msg.id, ok, ...(ok ? { result: payload } : { error: payload }) });
+      if (deviceOp) return void Promise.resolve().then(deviceOp).then((r) => answer(true, r), (e) => answer(false, e.message));
       if (!engineHost) return void answer(false, 'Engines are not available on this server');
       const job =
         msg.op === 'list'

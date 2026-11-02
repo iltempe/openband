@@ -544,6 +544,16 @@ tool('export_tape', 'For dubbing onto a real cassette: each side as a WAV at 48 
 
 tool('import_return', 'Open a .risposta file: its text.', { text: z.string() });
 
+tool('list_devices', 'Sensors and instruments connected to the studio, their controls with live values, and what they drive.', {}, readOnly);
+
+tool('connect_device', 'Connect an OMEP device on the network by its address.', { url: z.string(), token: z.string().optional() });
+
+tool('map_control', 'Make a device control drive a track parameter, e.g. "the closer the hand, the more open the filter": target "tone" (the filter), or a key from list_automatable. With write:true (or an armed audio track), while the song plays the movement is written as automation.', { device: z.string(), control: z.string(), track_id: z.string(), target: z.string(), curve: z.enum(['linear', 'log', 'exp']).optional(), range: z.array(z.number()).length(2).optional(), smooth_ms: z.number().optional(), write: z.boolean().optional() });
+
+tool('unmap_control', 'Stop a device control driving what it drives.', { device: z.string(), control: z.string() });
+
+tool('device_set', 'Drive a device output (light, display, haptics). The first time, the user confirms it in the studio.', { device: z.string(), output: z.string(), value: z.number() });
+
 tool('list_tests', 'The song tests with their last results.', {}, readOnly);
 
 tool('add_test', 'Add a song test. text, one line in English or Italian: "in chorus: vocals.lufs >= guitars.lufs + 3 dB", "master.lufs_i between -10 and -8", "master.true_peak <= -1", "bass: mono below 120 Hz", "bass: notes between E1 and G3", "vocals vs guitars: masking 1–4 kHz <= 0.3", "compared to approved: every track ± 1.5 dB per section". Show the user the line you wrote. Or test: the structured form.', { text: z.string().optional(), test: z.record(z.unknown()).optional() });
@@ -1062,6 +1072,7 @@ export const TOOLSETS = {
   analysis: { description: 'Harmony and key analysis, the song linter and its fixes', tools: ['analyze_harmony', 'detect_key', 'lint_project', 'apply_fix', 'ignore_issue'] },
   recording: { description: 'Recording audio and MIDI, punch-in, takes and comping, blind A/B tests, flub marks', tools: ['record_audio', 'arm_track', 'set_track_midi_input', 'map_midi_channels', 'set_punch', 'audio_to_midi', 'add_take', 'list_takes', 'set_active_take', 'delete_take', 'comp_takes', 'start_ab_test', 'add_flub', 'list_flubs', 'resolve_flub', 'delete_flub', 'replace_with_best_take', 'set_voice_control', 'start_session', 'stop_session', 'get_session'] },
   cassette: { description: 'Cassettes: tapes to give to people, encrypted, with their own player', tools: ['create_cassette', 'list_cassettes', 'new_edition', 'deliver_cassette', 'retire_cassette', 'list_returns', 'apply_overdub', 'prepare_parts', 'export_parts_pack', 'export_jcard', 'export_tape', 'import_return'] },
+  devices: { description: 'Sensors and home-made instruments: connect, map, record their movement', tools: ['list_devices', 'connect_device', 'map_control', 'unmap_control', 'device_set'] },
   review: { description: 'Musical pull requests: fork, propose, review, merge', tools: ['fork_project', 'create_proposal', 'list_proposals', 'get_proposal', 'comment_proposal', 'review_proposal', 'merge_proposal', 'close_proposal', 'check_proposal', 'export_proposal', 'import_proposal'] },
   tests: { description: 'Song tests: assertions on the mix and the notes, run like a CI', tools: ['list_tests', 'add_test', 'update_test', 'remove_test', 'run_tests', 'set_baseline', 'add_test_suite'] },
   versions: { description: 'History, versions and branches, merge, the time machine', tools: ['get_history', 'save_version', 'list_versions', 'analyze_rehearsal', 'list_projects', 'open_project', 'move_project', 'store_status', 'create_branch', 'checkout', 'diff_versions', 'merge', 'get_timeline', 'preview_at', 'restore_at'] },

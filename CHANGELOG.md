@@ -2,6 +2,21 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.21 "Devices in the studio (R3.b)"
+
+- **The Devices panel**: connect a device by its address, see its controls move, and map one to any mix parameter of a track, with a curve, a range and 20 ms of smoothing.
+- **Record a gesture**: tick *write automation* (or arm an audio track), and while the song plays the movement is written as automation, in one undo step. Only audio tracks can be armed, so the mapping has its own switch.
+- **For AIs**: toolset `devices` with `list_devices`, `connect_device`, `map_control`, `unmap_control`, `device_set`: 220 tools, 215 in the page. "Make the closer hand open the synth's filter" needs nothing else.
+- **Safety**: the server hosts devices and the page never reaches them. Only the studio on this computer can connect one, and the first `device_set` to a device asks in the studio. Token supported.
+- Deviations from the spec:
+  - no mDNS discovery: a device is connected by address;
+  - stdio devices aren't connected from the page, to keep a page from starting a program;
+  - live mapping moves mix and effect parameters; plugin parameters are written when recording, not live;
+  - `trigger` and `toggle` as note on/off aren't there yet;
+  - `device.record` into the ledger isn't wired up.
+- **Not measured**: the 30 ms latency over wired LAN needs a real sensor. Here it goes through a commit at 30 Hz, so about 33 ms plus the network.
+- Tests: curves, smoothing, thinning. **e2e**: a simulated sensor connects, its control arrives live, the mapped parameter moves, the recorded movement becomes automation, and one undo removes it.
+
 ## v0.7.20 "OMEP 1.1: devices (R3.a)"
 
 - **OMEP 1.1**, additive: a sensor or home-made instrument joins as an engine does. A `device` block in the manifest, the capabilities `device.read`, `device.stream`, `device.set`, `device.record`, and the `ws-ctl` transport.
