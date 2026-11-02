@@ -7,7 +7,8 @@ import { saveVersion, useVersions } from '../versioning';
 import { backend } from '../storage';
 import { ServerBackend } from '../storage/server';
 import { canonical, seal, signText } from './crypto';
-import { burn, getCassette, identity, latestOf, listCassettes, type BurnSpec, type StoredCassette } from './burn';
+import { ACCOMPANIMENT, partOf } from './parts';
+import { burn, getCassette, identity, partsPack, latestOf, listCassettes, type BurnSpec, type StoredCassette } from './burn';
 import type { CassetteOptions } from './format';
 import { fileCassette, folderFiles, folderZip } from './deliver';
 import { cassetteLink } from './format';
@@ -33,11 +34,11 @@ export async function currentVersion() {
 
 const summary = (c: StoredCassette) => ({ id: c.id, series: c.seriesId, edition: c.edition, title: c.title, sides: c.manifest.sides.map((s) => ({ name: s.name, tracks: s.tracks.map((t) => t.title) })), bytes: Object.values(c.pkg.blobs).reduce((n, b) => n + b.length, c.pkg.manifest.length) });
 
-export async function createCassette(a: { title: string; artist?: string; dedication?: string; notes?: string; sides?: BurnSpec['sides']; options?: Partial<CassetteOptions>; quality?: 96 | 160 | 256; signaling?: string[] }) {
+export async function createCassette(a: { title: string; artist?: string; dedication?: string; notes?: string; sides?: BurnSpec['sides']; options?: Partial<CassetteOptions>; quality?: 96 | 160 | 256; signaling?: string[]; parts?: boolean }) {
   const title = a.title?.trim();
   if (!title) throw new Error('A cassette needs a title');
   const sides = a.sides ?? [{ name: 'A' as const, tracks: [{ versionId: await currentVersion() }] }];
-  const c = await burn({ title, artist: a.artist?.trim() || useStore.getState().project.release?.artist || 'OpenBand', dedication: a.dedication, notes: a.notes, sides, options: a.options, quality: a.quality, signaling: a.signaling, instance: instanceUrl() });
+  const c = await burn({ title, artist: a.artist?.trim() || useStore.getState().project.release?.artist || 'OpenBand', dedication: a.dedication, notes: a.notes, sides, options: a.options, quality: a.quality, signaling: a.signaling, instance: instanceUrl(), parts: a.parts });
   void listenForReturns();
   return summary(c);
 }
@@ -82,6 +83,18 @@ export async function retireCassette(series: string) {
   if (!(await confirm(c.title, 'retire'))) throw new Error('Not retired: the user did not confirm it in the studio.');
   await b.req(`/cassettes/${series}`, { method: 'DELETE' });
   return { series, retired: true };
+}
+
+/** What "Prepare the parts" finds on the open song. */
+export const prepareParts = () => useStore.getState().project.tracks.map((t) => ({ track_id: t.id, name: t.name, part: partOf(t.name) ?? ACCOMPANIMENT }));
+
+/** The classic pack, for those who want the files. */
+export async function exportPartsPack(versions?: { versionId: string; title?: string }[]) {
+  const list = versions ?? [{ versionId: await currentVersion() }];
+  const zip = await partsPack(list);
+  const filename = `${useStore.getState().project.name} – parti.zip`;
+  download(new Blob([zip as BlobPart], { type: 'application/zip' }), filename);
+  return { filename, bytes: zip.length };
 }
 
 /** GitHub Pages with the musician's own token: one folder per series in their repository. */

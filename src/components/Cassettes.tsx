@@ -4,6 +4,7 @@ import { useT } from '../i18n';
 import { useStore } from '../store';
 import { runCommand } from '../commands';
 import { useBurn } from '../cassette/burn';
+import { partOf } from '../cassette/parts';
 import { useStoreLink } from '../storage/sync';
 import { currentVersion, useDeliverConfirm } from '../cassette';
 import { decide, heatmap, intake, listenForReturns, refreshReturns, useReturns } from '../cassette/returns';
@@ -29,12 +30,14 @@ export function CassettesPanel() {
   const [dedication, setDedication] = useState('');
   const [password, setPassword] = useState('');
   const [overdub, setOverdub] = useState(false);
+  const [parts, setParts] = useState(false);
   const [result, setResult] = useState('');
   const step = useBurn((s) => s.step);
   const link = useStoreLink((s) => s.url);
   const opus = useBurn((s) => s.warning === 'opus');
   const ask = useDeliverConfirm((s) => s.ask);
   const song = useStore((s) => s.project.name);
+  const partsFound = useStore((x) => x.project.tracks).flatMap((tr) => partOf(tr.name) ?? []);
   const refresh = () => void run('list_cassettes').then((r) => setList(r as Row[])).catch(notify);
   useEffect(refresh, []);
   useEffect(() => {
@@ -53,7 +56,7 @@ export function CassettesPanel() {
       { name: 'A', tracks: sideA },
       { name: 'B', tracks: sideB },
     ].filter((s) => s.tracks.length);
-    await run('create_cassette', { title, dedication: dedication || undefined, sides, options: { overdub } });
+    await run('create_cassette', { title, dedication: dedication || undefined, sides, options: { overdub }, parts });
     setA([]);
     setB([]);
     refresh();
@@ -73,6 +76,10 @@ export function CassettesPanel() {
         <label className="pj-meta">
           <input type="checkbox" checked={overdub} onChange={(e) => setOverdub(e.target.checked)} /> {t('ca2.allowOverdub')}
         </label>
+        <label className="pj-meta">
+          <input type="checkbox" checked={parts} onChange={(e) => setParts(e.target.checked)} /> {t('ca2.parts')}
+        </label>
+        {parts && <p className="pj-meta">{partsFound.join(', ') || t('ca2.noParts')}</p>}
         <div className="pj-actions">
           <button className="btn" onClick={() => void add(setA).catch(notify)}>{t('ca2.addA', { song })}</button>
           <button className="btn" onClick={() => void add(setB).catch(notify)}>{t('ca2.addB')}</button>
@@ -81,6 +88,7 @@ export function CassettesPanel() {
           A: {sideA.map((x) => x.title).join(', ') || '–'} · B: {sideB.map((x) => x.title).join(', ') || '–'}
         </p>
         {opus && <p className="pj-alert">{t('ca2.opus')}</p>}
+        <button className="btn" onClick={() => void run('export_parts_pack').catch(notify)}>{t('ca2.pack')}</button>
         <button className="btn" disabled={!title.trim() || !(sideA.length + sideB.length) || !!step} onClick={() => void burnIt().catch(notify)}>
           {step ? t('ca2.burning', { step }) : t('ca2.go')}
         </button>
@@ -123,6 +131,7 @@ export function CassettesPanel() {
           const these = returns.filter((r) => r.trackId === id);
           const { hot } = heatmap(these, Math.max(1, ...these.flatMap((r) => r.items.map((i) => ('t' in i ? i.t : 0)))) * 1.05);
           const most = Math.max(1, ...hot);
+          const takes = these.filter((r) => r.items.some((i) => i.kind === 'overdub')).map((r) => r.id);
           return (
             <div className="pj-row" key={id}>
               <b>{title}</b>
@@ -131,6 +140,7 @@ export function CassettesPanel() {
                   <span key={i} style={{ opacity: 0.12 + (0.88 * v) / most }} />
                 ))}
               </div>
+              {takes.length > 1 && <button className="btn" onClick={() => void run('apply_overdub', { return_id: takes[0], with: takes.slice(1) }).catch(notify)}>{t('ca2.choir', { n: takes.length })}</button>}
               {these.map((r) => (
                 <div key={r.id} className="pj-meta">
                   <b>{r.from}</b>

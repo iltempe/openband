@@ -97,7 +97,7 @@ export async function decide(id: string, accept: boolean) {
 }
 
 /** An overdub becomes a proposal on the version it was sung over: review, A/B and merge as any other. */
-export async function applyOverdub(id: string) {
+export async function applyOverdub(id: string, others: string[] = []) {
   const r = (await tx<StoredReturn | undefined>('returns', 'readonly', (s) => s.get(id))) ?? null;
   const it = r?.items.find((x) => x.kind === 'overdub');
   if (!r || !it || it.kind !== 'overdub') throw new Error('No overdub in that return. Call list_returns.');
@@ -108,12 +108,20 @@ export async function applyOverdub(id: string) {
   if (p.meta?.projectId !== r.projectId) throw new Error(`Open the song of this return first: ${r.trackTitle}`);
   const base = await getSnapshot(track.versionId);
   const info = await importSample(fromB64u(it.blob).buffer as ArrayBuffer, `${r.from} on ${r.trackTitle}`, it.type);
-  const { project: head } = withOverdub(base, { sampleId: info.id, name: it.label || r.from, startS: it.start, durationS: info.duration, latencyMs: it.latencyMs });
+  let { project: head } = withOverdub(base, { sampleId: info.id, name: it.label || r.from, startS: it.start, durationS: info.duration, latencyMs: it.latencyMs });
+  // A virtual choir: everyone's take on this song, together in one proposal.
+  for (const otherId of others) {
+    const o = (await tx<StoredReturn | undefined>('returns', 'readonly', (s) => s.get(otherId))) ?? null;
+    const take = o?.items.find((x) => x.kind === 'overdub');
+    if (!o || !take || take.kind !== 'overdub' || o.trackId !== r.trackId) continue;
+    const sample = await importSample(fromB64u(take.blob).buffer as ArrayBuffer, `${o.from} on ${o.trackTitle}`, take.type);
+    head = withOverdub(head, { sampleId: sample.id, name: take.label || o.from, startS: take.start, durationS: sample.duration, latencyMs: take.latencyMs }).project;
+  }
   const number = nextNumber(p);
   const headId = uid('ver');
   await backend().versions.put({ id: headId, projectId: r.projectId, parentIds: [track.versionId], branch: `pr/${number}`, label: `${r.from}: ${r.trackTitle}`, createdAt: Date.now(), author: 'user', snapshot: gzipSync(strToU8(JSON.stringify(head)), { mtime: 0 }) });
   await backend().versions.putBranch({ id: `${r.projectId}:pr/${number}`, projectId: r.projectId, name: `pr/${number}`, headId, at: Date.now() });
-  const x: Proposal = { id: uid('pr'), number, projectId: r.projectId, title: `${r.from} sings over ${r.trackTitle}`, description: it.headphones ? undefined : 'Recorded without headphones: the backing bleeds into the take.', author: { kind: 'user', name: r.from }, baseVersionId: track.versionId, headVersionId: headId, status: 'open', createdAt: Date.now(), updatedAt: Date.now() };
+  const x: Proposal = { id: uid('pr'), number, projectId: r.projectId, title: others.length ? `${others.length + 1} voices on ${r.trackTitle}` : `${r.from} sings over ${r.trackTitle}`, description: it.headphones ? undefined : 'Recorded without headphones: the backing bleeds into the take.', author: { kind: 'user', name: r.from }, baseVersionId: track.versionId, headVersionId: headId, status: 'open', createdAt: Date.now(), updatedAt: Date.now() };
   useStore.getState().commit((d) => void (d.proposals = [...(d.proposals ?? []), x]), { label: `Proposal #${number}` });
   await loadVersions();
   return { number, title: x.title };

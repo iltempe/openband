@@ -31,3 +31,4 @@ main{width:min(460px,100%);padding:16px;box-sizing:border-box}
 .row input{flex:1;padding:8px;font:inherit}
 .react{font:inherit;padding:8px 12px;border:0;border-radius:6px;background:#3a3026;color:#f2e8d5;cursor:pointer}
 .newer{padding:8px;border-radius:6px;background:#ffb84d;color:#221a10}
+.parts{margin-top:16px;border-top:1px dashed #6b5d48}.parts h2{font-size:15px}.parts select{font:inherit;padding:6px;margin:2px 4px 2px 0}

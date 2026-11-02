@@ -3,6 +3,7 @@
 import { canonical, fingerprint, open, unlockKey, verifyText } from '../cassette/crypto';
 import { MAX_OVERDUB, b64, newListener, sealReply, type Reply, type ReplyItem } from '../cassette/reply';
 import { clapLatency } from '../cassette/overdub';
+import { partMix, type PartMode } from '../cassette/parts';
 import { sendP2P } from '../cassette/p2p';
 import { openManifest, parseLink, signerState, sideSeconds, type CassetteManifest, type CassetteTrack } from '../cassette/format';
 
@@ -275,6 +276,104 @@ function overdubBox(u: Ui, track: () => CassetteTrack, send: (items: ReplyItem[]
   return box;
 }
 
+// ---- learning a part ----
+
+function partsBox(u: Ui, track: () => CassetteTrack) {
+  const box = $('section', 'parts');
+  const slot = `openband.cassette.part.${u.m.seriesId}`;
+  box.append($('h2', '', T('My part', 'La mia parte')));
+  const pick = $('select');
+  pick.setAttribute('aria-label', T('My part', 'La mia parte'));
+  const mode = $('select');
+  mode.setAttribute('aria-label', T('Mode', 'Modalità'));
+  for (const [v, n] of [['all', T('All', 'Tutte')], ['highlight', T('Highlighted', 'In evidenza')], ['mute', T('Muted', 'Muta')], ['left', T('On the left', 'A sinistra')]]) {
+    const o = $('option', '', n);
+    o.value = v;
+    mode.append(o);
+  }
+  const speed = $('input');
+  speed.type = 'range';
+  speed.min = '50';
+  speed.max = '100';
+  speed.value = '100';
+  speed.setAttribute('aria-label', T('Speed', 'Velocità'));
+  const speedLab = $('label', 'tape', T('Speed', 'Velocità'));
+  speedLab.append(speed);
+  const loopSel = $('select');
+  loopSel.setAttribute('aria-label', T('Loop', 'Loop'));
+  box.append(pick, mode, speedLab, loopSel);
+  let live: { el: HTMLAudioElement; gain: GainNode; pan: StereoPannerNode; part: string }[] = [];
+  let ctx: AudioContext | null = null;
+  let loop: [number, number] | null = null;
+  const apply = () => {
+    for (const s of live) {
+      const m = partMix(mode.value as PartMode, s.part, pick.value || null);
+      s.gain.gain.value = m.db === -Infinity ? 0 : 10 ** (m.db / 20);
+      s.pan.pan.value = m.pan;
+    }
+  };
+  const sync = (hard = false) => {
+    for (const s of live) {
+      if (hard || Math.abs(s.el.currentTime - u.audio.currentTime) > 0.04) s.el.currentTime = u.audio.currentTime;
+      s.el.playbackRate = u.audio.playbackRate;
+      if (u.audio.paused !== s.el.paused) void (u.audio.paused ? s.el.pause() : s.el.play());
+    }
+  };
+  const fill = async () => {
+    const t = track();
+    pick.replaceChildren(...['', ...(t.stems ?? []).map((s) => s.part).filter((p) => p !== 'Accompagnamento')].map((p) => {
+      const o = $('option', '', p || T('Choose', 'Scegli'));
+      o.value = p;
+      return o;
+    }));
+    pick.value = localStorage.getItem(slot) ?? '';
+    loopSel.replaceChildren(...[[T('No loop', 'Niente loop'), ''], ...(t.sections ?? []).map((s) => [s.name, `${s.startS}:${s.endS}`])].map(([n, v]) => {
+      const o = $('option', '', n);
+      o.value = v;
+      return o;
+    }));
+    loop = null;
+    live.forEach((s) => (s.el.pause(), s.gain.disconnect()));
+    live = [];
+    if (!t.stems?.length) return;
+    ctx ??= new AudioContext();
+    for (const s of t.stems) {
+      const el = new Audio(await urlOf(u, s.blob.id, s.blob.type));
+      el.preservesPitch = true;
+      const gain = ctx.createGain();
+      const pan = ctx.createStereoPanner();
+      ctx.createMediaElementSource(el).connect(gain).connect(pan).connect(ctx.destination);
+      live.push({ el, gain, pan, part: s.part });
+    }
+    // The stems play instead of the mix, which keeps the time.
+    u.audio.muted = true;
+    apply();
+    sync(true);
+  };
+  pick.onchange = () => (localStorage.setItem(slot, pick.value), apply());
+  mode.onchange = apply;
+  speed.oninput = () => {
+    u.audio.preservesPitch = true;
+    u.audio.playbackRate = Number(speed.value) / 100;
+    sync();
+  };
+  loopSel.onchange = () => {
+    loop = loopSel.value ? (loopSel.value.split(':').map(Number) as [number, number]) : null;
+    if (loop) u.audio.currentTime = loop[0];
+    sync(true);
+  };
+  u.audio.addEventListener('timeupdate', () => {
+    if (loop && u.audio.currentTime >= loop[1]) {
+      u.audio.currentTime = loop[0];
+      sync(true);
+    } else sync();
+  });
+  for (const ev of ['play', 'pause', 'seeked'] as const) u.audio.addEventListener(ev, () => (void ctx?.resume(), sync(ev === 'seeked')));
+  u.audio.addEventListener('loadedmetadata', () => void fill());
+  void fill();
+  return box;
+}
+
 function returnsBox(u: Ui, track: () => CassetteTrack, now: () => number) {
   const { m } = u;
   const box = $('section', 'returns');
@@ -478,6 +577,7 @@ function render(u: Ui, signNote: string) {
   void newerPrint(u).then((n) => n && root.prepend($('p', 'newer', T(`Print ${n} is out: there is a new mix.`, `È uscita la stampa ${n}: c'è un nuovo mix.`))));
   drawSide();
   void urlOf(u, m.jcard.cover.id, m.jcard.cover.type).then((src) => (shell.style.backgroundImage = `url(${src})`));
+  if (m.sides.some((x) => x.tracks.some((t) => t.stems?.length))) root.append(partsBox(u, current));
   if (m.options.reactions) root.append(returnsBox(u, current, () => u.audio.currentTime));
   if (m.options.download) {
     const dl = $('button', 'download', T('Download the songs', 'Scarica i brani'));

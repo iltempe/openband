@@ -520,7 +520,7 @@ tool('import_proposal', 'Open a .openband-pr file (base64). In the song it came 
 
 tool('check_proposal', 'Run a proposal\'s checks again: its song tests on the head with the base as baseline, and the problems it adds or removes.', { number: z.number() });
 
-tool('create_cassette', 'Burn a cassette: a tape to give to people, with its own player inside, encrypted, that plays anywhere with no server of ours. sides: [{name:"A",tracks:[{versionId,title?}]}] (default: the open song on side A).', { title: z.string(), artist: z.string().optional(), dedication: z.string().optional(), notes: z.string().optional(), sides: z.array(z.object({ name: z.enum(['A', 'B']), tracks: z.array(z.object({ versionId: z.string(), title: z.string().optional(), note: z.string().optional() })) })).optional(), options: z.record(z.unknown()).optional(), quality: z.number().optional(), signaling: z.array(z.string()).optional() });
+tool('create_cassette', 'Burn a cassette: a tape to give to people, with its own player inside, encrypted, that plays anywhere with no server of ours. sides: [{name:"A",tracks:[{versionId,title?}]}] (default: the open song on side A).', { title: z.string(), artist: z.string().optional(), dedication: z.string().optional(), notes: z.string().optional(), sides: z.array(z.object({ name: z.enum(['A', 'B']), tracks: z.array(z.object({ versionId: z.string(), title: z.string().optional(), note: z.string().optional() })) })).optional(), options: z.record(z.unknown()).optional(), quality: z.number().optional(), signaling: z.array(z.string()).optional(), parts: z.boolean().optional() });
 
 tool('list_cassettes', 'The cassettes burnt here, with their prints.', {}, readOnly);
 
@@ -532,7 +532,11 @@ tool('retire_cassette', 'Take a cassette off the connected server: links stop wo
 
 tool('list_returns', 'What listeners sent back from the cassettes: reactions, comments and voice notes, each placed on the music.', { series: z.string().optional(), track: z.string().optional() }, readOnly);
 
-tool('apply_overdub', 'Turn a listener\'s sung take into a proposal on the song: reviewed, compared and merged like any other. Open the song first.', { return_id: z.string() });
+tool('apply_overdub', 'Turn a listener\'s sung take into a proposal on the song: reviewed, compared and merged like any other. Open the song first.', { return_id: z.string(), with: z.array(z.string()).optional() });
+
+tool('prepare_parts', 'Which tracks of the open song are parts for a parts cassette (Soprano, T, Voce 2, Tromba 1…) and which are accompaniment.', {}, readOnly);
+
+tool('export_parts_pack', 'Download the classic pack: for each part, in evidence, muted and on the left, plus the balanced mix, with ordered names.', { versions: z.array(z.object({ versionId: z.string(), title: z.string().optional() })).optional() });
 
 tool('import_return', 'Open a .risposta file: its text.', { text: z.string() });
 
@@ -1053,7 +1057,7 @@ export const TOOLSETS = {
   mix: { description: 'Effects per track, master chain, the mix pilot\'s knob, automation, meters and listening (analyze_mix, spectrogram), reference tracks', tools: ['set_track_effects', 'set_master_chain', 'set_pilot_amount', 'fix_pilot', 'set_track_role', 'set_automation', 'clear_automation', 'list_automatable', 'get_meters', 'set_monitoring', 'level_match', 'analyze_mix', 'render_spectrogram', 'import_reference', 'compare_to_reference', 'clear_reference'] },
   analysis: { description: 'Harmony and key analysis, the song linter and its fixes', tools: ['analyze_harmony', 'detect_key', 'lint_project', 'apply_fix', 'ignore_issue'] },
   recording: { description: 'Recording audio and MIDI, punch-in, takes and comping, blind A/B tests, flub marks', tools: ['record_audio', 'arm_track', 'set_track_midi_input', 'map_midi_channels', 'set_punch', 'audio_to_midi', 'add_take', 'list_takes', 'set_active_take', 'delete_take', 'comp_takes', 'start_ab_test', 'add_flub', 'list_flubs', 'resolve_flub', 'delete_flub', 'replace_with_best_take', 'set_voice_control', 'start_session', 'stop_session', 'get_session'] },
-  cassette: { description: 'Cassettes: tapes to give to people, encrypted, with their own player', tools: ['create_cassette', 'list_cassettes', 'new_edition', 'deliver_cassette', 'retire_cassette', 'list_returns', 'apply_overdub', 'import_return'] },
+  cassette: { description: 'Cassettes: tapes to give to people, encrypted, with their own player', tools: ['create_cassette', 'list_cassettes', 'new_edition', 'deliver_cassette', 'retire_cassette', 'list_returns', 'apply_overdub', 'prepare_parts', 'export_parts_pack', 'import_return'] },
   review: { description: 'Musical pull requests: fork, propose, review, merge', tools: ['fork_project', 'create_proposal', 'list_proposals', 'get_proposal', 'comment_proposal', 'review_proposal', 'merge_proposal', 'close_proposal', 'check_proposal', 'export_proposal', 'import_proposal'] },
   tests: { description: 'Song tests: assertions on the mix and the notes, run like a CI', tools: ['list_tests', 'add_test', 'update_test', 'remove_test', 'run_tests', 'set_baseline', 'add_test_suite'] },
   versions: { description: 'History, versions and branches, merge, the time machine', tools: ['get_history', 'save_version', 'list_versions', 'analyze_rehearsal', 'list_projects', 'open_project', 'move_project', 'store_status', 'create_branch', 'checkout', 'diff_versions', 'merge', 'get_timeline', 'preview_at', 'restore_at'] },

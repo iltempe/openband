@@ -2,6 +2,22 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.18 "The parts cassette (D4)"
+
+- **For choirs and bands**: tracks named Soprano, Alto, T, Basso, Voce 2, Tromba 1… are recognised as parts. Each song on the cassette then carries a stem per part and the accompaniment, at 96 kbps.
+- **In the player**: choose your part, remembered per cassette. *All*, *Highlighted* (+6 / −9 dB), *Muted* to sing over it, *On the left*; speed from 50 to 100% keeping the pitch; a loop on a section.
+- **The classic pack**: for each part in evidence, muted and on the left, plus the balanced mix, with ordered names like `03 Signore delle cime – Tenore – in evidenza.m4a`.
+- **A virtual choir**: takes sung back on one song become one proposal, to hear them together.
+- `prepare_parts`, `export_parts_pack`: 213 tools, 208 in the page.
+- Deviations from the spec:
+  - speed uses the browser's own pitch-keeping playback instead of carrying WSOLA in a worklet. It adds nothing to the player, and its quality is the browser's;
+  - the loop covers sections, not a dragged interval;
+  - syllables under the part are not shown;
+  - parts can't be corrected by hand yet: rename the track.
+- The weight target of the spec (at most 30% over the plain cassette) is not met: a song with five stems weighs 3.3 times the plain one, measured in the e2e, because each stem is 96 kbps on top of the mix. Meeting it would need stems around 10 kbps.
+- **Not tested on a real phone**: seamless mode changes and the sound at 70%.
+- Tests: names, modes, mixes, pack names. **e2e**: four parts found, five stems, played muted at 70% with the pitch kept.
+
 ## v0.7.17 "Sing over it (D2.b)"
 
 - **If the musician allows it**, the player records a voice or instrument over a song: headphones, a bar of clicks, listen back, then send the take. On a link over HTTPS; from a file the button explains why it can't.

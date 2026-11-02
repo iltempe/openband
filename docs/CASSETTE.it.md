@@ -19,6 +19,10 @@ Tutti i brani escono allo stesso volume (−14 LUFS, −1 dBTP), come su un nast
 
 - **Dal mio OpenBand**: quando lo studio è collegato al tuo server o Box, la cassetta è servita da `/c/<serie>/<stampa>/`. In LAN funziona subito. Per arrivare su internet, `openband box --tunnel cloudflared` o `--tunnel tailscale` avvia un tunnel che hai configurato e stampa l'indirizzo pubblico: controllalo dal telefono. Su questa strada i ritorni arrivano direttamente al tuo server in HTTPS, *Ritira* toglie la cassetta, e chi ascolta vede quando esce una nuova stampa.
 
+## Per un coro o una banda
+
+Chiama le tracce Soprano, Alto, T, Basso, Voce 2, Tromba 1… e spunta *Con le parti*. Ogni corista sceglie la sua parte nel lettore: *In evidenza*, *Muta* (per cantarci sopra), *A sinistra*, con la velocità dal 50 al 100% senza cambiare intonazione e il loop su una sezione. *Pacchetto classico delle parti* dà i file semplici. Le parti cantate che tornano si ascoltano insieme, come un coro virtuale, in una proposta.
+
 ## Cosa torna indietro
 
 Se lo permetti, chi ascolta può reagire su un punto, scrivere una parola o lasciare un vocale. Tutto è sigillato in modo che solo il tuo studio possa leggerlo. Ti arriva direttamente, dal tuo server di signaling mentre lo studio è aperto, oppure come file `.risposta` che ti mandano. I ritorni finiscono sulla battuta in cui sono nati e restano su quella frase anche se riarrangi il brano.

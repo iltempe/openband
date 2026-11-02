@@ -11,6 +11,8 @@ import { uid } from '../music';
 import { tx } from '../storage/idb';
 import type { Project } from '../types';
 import { getSnapshot } from '../versioning';
+import { zipSync } from 'fflate';
+import { ACCOMPANIMENT, mixStems, packName, partOf } from './parts';
 import { newIdentity, newSeriesKey, type Identity } from './crypto';
 import { returnsRoom } from './p2p';
 import { DEFAULT_OPTIONS, blobRef, packCassette, type CassetteManifest, type CassetteOptions, type CassetteTrack, type Package } from './format';
@@ -87,6 +89,48 @@ function trackInfo(p: Project, versionId: string, durationS: number, audio: Cass
   };
 }
 
+/** A render per part and one of the rest, at 96 kbps: the weight stays near the plain cassette's. */
+export async function stemsOf(p: Project) {
+  const parts = new Map<string, string[]>();
+  for (const t of p.tracks) {
+    const part = partOf(t.name) ?? ACCOMPANIMENT;
+    parts.set(part, [...(parts.get(part) ?? []), t.id]);
+  }
+  const out: { part: string; channels: Float32Array[] }[] = [];
+  for (const [part, ids] of parts) {
+    const buf = await renderBuffer(p, { tracks: ids, includeMaster: false, sampleRate: RATE, tailSeconds: 1 });
+    out.push({ part, channels: Array.from({ length: buf.numberOfChannels }, (_, c) => buf.getChannelData(c)) });
+  }
+  return out;
+}
+
+async function burnStems(p: Project, g: number, blobs: Record<string, Uint8Array>) {
+  const out: NonNullable<CassetteTrack['stems']> = [];
+  for (const s of await stemsOf(p)) {
+    const data = await encodeAac(s.channels.map((c) => c.map((v) => v * g)), RATE, 96000);
+    const id = uid('blob');
+    blobs[id] = data;
+    out.push({ part: s.part, blob: await blobRef(id, 'audio/mp4', data) });
+  }
+  return out;
+}
+
+/** The classic pack: for each part in evidence, muted and on the left, plus the balanced mix. */
+export async function partsPack(versionIds: { versionId: string; title?: string }[]) {
+  const files: Record<string, Uint8Array> = {};
+  for (const [i, v] of versionIds.entries()) {
+    const p = await getSnapshot(v.versionId);
+    const title = v.title || p.name;
+    useBurn.setState({ step: title });
+    const stems = await stemsOf(p);
+    files[packName(i + 1, title, null)] = await encodeAac(mixStems(stems, 'all', null), RATE, 128000);
+    for (const s of stems.filter((x) => x.part !== ACCOMPANIMENT))
+      for (const mode of ['highlight', 'mute', 'left'] as const) files[packName(i + 1, title, s.part, mode)] = await encodeAac(mixStems(stems, mode, s.part), RATE, 128000);
+  }
+  useBurn.setState({ step: null });
+  return zipSync(files, { level: 0 });
+}
+
 export interface BurnSpec {
   title: string;
   artist: string;
@@ -97,6 +141,8 @@ export interface BurnSpec {
   quality?: 96 | 160 | 256;
   normalize?: boolean;
   intro?: { channels: Float32Array[]; sampleRate: number };
+  /** Each song with its parts (D4). */
+  parts?: boolean;
   /** The instance that serves it: returns go straight there, and later prints are announced there. */
   instance?: string;
   /** Signaling servers the musician chose: the P2P road for returns. */
@@ -151,7 +197,9 @@ export async function burn(spec: BurnSpec): Promise<StoredCassette> {
       const data = await encodeAac(r.channels.map((c) => c.map((v) => v * g)), RATE, bitrate);
       const bid = uid('blob');
       blobs[bid] = data;
-      tracks.push(trackInfo(p, t.versionId, r.durationS, await blobRef(bid, 'audio/mp4', data), t.title, t.note));
+      const info = trackInfo(p, t.versionId, r.durationS, await blobRef(bid, 'audio/mp4', data), t.title, t.note);
+      if (spec.parts) info.stems = await burnStems(p, g, blobs);
+      tracks.push(info);
     }
     sides.push({ name: side.name, tracks });
   }

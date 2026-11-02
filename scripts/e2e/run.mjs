@@ -13,6 +13,7 @@
 //   songtests  — song tests with real renders: green, red, the fix, the cache, the baseline
 //   proposals  — a proposal: what changes, a blind vote, a partial merge confirmed in the studio, one undo
 //   cassette   — burn a cassette; the file hides its text, plays alone with no request, opens with a password
+//   parts      — a cassette with parts: four voices found, stems in the player, muted and slowed
 //   library    — a local server is the browser's library: first-run copy, songs survive clearing the browser
 //   store      — the project library: two browsers, offline work, a conflict that loses nothing
 //   frozen     — a song with a native plugin opened in the browser plays its render cache, live and exported
@@ -2677,6 +2678,58 @@ tests.cassette = async () => {
     await b.close();
     srv.kill();
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+tests.parts = async () => {
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.keyboard.press('Space');
+    const f = await p.evaluate(async () => {
+      const { commands, cassette } = window.openband;
+      await commands.new_project({ name: 'Signore delle cime', bpm: 100, key: 'C' });
+      for (const [name, pitch] of [['Soprano', 'C5'], ['Alto', 'A4'], ['T', 'E4'], ['Basso', 'C3'], ['Pianoforte', 'G3']]) {
+        const id = commands.add_track({ kind: 'instrument', instrument: 'chip', name }).track_id;
+        commands.add_region({ track_id: id, start_bar: 1, length_bars: 2, notes: [0, 4].map((start) => ({ pitch, start, duration: 3, velocity: 0.8 })) });
+      }
+      const parts = await commands.prepare_parts({});
+      const v = (await commands.save_version({ label: 'Tape' })).version_id;
+      const c = await commands.create_cassette({ title: 'Coro', artist: 'Direttore', sides: [{ name: 'A', tracks: [{ versionId: v }] }], parts: true });
+      const plain = await commands.create_cassette({ title: 'Coro', artist: 'Direttore', sides: [{ name: 'A', tracks: [{ versionId: v }] }] });
+      const stored = await cassette.latest(c.series);
+      const file = await cassette.fileCassette(stored);
+      return { parts: parts.map((x) => x.part), html: file.html, key: stored.key, series: c.series, stems: stored.manifest.sides[0].tracks[0].stems.map((s) => s.part), heavier: c.bytes / plain.bytes };
+    });
+    check(f.parts.join() === 'Soprano,Contralto,Tenore,Basso,Accompagnamento', `the four parts are recognised (${f.parts})`);
+    check(f.stems.length === 5, `each song carries its stems (${f.stems})`);
+    console.log(`  (with parts: ${f.heavier.toFixed(1)} times the plain cassette on this short song)`);
+    const os = await import('node:os');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ob-e2e-parts-'));
+    const file = path.join(dir, 'parts.html');
+    fs.writeFileSync(file, f.html);
+    const q = await (await b.createBrowserContext()).newPage();
+    await q.goto(`file://${file}#k=${f.key}&s=${f.series}`);
+    await q.waitForSelector('.parts select', { timeout: 10000 });
+    await q.waitForFunction(() => document.querySelectorAll('.parts select')[0].options.length === 5, { timeout: 10000 });
+    await q.select('.parts select:nth-of-type(1)', 'Tenore');
+    await q.select('.parts select:nth-of-type(2)', 'mute');
+    await q.click('.play');
+    await q.evaluate(() => {
+      const s = document.querySelector('.parts input[type=range]');
+      s.value = '70';
+      s.dispatchEvent(new Event('input'));
+    });
+    const moved = await q.waitForFunction(() => { const a = document.querySelector('audio'); return a.currentTime > 0.3 && a.playbackRate === 0.7 && a.preservesPitch; }, { timeout: 8000 }).then(() => true, () => false);
+    check(moved, 'the player plays a part muted at 70%, keeping the pitch');
+    fs.rmSync(dir, { recursive: true, force: true });
+  } finally {
+    await b.close();
+    srv.kill();
   }
 };
 
