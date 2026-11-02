@@ -2,6 +2,18 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.4 "The recorder that decides by itself (R2.a)"
+
+### The core of the rehearsal Box, still without a command to start it
+- **The session gate** (`server/box/gate.mjs`): starts after 2 s of sound, cuts songs at pauses over 8 s, ends after 90 s of silence. A dip under a quarter of a second doesn't reset it, and a channel must fall 3 dB below the threshold to count as quiet. Any channel can trigger it.
+- **Capture** (`server/box/capture.mjs`): ffmpeg (or `arecord` on Linux) as a child process, 48 kHz 24 bit, one WAV per channel in 5-minute segments, with a pre-roll so the attack isn't lost.
+- **Power cuts**: at the next start, an unfinished session is found and its headers are rebuilt from what reached the disk.
+- Device lists for Linux, macOS and Windows, with stable ids on Windows (dshow's alternative name). ffmpeg is never bundled.
+- Deviation from the spec: Windows uses dshow, not WASAPI.
+- Not done yet, for people: there is no `openband box` yet (R2.c), and these files are not in the packages until then.
+- **Not measured**: CPU on a Raspberry Pi and capture from a real audio interface. There was no hardware here, so the Pi 4 limit in the spec's risks is still open.
+- Tests: 19. They cover the gate on synthetic buffers, sample-exact stitching, a simulated power cut, sessions across segments, and a real ffmpeg child process recording a generated tone.
+
 ## v0.7.3 "A library on your own disk (R1.d)"
 
 ### Your songs outlive the browser
