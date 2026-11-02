@@ -28,6 +28,7 @@ export function CassettesPanel() {
   const [title, setTitle] = useState('');
   const [dedication, setDedication] = useState('');
   const [password, setPassword] = useState('');
+  const [overdub, setOverdub] = useState(false);
   const [result, setResult] = useState('');
   const step = useBurn((s) => s.step);
   const link = useStoreLink((s) => s.url);
@@ -52,7 +53,7 @@ export function CassettesPanel() {
       { name: 'A', tracks: sideA },
       { name: 'B', tracks: sideB },
     ].filter((s) => s.tracks.length);
-    await run('create_cassette', { title, dedication: dedication || undefined, sides });
+    await run('create_cassette', { title, dedication: dedication || undefined, sides, options: { overdub } });
     setA([]);
     setB([]);
     refresh();
@@ -69,6 +70,9 @@ export function CassettesPanel() {
         <h4>{t('ca2.burn')}</h4>
         <input className="pj-input" aria-label={t('ca2.title')} placeholder={t('ca2.title')} value={title} onChange={(e) => setTitle(e.target.value)} />
         <input className="pj-input" aria-label={t('ca2.dedication')} placeholder={t('ca2.dedication')} value={dedication} onChange={(e) => setDedication(e.target.value)} />
+        <label className="pj-meta">
+          <input type="checkbox" checked={overdub} onChange={(e) => setOverdub(e.target.checked)} /> {t('ca2.allowOverdub')}
+        </label>
         <div className="pj-actions">
           <button className="btn" onClick={() => void add(setA).catch(notify)}>{t('ca2.addA', { song })}</button>
           <button className="btn" onClick={() => void add(setB).catch(notify)}>{t('ca2.addB')}</button>
@@ -131,6 +135,7 @@ export function CassettesPanel() {
                 <div key={r.id} className="pj-meta">
                   <b>{r.from}</b>
                   {r.via ? ` (via ${r.via})` : ''}: {r.items.map((i) => ('label' in i ? i.label : 'text' in i ? i.text : i.kind === 'voice' ? '🎙' : '')).join(' ')}
+                  {r.items.some((i) => i.kind === 'overdub') && <button className="btn" onClick={() => void run('apply_overdub', { return_id: r.id }).catch(notify)}>{t('ca2.toProposal')}</button>}
                   {r.pending && (
                     <span className="pj-alert">
                       {' '}{t('ca2.newDevice', { name: r.from })}{' '}

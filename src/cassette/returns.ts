@@ -7,7 +7,10 @@ import { tx } from '../storage/idb';
 import { ServerBackend } from '../storage/server';
 import { useStore } from '../store';
 import type { Annotation, Project } from '../types';
-import { getSnapshot } from '../versioning';
+import { getSnapshot, loadVersions } from '../versioning';
+import { gzipSync, strToU8 } from 'fflate';
+import { nextNumber, type Proposal } from '../proposals/model';
+import { withOverdub } from './overdub';
 import { getCassette, identity, listCassettes } from './burn';
 import { fingerprint, fromB64u } from './crypto';
 import type { CassetteTrack } from './format';
@@ -91,6 +94,29 @@ export async function decide(id: string, accept: boolean) {
   }
   useReturns.setState({ note: null });
   await refreshReturns();
+}
+
+/** An overdub becomes a proposal on the version it was sung over: review, A/B and merge as any other. */
+export async function applyOverdub(id: string) {
+  const r = (await tx<StoredReturn | undefined>('returns', 'readonly', (s) => s.get(id))) ?? null;
+  const it = r?.items.find((x) => x.kind === 'overdub');
+  if (!r || !it || it.kind !== 'overdub') throw new Error('No overdub in that return. Call list_returns.');
+  const c = await getCassette(`${r.seriesId}:${r.edition}`);
+  const track = c?.manifest.sides.flatMap((s) => s.tracks).find((t) => t.id === r.trackId);
+  if (!track) throw new Error('Its cassette is gone');
+  const p = useStore.getState().project;
+  if (p.meta?.projectId !== r.projectId) throw new Error(`Open the song of this return first: ${r.trackTitle}`);
+  const base = await getSnapshot(track.versionId);
+  const info = await importSample(fromB64u(it.blob).buffer as ArrayBuffer, `${r.from} on ${r.trackTitle}`, it.type);
+  const { project: head } = withOverdub(base, { sampleId: info.id, name: it.label || r.from, startS: it.start, durationS: info.duration, latencyMs: it.latencyMs });
+  const number = nextNumber(p);
+  const headId = uid('ver');
+  await backend().versions.put({ id: headId, projectId: r.projectId, parentIds: [track.versionId], branch: `pr/${number}`, label: `${r.from}: ${r.trackTitle}`, createdAt: Date.now(), author: 'user', snapshot: gzipSync(strToU8(JSON.stringify(head)), { mtime: 0 }) });
+  await backend().versions.putBranch({ id: `${r.projectId}:pr/${number}`, projectId: r.projectId, name: `pr/${number}`, headId, at: Date.now() });
+  const x: Proposal = { id: uid('pr'), number, projectId: r.projectId, title: `${r.from} sings over ${r.trackTitle}`, description: it.headphones ? undefined : 'Recorded without headphones: the backing bleeds into the take.', author: { kind: 'user', name: r.from }, baseVersionId: track.versionId, headVersionId: headId, status: 'open', createdAt: Date.now(), updatedAt: Date.now() };
+  useStore.getState().commit((d) => void (d.proposals = [...(d.proposals ?? []), x]), { label: `Proposal #${number}` });
+  await loadVersions();
+  return { number, title: x.title };
 }
 
 /** Where people reacted, and where they stopped: a value per bucket of a song. Pure. */

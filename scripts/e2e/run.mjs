@@ -2649,6 +2649,25 @@ tests.cassette = async () => {
       return { from: list[0].from, label: list[0].items[0].label, pins: useStore.getState().project.annotations?.filter((a) => a.author.name === 'Luca della Vespa').length };
     }, packet);
     check(came.from === 'Luca della Vespa' && came.pins === 1, `it comes back on the music, as a pin by the listener (${came.from}: ${came.label})`);
+    const pr = await p.evaluate(async () => {
+      const { commands, useStore, cassette } = window.openband;
+      const tape = (await commands.list_cassettes({}))[0];
+      const c = await cassette.latest(tape.series);
+      const t = c.manifest.sides[0].tracks[0];
+      const sr = 44100;
+      const pcm = new Int16Array(sr * 2).map((_, i) => Math.sin(i / 20) * 9000);
+      const wav = new Uint8Array(44 + pcm.byteLength);
+      const d = new DataView(wav.buffer);
+      [[0, 'RIFF'], [8, 'WAVEfmt '], [36, 'data']].forEach(([o, x]) => [...x].forEach((ch, i) => d.setUint8(o + i, ch.charCodeAt(0))));
+      d.setUint32(4, 36 + pcm.byteLength, true); d.setUint32(16, 16, true); d.setUint16(20, 1, true); d.setUint16(22, 1, true); d.setUint32(24, sr, true); d.setUint32(28, sr * 2, true); d.setUint16(32, 2, true); d.setUint16(34, 16, true); d.setUint32(40, pcm.byteLength, true);
+      wav.set(new Uint8Array(pcm.buffer), 44);
+      await cassette.intakeReply(c, t, 'Luca della Vespa', [{ kind: 'overdub', start: 1, blob: cassette.b64(wav), type: 'audio/wav', latencyMs: 40, headphones: false }]);
+      const id = (await commands.list_returns({})).find((x) => x.items[0].kind === 'overdub').id;
+      const made = await commands.apply_overdub({ return_id: id });
+      const got = await commands.get_proposal({ number: made.number });
+      return { made, summary: got.summary, note: useStore.getState().project.proposals.at(-1).description };
+    });
+    check(pr.summary.some((l) => /New track/.test(l)) && /without headphones/.test(pr.note), `an overdub is a proposal with a new track (${pr.made.title})`);
     await q.goto(`file://${lockedFile}#s=${f.id}`);
     await q.waitForSelector('.unlock input', { timeout: 8000 });
     await q.type('.unlock input', 'nastro');

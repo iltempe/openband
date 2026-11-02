@@ -1,7 +1,8 @@
 // The cassette's own player (D1.3): plain TypeScript and DOM, bundled into every cassette. No external request,
 // ever: a cassette of today must still play when OpenBand is gone.
 import { canonical, fingerprint, open, unlockKey, verifyText } from '../cassette/crypto';
-import { b64, newListener, sealReply, type Reply, type ReplyItem } from '../cassette/reply';
+import { MAX_OVERDUB, b64, newListener, sealReply, type Reply, type ReplyItem } from '../cassette/reply';
+import { clapLatency } from '../cassette/overdub';
 import { sendP2P } from '../cassette/p2p';
 import { openManifest, parseLink, signerState, sideSeconds, type CassetteManifest, type CassetteTrack } from '../cassette/format';
 
@@ -163,6 +164,117 @@ async function deliver(u: Ui, text: string, say: (s: string) => void) {
   document.querySelector('.returns')?.append(share);
 }
 
+const CAL = 'openband.cassette.latency';
+
+/** Clap with four clicks, once per device: what the system can't tell us about its input. */
+async function calibrate(say: (s: string) => void) {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+  const ctx = new AudioContext();
+  await ctx.resume();
+  const an = ctx.createAnalyser();
+  an.fftSize = 512;
+  ctx.createMediaStreamSource(stream).connect(an);
+  const clicks: number[] = [];
+  const onsets: number[] = [];
+  const base = ctx.currentTime + 0.6;
+  for (let i = 0; i < 4; i++) {
+    const at = base + i * 0.75;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.4, at);
+    g.gain.exponentialRampToValueAtTime(0.001, at + 0.05);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(at);
+    osc.stop(at + 0.06);
+    clicks.push(at * 1000);
+  }
+  say(T('Clap with the four clicks', 'Batti le mani sui quattro click'));
+  const data = new Float32Array(an.fftSize);
+  let last = 0;
+  while (ctx.currentTime < base + 3.4) {
+    an.getFloatTimeDomainData(data);
+    const peak = Math.max(...data.map(Math.abs));
+    const t = ctx.currentTime * 1000;
+    if (peak > 0.25 && t - last > 200) onsets.push((last = t));
+    await new Promise((r) => setTimeout(r, 4));
+  }
+  stream.getTracks().forEach((x) => x.stop());
+  await ctx.close();
+  const ms = clapLatency(clicks, onsets);
+  if (ms === null) return say(T('I did not hear enough claps. Try again, closer to the microphone.', 'Non ho sentito abbastanza battiti. Riprova più vicino al microfono.'));
+  localStorage.setItem(CAL, String(ms));
+  say(T(`Calibrated: ${Math.round(ms)} ms.`, `Calibrato: ${Math.round(ms)} ms.`));
+}
+
+function overdubBox(u: Ui, track: () => CassetteTrack, send: (items: ReplyItem[]) => Promise<void>, say: (s: string) => void) {
+  const box = $('div', 'overdub');
+  if (!navigator.mediaDevices?.getUserMedia || !window.isSecureContext) {
+    box.append($('p', 'note', T('Singing over needs the https link of this cassette: a file can’t use the microphone here.', 'Per cantare sopra serve il link https di questa cassetta: da un file qui il microfono non si può usare.')));
+    return box;
+  }
+  const phones = $('input');
+  phones.type = 'checkbox';
+  phones.checked = true;
+  const lab = $('label', 'tape');
+  lab.append(phones, ` ${T('With headphones', 'Con le cuffie')}`);
+  const cal = $('button', 'react', T('Calibrate', 'Calibra'));
+  cal.onclick = () => void calibrate(say).catch((e) => say((e as Error).message));
+  const rec = $('button', 'react', `🎤 ${T('Sing over it', 'Canta sopra')}`);
+  let stop: (() => void) | null = null;
+  rec.onclick = async () => {
+    if (stop) return stop();
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }).catch(() => null);
+    if (!stream) return say(T('No microphone.', 'Nessun microfono.'));
+    const t = track();
+    const ctx = new AudioContext();
+    const system = ((ctx.outputLatency || 0) + ctx.baseLatency) * 1000;
+    const bar = (60 / t.beatMap.bpm) * 4;
+    await ctx.resume();
+    for (let i = 0; i < 4; i++) {
+      const at = ctx.currentTime + (i * bar) / 4 + 0.05;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.25, at);
+      g.gain.exponentialRampToValueAtTime(0.001, at + 0.05);
+      o.connect(g).connect(ctx.destination);
+      o.start(at);
+      o.stop(at + 0.06);
+    }
+    say(T('One bar, then sing', 'Una battuta, poi canta'));
+    await new Promise((r) => setTimeout(r, bar * 1000 + 50));
+    const start = u.audio.currentTime;
+    const parts: Blob[] = [];
+    const r = new MediaRecorder(stream);
+    r.ondataavailable = (e) => parts.push(e.data);
+    r.start();
+    await u.audio.play();
+    rec.textContent = `■ ${T('Stop', 'Ferma')}`;
+    stop = () => r.stop();
+    r.onstop = () => {
+      stop = null;
+      u.audio.pause();
+      stream.getTracks().forEach((x) => x.stop());
+      void ctx.close();
+      rec.textContent = `🎤 ${T('Sing over it', 'Canta sopra')}`;
+      const blob = new Blob(parts, { type: r.mimeType });
+      const back = $('audio');
+      back.controls = true;
+      back.src = URL.createObjectURL(blob);
+      const keep = $('button', 'react', T('Send this take', 'Manda questa take'));
+      keep.onclick = async () => {
+        keep.remove();
+        back.remove();
+        const data = new Uint8Array(await blob.arrayBuffer());
+        if (data.length > MAX_OVERDUB) return say(T('Too long to send.', 'Troppo lunga da mandare.'));
+        await send([{ kind: 'overdub', start, blob: b64(data), type: r.mimeType, latencyMs: Math.round(system + Number(localStorage.getItem(CAL) ?? 0)), headphones: phones.checked }]);
+      };
+      box.append(back, keep);
+    };
+  };
+  box.append(lab, cal, rec);
+  return box;
+}
+
 function returnsBox(u: Ui, track: () => CassetteTrack, now: () => number) {
   const { m } = u;
   const box = $('section', 'returns');
@@ -225,6 +337,7 @@ function returnsBox(u: Ui, track: () => CassetteTrack, now: () => number) {
     };
     box.append(rec);
   }
+  if (m.options.overdub) box.append(overdubBox(u, track, send, say));
   box.append(status);
   // Anything left from last time goes out now.
   const waiting = queued().filter((q) => q.series === m.seriesId);

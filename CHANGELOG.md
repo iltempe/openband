@@ -2,6 +2,18 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.17 "Sing over it (D2.b)"
+
+- **If the musician allows it**, the player records a voice or instrument over a song: headphones, a bar of clicks, listen back, then send the take. On a link over HTTPS; from a file the button explains why it can't.
+- **Latency**: what the browser reports, plus an optional calibration with four claps, once per device.
+- **In the studio**: *Make it a proposal* turns the take into a proposal on the version it was sung over, with a new audio track, and it goes through review, blind A/B and merge like any other. A take without headphones says the backing bleeds in.
+- `apply_overdub`: 211 tools, 206 in the page.
+- Deviations from the spec:
+  - one take at a time, over the whole song from where it is: no looped section with several takes yet;
+  - no manual nudge in the review yet: use the region in the studio after the merge.
+- **Not tested on real phones**: the ±20 ms alignment after calibration is unmeasured, and the microphone path has run only as code here. The proposal side is tested end to end.
+- Tests: the clap maths, the track with its latency. **e2e**: a sung take from a listener becomes a proposal with a new track and the headphone warning.
+
 ## v0.7.16 "From my own OpenBand (D3.b)"
 
 - **Serve a cassette from your server or Box**: *From my OpenBand* uploads it to `/c/<series>/<print>/`. The server keeps only sealed files, and its pages are marked not to be indexed.

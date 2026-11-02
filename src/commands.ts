@@ -1,4 +1,4 @@
-import { intake, refreshReturns, useReturns } from './cassette/returns';
+import { applyOverdub, intake, refreshReturns, useReturns } from './cassette/returns';
 import { createCassette, deliverCassette, listAll, newEdition, retireCassette } from './cassette';
 import { checkProposal, closeProposal, commentProposal, createProposal, exportProposal, forkProject, getProposal, importProposal, listProposals, mergeProposal, reviewProposal } from './proposals';
 import { getSnapshot, useVersions } from './versioning';
@@ -1354,6 +1354,7 @@ export const commands: Record<string, (args: P) => unknown> = {
     await refreshReturns();
     return useReturns.getState().list.filter((r) => (!series || r.seriesId === series) && (!track || r.trackId === track)).map((r) => ({ id: r.id, from: r.from, track: r.trackTitle, via: r.via, at: r.createdAt, pending: !!r.pending, items: r.items.map((i) => ({ kind: i.kind, ...('label' in i ? { label: i.label } : {}), ...('text' in i ? { text: i.text } : {}), ...('t' in i ? { at_seconds: i.t } : {}) })) }));
   },
+  apply_overdub: ({ return_id }) => applyOverdub(String(return_id ?? '')),
   import_return: async ({ text }) => {
     const r = await intake(String(text ?? ''));
     return { id: r.id, from: r.from, track: r.trackTitle };
