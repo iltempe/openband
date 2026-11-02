@@ -25,3 +25,8 @@ main{width:min(460px,100%);padding:16px;box-sizing:border-box}
 .flip,.download{background:#3a3026;color:#f2e8d5}
 .unlock{margin:auto}
 .unlock input{display:block;margin:8px 0;padding:8px;font:inherit}
+.returns{margin-top:16px;border-top:1px dashed #6b5d48}
+.returns h2{font-size:15px}
+.row{display:flex;gap:6px;align-items:center;margin:6px 0}
+.row input{flex:1;padding:8px;font:inherit}
+.react{font:inherit;padding:8px 12px;border:0;border-radius:6px;background:#3a3026;color:#f2e8d5;cursor:pointer}

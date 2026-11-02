@@ -12,6 +12,7 @@ import { tx } from '../storage/idb';
 import type { Project } from '../types';
 import { getSnapshot } from '../versioning';
 import { newIdentity, newSeriesKey, type Identity } from './crypto';
+import { returnsRoom } from './p2p';
 import { DEFAULT_OPTIONS, blobRef, packCassette, type CassetteManifest, type CassetteOptions, type CassetteTrack, type Package } from './format';
 
 export const TARGET_LUFS = -14;
@@ -96,6 +97,8 @@ export interface BurnSpec {
   quality?: 96 | 160 | 256;
   normalize?: boolean;
   intro?: { channels: Float32Array[]; sampleRate: number };
+  /** Signaling servers the musician chose: the P2P road for returns. */
+  signaling?: string[];
   /** An existing series: a new print keeps its key and signature. */
   series?: { seriesId: string; key: string; edition: number };
   returns?: CassetteManifest['returns'];
@@ -159,7 +162,7 @@ export async function burn(spec: BurnSpec): Promise<StoredCassette> {
     blobs.intro = data;
     intro = await blobRef('intro', 'audio/mp4', data);
   }
-  const manifest: CassetteManifest = { format: 'openband-cassette/1', seriesId, edition, createdAt: Date.now(), title: spec.title, artist: spec.artist, dedication: spec.dedication, notes: spec.notes, jcard: { cover: await blobRef('cover', 'image/png', cover), style: 'bold' }, intro, sides, options: { ...DEFAULT_OPTIONS, ...spec.options }, author: { name: spec.artist, signKey: id.sign.publicKey, boxKey: id.box.publicKey }, returns: spec.returns ?? [] };
+  const manifest: CassetteManifest = { format: 'openband-cassette/1', seriesId, edition, createdAt: Date.now(), title: spec.title, artist: spec.artist, dedication: spec.dedication, notes: spec.notes, jcard: { cover: await blobRef('cover', 'image/png', cover), style: 'bold' }, intro, sides, options: { ...DEFAULT_OPTIONS, ...spec.options }, author: { name: spec.artist, signKey: id.sign.publicKey, boxKey: id.box.publicKey }, returns: [...(spec.returns ?? []), ...(spec.signaling?.length ? [{ kind: 'webrtc' as const, signaling: spec.signaling, room: await returnsRoom(key) }] : [])] };
   useBurn.setState({ step: 'sealing' });
   const pkg = await packCassette(manifest, blobs, key, id.sign.privateKey);
   const stored: StoredCassette = { id: `${seriesId}:${edition}`, seriesId, edition, key, title: spec.title, manifest, pkg, createdAt: manifest.createdAt };

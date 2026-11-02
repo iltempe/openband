@@ -14,7 +14,7 @@ const b64 = (b: Uint8Array) => {
 /** No request but its own and the return channels it declares. */
 export const playerCsp = (returns: StoredCassette['manifest']['returns'], file: boolean) => {
   const connect = returns.flatMap((r) => (r.kind === 'https' ? [new URL(r.url).origin] : r.signaling));
-  return [`default-src 'none'`, `script-src 'unsafe-inline'`, `style-src 'unsafe-inline'`, `img-src blob: data:`, `media-src blob:`, `connect-src ${file ? '' : "'self'"} blob: ${connect.join(' ')}`.trim(), `worker-src 'self'`].join('; ');
+  return [`default-src 'none'`, `script-src 'unsafe-inline'`, `style-src 'unsafe-inline'`, `img-src blob: data:`, `media-src blob:`, `connect-src ${file ? '' : "'self'"} blob: ${connect.join(' ')}`.replace(/\s+/g, ' ').trim(), `worker-src 'self'`].join('; ');
 };
 
 export function playerHtml(o: { script: string; css: string; title?: string; csp: string; data?: unknown; manifestLink?: boolean }) {

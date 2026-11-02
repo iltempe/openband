@@ -5,6 +5,7 @@ import { useStore } from '../store';
 import { runCommand } from '../commands';
 import { useBurn } from '../cassette/burn';
 import { currentVersion, useDeliverConfirm } from '../cassette';
+import { decide, heatmap, intake, listenForReturns, refreshReturns, useReturns } from '../cassette/returns';
 
 const notify = (e: unknown) => useStore.getState().notify((e as Error).message);
 const run = (m: string, a: Record<string, unknown> = {}) => Promise.resolve(runCommand(m, a, 'ui'));
@@ -33,6 +34,13 @@ export function CassettesPanel() {
   const song = useStore((s) => s.project.name);
   const refresh = () => void run('list_cassettes').then((r) => setList(r as Row[])).catch(notify);
   useEffect(refresh, []);
+  useEffect(() => {
+    void refreshReturns();
+    void listenForReturns();
+  }, []);
+  const returns = useReturns((x) => x.list);
+  const byTrack = [...new Map(returns.map((r) => [r.trackId, r.trackTitle])).entries()];
+  const readReturn = (f: File) => void f.text().then(intake).catch(notify);
   const add = async (to: typeof setA) => {
     const versionId = await currentVersion();
     to((x) => [...x, { versionId, title: song }]);
@@ -98,6 +106,39 @@ export function CassettesPanel() {
         {!list.length && <p className="pj-meta">{t('ca2.none')}</p>}
         {result && <p className="pj-meta">{result}</p>}
         <p className="pj-meta">{t('ca2.iphone')}</p>
+        <h4>{t('ca2.returns')}</h4>
+        <label className="btn">
+          {t('ca2.openReturn')}
+          <input type="file" accept=".risposta" hidden onChange={(e) => e.target.files?.[0] && readReturn(e.target.files[0])} />
+        </label>
+        {byTrack.map(([id, title]) => {
+          const these = returns.filter((r) => r.trackId === id);
+          const { hot } = heatmap(these, Math.max(1, ...these.flatMap((r) => r.items.map((i) => ('t' in i ? i.t : 0)))) * 1.05);
+          const most = Math.max(1, ...hot);
+          return (
+            <div className="pj-row" key={id}>
+              <b>{title}</b>
+              <div className="ret-heat" role="img" aria-label={t('ca2.heat')}>
+                {hot.map((v, i) => (
+                  <span key={i} style={{ opacity: 0.12 + (0.88 * v) / most }} />
+                ))}
+              </div>
+              {these.map((r) => (
+                <div key={r.id} className="pj-meta">
+                  <b>{r.from}</b>
+                  {r.via ? ` (via ${r.via})` : ''}: {r.items.map((i) => ('label' in i ? i.label : 'text' in i ? i.text : i.kind === 'voice' ? '🎙' : '')).join(' ')}
+                  {r.pending && (
+                    <span className="pj-alert">
+                      {' '}{t('ca2.newDevice', { name: r.from })}{' '}
+                      <button className="btn" onClick={() => void decide(r.id, true)}>{t('ca2.accept')}</button>
+                      <button className="btn" onClick={() => void decide(r.id, false)}>{t('ca2.refuse')}</button>
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          );
+        })}
       </section>
     </div>
   );

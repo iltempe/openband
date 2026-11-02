@@ -2625,6 +2625,30 @@ tests.cassette = async () => {
     const played = await q.waitForFunction(() => document.querySelector('audio')?.currentTime > 0.3, { timeout: 8000 }).then(() => true, () => false);
     check(played, 'and it plays');
     check(requests.filter((u) => !u.startsWith('file://')).length === 0, `no request leaves the page (${requests.length} local)`);
+    const backOut = await q.evaluate(async () => {
+      window.prompt = () => 'Luca della Vespa';
+      document.querySelector('.react').click();
+      await new Promise((r) => setTimeout(r, 1500));
+      return !!document.querySelector('.returns .download');
+    });
+    check(backOut, 'a reaction with no road back offers to send it by hand');
+    await q.evaluate(() => {
+      navigator.canShare = () => false;
+      window.__orig = URL.createObjectURL;
+      URL.createObjectURL = (b) => { window.__sent = b; return window.__orig.call(URL, b); };
+      HTMLAnchorElement.prototype.click = function () {};
+      document.querySelector('.returns .download').click();
+    });
+    await q.waitForFunction(() => window.__sent, { timeout: 3000 });
+    const packet = await q.evaluate(() => window.__sent.text());
+    check(!packet.includes('Luca') && !packet.includes('brividi') && !packet.includes('chills'), 'the .risposta file is sealed');
+    const came = await p.evaluate(async (text) => {
+      const { commands, useStore } = window.openband;
+      await commands.import_return({ text });
+      const list = await commands.list_returns({});
+      return { from: list[0].from, label: list[0].items[0].label, pins: useStore.getState().project.annotations?.filter((a) => a.author.name === 'Luca della Vespa').length };
+    }, packet);
+    check(came.from === 'Luca della Vespa' && came.pins === 1, `it comes back on the music, as a pin by the listener (${came.from}: ${came.label})`);
     await q.goto(`file://${lockedFile}#s=${f.id}`);
     await q.waitForSelector('.unlock input', { timeout: 8000 });
     await q.type('.unlock input', 'nastro');

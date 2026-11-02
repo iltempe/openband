@@ -2,6 +2,23 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.15 "The return tape (D2.a)"
+
+- **From the player**: chills ✨, again 🔁, not sure here 🤔, a word on this moment, or a voice note up to 30 s. The first time, the listener picks a name.
+- **Sealed for the musician**: signed by the listener and encrypted with a one-off key, so whichever road it takes, only the musician's instance can read it.
+- **Three roads, in order**: direct HTTPS when there is one, P2P with WebRTC while the studio is open, on a signaling server the musician chose, and by hand as a `.risposta` file. The player says which one it took. What couldn't leave waits for the next opening.
+- **On the music**: seconds become a musical place that follows the song. A moved bridge or a longer chorus keeps the pin on the same phrase, and a removed section leaves an orphan in the list.
+- **In the studio**: returns arrive as pins with the listener's name, and the *Cassettes* panel shows them per song with a heat map.
+- A return signed by another key is refused; the same name with a new key asks "Did Luca change device?".
+- MCP: `list_returns`, `import_return`: 209 tools, 204 in the page.
+- Deviations from the spec:
+  - listen statistics are defined in the format but the player doesn't send them yet;
+  - the waiting queue uses localStorage, so a long voice note may not fit: the file road remains;
+  - reactions are on a point; dragging an interval isn't there yet;
+  - one key per edition is checked: a return must be for a print this studio still has.
+- Not tested on real networks: the P2P road has no end-to-end test here, only its code path through the file road's sealing. WebRTC behind 4G NATs is the risk the spec names.
+- Tests: all the re-anchoring cases of the spec, sealing and tampering. **e2e**: a reaction with no road back gives a sealed file, and importing it puts a pin by the listener on the song.
+
 ## v0.7.14 "The Cassette (D1.a, D1.b, D3.a)"
 
 - **Burn a cassette from your songs**, in the *Cassettes* panel: sides A and B, a dedication, a generated cover, the same loudness across the tape, AAC at 160 kbps.

@@ -6372,3 +6372,15 @@ div.ca-steps {
 .pr-merge {
   border-color: var(--play);
 }
+
+/* Returns (D2) */
+.ret-heat {
+  display: flex;
+  height: 12px;
+  gap: 1px;
+  margin: 4px 0;
+}
+.ret-heat span {
+  flex: 1;
+  background: var(--accent);
+}

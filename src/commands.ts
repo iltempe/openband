@@ -1,3 +1,4 @@
+import { intake, refreshReturns, useReturns } from './cassette/returns';
 import { createCassette, deliverCassette, listAll, newEdition } from './cassette';
 import { checkProposal, closeProposal, commentProposal, createProposal, exportProposal, forkProject, getProposal, importProposal, listProposals, mergeProposal, reviewProposal } from './proposals';
 import { getSnapshot, useVersions } from './versioning';
@@ -1343,10 +1344,19 @@ export const commands: Record<string, (args: P) => unknown> = {
   },
   import_proposal: async ({ base64 }) => importProposal(Uint8Array.from(atob(String(base64 ?? '')), (c) => c.charCodeAt(0))),
 
-  create_cassette: ({ title, artist, dedication, notes, sides, options, quality }) => createCassette({ title: String(title ?? ''), artist, dedication, notes, sides, options, quality }),
+  create_cassette: ({ title, artist, dedication, notes, sides, options, quality, signaling }) => createCassette({ title: String(title ?? ''), artist, dedication, notes, sides, options, quality, signaling }),
   list_cassettes: () => listAll(),
   new_edition: ({ series, sides }) => newEdition({ series: String(series ?? ''), sides }),
   deliver_cassette: ({ series, mode, password, target }) => deliverCassette({ series: String(series ?? ''), mode: mode === 'static' ? 'static' : 'file', password, target }),
+
+  list_returns: async ({ series, track }) => {
+    await refreshReturns();
+    return useReturns.getState().list.filter((r) => (!series || r.seriesId === series) && (!track || r.trackId === track)).map((r) => ({ id: r.id, from: r.from, track: r.trackTitle, via: r.via, at: r.createdAt, pending: !!r.pending, items: r.items.map((i) => ({ kind: i.kind, ...('label' in i ? { label: i.label } : {}), ...('text' in i ? { text: i.text } : {}), ...('t' in i ? { at_seconds: i.t } : {}) })) }));
+  },
+  import_return: async ({ text }) => {
+    const r = await intake(String(text ?? ''));
+    return { id: r.id, from: r.from, track: r.trackTitle };
+  },
 
   list_tests: () => {
     const p = st().project;
@@ -2104,7 +2114,7 @@ const READ_ONLY = new Set([
   'list_samples', 'list_plugins', 'search_plugins', 'list_native_plugins', 'rescan_plugins', 'suggest_continuation', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'get_energy', 'analyze_harmony',
   'list_engines', 'get_ledger', 'set_engine_policy',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'steer_live_jam', 'list_annotations', 'list_versions', 'list_tests', 'list_cassettes', 'list_proposals', 'get_proposal', 'list_projects', 'store_status', 'diff_versions', 'save_version', 'create_branch',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'steer_live_jam', 'list_annotations', 'list_versions', 'list_tests', 'list_returns', 'list_cassettes', 'list_proposals', 'get_proposal', 'list_projects', 'store_status', 'diff_versions', 'save_version', 'create_branch',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);
