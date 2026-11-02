@@ -54,7 +54,7 @@ jobs:
       # Stable names too, for the "latest" links in the README.
       - run: cp "build/openband-${GITHUB_REF_NAME#v}.mcpb" build/openband.mcpb && cp "build/openband-${GITHUB_REF_NAME#v}.tgz" build/openband.tgz
       - run: node scripts/release-notes.mjs "${GITHUB_REF_NAME}" > build/notes.md
-      - run: gh release create "${GITHUB_REF_NAME}" build/*.mcpb build/*.tgz --title "OpenBand ${GITHUB_REF_NAME}" --notes-file build/notes.md
+      - run: gh release create "${GITHUB_REF_NAME}" build/*.mcpb build/*.tgz --title "OpenBand ${GITHUB_REF_NAME}" --notes-file build/notes.md --latest=false
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -142,3 +142,14 @@ jobs:
     uses: ./.github/workflows/flatpak.yml
     with:
       tag: ${{ github.ref_name }}
+
+  # The site's links go to the latest release: it becomes latest only when every file is there.
+  latest:
+    needs: [desktop, flatpak]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - run: gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --latest
+        env:
+          GH_TOKEN: ${{ github.token }}

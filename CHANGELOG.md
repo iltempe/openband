@@ -4,6 +4,7 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 ## v0.7.23 "Vertical clips (C3.a, C3.c)"
 
+- **Fixed**: a new release was "latest" before its files were up, so the site's Mac, Windows and Flatpak downloads gave a 404 while it was building. A release now becomes latest only with every platform in place.
 - This release also carries v0.7.17 to v0.7.22, which were never tagged: GitHub had no macOS runners for hours, and each tag needs one. Their sections are below.
 - **The camera look**: *Play and film yourself* records the webcam with the song, and the clip shows you with the chords and words over it.
 - **The Clips panel**: a 9:16 video from the whole song, a section, a track alone or in focus, a take, a Box rehearsal, or the before and after of a proposal.

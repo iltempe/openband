@@ -56,6 +56,7 @@ git tag vX.Y.Z && git push origin main && git push origin vX.Y.Z
 - The tag starts `release.yml`: npm tarball, `.mcpb`, desktop installers for **macOS (arm64, x64),
   Windows (x64, arm64) and Linux (AppImage, .deb; x64, arm64)**, stable "latest" asset names, then the
   online studio (`pages.yml`). Every release is "latest".
+- A release becomes "latest" only in the workflow's last job, with every asset up: the site's links follow "latest", so never mark a partial release as latest.
 - Watch Release and CI to the end (a background `gh run watch`), then check: 26 assets on the release (with the Flatpak, from v0.6.35),
   `https://iltempe.github.io/openband/version.json` reports the new version. A failing job is fixed and
   shipped as the next patch release — never leave a release without a platform.
