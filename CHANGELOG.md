@@ -13,6 +13,7 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
   - the intro recording, the cover generator's options and a per-side duration view are not in the panel yet (`create_cassette` has no intro either);
   - one-click publishing covers GitHub Pages only, not Netlify or Cloudflare Pages, and GitHub was not tried with a real account;
   - the tape sound goes through Web Audio only after you press Play, as browsers require.
+- Where the browser has no AAC encoder (some Chromium builds on Linux), the audio is Opus, and the panel says so.
 - **Not to be called "end-to-end" yet**: the spec asks for an external review of the cryptography first. The site says "encrypted".
 - Not tested on real phones: iPhone and Android Safari and Chrome, background playback and the lock screen.
 - Tests: 17, with published vectors (NIST for AES-GCM, RFC 7914 for PBKDF2, FIPS for SHA-256), tampering, wrong keys, and hidden titles. **e2e** in Chrome: burnt in 0.4 s for a short song; titles, song names and the dedication are unreadable in the file; it opens from `file://`, plays, and sends no request; a password opens it.

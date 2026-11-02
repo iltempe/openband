@@ -28,6 +28,7 @@ export function CassettesPanel() {
   const [password, setPassword] = useState('');
   const [result, setResult] = useState('');
   const step = useBurn((s) => s.step);
+  const opus = useBurn((s) => s.warning === 'opus');
   const ask = useDeliverConfirm((s) => s.ask);
   const song = useStore((s) => s.project.name);
   const refresh = () => void run('list_cassettes').then((r) => setList(r as Row[])).catch(notify);
@@ -65,6 +66,7 @@ export function CassettesPanel() {
         <p className="pj-meta">
           A: {sideA.map((x) => x.title).join(', ') || '–'} · B: {sideB.map((x) => x.title).join(', ') || '–'}
         </p>
+        {opus && <p className="pj-alert">{t('ca2.opus')}</p>}
         <button className="btn" disabled={!title.trim() || !(sideA.length + sideB.length) || !!step} onClick={() => void burnIt().catch(notify)}>
           {step ? t('ca2.burning', { step }) : t('ca2.go')}
         </button>

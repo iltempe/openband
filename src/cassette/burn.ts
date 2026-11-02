@@ -29,10 +29,13 @@ export const TAPES = { C60: 30, C90: 45 };
 
 export async function encodeAac(channels: Float32Array[], sampleRate: number, bitrate: number) {
   if (typeof AudioEncoder === 'undefined') throw new Error('This browser cannot encode AAC. Use a recent Chrome, Edge or Safari.');
-  const muxer = new Muxer({ target: new ArrayBufferTarget(), audio: { codec: 'aac', numberOfChannels: 2, sampleRate }, fastStart: 'in-memory', firstTimestampBehavior: 'offset' });
+  // Some builds of Chromium on Linux have no AAC encoder: Opus then, which every recent browser plays.
+  const aac = (await AudioEncoder.isConfigSupported({ codec: 'mp4a.40.2', sampleRate, numberOfChannels: 2, bitrate }).catch(() => null))?.supported;
+  if (!aac) useBurn.setState({ warning: 'opus' });
+  const muxer = new Muxer({ target: new ArrayBufferTarget(), audio: { codec: aac ? 'aac' : 'opus', numberOfChannels: 2, sampleRate }, fastStart: 'in-memory', firstTimestampBehavior: 'offset' });
   let failed: Error | null = null;
   const enc = new AudioEncoder({ output: (c, m) => muxer.addAudioChunk(c, m), error: (e) => (failed = e) });
-  enc.configure({ codec: 'mp4a.40.2', sampleRate, numberOfChannels: 2, bitrate });
+  enc.configure({ codec: aac ? 'mp4a.40.2' : 'opus', sampleRate, numberOfChannels: 2, bitrate });
   const [L, R] = [channels[0], channels[1] ?? channels[0]];
   for (let i = 0; i < L.length; i += 4800) {
     const n = Math.min(4800, L.length - i);
@@ -40,6 +43,7 @@ export async function encodeAac(channels: Float32Array[], sampleRate: number, bi
     data.set(L.subarray(i, i + n), 0);
     data.set(R.subarray(i, i + n), n);
     const frame = new AudioData({ format: 'f32-planar', sampleRate, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round((i / sampleRate) * 1e6), data });
+    if (failed) throw failed;
     enc.encode(frame);
     frame.close();
     while (enc.encodeQueueSize > 8) await new Promise((r) => setTimeout(r, 1));
@@ -109,7 +113,7 @@ export interface StoredCassette {
   password?: boolean;
 }
 
-export const useBurn = create<{ step: string | null }>(() => ({ step: null }));
+export const useBurn = create<{ step: string | null; warning?: 'opus' }>(() => ({ step: null }));
 
 const IDENTITY = 'cassette-identity';
 /** The musician's keys, made at the first cassette. They never leave this instance. */
