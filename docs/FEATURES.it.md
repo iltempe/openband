@@ -135,3 +135,21 @@ jobs:
 ```
 
 I problemi compaiono come annotazioni sulla pull request. In locale: `node scripts/openband-lint.mjs brano.openband.json [--format=text|json|github] [--fail-on=warn]`. Le regole si possono disattivare o cambiare di gravità per ogni brano in `project.lint` (`disabled`, `severity`, `ignored`).
+
+## Testa i tuoi brani
+
+Descrivi un brano con test di una riga in *Problemi → Test del brano*, in italiano o in inglese:
+
+```
+in ritornello: voce.lufs >= chitarre.lufs + 3 dB
+master.lufs_i tra -10 e -8
+master.true_peak <= -1
+basso: mono sotto 120 Hz
+basso: note tra E1 e G3
+voce vs chitarre: masking 1–4 kHz <= 0.3
+rispetto a approvata: ogni traccia ± 1.5 dB per sezione
+```
+
+I test sulle note girano a ogni modifica. Quelli sull'audio quando premi *Esegui*: si rirenderizzano solo le tracce cambiate. *Approva questa versione* fissa la baseline.
+
+In CI, `openband test brano.openband --format junit` li esegue, con Chrome headless per l'audio (o `--chrome <percorso>`). Senza Chrome i test audio vengono saltati con un avviso e il codice d'uscita resta 0, a meno di `--strict`.

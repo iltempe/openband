@@ -2,6 +2,16 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.11 "openband test, for CI (C2.c)"
+
+- **`openband test <song> [--baseline <version>] [--format text|json|junit] [--strict] [--chrome <path>]`**: exit code 1 when a test fails.
+- Tests on notes run in Node. Tests on audio run in headless Chrome, which opens the studio, runs them and posts the results back.
+- Without Chrome, audio tests are skipped with a warning and the exit code stays 0, unless `--strict`.
+- Deviations from the spec:
+  - no `puppeteer-core` at run time: the page reports to the command itself, so the package gains no dependency;
+  - it is a new file, `server/songtest.mjs`, not an extension of `scripts/openband-lint.mjs`, because that script needs esbuild, which the package doesn't ship.
+- Tests: reading both file forms, JUnit with escaping and skips, arguments. Tried for real on this Mac: Chrome measured a true peak of 0.07 dBTP, the JUnit report was right, and the exit code was 1. The Chromium-on-Linux path of the acceptance list has not been run.
+
 ## v0.7.10 "Song tests that listen (C2.b)"
 
 - v0.7.9 below was never tagged: its release checks failed on a command-line build problem, fixed here. Its changes ship in this release.

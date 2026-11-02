@@ -1,6 +1,6 @@
 {
   "name": "openband",
-  "version": "0.7.10",
+  "version": "0.7.11",
   "description": "Open-source GarageBand-style music studio for the browser, controllable by AI through MCP",
   "keywords": [
     "daw",
@@ -41,7 +41,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/build-cli.mjs",
     "preview": "vite preview",
     "mcp": "node bin/openband.mjs mcp",
     "typecheck": "tsc --noEmit",

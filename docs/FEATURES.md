@@ -116,6 +116,28 @@
 - **MIDI**: *Import MIDI…* / *Export MIDI* in the ⋯ menu, or drop a `.mid` file on the studio.
 - **Plugins**: click *Plugins* in the library and describe what you need (*“wide dark reverb”*, *“synth monofonico”*) or filter by instruments/effects; instruments get their own track, effects are added to the selected track (also from *+ Plugin* in the Effects panel). *Edit* opens the plugin's window. Plugins come from the [WAM community collection](https://github.com/boourns/wam-community) and need an internet connection the first time they load.
 
+## Test your songs
+
+Describe a song with one-line tests in *Problems → Song tests*, in Italian or English:
+
+```
+in chorus: vocals.lufs >= guitars.lufs + 3 dB
+master.lufs_i between -10 and -8
+master.true_peak <= -1
+bass: mono below 120 Hz
+bass: notes between E1 and G3
+vocals vs guitars: masking 1–4 kHz <= 0.3
+compared to approved: every track ± 1.5 dB per section
+```
+
+Tests on notes run at every change. Tests on audio run when you press *Run*: only tracks that changed are rendered again. *Approve this version* sets the baseline.
+
+In CI, `openband test song.openband --format junit` runs them, using headless Chrome for audio (or `--chrome <path>`). Without Chrome, audio tests are skipped with a warning and the exit code stays 0, unless `--strict`.
+
+```yaml
+- run: npx -y --allow-remote=all https://github.com/iltempe/openband/releases/latest/download/openband.tgz test songs/demo.openband.json --format junit > report.xml
+```
+
 ## Lint your songs in CI
 
 If you keep songs in a Git repository, check every pull request with the OpenBand linter:

@@ -82,7 +82,9 @@ useBridge.subscribe((s, prev) => s.protect && !prev.protect && upgradePending())
 setInterval(upgradePending, 30 * 60000);
 
 // The instance's config.json (if any) is read before the first render.
-void restoreServer();
+const testRunPort = new URLSearchParams(location.search).get('testrun');
+if (testRunPort) void import('./tests/testrun').then((m) => m.testRun(testRunPort));
+else void restoreServer();
 void loadConfig().finally(() => {
   const cfg = getConfig();
   if (cfg.defaultLanguage && !savedLanguage()) useLang.setState({ lang: cfg.defaultLanguage });
