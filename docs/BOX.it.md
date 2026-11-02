@@ -36,4 +36,20 @@ Serve ffmpeg (`apt install ffmpeg`, `brew install ffmpeg`, `winget install ffmpe
 
 Docker su Linux: `docker compose -f docker-compose.box.yml up -d`.
 
+## Pulsanti, LED e footswitch
+
+Su un Pi, imposta i pin in `box.json`: `"gpio": { "rec": 17, "mark": 27, "led": 22 }`. Usa i comandi `gpiomon` e `gpioset` di `gpiod`.
+
+- **REC**: avvia o ferma. Una pressione lunga spegne o accende il Box.
+- **MARK**: "c'è un errore qui", in questo istante.
+- **LED**: spento = fermo, fisso = armato, lampeggiante = in registrazione, veloce = errore o disco pieno.
+
+Un footswitch USB-MIDI fa lo stesso su Linux: `"midi": { "port": "hw:1,0", "rec": { "note": 60 }, "mark": { "cc": 64 } }`.
+
+## Su un portatile e nel browser
+
+**App desktop**: *File → Rehearsal Mode* registra la sala finché l'app è aperta, con un'icona nell'area di notifica. *Start at Login* è facoltativo. Le impostazioni sono in `box/box.json` nella cartella dati dell'app.
+
+**Browser**: *Sala prove → Registra la prova* funziona senza Box, come riesce: tieni aperta la scheda e lo schermo acceso. Un microfono, una traccia.
+
 **Non ancora provato su hardware vero**: un Raspberry Pi e una vera interfaccia USB. Facci sapere com'è andata.

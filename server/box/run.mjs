@@ -6,6 +6,7 @@ import { Recorder, SAMPLE_RATE, captureCommand, findTool, installHint, parseDevi
 import { applyFlags, dataDir, newPin, parseArgs, readBox, toForget, writeBox } from './config.mjs';
 import { importSession } from './project.mjs';
 import { installService, uninstallService } from './service.mjs';
+import { startControls } from './controls.mjs';
 import { spawnSync } from 'node:child_process';
 
 const sizeOf = (dir) => fs.readdirSync(dir, { withFileTypes: true }).reduce((n, e) => n + (e.isDirectory() ? sizeOf(path.join(dir, e.name)) : fs.statSync(path.join(dir, e.name)).size), 0);
@@ -153,18 +154,31 @@ async function serve(dir, cfg, sourceFile) {
     feed.on('data', (d) => cfg.armed && box.recorder.feed(d));
     return box;
   }
+  startRecording(box, cfg);
+  startControls({ box, cfg, log: console.error });
+  return box;
+}
+
+/** Capture from the device, again and again if the device goes away. */
+export function startRecording(box, cfg) {
   const tool = findTool();
   if (!tool) {
     box.error = `No capture tool: install ffmpeg (${installHint()}). The studio works; nothing is being recorded.`;
     console.error(box.error);
-    return box;
+    return () => {};
   }
+  let child;
+  let stopped = false;
   const start = () => {
-    const child = startCapture({ feed: (d) => cfg.armed && box.recorder.feed(d) }, captureCommand({ tool, device: cfg.device, channels: cfg.channels }), { onError: (m) => (box.error = `Capture: ${m}`) });
-    child.on('exit', () => setTimeout(start, 3000));
+    child = startCapture({ feed: (d) => cfg.armed && box.recorder.feed(d) }, captureCommand({ tool, device: cfg.device, channels: cfg.channels }), { onError: (m) => (box.error = `Capture: ${m}`) });
+    child.on('exit', () => !stopped && setTimeout(start, 3000));
   };
   start();
-  return box;
+  return () => {
+    stopped = true;
+    child?.kill();
+    box.recorder.stop();
+  };
 }
 
 export async function boxCli(args) {

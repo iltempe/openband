@@ -2,6 +2,18 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.8 "Buttons, the laptop and the browser (R2.d)"
+
+- **Buttons and LED on a Pi**: REC, MARK and a status LED through `gpiomon` and `gpioset`, with no native Node module. A long press on REC turns the Box off or on.
+- **USB-MIDI footswitch**: the same actions on a note or a CC, on Linux through `amidi`.
+- **Rehearsal mode in the desktop app**: *File → Rehearsal Mode*, with a tray icon while it records, and an optional *Start at Login*. It runs the same recorder as the Box, while the app is open.
+- **In the browser**: *Rehearsal room → Record the rehearsal* uses the same gate in a worker and keeps the screen awake. It says clearly that it is best effort.
+- Deviations from the spec:
+  - the footswitch works on Linux only, not on every platform, because it uses `amidi`;
+  - the browser records one microphone to one track, and keeps it in memory until the session ends, so it does not recover a closed tab.
+- **Not tested on real hardware**: GPIO, a footswitch, and Rehearsal mode with a real microphone. GPIO and MIDI parsing are tested with sample output from the tools. The browser's 20-minute run from the acceptance list was not done.
+- Tests: buttons, LED patterns, footswitch mapping, a missing tool not stopping the Box, and the browser's buffer. **e2e** in Chrome with a fake microphone: the gate starts by itself, and stopping leaves a track with the take.
+
 ## v0.7.7 "openband box (R2.c)"
 
 - The desktop's library now runs in a process of its own. Its disk writes were sharing the main process with the native plugins' calls, and live playback could fall silent after a plugin restart.

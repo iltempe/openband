@@ -9,7 +9,7 @@
 //
 //   npm run desktop:dev            run it from the checkout (after npm run build)
 //   node scripts/build-desktop.mjs build the installers for this platform
-import { BrowserWindow, Menu, Notification, app, dialog, ipcMain, net, protocol, session, shell, systemPreferences, utilityProcess } from 'electron';
+import { BrowserWindow, Menu, Notification, app, dialog, ipcMain, net, protocol, session, shell, systemPreferences, Tray, nativeImage, utilityProcess } from 'electron';
 import { spawn, execFileSync } from 'node:child_process';
 import os from 'node:os';
 import fs from 'node:fs';
@@ -286,6 +286,9 @@ function buildMenu() {
     {
       label: 'File',
       submenu: [
+        { label: 'Rehearsal Mode', type: 'checkbox', checked: readRehearsal().on, click: (i) => setRehearsal({ ...readRehearsal(), on: i.checked }) },
+        { label: 'Start at Login', type: 'checkbox', checked: readRehearsal().atLogin, click: (i) => setRehearsal({ ...readRehearsal(), atLogin: i.checked }) },
+        { type: 'separator' },
         { label: 'New Song', accelerator: 'CmdOrCtrl+N', click: act('new') },
         {
           label: 'Open…',
@@ -345,10 +348,34 @@ ipcMain.on('store-url', (e) => (e.returnValue = storeUrl));
 
 /** The library on disk (R1): a server on loopback for this app's page, so songs survive clearing its web data. */
 let storeUrl = null;
+let storeChild = null;
+const rehearsalFile = () => path.join(app.getPath('userData'), 'rehearsal.json');
+const readRehearsal = () => {
+  try {
+    return JSON.parse(fs.readFileSync(rehearsalFile(), 'utf8'));
+  } catch {
+    return { on: false, atLogin: false };
+  }
+};
+let tray = null;
+/** Rehearsal mode: the app records the room while it is open, with an icon that says so. */
+function setRehearsal(next) {
+  fs.writeFileSync(rehearsalFile(), JSON.stringify(next));
+  storeChild?.postMessage({ rehearsal: next.on });
+  app.setLoginItemSettings({ openAtLogin: next.atLogin });
+  tray?.destroy();
+  tray = null;
+  if (next.on) {
+    tray = new Tray(nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAK0lEQVR42mNgGAWjYBSMglEwCkbBqPj/n4GBgYHhPwMDA8N/BgYGhv8MDAwAJgYH+UsLq2IAAAAASUVORK5CYII='));
+    tray.setToolTip('OpenBand: rehearsal mode is on, the room is being recorded');
+  }
+  buildMenu();
+}
 async function startStore() {
   const file = fs.existsSync(path.join(here, 'store-process.mjs')) ? path.join(here, 'store-process.mjs') : path.join(ROOT, 'desktop', 'store-process.mjs');
   const child = utilityProcess.fork(file, [], { env: { ...process.env, OPENBAND_ROOT: ROOT, OPENBAND_DATA: process.env.OPENBAND_DATA || path.join(app.getPath('userData'), 'library') } });
   app.on('will-quit', () => child.kill());
+  storeChild = child;
   const port = await new Promise((resolve, reject) => {
     child.once('message', (m) => resolve(m.port));
     child.once('exit', () => reject(new Error('the store process stopped')));
@@ -380,6 +407,7 @@ app.whenReady().then(async () => {
   serveStudio();
   permissions();
   buildMenu();
+  if (readRehearsal().on) setRehearsal(readRehearsal());
   const studio = process.argv.map((a) => /^--studio=(.+)$/.exec(a)?.[1]).find(Boolean);
   let port = null;
   try {

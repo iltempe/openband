@@ -36,4 +36,20 @@ You need ffmpeg (`apt install ffmpeg`, `brew install ffmpeg`, `winget install ff
 
 Docker on Linux: `docker compose -f docker-compose.box.yml up -d`.
 
+## Buttons, LED and footswitch
+
+On a Pi, set the pins in `box.json`: `"gpio": { "rec": 17, "mark": 27, "led": 22 }`. It uses the `gpiomon` and `gpioset` commands from `gpiod`.
+
+- **REC**: start or stop. A long press turns the Box off or on.
+- **MARK**: "there's a mistake here", at this instant.
+- **LED**: off = stopped, steady = armed, blinking = recording, fast = error or disk full.
+
+A USB-MIDI footswitch does the same on Linux: `"midi": { "port": "hw:1,0", "rec": { "note": 60 }, "mark": { "cc": 64 } }`.
+
+## On a laptop, and in the browser
+
+**Desktop app**: *File → Rehearsal Mode* records the room while the app is open, with an icon in the system tray. *Start at Login* is optional. Settings are in `box/box.json` in the app's data folder.
+
+**Browser**: *Rehearsal room → Record the rehearsal* works without a Box, best effort: keep the tab open and the screen on. One microphone, one track.
+
 **Not tested yet on real hardware**: a Raspberry Pi and a real USB interface. Tell us how it goes.

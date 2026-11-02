@@ -9,6 +9,7 @@
 //   pilot      — the mix pilot: amount 0 changes nothing, 1 twice is idempotent, roles kept, stems = master
 //   pdc        — plugin delay compensation: a track behind a 512-sample plugin stays aligned, live and exported
 //   box        — `openband box` from a recorded source: the Rehearsal room panel opens what it recorded
+//   tabrehearsal — Record the rehearsal in the browser, from a fake microphone
 //   library    — a local server is the browser's library: first-run copy, songs survive clearing the browser
 //   store      — the project library: two browsers, offline work, a conflict that loses nothing
 //   frozen     — a song with a native plugin opened in the browser plays its render cache, live and exported
@@ -44,7 +45,7 @@ function server(env = {}) {
 }
 // A fake audio output: the audio clock runs the same with or without (or with a stalled) sound device.
 // Chrome sometimes takes long to start on a busy runner: wait longer, and try again.
-const launch = async (tries = 3) => {
+const launch = async (tries = 3, extra = []) => {
   try {
     return await puppeteer.launch({ executablePath: chrome, headless: true, timeout: 60000, args: [
         '--autoplay-policy=no-user-gesture-required',
@@ -54,11 +55,12 @@ const launch = async (tries = 3) => {
         '--disable-background-timer-throttling',
         '--disable-renderer-backgrounding',
         '--disable-backgrounding-occluded-windows',
+        ...extra,
       ] });
   } catch (e) {
     if (tries <= 1) throw e;
     console.log(`  (Chrome did not start: ${e.message.split('\n')[0]}; trying again)`);
-    return launch(tries - 1);
+    return launch(tries - 1, extra);
   }
 };
 
@@ -2404,6 +2406,47 @@ tests.box = async () => {
     await b.close();
     srv.kill();
     fs.rmSync(data, { recursive: true, force: true });
+  }
+};
+
+tests.tabrehearsal = async () => {
+  // No Box: the browser records from a fake microphone playing a tone, with the same gate.
+  const os = await import('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ob-e2e-tab-'));
+  const wav = path.join(dir, 'mic.wav');
+  const SR = 48000;
+  const n = SR * 20;
+  const b0 = Buffer.alloc(44 + n * 2);
+  b0.write('RIFF', 0); b0.writeUInt32LE(36 + n * 2, 4); b0.write('WAVEfmt ', 8); b0.writeUInt32LE(16, 16); b0.writeUInt16LE(1, 20); b0.writeUInt16LE(1, 22); b0.writeUInt32LE(SR, 24); b0.writeUInt32LE(SR * 2, 28); b0.writeUInt16LE(2, 32); b0.writeUInt16LE(16, 34); b0.write('data', 36); b0.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) b0.writeInt16LE(Math.round(9000 * Math.sin((2 * Math.PI * 440 * i) / SR)), 44 + i * 2);
+  fs.writeFileSync(wav, b0);
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch(3, ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-audio-capture=${wav}`]);
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.setViewport({ width: 1280, height: 800 });
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.keyboard.press('Space');
+    const before = await p.evaluate(async () => {
+      await window.openband.commands.new_project({ name: 'Tab', bpm: 120, key: 'C' });
+      window.openband.useStore.getState().set({ bottom: 'rehearsal' });
+      return window.openband.useStore.getState().project.tracks.length;
+    });
+    await p.waitForSelector('.bx-panel .btn');
+    await p.click('.bx-panel .btn');
+    await p.waitForSelector('.bx-state', { timeout: 8000 });
+    check(await p.waitForSelector('.bx-recording', { timeout: 10000 }).then(() => true, () => false), 'the same gate starts by itself on the microphone');
+    await wait(4000);
+    await p.click('.bx-panel .btn');
+    await p.waitForFunction((n) => window.openband.useStore.getState().project.tracks.length > n, { timeout: 10000 }, before);
+    const r = await p.evaluate(() => { const s = window.openband.useStore.getState().project; return { track: s.tracks.at(-1).kind, regions: s.regions.filter((x) => x.audio).length, sections: s.sections?.length, len: s.regions.at(-1).length }; });
+    check(r.track === 'audio' && r.regions === 1 && r.sections === 1 && r.len > 8, `stopping leaves a track with the take (${r.len} beats, ${r.sections} section)`);
+  } finally {
+    await b.close();
+    srv.kill();
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 };
 

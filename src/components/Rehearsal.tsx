@@ -6,6 +6,7 @@ import { runCommand } from '../commands';
 import { backend } from '../storage';
 import { ServerBackend } from '../storage/server';
 import { download } from '../audio/render';
+import { startTabRehearsal, stopTabRehearsal, useTabRehearsal } from '../tabRehearsal';
 
 interface BoxStatus {
   state: 'off' | 'armed' | 'recording';
@@ -35,6 +36,27 @@ const get = async <T,>(path: string): Promise<T | null> => {
 };
 const post = (path: string, body?: unknown) => box()?.req(`/box/${path}`, { method: 'POST', body: JSON.stringify(body ?? {}) });
 
+/** No Box here: the browser records, as long as the tab stays open. */
+function TabRehearsal() {
+  const t = useT();
+  const s = useTabRehearsal();
+  return (
+    <div className="pj-panel bx-panel">
+      <section className="pj-link">
+        <h4>{t('bx.tabTitle')}</h4>
+        <p className="pj-meta">{t('bx.tabNote')}</p>
+        {s.on && <div className={`bx-state ${s.recording ? 'bx-recording' : 'bx-armed'}`}>{s.recording ? `${t('bx.state.recording')} · ${s.seconds} s` : t('bx.state.armed')}</div>}
+        {s.on && !s.wake && <p className="pj-alert">{t('bx.noWake')}</p>}
+        {s.error && <p className="pj-alert">{s.error}</p>}
+        <button className="btn" onClick={() => void (s.on ? Promise.resolve(stopTabRehearsal()) : startTabRehearsal()).catch(notify)}>
+          {s.on ? t('bx.stop') : t('bx.tabStart')}
+        </button>
+        <p className="pj-meta">{t('bx.privacy')}</p>
+      </section>
+    </div>
+  );
+}
+
 export function RehearsalPanel() {
   const t = useT();
   const [status, setStatus] = useState<BoxStatus | null>(null);
@@ -58,7 +80,7 @@ export function RehearsalPanel() {
       download(await r.blob(), `${s.id}-${c}.wav`);
     }
   };
-  if (!status) return <div className="pj-panel"><p className="pj-meta">{t('bx.none')}</p></div>;
+  if (!status) return <TabRehearsal />;
   const meter = Math.max(0, Math.min(100, ((status.level + 60) / 60) * 100));
   return (
     <div className="pj-panel bx-panel">
