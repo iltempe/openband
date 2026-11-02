@@ -72,7 +72,8 @@ node scripts/announce/announce.mjs X.Y.Z --notes build/announce/notes.json
 
 It sends the user's Telegram bot **a message** (title, what's new, the link to the release on GitHub) and **a 9:16 video** of the feature, 1080×1920, made for social media, and saves the video in `build/announce/`.
 
-- Write `build/announce/notes.json` first, in Italian, for people who don't know the project: `{ "title": "…", "points": ["…", "…"] }`, at most 4 points, one short sentence each (under 110 characters, or the video cuts it), what they can do now. No version numbers of internals, no test results. Without `--notes` it falls back on the CHANGELOG, in English.
+- Write `build/announce/notes.json` first, in Italian, for people who don't know the project: `{ "title": "…", "theme": "cassette", "points": ["…", "…"] }`, at most 4 points, one short sentence each (under 110 characters, or the video cuts it), what they can do now. No version numbers of internals, no test results. Without `--notes` it falls back on the CHANGELOG, in English.
+- The video must be a **motion-graphics animation** of what the feature does, never just text: `theme` picks a scene in `scripts/announce/video.mjs` (cassette, box, proposals, tests, clips, devices). For a feature with no fitting scene, add one there: an animated drawing of the idea, with no screenshots.
 - Check the video: extract a frame or two with ffmpeg and look at them. `--dry-run` makes the video and prints the message without sending.
 - Only for a tag that really shipped. Nothing for a tag that failed, and one announcement per tag: several items in one tag get one message.
 - Credentials: `~/.openband/telegram.json` (`{ "token": "…", "chat_id": "…" }`, mode 600), or `OPENBAND_TELEGRAM_TOKEN` and `OPENBAND_TELEGRAM_CHAT`. Never in the repository, a commit, a log or the chat. If they are missing the script exits 3 and sends nothing: say so in the report, don't guess.

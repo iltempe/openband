@@ -23,7 +23,7 @@ const dry = args.includes('--dry-run');
 const out = path.join(root, 'build', 'announce', `openband-v${version}-9x16.mp4`);
 
 const html = telegramMessage({ version, ...notes });
-const video = await renderVideo({ version, title: notes.title, points: notes.points, out });
+const video = await renderVideo({ version, title: notes.title, points: notes.points, out, theme: notes.theme });
 console.log(`✓ video ${video.size}, ${video.seconds} s, ${(video.bytes / 1e6).toFixed(1)} MB: ${video.file}`);
 console.log(`✓ link ${releaseUrl(version)}`);
 if (dry) {
