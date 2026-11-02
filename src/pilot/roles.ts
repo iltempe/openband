@@ -3,6 +3,7 @@
 // the notes (register, how many at once) and, for audio, the band that dominates it. Pure.
 import type { MixRole, Project, Track } from '../types';
 import { PRESETS } from '../audio/instruments';
+import { NAME_RULES } from './roleNames';
 import type { BandId } from '../analysis/spectrum';
 
 /** Per-track facts the classifier can use. */
@@ -29,17 +30,6 @@ export function noteFacts(p: Project, trackId: string): RoleFacts {
   }
   return { meanPitch: notes.reduce((a, n) => a + n.pitch, 0) / notes.length, lowestPitch: notes.reduce((a, n) => Math.min(a, n.pitch), 127), polyphony: together / notes.length };
 }
-
-const NAME_RULES: [RegExp, MixRole][] = [
-  [/\b(kick|cassa|bd|bass ?drum)\b/, 'kick'],
-  [/\b(vox|voc|voce|voci|vocal|vocals|voice|canto|cori|choir|backing|bv)/, 'vocal'],
-  [/\b(fx|sfx|riser|sweep|impact|noise|rumore|effett)/, 'fx'],
-  [/\b(bass|basso|808|sub)\b/, 'bass'],
-  [/\b(drum|drums|batteria|perc|percussion|hats?|snare|rullante|loop ?drum)/, 'drums'],
-  [/\b(lead|solo|melod|hook|riff)/, 'lead'],
-  [/\b(pad|strings|archi|atmo|ambient|texture|drone)/, 'texture'],
-  [/\b(piano|keys|tastier|chord|accord|guitar|chitarra|gtr|organ|organo|rhodes|ep)\b/, 'harmony'],
-];
 
 /** The role the pilot would give a track on its own (Track.role ignored). */
 export function autoRole(t: Track, facts: RoleFacts = {}): MixRole {

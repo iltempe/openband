@@ -4,6 +4,7 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 ## v0.7.10 "Song tests that listen (C2.b)"
 
+- v0.7.9 below was never tagged: its release checks failed on a command-line build problem, fixed here. Its changes ship in this release.
 - **Audio tests run**: *Run* renders each track and measures per section: LUFS, true peak, RMS, band energy, masking between two parts, width, correlation and mono below a frequency.
 - **A track that hasn't changed isn't rendered again.**
 - **Failures in Problems**, with the section and the value, and a one-click fix when there is an obvious one: the other part down, or this one up.

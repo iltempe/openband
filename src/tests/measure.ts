@@ -3,13 +3,16 @@ import { renderBuffer } from '../audio/render';
 import { loudness, truePeak } from '../analysis/loudness';
 import type { Project, Section } from '../types';
 import { bandEnergyDb, correlation, lowpass, masking, rmsDb, width } from './dsp';
-import { tracksOf, type MeasureFn } from './engine';
+import { noteFacts, roleOf } from '../pilot/roles';
+import { setRoleResolver, tracksOf, type MeasureFn } from './engine';
 import type { Metric, SongTest, TrackRef } from './types';
 
 interface Stem {
   channels: Float32Array[];
   sampleRate: number;
 }
+
+setRoleResolver((t, p) => roleOf(t, noteFacts(p, t.id)));
 
 const cache = new Map<string, Stem>();
 const MAX_CACHED = 64;

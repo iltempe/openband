@@ -1,10 +1,14 @@
 // Running song tests. Pure: the numbers come from `measure` (src/tests/measure.ts in the browser). Symbolic
 // tests need no audio: they run on every change, here and on the command line.
 import { scalePitchClasses } from '../analysis/key';
-import { noteFacts, roleOf } from '../pilot/roles';
-import type { Note, Project, Region, Section, Track } from '../types';
+import { NAME_RULES } from '../pilot/roleNames';
+import type { MixRole, Note, Project, Region, Section, Track } from '../types';
 import { parseTest } from './parse';
 import type { Assertion, Metric, SongTest, TestResult, TestRun, TrackRef } from './types';
+
+/** Which role a track plays. The command line goes by the name; the studio installs the full classifier (measure.ts). */
+let resolveRole = (t: Track, _p: Project): MixRole | undefined => t.role ?? NAME_RULES.find(([re]) => re.test(t.name.toLowerCase()))?.[1];
+export const setRoleResolver = (fn: typeof resolveRole) => void (resolveRole = fn);
 
 /** Stems differ between singular and plural: "chitarre" finds "Chitarra 2". */
 const stem = (s: string) => s.trim().toLowerCase().replace(/[aeio]$/, '');
@@ -15,7 +19,7 @@ export function tracksOf(p: Project, r: TrackRef): Track[] {
     const exact = p.tracks.filter((t) => t.id === r.track);
     return exact.length ? exact : p.tracks.filter((t) => stem(t.name).startsWith(stem(r.track)) || t.name.toLowerCase().includes(r.track.toLowerCase()));
   }
-  return p.tracks.filter((t) => roleOf(t, noteFacts(p, t.id)) === r.role || (r.role === 'drums' && roleOf(t, noteFacts(p, t.id)) === 'kick'));
+  return p.tracks.filter((t) => resolveRole(t, p) === r.role || (r.role === 'drums' && resolveRole(t, p) === 'kick'));
 }
 
 export function sectionsOf(t: SongTest, p: Project): (Section | null)[] {
