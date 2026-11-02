@@ -17,6 +17,7 @@ try {
   stop(`${CONFIG} is missing or not valid JSON. It needs { "token": "..." }.`);
 }
 if (!raw.token) stop(`${CONFIG} has no token.`);
+if (raw.chat_id && String(raw.chat_id) === raw.token.split(':')[0]) stop('chat_id is the bot\'s own id, the first part of the token. It must be yours: ask @userinfobot on Telegram.');
 fs.chmodSync(CONFIG, 0o600);
 
 if (!raw.chat_id) {
