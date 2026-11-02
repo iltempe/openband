@@ -205,3 +205,18 @@ Exit code `0` when every required check passes (and adherence ≥ `--min-adheren
 
 `omep` in the manifest is the profile version. Minor versions only add optional fields and capabilities;
 studios ignore what they don't know. A new major version changes required fields.
+
+## 11. Device profile (OMEP 1.1)
+
+A sensor or a home-made instrument joins like an engine. It is an MCP server (stdio or Streamable HTTP) that declares `experimental["io.openband/device"] = { "version": "0.1" }` and serves `omep://manifest` with a `device` block. OMEP 1.1 is additive: 1.0 engines stay conformant.
+
+| Capability | What it does | Result |
+|---|---|---|
+| `device.read` | a snapshot of the controls | `params`, `{ values: { id: v } }` |
+| `device.stream` | the controls as a stream: MCP opens and closes, frames travel on a WebSocket (`transport: "ws-ctl"`, JSON `{ beat, t, values }`) | `stream` |
+| `device.set` | drives an output (light, display, haptics) | ack |
+| `device.record` | records a clip from the sensors or the microphone, with provenance | `audio` or `params` |
+
+Control kinds: `continuous`, `toggle`, `trigger`, `xy`, `pressure`. Curves: `linear`, `log`, `exp`. As with `stream.jam`, the page never reaches a device on the LAN directly: it goes through the server.
+
+`omep/lib/device.mjs` is the device's end. `omep/examples/device-pi-tof/` is a complete node, and `npm run omep:conformance:device` checks it in simulation: the schema, `device.read` within 3× `latency_ms`, `device.stream` at its rate (±20%) for 4 s and a clean close, and the ack of `device.set`.

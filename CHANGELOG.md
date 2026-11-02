@@ -2,6 +2,15 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.20 "OMEP 1.1: devices (R3.a)"
+
+- **OMEP 1.1**, additive: a sensor or home-made instrument joins as an engine does. A `device` block in the manifest, the capabilities `device.read`, `device.stream`, `device.set`, `device.record`, and the `ws-ctl` transport.
+- `omep/lib/device.mjs` is a device's end, and `omep/examples/device-pi-tof/` is a complete node: a Raspberry Pi, a VL53L1X distance sensor and an LED, with `--simulate` for any computer.
+- **Conformance**: `npm run omep:conformance:device`, also in CI: the schema, `device.read` within three times its latency, `device.stream` at its rate ±20% for 4 s (90.5 of 100 Hz measured) and a clean close, and the ack of `device.set`.
+- For maintainers: every release now goes out to the owner's Telegram bot with a link, a summary and a 9:16 video (`scripts/announce/`).
+- Not done yet: the studio doesn't use devices yet (R3.b).
+- **Not tested on hardware**: `i2c-bus` and the VL53L1X registers were not run, and the sensor's start-up sequence is simplified: treat the hardware path as a sketch until tried on a Pi.
+
 ## v0.7.19 "On paper and on real tape (D3.c)"
 
 - **Printable J-card**: an A4 PDF to cut and fold, at the standard measures, with the cover, the sides, and a QR to the link, or a line to write the password by hand.

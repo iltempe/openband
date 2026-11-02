@@ -30,6 +30,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run omep:conformance
+      - run: npm run omep:conformance:device
       # E6: an engine made from omep-template passes conformance as it comes.
       - run: npm run omep:template
       # Streaming engines (stream.jam): the mock behind a jittery network.

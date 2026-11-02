@@ -107,6 +107,49 @@ export async function measure(contribution, scp) {
   return { scores, adherence: values.length ? values.reduce((a, b) => a + b, 0) / values.length : 1, notes };
 }
 
+/** The device profile: a block in the manifest, read within 3× its latency, a stream at its rate that closes clean. */
+async function deviceSuite(client, manifest, check, timeoutMs) {
+  const d = manifest.device;
+  check('device: the manifest has a device block', !!d, 'OMEP 1.1 §11');
+  if (!d) return;
+  check('device: it says OMEP 1.1', manifest.omep === '1.1', manifest.omep);
+  const call = (name, request) => client.callTool({ name, arguments: { context: {}, request } }, CallToolResultSchema, { timeout: timeoutMs });
+  const t0 = performance.now();
+  const r = await call('device.read');
+  const ms = performance.now() - t0;
+  // A local call has its own overhead, which isn't the device's.
+  check(`device.read answers within 3× latency_ms (${ms.toFixed(0)} ms)`, !r.isError && ms <= Math.max(d.latency_ms * 3, 100), r.content?.[0]?.text ?? '');
+  const values = r.structuredContent?.params?.values ?? {};
+  check('device.read gives every control', d.controls.every((c) => c.id in values), Object.keys(values).join(', '));
+  check('device: runs in simulation here', r.structuredContent?.claims?.simulated === true, 'start it with --simulate', false);
+  if (d.outputs?.length && manifest.capabilities['device.set']) {
+    const s = await call('device.set', { output: d.outputs[0].id, value: 0.5 });
+    check('device.set acknowledges', s.structuredContent?.params?.ack === true);
+  }
+  if (!manifest.capabilities['device.stream']) return;
+  const rate = d.controls.find((c) => c.rate_hz)?.rate_hz ?? 50;
+  const open = await call('device.stream', { action: 'open', rate_hz: rate });
+  const stream = open.structuredContent?.stream;
+  check('device.stream opens on ws-ctl', stream?.transport === 'ws-ctl' && !!stream.url);
+  if (!stream?.url) return;
+  const ws = new WebSocket(stream.url);
+  let frames = 0;
+  let bad = 0;
+  ws.on('message', (m) => {
+    const f = JSON.parse(String(m));
+    if (f.type) return;
+    frames++;
+    if (typeof f.t !== 'number' || !f.values) bad++;
+  });
+  await new Promise((r2, fail) => (ws.once('open', r2), ws.once('error', fail)));
+  await new Promise((r2) => setTimeout(r2, 4000));
+  const measured = frames / 4;
+  check(`device.stream keeps its rate for 4 s (${measured.toFixed(1)} of ${rate} Hz)`, Math.abs(measured - rate) <= rate * 0.2 && !bad);
+  const closed = new Promise((r2) => ws.once('close', r2));
+  const c = await call('device.stream', { action: 'close', session: stream.session });
+  check('device.stream closes clean', c.structuredContent?.stream?.closed === true && (await Promise.race([closed.then(() => true), new Promise((r2) => setTimeout(() => r2(false), 2000))])));
+}
+
 /**
  * stream.jam (OMEP stream 1.0, lib/stream.mjs): open a session, play a transport at the context's tempo
  * for a few seconds and check what arrives — the handshake, frames that decode, contiguous beats, how far
@@ -214,7 +257,7 @@ export async function runConformance(target, { context = DEFAULT_CONTEXT, timeou
   try {
     await client.connect(transport);
     const caps = client.getServerCapabilities() ?? {};
-    check('declares the OMEP extension', caps.experimental?.[EXTENSION] || caps.extensions?.[EXTENSION], `capabilities.experimental["${EXTENSION}"]`);
+    check('declares the OMEP extension', (caps.experimental?.[EXTENSION] || caps.experimental?.["io.openband/device"]) || caps.extensions?.[EXTENSION], `capabilities.experimental["${EXTENSION}"]`);
     check('context is a valid Song Context Package', validate('scp', context).length === 0, validate('scp', context).join('; '));
 
     try {
@@ -235,6 +278,8 @@ export async function runConformance(target, { context = DEFAULT_CONTEXT, timeou
       check(`tool for ${cap}`, t && (t.inputSchema?.required ?? []).includes('context'), t ? 'its input must require "context"' : 'missing');
     }
 
+    if (manifest.device || declared.some((c) => c.startsWith('device.'))) await deviceSuite(client, manifest, check, timeoutMs);
+
     for (const cap of declared) {
       if (!byName.has(cap)) continue;
       if (!CATALOG[cap]) {
@@ -245,6 +290,7 @@ export async function runConformance(target, { context = DEFAULT_CONTEXT, timeou
         await streamSuite(client, manifest, context, check, cases, timeoutMs);
         continue;
       }
+      if (cap.startsWith('device.')) continue;
       const t0 = Date.now();
       let r;
       try {

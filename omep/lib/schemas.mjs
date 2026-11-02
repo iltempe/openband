@@ -32,6 +32,10 @@ export function validate(kind, value) {
 /** The capability catalog of OMEP 1.0: what each capability returns. */
 export const CATALOG = {
   'music.song': { output: ['audio', 'stems'] },
+  'device.read': { output: ['params'] },
+  'device.stream': { output: ['stream'] },
+  'device.set': { output: ['params'] },
+  'device.record': { output: ['audio', 'params'] },
   'music.add_layer': { output: ['audio'] },
   'music.repaint': { output: ['audio'] },
   'music.extend': { output: ['audio'] },

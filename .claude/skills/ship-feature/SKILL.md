@@ -6,7 +6,7 @@ description: The way every new OpenBand feature is delivered, from code to relea
 # Shipping a feature in OpenBand
 
 The user's standing rule (from 2026-10-24): **every new feature — or group of features — goes all the way
-out**: implemented, documented, released for every platform, and visible on the website. Nothing stays
+out**: implemented, documented, released for every platform, visible on the website, and announced on the user's Telegram bot with a 9:16 video. Nothing stays
 only local. Do it without asking again; ask only for things the rules below reserve to the user.
 
 ## 1. Implement
@@ -61,7 +61,22 @@ git tag vX.Y.Z && git push origin main && git push origin vX.Y.Z
   shipped as the next patch release — never leave a release without a platform.
 - `ELECTRON_RUN_AS_NODE` is set in the VS Code terminal: always `env -u` it when running Electron.
 
-## 5. Website
+## 5. Announce on Telegram
+
+After the Release is green with all its assets, for the tag just published:
+
+```bash
+node scripts/announce/announce.mjs X.Y.Z --notes build/announce/notes.json
+```
+
+It sends the user's Telegram bot **a message** (title, what's new, the link to the release on GitHub) and **a 9:16 video** of the feature, 1080×1920, made for social media, and saves the video in `build/announce/`.
+
+- Write `build/announce/notes.json` first, in Italian, for people who don't know the project: `{ "title": "…", "points": ["…", "…"] }`, at most 4 points, one short sentence each (under 110 characters, or the video cuts it), what they can do now. No version numbers of internals, no test results. Without `--notes` it falls back on the CHANGELOG, in English.
+- Check the video: extract a frame or two with ffmpeg and look at them. `--dry-run` makes the video and prints the message without sending.
+- Only for a tag that really shipped. Nothing for a tag that failed, and one announcement per tag: several items in one tag get one message.
+- Credentials: `~/.openband/telegram.json` (`{ "token": "…", "chat_id": "…" }`, mode 600), or `OPENBAND_TELEGRAM_TOKEN` and `OPENBAND_TELEGRAM_CHAT`. Never in the repository, a commit, a log or the chat. If they are missing the script exits 3 and sends nothing: say so in the report, don't guess.
+
+## 6. Website
 
 The site is `site/` in this repository, served at **https://www.openband.it**: on every push to `main`,
 `pages.yml` builds it (`scripts/build-site.mjs` → `build/site/`, self-contained, with `CNAME`) and pushes it
@@ -81,6 +96,9 @@ Update the site when the feature deserves a place there:
   (a new architecture, a new format), update `site/index.html` and the asset list in `release.yml` together.
 
 ## Never without the user's explicit OK
+
+The Telegram announcement above is authorised by the user (2026-11-02). It goes only to their own bot, and posting anywhere public still needs an OK.
+
 
 npm publish (the npm name "openband" is someone else's: never suggest `npx openband`), new GitHub repos or
 orgs, pushing Docker images, spending money or using real paid API keys, publishing on the user's behalf
