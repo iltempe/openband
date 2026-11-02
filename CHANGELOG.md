@@ -4,6 +4,7 @@ All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.
 
 ## v0.7.18 "The parts cassette (D4)"
 
+- v0.7.17 below was never tagged: GitHub had no macOS runners for its checks. Its changes ship here.
 - **For choirs and bands**: tracks named Soprano, Alto, T, Basso, Voce 2, Tromba 1… are recognised as parts. Each song on the cassette then carries a stem per part and the accompaniment, at 96 kbps.
 - **In the player**: choose your part, remembered per cassette. *All*, *Highlighted* (+6 / −9 dB), *Muted* to sing over it, *On the left*; speed from 50 to 100% keeping the pitch; a loop on a section.
 - **The classic pack**: for each part in evidence, muted and on the left, plus the balanced mix, with ordered names like `03 Signore delle cime – Tenore – in evidenza.m4a`.
