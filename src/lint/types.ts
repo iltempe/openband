@@ -1,6 +1,6 @@
 import type { Project, Severity } from '../types';
 
-export type LintCategory = 'harmony' | 'rhythm' | 'arrangement' | 'mix' | 'lyrics' | 'structure' | 'release';
+export type LintCategory = 'harmony' | 'rhythm' | 'arrangement' | 'mix' | 'lyrics' | 'structure' | 'release' | 'tests';
 
 export interface LintTarget {
   track_id?: string;
@@ -41,5 +41,5 @@ export interface LintRule {
   severity: Severity;
   /** Audio rules run only in the browser (they render and analyse the mix). */
   needsAudio?: boolean;
-  check(p: Project, ctx: LintContext): Omit<LintIssue, 'id' | 'rule' | 'severity' | 'category'>[];
+  check(p: Project, ctx: LintContext): (Omit<LintIssue, 'id' | 'rule' | 'severity' | 'category'> & { severity?: Severity })[];
 }

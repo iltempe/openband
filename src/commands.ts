@@ -1,3 +1,6 @@
+import { runTests } from './tests/engine';
+import { format, parseTest } from './tests/parse';
+import type { SongTest } from './tests/types';
 import { ensureSamples } from './audio/samples';
 import type { Rehearsal } from './types';
 // High-level command API. This is what the MCP bridge calls, and the UI reuses parts of it.
@@ -1319,6 +1322,33 @@ export const commands: Record<string, (args: P) => unknown> = {
     }
   },
 
+  list_tests: () => {
+    const p = st().project;
+    const run = runTests(p);
+    return { tests: (p.tests ?? []).map((t) => ({ id: t.id, text: t.source ?? format(t), enabled: t.enabled, severity: t.severity, kind: t.assert.kind, results: run.results.filter((r) => r.testId === t.id) })), baseline: p.testBaseline ?? null };
+  },
+  add_test: ({ text, test }) => {
+    const t: SongTest = text ? parseTest(String(text), uid('tst')) : { ...(test as SongTest), id: uid('tst') };
+    st().commit((d) => void (d.tests = [...(d.tests ?? []), t]), { label: 'Add test' });
+    return { id: t.id, text: t.source ?? format(t) };
+  },
+  update_test: ({ id, text, enabled, severity }) => {
+    const old = st().project.tests?.find((t) => t.id === id);
+    if (!old) throw new Error(`Test "${id}" not found. Call list_tests.`);
+    const next: SongTest = { ...(text ? parseTest(String(text), old.id) : old), ...(enabled !== undefined ? { enabled: !!enabled } : {}), ...(severity ? { severity } : {}) };
+    st().commit((d) => void (d.tests = d.tests!.map((t) => (t.id === id ? next : t))), { label: 'Change test' });
+    return { id, text: next.source ?? format(next) };
+  },
+  remove_test: ({ id }) => {
+    if (!st().project.tests?.some((t) => t.id === id)) throw new Error(`Test "${id}" not found. Call list_tests.`);
+    st().commit((d) => void (d.tests = d.tests!.filter((t) => t.id !== id)), { label: 'Remove test' });
+    return { removed: id };
+  },
+  run_tests: async ({ only }) => {
+    const run = runTests(st().project, { only: only as string[] | undefined });
+    return { ...run, passed: run.results.filter((r) => r.pass && !r.skipped).length, failed: run.results.filter((r) => !r.pass).length, skipped: run.results.filter((r) => r.skipped).length };
+  },
+
   list_projects: () => listProjects(),
   open_project: ({ id }) => openProject(String(id ?? '')),
   move_project: ({ id, to }) => moveProject(String(id ?? ''), to === 'local' ? 'local' : 'server'),
@@ -2022,7 +2052,7 @@ const READ_ONLY = new Set([
   'list_samples', 'list_plugins', 'search_plugins', 'list_native_plugins', 'rescan_plugins', 'suggest_continuation', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'get_energy', 'analyze_harmony',
   'list_engines', 'get_ledger', 'set_engine_policy',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'steer_live_jam', 'list_annotations', 'list_versions', 'list_projects', 'store_status', 'diff_versions', 'save_version', 'create_branch',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'steer_live_jam', 'list_annotations', 'list_versions', 'list_tests', 'list_projects', 'store_status', 'diff_versions', 'save_version', 'create_branch',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

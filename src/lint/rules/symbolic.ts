@@ -1,3 +1,4 @@
+import { runTests } from '../../tests/engine';
 // Symbolic rules: they read the project only (no audio), so they also run in Node / CI.
 import type { LintRule } from '../types';
 import { BEATS_PER_BAR, melodicTracks, noteName, playedNotes, regionsOf, type PlayedNote } from '../util';
@@ -314,4 +315,18 @@ export const sectionGap: LintRule = {
 
 import { lyricsProsody } from './lyrics';
 
-export const SYMBOLIC_RULES = [lyricsProsody, outOfKey, overlappingNotes, notesOutsideRegion, overlappingRegions, lowEndClash, registerCrowding, roboticVelocity, roboticTiming, emptyTrack, bassPanned, sectionGap];
+/** Song tests that need no audio are problems like any other, as soon as they fail. */
+const songTests: LintRule = {
+  id: 'song-test',
+  severity: 'error',
+  category: 'tests',
+  check: (p) =>
+    runTests(p)
+      .results.filter((r) => !r.pass && !r.skipped)
+      .map((r) => {
+        const t = p.tests!.find((x) => x.id === r.testId)!;
+        return { message: `Test failed: ${t.source ?? t.name}${r.value !== undefined ? ` (${r.value}, expected ${r.expected})` : ''}`, target: { from_beat: r.where?.from_beat, to_beat: r.where?.to_beat, section_id: r.where?.section_id }, severity: t.severity === 'error' ? ('error' as const) : ('warn' as const) };
+      }),
+};
+
+export const SYMBOLIC_RULES = [songTests, lyricsProsody, outOfKey, overlappingNotes, notesOutsideRegion, overlappingRegions, lowEndClash, registerCrowding, roboticVelocity, roboticTiming, emptyTrack, bassPanned, sectionGap];

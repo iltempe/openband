@@ -2,6 +2,15 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.9 "Song tests (C2.a)"
+
+- **Describe a song with one-line tests**, in Italian or English, at the top of the Problems panel: `basso: note tra E1 e G3`, `keys: in key`, `keys: polyphony <= 4`, `in ritornello: voce.lufs >= chitarre.lufs + 3 dB`, `master.lufs_i tra -10 e -8`.
+- Tests about notes need no audio: they run at every change, and a failure is a problem in the panel like any other, with its bar.
+- A parsing error says what is wrong and in which column.
+- MCP: toolset `tests` with `list_tests`, `add_test`, `update_test`, `remove_test`, `run_tests`: 190 tools, 185 in the page.
+- Not done yet: audio tests parse and are shown as not run. Measuring them is the next release, with baselines and ready-made sets.
+- Tests: 17, including the round trip of every line in the spec.
+
 ## v0.7.8 "Buttons, the laptop and the browser (R2.d)"
 
 - **Buttons and LED on a Pi**: REC, MARK and a status LED through `gpiomon` and `gpioset`, with no native Node module. A long press on REC turns the Box off or on.

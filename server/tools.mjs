@@ -498,6 +498,16 @@ tool('list_versions', 'List saved versions (newest first) with branch, label, au
 
 tool('analyze_rehearsal', 'Analyse a rehearsal the Box recorded (open the version on the branch "prove" first): tempo of each song, key, and proposed sections, as one undo step. session_id: default the latest. Takes a while on long rehearsals.', { session_id: z.string().optional() });
 
+tool('list_tests', 'The song tests with their last results.', {}, readOnly);
+
+tool('add_test', 'Add a song test. text, one line in English or Italian: "in chorus: vocals.lufs >= guitars.lufs + 3 dB", "master.lufs_i between -10 and -8", "master.true_peak <= -1", "bass: mono below 120 Hz", "bass: notes between E1 and G3", "vocals vs guitars: masking 1–4 kHz <= 0.3", "compared to approved: every track ± 1.5 dB per section". Show the user the line you wrote. Or test: the structured form.', { text: z.string().optional(), test: z.record(z.unknown()).optional() });
+
+tool('update_test', 'Change a song test: its text, whether it runs, or how serious a failure is.', { id: z.string(), text: z.string().optional(), enabled: z.boolean().optional(), severity: z.enum(['error', 'warning']).optional() });
+
+tool('remove_test', 'Remove a song test.', { id: z.string() });
+
+tool('run_tests', 'Run the song tests: which pass and which fail, with the value, the expected one and the section.', { only: z.array(z.string()).optional() }, readOnly);
+
 tool('list_projects', 'List the songs in this browser and, when the studio is connected to a server, in its library: id, name, tempo, key, versions, where each lives (source) and which is open.', {}, readOnly);
 
 tool('open_project', 'Open another song from list_projects. The song that was open stays in the list. In remote MCP mode this acts on the paired tab only.', { id: z.string() });
@@ -1001,6 +1011,7 @@ export const TOOLSETS = {
   mix: { description: 'Effects per track, master chain, the mix pilot\'s knob, automation, meters and listening (analyze_mix, spectrogram), reference tracks', tools: ['set_track_effects', 'set_master_chain', 'set_pilot_amount', 'fix_pilot', 'set_track_role', 'set_automation', 'clear_automation', 'list_automatable', 'get_meters', 'set_monitoring', 'level_match', 'analyze_mix', 'render_spectrogram', 'import_reference', 'compare_to_reference', 'clear_reference'] },
   analysis: { description: 'Harmony and key analysis, the song linter and its fixes', tools: ['analyze_harmony', 'detect_key', 'lint_project', 'apply_fix', 'ignore_issue'] },
   recording: { description: 'Recording audio and MIDI, punch-in, takes and comping, blind A/B tests, flub marks', tools: ['record_audio', 'arm_track', 'set_track_midi_input', 'map_midi_channels', 'set_punch', 'audio_to_midi', 'add_take', 'list_takes', 'set_active_take', 'delete_take', 'comp_takes', 'start_ab_test', 'add_flub', 'list_flubs', 'resolve_flub', 'delete_flub', 'replace_with_best_take', 'set_voice_control', 'start_session', 'stop_session', 'get_session'] },
+  tests: { description: 'Song tests: assertions on the mix and the notes, run like a CI', tools: ['list_tests', 'add_test', 'update_test', 'remove_test', 'run_tests'] },
   versions: { description: 'History, versions and branches, merge, the time machine', tools: ['get_history', 'save_version', 'list_versions', 'analyze_rehearsal', 'list_projects', 'open_project', 'move_project', 'store_status', 'create_branch', 'checkout', 'diff_versions', 'merge', 'get_timeline', 'preview_at', 'restore_at'] },
   lyrics: { description: 'Lyrics, aligning them to the melody, prosody, chord sheets', tools: ['set_lyrics', 'get_lyrics', 'align_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet'] },
   plugins: { description: 'WAM plugins and the user\'s installed VST3 / CLAP / AU plugins', tools: ['list_plugins', 'search_plugins', 'list_native_plugins', 'rescan_plugins', 'add_plugin', 'add_plugin_instrument', 'add_plugin_effect', 'remove_plugin_effect', 'set_plugin_bypass', 'get_plugin_params', 'set_plugin_params', 'show_plugin'] },

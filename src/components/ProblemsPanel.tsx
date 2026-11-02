@@ -5,6 +5,7 @@ import { useLint } from '../lintLive';
 import type { LintIssue } from '../lint/types';
 import { useT, type MessageKey } from '../i18n';
 import * as I from './Icons';
+import { SongTests } from './SongTests';
 
 export function ProblemsPanel() {
   const { issues, counts } = useLint();
@@ -28,6 +29,7 @@ export function ProblemsPanel() {
 
   return (
     <div className="problems">
+      <SongTests />
       <div className="analysis-bar">
         <span className="pb-counts">
           <span className="pb-dot error" /> {counts.error} <span className="pb-dot warn" /> {counts.warn} <span className="pb-dot info" /> {counts.info}
