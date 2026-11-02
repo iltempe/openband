@@ -9,7 +9,7 @@
 //
 //   npm run desktop:dev            run it from the checkout (after npm run build)
 //   node scripts/build-desktop.mjs build the installers for this platform
-import { BrowserWindow, Menu, Notification, app, dialog, ipcMain, net, protocol, session, shell, systemPreferences } from 'electron';
+import { BrowserWindow, Menu, Notification, app, dialog, ipcMain, net, protocol, session, shell, systemPreferences, utilityProcess } from 'electron';
 import { spawn, execFileSync } from 'node:child_process';
 import os from 'node:os';
 import fs from 'node:fs';
@@ -346,16 +346,15 @@ ipcMain.on('store-url', (e) => (e.returnValue = storeUrl));
 /** The library on disk (R1): a server on loopback for this app's page, so songs survive clearing its web data. */
 let storeUrl = null;
 async function startStore() {
-  const load = (f) => import(pathToFileURL(path.join(ROOT, 'server', ...f)).href);
-  const [{ FsStore }, { createStoreApi }, { Pairing }, { WebSocketServer }, http] = await Promise.all([load(['store', 'fs.mjs']), load(['store', 'api.mjs']), load(['pairing.mjs']), import('ws'), import('node:http')]);
-  const api = createStoreApi({ store: new FsStore({ dir: process.env.OPENBAND_DATA || path.join(app.getPath('userData'), 'library') }), pairing: new Pairing(), own: true });
-  const wss = new WebSocketServer({ noServer: true });
-  const srv = http.createServer(async (req, res) => {
-    if (!(await api.handleHttp(req, res))) res.writeHead(404).end();
+  const file = fs.existsSync(path.join(here, 'store-process.mjs')) ? path.join(here, 'store-process.mjs') : path.join(ROOT, 'desktop', 'store-process.mjs');
+  const child = utilityProcess.fork(file, [], { env: { ...process.env, OPENBAND_ROOT: ROOT, OPENBAND_DATA: process.env.OPENBAND_DATA || path.join(app.getPath('userData'), 'library') } });
+  app.on('will-quit', () => child.kill());
+  const port = await new Promise((resolve, reject) => {
+    child.once('message', (m) => resolve(m.port));
+    child.once('exit', () => reject(new Error('the store process stopped')));
+    setTimeout(() => reject(new Error('the store process did not start')), 15000);
   });
-  srv.on('upgrade', (req, socket, head) => (api.handles(new URL(req.url || '/', 'http://x').pathname) ? api.upgrade(wss, req, socket, head) : socket.destroy()));
-  await new Promise((resolve) => srv.listen(0, '127.0.0.1', resolve));
-  storeUrl = `http://127.0.0.1:${srv.address().port}`;
+  storeUrl = `http://127.0.0.1:${port}`;
 }
 // AI servers on this computer (Ollama, LM Studio) only accept web pages they know; the app's own page
 // reaches them through here instead, loopback http only.

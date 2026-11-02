@@ -8,6 +8,7 @@
 //   master     — the master chain meets −14 LUFS / −1 dBTP, live = export, sidechain kick → bass
 //   pilot      — the mix pilot: amount 0 changes nothing, 1 twice is idempotent, roles kept, stems = master
 //   pdc        — plugin delay compensation: a track behind a 512-sample plugin stays aligned, live and exported
+//   box        — `openband box` from a recorded source: the Rehearsal room panel opens what it recorded
 //   library    — a local server is the browser's library: first-run copy, songs survive clearing the browser
 //   store      — the project library: two browsers, offline work, a conflict that loses nothing
 //   frozen     — a song with a native plugin opened in the browser plays its render cache, live and exported
@@ -2360,6 +2361,45 @@ tests.store = async () => {
       return { bpm, mine: useStore.getState().project.bpm };
     });
     check(kept.bpm === 130 && kept.mine === 77, `no work is lost: open song ${kept.bpm}, the branch keeps ${kept.mine}`);
+  } finally {
+    await b.close();
+    srv.kill();
+    fs.rmSync(data, { recursive: true, force: true });
+  }
+};
+
+tests.box = async () => {
+  const os = await import('node:os');
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), 'ob-e2e-box-'));
+  const SR = 48000;
+  const part = (s, amp) => {
+    const b = Buffer.alloc(s * SR * 2 * 3);
+    for (let i = 0; i < b.length; i += 3) b.writeIntLE(Math.round(((i / 3) % 2 ? -1 : 1) * amp * 8e6), i, 3);
+    return b;
+  };
+  const song = part(3, 0.2);
+  const source = path.join(data, 'source.pcm');
+  fs.writeFileSync(source, Buffer.concat([song, part(10, 0), song, part(13, 0)]));
+  fs.writeFileSync(path.join(data, 'box.json'), JSON.stringify({ endMs: 12000, channels: 2, names: ['Voce', 'Chitarra'], project: 'La band', pin: '123456', port: PORT }));
+  const srv = spawn(process.execPath, [path.join(root, 'bin', 'openband.mjs'), 'box', '--data', data, '--source', source], { env: { ...process.env, OPENBAND_NO_UPDATE_CHECK: '1' }, stdio: ['ignore', 'ignore', 'pipe'] });
+  await new Promise((resolve) => srv.stderr.on('data', (d) => String(d).includes('OpenBand Box') && resolve()));
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.setViewport({ width: 1280, height: 800 });
+    await p.goto(`${URL}?debug`, { waitUntil: 'load' });
+    await p.waitForFunction(() => window.openband, { timeout: 15000 });
+    await p.evaluate(() => window.openband.useStore.getState().set({ bottom: 'rehearsal' }));
+    await p.waitForSelector('.bx-state', { timeout: 10000 });
+    await p.waitForFunction(() => [...document.querySelectorAll('.pj-row .btn')].some((x) => x.textContent === 'Open' && !x.disabled), { timeout: 15000 });
+    const row = await p.$eval('.pj-row .pj-meta', (e) => e.textContent);
+    check(/2 songs/.test(row), `the panel lists the session (${row})`);
+    await p.evaluate(() => [...document.querySelectorAll('.pj-row .btn')].find((x) => x.textContent === 'Open').click());
+    await p.waitForFunction(() => window.openband.useStore.getState().project.tracks.length === 2, { timeout: 10000 });
+    const opened = await p.evaluate(() => { const s = window.openband.useStore.getState().project; return { tracks: s.tracks.map((t) => t.name), sections: s.sections.length }; });
+    check(opened.tracks.join() === 'Voce,Chitarra' && opened.sections === 2, `Open shows the tracks and songs of the rehearsal (${opened.tracks}, ${opened.sections} sections)`);
+    await p.evaluate(() => [...document.querySelectorAll('.pj-actions .btn')].find((x) => x.textContent === 'Turn off').click());
+    check(await p.waitForSelector('.bx-off', { timeout: 5000 }).then(() => true, () => false), 'Turn off stops the recorder');
   } finally {
     await b.close();
     srv.kill();

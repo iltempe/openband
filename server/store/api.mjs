@@ -127,6 +127,7 @@ export function createStoreApi({ store, pairing, allowedOrigins = [], storeToken
         return json(res, 201, { id });
       }
     }
+    if (root === 'box' && api.box) return boxRoute(req, res, parts.slice(1));
     if (root !== 'projects') return json(res, 404, { error: 'Not found' });
     if (!id) return m === 'GET' ? json(res, 200, store.listProjects()) : json(res, 405, { error: 'Method not allowed' });
     if (!sub) {
@@ -173,6 +174,28 @@ export function createStoreApi({ store, pairing, allowedOrigins = [], storeToken
     return json(res, 405, { error: 'Method not allowed' });
   }
 
+  /** The rehearsal Box, when this server is one: the panel and the buttons. */
+  async function boxRoute(req, res, [what, id, sub, ch]) {
+    const box = api.box;
+    if (req.method === 'GET' && what === 'status') return json(res, 200, box.status());
+    if (req.method === 'GET' && what === 'sessions' && !id) return json(res, 200, box.sessions());
+    if (req.method === 'GET' && what === 'sessions' && sub === 'channels') {
+      const file = box.channelFile(id, ch.replace('.wav', ''));
+      res.writeHead(200, { 'content-type': 'audio/wav', 'content-disposition': `attachment; filename="${id}-${ch}"` });
+      return void fs.createReadStream(file).pipe(res);
+    }
+    if (req.method === 'POST') {
+      if (what === 'rec') box.recorder.force(!box.recorder.session);
+      else if (what === 'mark') return json(res, 200, { at: box.recorder.mark() });
+      else if (what === 'arm') box.arm(true);
+      else if (what === 'disarm') box.arm(false);
+      else if (what === 'sessions' && sub === 'star') box.star(id, (await readJson(req)).starred !== false);
+      else return json(res, 404, { error: 'Not found' });
+      return json(res, 200, box.status());
+    }
+    return json(res, 405, { error: 'Method not allowed' });
+  }
+
   /** @returns {Promise<boolean>} whether the request was for the store. */
   async function handleHttp(req, res) {
     const pathname = new URL(req.url || '/', 'http://x').pathname;
@@ -215,5 +238,6 @@ export function createStoreApi({ store, pairing, allowedOrigins = [], storeToken
     });
   }
 
-  return { handleHttp, upgrade, emit, events, store, handles: (pathname) => pathname === `${PREFIX}/events` };
+  const api = { box: null, handleHttp, upgrade, emit, events, store, handles: (pathname) => pathname === `${PREFIX}/events` };
+  return api;
 }

@@ -148,6 +148,8 @@ const storeApi = await (async () => {
   }
 })();
 
+export { storeApi };
+
 const isLoopback = (addr) => addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
 
 // One HTTP server, several WebSocket endpoints: route upgrades by path.

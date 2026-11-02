@@ -1,6 +1,7 @@
 // openband doctor: is everything in place? ✓/✗ with a fix for each ✗. Returns the exit code.
 import { RUN, isOurPackage } from './package.mjs';
 import fs from 'node:fs';
+import { findTool, installHint } from './box/capture.mjs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -92,6 +93,7 @@ export async function runChecks({ port = Number(process.env.OPENBAND_PORT || 777
     configured++;
     add(true, 'Claude Code CLI found (check with "claude mcp list")');
   }
+  add(!!findTool(), 'ffmpeg, for the rehearsal Box', installHint(), true);
   if (!anyClient) add(false, 'No MCP client found', `Install an MCP client (Claude Desktop, Claude Code, Codex, Gemini CLI, Cursor, VS Code…), then run "${RUN} setup".`);
   else if (!configured) add(false, 'No MCP client has OpenBand yet', `Run "${RUN} setup".`);
   return checks;

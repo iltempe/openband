@@ -6,6 +6,7 @@
 //
 //   (no command)  open the studio in the browser (server on 127.0.0.1:7777, or the next free port)
 //   mcp           MCP server over stdio, for Claude Desktop / Claude Code / Cursor / VS Code
+//   box           the always-on rehearsal recorder (openband box devices | install | status | on | off)
 //   setup         add OpenBand to the MCP clients installed on this computer
 //   doctor        check that everything is in place
 //   --version
@@ -57,6 +58,9 @@ switch (cmd) {
     break;
   case 'mcp':
     await import('../server/mcp-server.mjs');
+    break;
+  case 'box':
+    await (await import('../server/box/run.mjs')).boxCli(rest);
     break;
   case 'setup':
     await (await import('../server/setup.mjs')).setup(rest);

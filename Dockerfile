@@ -21,6 +21,7 @@ COPY server/*.mjs ./server/
 COPY server/publish/*.mjs ./server/publish/
 COPY server/protect/*.mjs ./server/protect/
 COPY server/store/*.mjs ./server/store/
+COPY server/box/*.mjs ./server/box/
 COPY bin ./bin
 USER node
 EXPOSE 7777

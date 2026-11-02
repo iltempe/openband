@@ -2,6 +2,22 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.7 "openband box (R2.c)"
+
+- The desktop's library now runs in a process of its own. Its disk writes were sharing the main process with the native plugins' calls, and live playback could fall silent after a plugin restart.
+- v0.7.6 below was never tagged: its release checks failed on that problem. Its changes ship here.
+- **`openband box`**: the library, the rooms, the studio on your network and the recorder, in one always-on process. Also `devices`, `install`, `uninstall`, `status`, `on`, `off`. Settings live in `box.json`; see [docs/BOX.md](docs/BOX.md).
+- **As a service**: systemd, launchd or Task Scheduler. `scripts/box/install.sh` sets up a Pi or a Debian-like Linux. `docker-compose.box.yml` runs it in Docker on Linux.
+- **The Rehearsal room panel**, when connected to a Box: state and input level, record now, mark a mistake, turn on and off, sessions with Open, Analyse, Download the WAVs and a star.
+- **Retention**: over 50 sessions the oldest raw sessions go, starred ones never. The audio already imported into the song stays.
+- **Off switch**: `openband box off` stops recording at once, and the state survives a restart.
+- `openband doctor` reports whether ffmpeg is there.
+- Deviations from the spec:
+  - no `bonjour-service`: `openband.local` comes from avahi on a Pi; elsewhere use the printed IP address;
+  - the panel polls once a second rather than receiving meters on the socket.
+- **Not tested on real hardware**: `install.sh`, the services, and a real interface were not run, because there is no Pi or interface here. The whole path was run as a real process from a PCM file instead of a device.
+- Tests: the process records three songs from a source file, makes a version on `prove`, and serves the sessions, a WAV and the off switch over the API.
+
 ## v0.7.6 "A rehearsal becomes part of the song (R2.b)"
 
 - At the end of a session the server, with no browser open, turns a rehearsal into a song: one sample per channel, one audio track per channel, a region and a section per song ("Brano 1…n"), and a version `Prova 2026-11-03 21:14` on the branch `prove`. The main branch stays what the band arranges.

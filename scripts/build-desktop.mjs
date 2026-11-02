@@ -46,10 +46,13 @@ fs.mkdirSync(path.join(stage, 'server', 'protect'), { recursive: true });
 for (const f of fs.readdirSync(path.join(root, 'server', 'protect'))) if (f.endsWith('.mjs')) copy(`server/protect/${f}`);
 fs.mkdirSync(path.join(stage, 'server', 'store'), { recursive: true });
 for (const f of fs.readdirSync(path.join(root, 'server', 'store'))) if (f.endsWith('.mjs')) copy(`server/store/${f}`);
+fs.mkdirSync(path.join(stage, 'server', 'box'), { recursive: true });
+for (const f of fs.readdirSync(path.join(root, 'server', 'box'))) if (f.endsWith('.mjs')) copy(`server/box/${f}`);
 copy('desktop/main.mjs', 'main.mjs');
 copy('desktop/preload.cjs', 'preload.cjs');
 copy('desktop/native.mjs', 'native.mjs');
 copy('desktop/updater.mjs', 'updater.mjs');
+copy('desktop/store-process.mjs', 'store-process.mjs');
 copy('LICENSE');
 // How to open an unsigned app on macOS: shown in the disk image, not part of the app itself.
 const OPEN_HELP = "If it won't open - Se non si apre.txt";

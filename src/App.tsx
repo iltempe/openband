@@ -22,6 +22,8 @@ import { ABOverlay, TakesDialog } from './components/Takes';
 import { CommentsPanel, ExplainMenu } from './components/Comments';
 import { CompareBanner, RecoveryBanner, VersionsPanel } from './components/Versions';
 import { ProjectsPanel } from './components/Projects';
+import { RehearsalPanel } from './components/Rehearsal';
+import { useStoreLink } from './storage/sync';
 import { JoinDialog } from './components/Collab';
 import { DiagnosticsPage } from './components/Diagnostics';
 import { ShortcutsSheet, TemplateGallery, TourCard, Welcome, useOverlays } from './components/Welcome';
@@ -214,6 +216,7 @@ export function App() {
   const annCount = (s.project.annotations ?? []).filter((a) => !a.resolved).length;
   const flubCount = (s.project.flubs ?? []).filter((f) => !f.resolved && f.kind === 'flub').length;
   const t = useT();
+  const linkedToServer = useStoreLink((x) => !!x.url);
 
   return (
     <div className="app">
@@ -263,6 +266,11 @@ export function App() {
                 <button className={s.bottom === 'projects' ? 'on' : ''} onClick={() => s.set({ bottom: 'projects' })}>
                   <span aria-hidden>▤</span> {t('st.tab')}
                 </button>
+                {linkedToServer && (
+                  <button className={s.bottom === 'rehearsal' ? 'on' : ''} onClick={() => s.set({ bottom: 'rehearsal' })}>
+                    <span aria-hidden>●</span> {t('bx.tab')}
+                  </button>
+                )}
                 <button className={s.bottom === 'ensemble' ? 'on' : ''} onClick={() => s.set({ bottom: 'ensemble' })}>
                   <span aria-hidden>✦</span> {t('en.tab')}
                 </button>
@@ -285,6 +293,7 @@ export function App() {
                 {s.bottom === 'comments' && <CommentsPanel />}
                 {s.bottom === 'versions' && <VersionsPanel />}
                 {s.bottom === 'projects' && <ProjectsPanel />}
+                {s.bottom === 'rehearsal' && <RehearsalPanel />}
                 {s.bottom === 'flubs' && <FlubsPanel />}
                 {s.bottom === 'ensemble' && <EnsemblePanel />}
                 {s.bottom === 'release' && <ReleasePanel />}

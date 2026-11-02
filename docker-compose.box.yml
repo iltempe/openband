@@ -1,0 +1,17 @@
+# The Box in Docker, Linux only: docker compose -f docker-compose.box.yml up -d
+# It records every voice in the room: see docs/BOX.md.
+services:
+  box:
+    image: ghcr.io/iltempe/openband:latest
+    build: .
+    command: ["node", "bin/openband.mjs", "box"]
+    network_mode: host
+    devices:
+      - /dev/snd
+    environment:
+      OPENBAND_DATA: /data
+    volumes:
+      - openband-box:/data
+    restart: unless-stopped
+volumes:
+  openband-box:

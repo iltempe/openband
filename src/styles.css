@@ -6280,3 +6280,29 @@ div.ca-steps {
 .pj-alert .btn {
   margin-right: 6px;
 }
+
+/* Rehearsal room (R2) */
+.bx-state {
+  font-weight: 600;
+}
+.bx-recording {
+  color: var(--rec);
+}
+.bx-armed {
+  color: var(--play);
+}
+.bx-off {
+  color: var(--muted);
+}
+.bx-meter {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line);
+  overflow: hidden;
+}
+.bx-meter span {
+  display: block;
+  height: 100%;
+  background: var(--play);
+}
