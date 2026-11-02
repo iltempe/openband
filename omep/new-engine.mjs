@@ -11,6 +11,21 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
+/** A device node from the example: `omep-new --device`. */
+export function newDevice(dir, { id, name } = {}) {
+  const folder = path.resolve(dir);
+  if (fs.existsSync(folder) && fs.readdirSync(folder).length) throw new Error(`${folder} is not empty`);
+  const deviceId = (id ?? path.basename(folder)).toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+  fs.mkdirSync(folder, { recursive: true });
+  const from = path.join(here, 'examples', 'device-pi-tof');
+  for (const f of ['package.json', 'README.md', 'README.it.md', 'openband-device.service']) fs.copyFileSync(path.join(from, f), path.join(folder, f));
+  fs.copyFileSync(path.join(here, 'lib', 'device.mjs'), path.join(folder, 'device.mjs'));
+  const node = fs.readFileSync(path.join(from, 'node.mjs'), 'utf8').replace("'../../lib/device.mjs'", "'./device.mjs'").replace("id: 'pi-tof-theremin'", `id: '${deviceId}'`).replace("name: 'Theremin ToF'", `name: ${JSON.stringify(name ?? deviceId)}`);
+  fs.writeFileSync(path.join(folder, 'node.mjs'), node);
+  fs.chmodSync(path.join(folder, 'node.mjs'), 0o755);
+  return { folder, id: deviceId };
+}
+
 export function newEngine(dir, { id, name, license = 'MIT', homepage } = {}) {
   const folder = path.resolve(dir);
   if (fs.existsSync(folder) && fs.readdirSync(folder).length) throw new Error(`${folder} is not empty`);
@@ -33,6 +48,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const i = args.indexOf(`--${k}`);
     return i >= 0 ? args.splice(i, 2)[1] : undefined;
   };
+  const at = args.indexOf('--device');
+  const device = at >= 0;
+  if (device) args.splice(at, 1);
   const o = { id: opt('id'), name: opt('name'), license: opt('license'), homepage: opt('homepage') };
   const dir = args[0];
   if (!dir) {
@@ -40,6 +58,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     process.exit(2);
   }
   try {
+    if (device) {
+      const r = newDevice(dir, Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)));
+      console.log(`OMEP device "${r.id}" in ${r.folder}\n\n  cd ${path.relative(process.cwd(), r.folder) || '.'}\n  npm install\n  npm run simulate\n  openband omep-conformance -- node node.mjs --simulate`);
+      process.exit(0);
+    }
     const r = newEngine(dir, Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)));
     console.log(`OMEP engine "${r.id}" in ${r.folder}\n\n  cd ${path.relative(process.cwd(), r.folder) || '.'}\n  npm install\n  npm run conformance\n\nThen replace makeDrums() in engine.mjs with your model.`);
   } catch (e) {

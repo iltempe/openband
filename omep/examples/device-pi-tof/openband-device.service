@@ -1,0 +1,13 @@
+[Unit]
+Description=OpenBand device: Theremin ToF
+After=network-online.target
+
+[Service]
+WorkingDirectory=/opt/openband-device
+ExecStart=/usr/bin/node node.mjs --http 7788
+Restart=always
+User=pi
+SupplementaryGroups=i2c gpio
+
+[Install]
+WantedBy=multi-user.target

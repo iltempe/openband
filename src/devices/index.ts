@@ -5,6 +5,7 @@ import { engineRequest, onDeviceFrame } from '../bridge';
 import { parseTargetKey, setPoints, targetRange } from '../automation';
 import { useRecSetup } from '../recording';
 import { useStore } from '../store';
+import { connectSerial } from './serial';
 import { mapValue, smoother, thinPoints, type DeviceMapping } from './mapping';
 
 export interface DeviceInfo {
@@ -93,7 +94,8 @@ export function commitTakes() {
 }
 
 export async function refreshDevices() {
-  useDevices.setState({ list: await engineRequest<DeviceInfo[]>('device_list') });
+  const list = await engineRequest<DeviceInfo[]>('device_list');
+  useDevices.setState((s) => ({ list: [...list, ...s.list.filter((d) => d.manifest_hash === 'usb')] }));
 }
 
 export async function connectDevice(url: string, token?: string) {
@@ -130,6 +132,18 @@ export async function deviceSet(device: string, output: string, value: number) {
   }
   await engineRequest('device_set', { device, output, value });
   return { device, output, value };
+}
+
+/** A USB device, in this browser: no server between. */
+export async function connectUsb() {
+  let id = '';
+  await connectSerial(
+    (d) => {
+      id = d.manifest.engine.id;
+      useDevices.setState((s) => ({ list: [...s.list.filter((x) => x.id !== id), { id, name: d.manifest.engine.name, hardware: d.manifest.device.hardware, controls: d.manifest.device.controls, outputs: d.manifest.device.outputs ?? [], latency_ms: null, streaming: true, manifest_hash: 'usb' }] }));
+    },
+    (values) => id && onFrame(id, { t: performance.now() / 1000, values }),
+  );
 }
 
 export function initDevices() {

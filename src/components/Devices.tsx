@@ -4,7 +4,8 @@ import { useT } from '../i18n';
 import { useStore } from '../store';
 import { runCommand } from '../commands';
 import { AUTO_PARAMS } from '../automation';
-import { refreshDevices, useDevices } from '../devices';
+import { connectUsb, refreshDevices, useDevices } from '../devices';
+import { serialSupported } from '../devices/serial';
 
 const notify = (e: unknown) => useStore.getState().notify((e as Error).message);
 const run = (m: string, a: Record<string, unknown> = {}) => Promise.resolve(runCommand(m, a, 'ui'));
@@ -19,6 +20,10 @@ export function DevicesPanel() {
   const [track, setTrack] = useState('');
   const [target, setTarget] = useState('tone');
   useEffect(() => void refreshDevices().catch(() => null), []);
+  const plugSerial = async () => {
+    if (!serialSupported()) throw new Error(t('dv.noSerial'));
+    await connectUsb();
+  };
   return (
     <div className="pj-panel">
       <section className="pj-link">
@@ -27,6 +32,7 @@ export function DevicesPanel() {
         <input className="pj-input" aria-label={t('dv.url')} placeholder="http://192.168.1.20:7788/" value={url} onChange={(e) => setUrl(e.target.value)} />
         <input className="pj-input" type="password" aria-label={t('dv.token')} placeholder={t('dv.token')} value={token} onChange={(e) => setToken(e.target.value)} />
         <button className="btn" disabled={!url} onClick={() => void run('connect_device', { url, token: token || undefined }).catch(notify)}>{t('dv.connect')}</button>
+        <button className="btn" onClick={() => void plugSerial().catch(notify)}>{t('dv.usb')}</button>
         {ask && (
           <div className="pj-alert" role="alertdialog">
             <p>{t('dv.confirm', { name: ask.name })}</p>

@@ -1,0 +1,19 @@
+{
+  "name": "omep-device-pi-tof",
+  "version": "0.1.0",
+  "description": "A hand in the air as a control for OpenBand: Raspberry Pi + VL53L1X",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "start": "node node.mjs --http 7788",
+    "simulate": "node node.mjs --simulate --http 7788"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "ws": "^8.22.0",
+    "zod": "^3.25.0"
+  },
+  "optionalDependencies": {
+    "i2c-bus": "^5.2.3"
+  }
+}

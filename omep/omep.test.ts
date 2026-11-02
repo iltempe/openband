@@ -1,3 +1,7 @@
+import { newDevice } from './new-engine.mjs';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONTEXT, runConformance } from './conformance.mjs';
 import { validate } from './lib/schemas.mjs';
@@ -6,6 +10,21 @@ import { keySimilarity } from './lib/music.mjs';
 
 const mock = (...flags: string[]) => ({ command: process.execPath, args: ['omep/mock-engine.mjs', ...flags] });
 const failed = (r: { checks: { ok: boolean; required: boolean; id: string }[] }) => r.checks.filter((c) => !c.ok && c.required).map((c) => c.id);
+
+describe('omep-new --device', () => {
+  it('makes a node that stands alone', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omep-device-'));
+    const r = newDevice(path.join(dir, 'my-sensor'), { name: 'My sensor' });
+    expect(r.id).toBe('my-sensor');
+    const node = fs.readFileSync(path.join(r.folder, 'node.mjs'), 'utf8');
+    expect(node).toContain("'./device.mjs'");
+    expect(node).toContain("id: 'my-sensor'");
+    expect(node).toContain('name: "My sensor"');
+    expect(fs.existsSync(path.join(r.folder, 'device.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(r.folder, 'openband-device.service'))).toBe(true);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+});
 
 describe('OMEP 1.0', () => {
   it('the mock engine passes conformance with full adherence (protocol, schemas, tasks, cancel, determinism)', async () => {

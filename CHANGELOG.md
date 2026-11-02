@@ -2,6 +2,14 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.22 "Your own device, and USB (R3.c, R3.7b)"
+
+- **`openband omep-new --device <folder>`** makes a device node that stands alone, from the example, with the systemd unit.
+- **The example node** has READMEs in English and Italian: wiring, installation, and mapping it on the filter in 3 steps.
+- **USB devices in the browser**: a Pico or an Arduino that speaks the same manifest in JSON lines on a serial port connects with no server, on Chrome, Edge and Firefox 151+. Elsewhere the studio says it isn't supported.
+- Not tested on hardware: no Pico, Arduino or Pi was connected. The serial protocol is tested with its parsing only.
+- Tests: line splitting and parsing, a generated node standing alone.
+
 ## v0.7.21 "Devices in the studio (R3.b)"
 
 - **The Devices panel**: connect a device by its address, see its controls move, and map one to any mix parameter of a track, with a curve, a range and 20 ms of smoothing.
