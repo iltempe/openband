@@ -300,7 +300,8 @@ export class ServerBackend implements Backend {
   /** Put a browser song on the server, with its history and samples. */
   async adopt(p: Project) {
     const id = idOf(p);
-    if (this.adopting.has(id)) return;
+    // Already here (a save and the first-run copy can meet): adopting twice would look like a conflict.
+    if (this.adopting.has(id) || this.tracked(id)) return;
     this.adopting.add(id);
     try {
       await this.pushSamples(p);

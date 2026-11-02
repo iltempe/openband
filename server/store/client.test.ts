@@ -147,6 +147,15 @@ describe('ServerBackend', () => {
     expect(seen.length).toBeGreaterThan(0);
     expect(new Set(seen)).toEqual(new Set(['page-1']));
   });
+  it('a song adopted twice, by a save and by the first-run copy, is no conflict', async () => {
+    const conflicts: Project[] = [];
+    const { b } = client({ onConflict: (p) => conflicts.push(p) });
+    await b.adopt(song('a'));
+    await b.adopt(song('a', 'older copy'));
+    expect(conflicts).toEqual([]);
+    expect(b.status().state).toBe('ready');
+    expect(store.getProject('a')?.value.name).toBe('S');
+  });
   it('forgetting a song stops sending it and leaves the server copy', async () => {
     const { b } = client();
     await b.adopt(song('a'));

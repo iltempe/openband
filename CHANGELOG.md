@@ -2,6 +2,12 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.5 "The library no longer replaces the song you are working on"
+
+- **Fixed**, in v0.7.3 and v0.7.4: on a slow start, a save and the first-run copy could both send the same song to the library. That looked like a conflict, so the open song was replaced by the library's copy, and your version went to a `conflitto-` branch. Nothing was lost, but the song on screen changed by itself, and live playback could fall silent. If you find such a branch from a first start, your work is there.
+- v0.7.4 has no desktop installers for Windows, because this bug stopped its release checks (20 assets). This release has them all.
+- Tests: a song adopted twice is no conflict.
+
 ## v0.7.4 "The recorder that decides by itself (R2.a)"
 
 ### The core of the rehearsal Box, still without a command to start it
