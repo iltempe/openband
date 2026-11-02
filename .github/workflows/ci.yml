@@ -1,7 +1,10 @@
 name: CI
 
 on:
+  # Branches only: a tag's commit has passed here already, and Release checks it again in `verify`.
+  # Running it on tags too asks for every macOS runner twice.
   push:
+    branches: ['**']
   pull_request:
 
 jobs:
