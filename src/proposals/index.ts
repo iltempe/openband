@@ -3,6 +3,10 @@ import { create } from 'zustand';
 import { getStoredSample, importSample, ensureSamples, sampleName } from '../audio/samples';
 import { BEATS_PER_BAR, uid } from '../music';
 import { backend } from '../storage';
+import { ServerBackend } from '../storage/server';
+import { lint } from '../lint/engine';
+import { runTests } from '../tests/engine';
+import { measureWith, prepare as prepareStems } from '../tests/measure';
 import { projectSampleIdsOf } from '../storage/samplesOf';
 import { useStore } from '../store';
 import type { Annotation, AnnotationAuthor, Project } from '../types';
@@ -60,7 +64,41 @@ export async function createProposal(a: { title: string; description?: string; b
   const x: Proposal = { id: uid('pr'), number, projectId: fork?.projectId ?? pidOf(p), title, description: a.description, author: me(ai), baseVersionId: base, headVersionId: head, status: 'open', createdAt: Date.now(), updatedAt: Date.now() };
   st().commit((d) => void (d.proposals = [...(d.proposals ?? []), x]), { label: `Proposal #${number}` });
   if (!fork) await createBranch(`pr/${number}`, head);
-  return { number, id: x.id };
+  const sent = await sendToServer(x, head).catch(() => null);
+  // Checks need renders: they follow, and show in the panel.
+  void checkProposal(number).catch(() => null);
+  return { number, id: x.id, ...(sent ? { on_server_as: sent } : {}) };
+}
+
+/** The checks of a proposal: its tests on the head with the base as baseline, and what it does to the linter. */
+export async function checkProposal(number: unknown) {
+  const x = find(number);
+  const [base, head] = await Promise.all([getSnapshot(x.baseVersionId), getSnapshot(x.headVersionId)]);
+  const tests = (head.tests ?? []).filter((t) => t.enabled);
+  const stems = await prepareStems(head, tests);
+  const old = tests.some((t) => t.assert.kind === 'baseline') ? { project: base, stems: await prepareStems(base, tests) } : null;
+  const run = runTests(head, { measure: measureWith(stems, old), approved: old ? base : null });
+  const ids = (p: Project) => new Set(lint(p).issues.map((i) => i.id));
+  const before = ids(base);
+  const after = ids(head);
+  const checks = { tests: run, lint: { added: [...after].filter((i) => !before.has(i)).length, removed: [...before].filter((i) => !after.has(i)).length } };
+  update(x.number, { checks }, `Checks of #${x.number}`);
+  return { number: x.number, ...checks, failed: run.results.filter((r) => !r.pass).length };
+}
+
+/** A fork of a song on the connected server: the proposal goes to that song, for everyone. */
+async function sendToServer(x: Proposal, head: string) {
+  const b = backend();
+  const fork = st().project.meta?.forkOf;
+  if (!fork || !(b instanceof ServerBackend) || !(await b.projects.list()).some((s) => s.id === fork.projectId)) return null;
+  const v = await b.versions.get(head);
+  if (!v) return null;
+  let s = '';
+  const bytes = new Uint8Array(v.snapshot);
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  const { snapshot: _, ...meta } = v;
+  const r = await b.req(`/projects/${encodeURIComponent(fork.projectId)}/proposals`, { method: 'POST', body: JSON.stringify({ proposal: x, version: { ...meta, snapshot: btoa(s) } }) });
+  return r.ok ? ((await r.json()) as { number: number }).number : null;
 }
 
 /** What a proposal changes: the head against the base, in words and bars. */
@@ -159,6 +197,7 @@ export async function importProposal(bytes: Uint8Array) {
   const x: Proposal = { ...f.proposal, id: uid('pr'), number, headVersionId: headId, status: 'open', updatedAt: Date.now() };
   st().commit((d) => void (d.proposals = [...(d.proposals ?? []), x]), { label: `Proposal #${number}` });
   await loadVersions();
+  void checkProposal(number).catch(() => null);
   return { number, title: x.title, from: x.author.name };
 }
 

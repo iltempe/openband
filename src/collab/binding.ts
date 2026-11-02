@@ -10,7 +10,7 @@
 import * as Y from 'yjs';
 import type { Note, Project, Region, Track } from '../types';
 
-const PROJECT_FIELDS = ['version', 'name', 'bpm', 'key', 'masterVolume', 'loop', 'metronome', 'lyrics', 'reference', 'lint', 'meta'] as const;
+const PROJECT_FIELDS = ['version', 'name', 'bpm', 'key', 'masterVolume', 'loop', 'metronome', 'lyrics', 'reference', 'lint', 'meta', 'proposals'] as const;
 const same = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
 const plain = <T,>(v: T): T => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
 

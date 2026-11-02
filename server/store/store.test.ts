@@ -195,6 +195,19 @@ describe('the API', () => {
     expect((await (await fetch(`${base}/projects/a/versions`)).json()).map((x: { id: string }) => x.id)).toEqual(['v1']);
     expect((await (await fetch(`${base}/projects/a/versions/v1`)).json()).snapshot).toBe(snapshot);
   });
+  it('takes a proposal from a fork, numbers it, and it survives a restart', async () => {
+    await start();
+    await fetch(`${base}/projects/a`, { method: 'PUT', body: JSON.stringify(song('a')) });
+    const snapshot = Buffer.from(gzipSync('{}')).toString('base64');
+    const body = (id: string) => JSON.stringify({ proposal: { id, title: 'Bass', status: 'open' }, version: { id, parentIds: [], label: 'x', createdAt: 1, author: 'user', snapshot } });
+    const one = await (await fetch(`${base}/projects/a/proposals`, { method: 'POST', body: body('v1') })).json();
+    const two = await (await fetch(`${base}/projects/a/proposals`, { method: 'POST', body: body('v2') })).json();
+    expect([one.number, two.number]).toEqual([1, 2]);
+    await new Promise((r) => srv.close(r));
+    await start();
+    expect((await (await fetch(`${base}/projects/a/proposals`)).json()).map((p: { number: number }) => p.number)).toEqual([1, 2]);
+    expect(store.branches('a').map((b: { name: string }) => b.name)).toEqual(['pr/1', 'pr/2']);
+  });
   it('tells listeners what changed, on a socket that needs no token here', async () => {
     await start();
     const ws = new WebSocket(`${base.replace('http', 'ws')}/events`);

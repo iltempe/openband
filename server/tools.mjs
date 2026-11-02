@@ -518,6 +518,8 @@ tool('export_proposal', 'Download a proposal as a .openband-pr file, to send by 
 
 tool('import_proposal', 'Open a .openband-pr file (base64). In the song it came from it appears as a proposal; anywhere else it opens as a fork.', { base64: z.string() });
 
+tool('check_proposal', 'Run a proposal\'s checks again: its song tests on the head with the base as baseline, and the problems it adds or removes.', { number: z.number() });
+
 tool('list_tests', 'The song tests with their last results.', {}, readOnly);
 
 tool('add_test', 'Add a song test. text, one line in English or Italian: "in chorus: vocals.lufs >= guitars.lufs + 3 dB", "master.lufs_i between -10 and -8", "master.true_peak <= -1", "bass: mono below 120 Hz", "bass: notes between E1 and G3", "vocals vs guitars: masking 1–4 kHz <= 0.3", "compared to approved: every track ± 1.5 dB per section". Show the user the line you wrote. Or test: the structured form.', { text: z.string().optional(), test: z.record(z.unknown()).optional() });
@@ -1035,7 +1037,7 @@ export const TOOLSETS = {
   mix: { description: 'Effects per track, master chain, the mix pilot\'s knob, automation, meters and listening (analyze_mix, spectrogram), reference tracks', tools: ['set_track_effects', 'set_master_chain', 'set_pilot_amount', 'fix_pilot', 'set_track_role', 'set_automation', 'clear_automation', 'list_automatable', 'get_meters', 'set_monitoring', 'level_match', 'analyze_mix', 'render_spectrogram', 'import_reference', 'compare_to_reference', 'clear_reference'] },
   analysis: { description: 'Harmony and key analysis, the song linter and its fixes', tools: ['analyze_harmony', 'detect_key', 'lint_project', 'apply_fix', 'ignore_issue'] },
   recording: { description: 'Recording audio and MIDI, punch-in, takes and comping, blind A/B tests, flub marks', tools: ['record_audio', 'arm_track', 'set_track_midi_input', 'map_midi_channels', 'set_punch', 'audio_to_midi', 'add_take', 'list_takes', 'set_active_take', 'delete_take', 'comp_takes', 'start_ab_test', 'add_flub', 'list_flubs', 'resolve_flub', 'delete_flub', 'replace_with_best_take', 'set_voice_control', 'start_session', 'stop_session', 'get_session'] },
-  review: { description: 'Musical pull requests: fork, propose, review, merge', tools: ['fork_project', 'create_proposal', 'list_proposals', 'get_proposal', 'comment_proposal', 'review_proposal', 'merge_proposal', 'close_proposal', 'export_proposal', 'import_proposal'] },
+  review: { description: 'Musical pull requests: fork, propose, review, merge', tools: ['fork_project', 'create_proposal', 'list_proposals', 'get_proposal', 'comment_proposal', 'review_proposal', 'merge_proposal', 'close_proposal', 'check_proposal', 'export_proposal', 'import_proposal'] },
   tests: { description: 'Song tests: assertions on the mix and the notes, run like a CI', tools: ['list_tests', 'add_test', 'update_test', 'remove_test', 'run_tests', 'set_baseline', 'add_test_suite'] },
   versions: { description: 'History, versions and branches, merge, the time machine', tools: ['get_history', 'save_version', 'list_versions', 'analyze_rehearsal', 'list_projects', 'open_project', 'move_project', 'store_status', 'create_branch', 'checkout', 'diff_versions', 'merge', 'get_timeline', 'preview_at', 'restore_at'] },
   lyrics: { description: 'Lyrics, aligning them to the melody, prosody, chord sheets', tools: ['set_lyrics', 'get_lyrics', 'align_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet'] },

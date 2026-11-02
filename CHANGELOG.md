@@ -2,6 +2,14 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.13 "Proposals in rooms and on your server (C1.c)"
+
+- **Rooms**: proposals, their state and comments are shared live with everyone in the room.
+- **On a server**: a proposal from a fork of a song on the connected server goes straight to that song, numbered there so two people can't clash. It survives restarts and appears for everyone (`proposal_opened` on the event channel).
+- **Checks**: a new or imported proposal runs its song tests on the proposal, with the base as baseline, and counts the problems it adds or removes. The panel shows "Tests: 3 passed, 1 failed · +2 problems". `check_proposal` runs them again: 203 tools, 198 in the page.
+- Not done yet: the live two-user room case from the acceptance list is not covered by a test of its own; proposals use the existing field sync, which rooms already test.
+- Tests: the API numbers proposals and keeps them across a restart; **e2e**: checks run by themselves on a new proposal.
+
 ## v0.7.12 "Musical pull requests (C1.a, C1.b)"
 
 - **Fork a song, change it, propose it back.** The **Proposals** panel, next to Versions, says what changes in words ("Basso: 34 notes changed in Ritornello; new track Organo; tempo 92 → 94") and in bars, with next and previous change, and marks the changes on the timeline through the compare view.

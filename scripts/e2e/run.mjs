@@ -2541,6 +2541,8 @@ tests.proposals = async () => {
       const got = await commands.get_proposal({ number });
       return { number, summary: got.summary, bars: got.bars, bass };
     });
+    const lintChecked = await p.waitForFunction(() => window.openband.useStore.getState().project.proposals[0].checks, { timeout: 30000 }).then(() => true, () => false);
+    check(lintChecked, 'checks run by themselves on a new proposal');
     check(r.summary.some((l) => /Basso: 4 notes changed in Ritornello/.test(l)), `it says what changes (${r.summary.join('; ')})`);
     check(r.bars.length >= 1, `and in which bars (${JSON.stringify(r.bars)})`);
     await p.evaluate(() => window.openband.useStore.getState().set({ bottom: 'proposals' }));

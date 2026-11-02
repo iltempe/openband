@@ -142,6 +142,21 @@ export class FsStore {
     this.writeJson(file, { ...this.readJson(file, {}), box });
   }
 
+  proposals = (id) => this.getProject(id)?.value.proposals ?? [];
+
+  /** A proposal from a fork (C1): its head becomes a version and a branch of the song. Numbered here, so two can't clash. */
+  addProposal(id, proposal, version) {
+    const have = this.getProject(id);
+    if (!have) throw new StoreError(404, 'No such project');
+    const number = Math.max(0, ...this.proposals(id).map((p) => p.number)) + 1;
+    const branch = `pr/${number}`;
+    this.putVersion(id, { ...version, projectId: id, branch });
+    this.putBranch(id, { id: `${id}:${branch}`, projectId: id, name: branch, headId: version.id, at: this.now() });
+    const next = { ...proposal, projectId: id, number, headVersionId: version.id };
+    const { etag } = this.putProject(id, { ...have.value, proposals: [...(have.value.proposals ?? []), next] }, have.etag);
+    return { number, etag };
+  }
+
   trashProject(id) {
     const dir = this.projectDir(id);
     if (!fs.existsSync(dir)) throw new StoreError(404, 'No such project');

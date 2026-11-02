@@ -1,4 +1,4 @@
-import { closeProposal, commentProposal, createProposal, exportProposal, forkProject, getProposal, importProposal, listProposals, mergeProposal, reviewProposal } from './proposals';
+import { checkProposal, closeProposal, commentProposal, createProposal, exportProposal, forkProject, getProposal, importProposal, listProposals, mergeProposal, reviewProposal } from './proposals';
 import { getSnapshot, useVersions } from './versioning';
 import { measureWith, prepare as prepareStems, renderStats } from './tests/measure';
 import { suiteTests } from './tests/suites';
@@ -1334,6 +1334,7 @@ export const commands: Record<string, (args: P) => unknown> = {
   review_proposal: ({ number, verdict, text }) => reviewProposal({ number, verdict, text }, isAiCommand()),
   merge_proposal: ({ number, picks, strategy }) => mergeProposal({ number, picks, strategy }, isAiCommand()),
   close_proposal: ({ number }) => closeProposal(number),
+  check_proposal: ({ number }) => checkProposal(number),
   export_proposal: async ({ number }) => {
     const { bytes, filename } = await exportProposal(number);
     download(new Blob([bytes as BlobPart], { type: 'application/zip' }), filename);

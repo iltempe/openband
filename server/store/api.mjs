@@ -159,6 +159,16 @@ export function createStoreApi({ store, pairing, allowedOrigins = [], storeToken
         return json(res, 200, { ok: true });
       }
     }
+    if (sub === 'proposals') {
+      if (m === 'GET') return json(res, 200, store.proposals(id));
+      if (m === 'POST') {
+        const { proposal, version } = await readJson(req);
+        const r = store.addProposal(id, proposal, { ...version, snapshot: new Uint8Array(Buffer.from(String(version?.snapshot ?? ''), 'base64')) });
+        emit({ kind: 'proposal_opened', id, number: r.number, etag: r.etag, by });
+        emit({ kind: 'project_changed', id, etag: r.etag, by });
+        return json(res, 201, r);
+      }
+    }
     if (sub === 'branches') {
       if (m === 'GET') return json(res, 200, store.branches(id));
       if (m === 'PUT') return json(res, 200, store.putBranch(id, await readJson(req)));
