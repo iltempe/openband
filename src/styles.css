@@ -6340,3 +6340,35 @@ div.ca-steps {
 .st-add {
   margin-top: 6px;
 }
+
+/* Proposals (C1) */
+.pr-row {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.pr-row.on {
+  border-color: var(--accent);
+}
+.pr-detail h4 {
+  margin: 0 0 6px;
+  color: var(--text);
+}
+.pr-summary {
+  margin: 4px 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+.pr-thread {
+  margin: 8px 0;
+}
+.pr-merge {
+  border-color: var(--play);
+}

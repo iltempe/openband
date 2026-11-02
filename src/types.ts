@@ -1,3 +1,4 @@
+import type { Proposal } from './proposals/model';
 import type { SongTest, TestRun } from './tests/types';
 // Core data model. All musical times are expressed in beats (quarter notes).
 // The project is 4/4: one bar = 4 beats.
@@ -294,6 +295,8 @@ export interface Project {
   pilot?: PilotState;
   /** Who made what (SPEC v0.6 §6): one entry per engine contribution. */
   ledger?: LedgerEntry[];
+  /** Proposals (C1). */
+  proposals?: Proposal[];
   /** Song tests (C2). */
   tests?: SongTest[];
   /** The last full run, and a ✓/✗ per version it was run on. */
@@ -336,7 +339,9 @@ export interface LedgerEntry {
   id: string;
   at: number;
   /** builtin: OpenBand's own algorithm; engine: an OMEP engine; conductor: an LLM writing notes itself. */
-  source: 'builtin' | 'engine' | 'conductor';
+  source: 'builtin' | 'engine' | 'conductor' | 'human';
+  /** source human: who, for parts that arrived by merge (C1). */
+  contributor?: { name: string };
   engine: string;
   engineName?: string;
   engineVersion?: string;
@@ -379,6 +384,8 @@ export interface ProjectMeta {
   updatedAt: number;
   /** Stable identity of the song across saves, versions and copies. */
   projectId: string;
+  /** Where this song was forked from (C1). */
+  forkOf?: { projectId: string; versionId: string; name: string; url?: string };
 }
 
 export type SectionKind = 'intro' | 'verse' | 'prechorus' | 'chorus' | 'bridge' | 'solo' | 'breakdown' | 'outro' | 'custom';
@@ -444,6 +451,8 @@ export interface Annotation {
   resolved?: boolean;
   /** Set when the target no longer exists. */
   orphaned?: boolean;
+  /** A comment on a proposal (C1). */
+  proposalId?: string;
 }
 
 export interface ReferenceTrack {
@@ -466,7 +475,7 @@ export interface LintConfig {
   ignored?: string[];
 }
 
-export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | 'projects' | 'rehearsal' | 'flubs' | 'ensemble' | 'pilot' | 'release' | null;
+export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | 'proposals' | 'projects' | 'rehearsal' | 'flubs' | 'ensemble' | 'pilot' | 'release' | null;
 
 export interface BridgeLogEntry {
   id: string;

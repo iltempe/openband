@@ -2,6 +2,20 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.12 "Musical pull requests (C1.a, C1.b)"
+
+- **Fork a song, change it, propose it back.** The **Proposals** panel, next to Versions, says what changes in words ("Basso: 34 notes changed in Ritornello; new track Organo; tempo 92 → 94") and in bars, with next and previous change, and marks the changes on the timeline through the compare view.
+- **Listen**: blind A/B of base and proposal, whose vote lands in the review; *Only the changes*, looping the changed bars with a bar of context and the untouched tracks 12 dB down; and *Switch*, instant and level-matched so the louder one doesn't win.
+- **Comment on bars**, then approve or ask for changes.
+- **Merge** whole or in part. It is one undo step, makes a version with two parents, and records the parts in the ledger as `human`, with the contributor's name. The user must confirm a merge in the studio: an AI can ask but not do it.
+- **`.openband-pr`**: a file with the proposal, base, head and only the new samples, to send by mail or chat. In the original song it appears as a proposal; anywhere else it opens as a fork.
+- MCP: toolset `review` with 10 tools: 202 tools, 197 in the page.
+- Deviations from the spec:
+  - a fork does not copy the version history, because versions are stored by id and the same id cannot belong to two songs in one browser. A fork remembers its base version, and the `.openband-pr` carries the base;
+  - the first-merge note about credits for a new contributor is not shown yet.
+- Not done yet: proposals in the project store and in rooms, and test checks in the review (C1.c).
+- Tests: the diff in words and bars, the file round trip with only new samples, ducking and level match. **e2e**: what changes, the blind vote in the review, a partial merge confirmed in the studio, two parents, one undo.
+
 ## v0.7.11 "openband test, for CI (C2.c)"
 
 - **`openband test <song> [--baseline <version>] [--format text|json|junit] [--strict] [--chrome <path>]`**: exit code 1 when a test fails.

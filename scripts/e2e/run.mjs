@@ -11,6 +11,7 @@
 //   box        — `openband box` from a recorded source: the Rehearsal room panel opens what it recorded
 //   tabrehearsal — Record the rehearsal in the browser, from a fake microphone
 //   songtests  — song tests with real renders: green, red, the fix, the cache, the baseline
+//   proposals  — a proposal: what changes, a blind vote, a partial merge confirmed in the studio, one undo
 //   library    — a local server is the browser's library: first-run copy, songs survive clearing the browser
 //   store      — the project library: two browsers, offline work, a conflict that loses nothing
 //   frozen     — a song with a native plugin opened in the browser plays its render cache, live and exported
@@ -2498,6 +2499,76 @@ tests.songtests = async () => {
     check(!!r.issue && r.fixed, `the fix in Problems turns it green (${r.issue})`);
     check(r.stable, 'after approving, the baseline is green');
     check(r.baseline.length === 1 && r.baseline[0], `a track moved after approval is the only one red (${r.baseline.length})`);
+  } finally {
+    await b.close();
+    srv.kill();
+  }
+};
+
+tests.proposals = async () => {
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  const fresh = async () => {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.setViewport({ width: 1280, height: 800 });
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.keyboard.press('Space');
+    return p;
+  };
+  try {
+    const p = await fresh();
+    const r = await p.evaluate(async () => {
+      const { commands, useStore } = window.openband;
+      await commands.new_project({ name: 'PR', bpm: 120, key: 'C' });
+      const bass = commands.add_track({ kind: 'instrument', instrument: 'chip', name: 'Basso' }).track_id;
+      const keys = commands.add_track({ kind: 'instrument', instrument: 'chip', name: 'Keys' }).track_id;
+      const notes = (pitch) => [0, 4, 8, 12].map((start) => ({ pitch, start, duration: 3, velocity: 0.8 }));
+      commands.add_region({ track_id: bass, start_bar: 1, length_bars: 4, notes: notes('A1') });
+      commands.add_region({ track_id: keys, start_bar: 1, length_bars: 4, notes: notes('C4') });
+      commands.add_section({ name: 'Ritornello', kind: 'chorus', start_bar: 1, length_bars: 4 });
+      await commands.save_version({ label: 'Start' });
+      await commands.create_branch({ name: 'idea' });
+      await commands.checkout({ branch: 'idea' });
+      const region = useStore.getState().project.regions.find((x) => x.trackId === bass);
+      useStore.getState().commit((d) => void (d.regions.find((x) => x.id === region.id).notes.forEach((n) => (n.pitch = 45))));
+      commands.update_track({ track_id: keys, volume: 0.2 });
+      const head = (await commands.save_version({ label: 'Bass idea' })).version_id;
+      const base = (await commands.list_versions({})).versions.find((v) => v.label === 'Start').id;
+      await commands.checkout({ branch: 'main' });
+      const { number } = await commands.create_proposal({ title: 'A new bass', base, head });
+      const got = await commands.get_proposal({ number });
+      return { number, summary: got.summary, bars: got.bars, bass };
+    });
+    check(r.summary.some((l) => /Basso: 4 notes changed in Ritornello/.test(l)), `it says what changes (${r.summary.join('; ')})`);
+    check(r.bars.length >= 1, `and in which bars (${JSON.stringify(r.bars)})`);
+    await p.evaluate(() => window.openband.useStore.getState().set({ bottom: 'proposals' }));
+    await p.waitForSelector('.pr-row');
+    await p.click('.pr-row');
+    await p.waitForFunction(() => [...document.querySelectorAll('.btn')].some((x) => x.textContent === 'Blind A/B'), { timeout: 10000 });
+    const clickText = (t) => p.evaluate((x) => [...document.querySelectorAll('.btn')].find((y) => y.textContent === x).click(), t);
+    await clickText('Blind A/B');
+    await p.waitForFunction(() => [...document.querySelectorAll('.btn')].some((x) => x.textContent === 'I prefer B'), { timeout: 30000 });
+    await clickText('I prefer B');
+    await p.waitForFunction(() => window.openband.useStore.getState().project.proposals[0].reviews?.length === 1, { timeout: 5000 });
+    const review = await p.evaluate(() => window.openband.useStore.getState().project.proposals[0].reviews[0].text);
+    check(/blind test/.test(review), `the blind vote lands in the review (${review})`);
+    const merged = p.evaluate(async (n, bass) => {
+      const { commands, useStore } = window.openband;
+      const res = await commands.merge_proposal({ number: n, picks: [{ entity: 'region', id: useStore.getState().project.regions.find((x) => x.trackId === bass).id, from: 'b' }] });
+      const s = useStore.getState().project;
+      return { res, bass: s.regions.find((x) => x.trackId === bass).notes[0].pitch, keys: s.tracks.find((t) => t.name === 'Keys').volume, status: s.proposals[0].status, ledger: (s.ledger ?? []).filter((e) => e.source === 'human').length };
+    }, r.number, r.bass);
+    await p.waitForSelector('[role=alertdialog]', { timeout: 5000 });
+    await p.evaluate(() => [...document.querySelectorAll('[role=alertdialog] .btn')].find((y) => y.textContent === 'Merge').click());
+    const m = await merged;
+    check(m.bass === 45 && m.keys !== 0.2, `a partial merge takes only the bass (${m.bass}, keys ${m.keys})`);
+    check(m.status === 'merged', 'after the confirmation in the studio, the proposal is merged');
+    const parents = await p.evaluate(async () => { const v = await window.openband.commands.list_versions({}); return v.versions[0].parent_ids.length; });
+    check(parents === 2, `the merge version has two parents (${parents})`);
+    const undone = await p.evaluate(async (bass) => { const { commands, useStore } = window.openband; await commands.undo({}); return useStore.getState().project.regions.find((x) => x.trackId === bass).notes[0].pitch; }, r.bass);
+    check(undone !== 45, `one undo takes it back (${undone})`);
   } finally {
     await b.close();
     srv.kill();

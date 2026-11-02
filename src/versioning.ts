@@ -9,7 +9,7 @@ import { backend, type BranchRef, type StoredVersion, type VersionMeta } from '.
 import { migrate } from './migrations';
 import { canonicalJSON } from './versions/canonical';
 import { diffProjects, type ProjectDiff } from './versions/diff';
-import { commonAncestor, mergeProjects, type MergeStrategy, type Pick } from './versions/merge';
+import { commonAncestor, mergeProjects, takeOnly, type MergeStrategy, type Pick } from './versions/merge';
 
 export type { BranchRef, VersionMeta };
 
@@ -172,7 +172,7 @@ export async function listVersions(branch?: string) {
 export async function createBranch(name: string, fromVersionId?: string) {
   await ensureLoaded();
   const clean = name.trim();
-  if (!/^[\w.\- ]{1,40}$/.test(clean)) throw new Error('Branch names: letters, digits, spaces, . _ - (max 40)');
+  if (!/^[\w.\-/ ]{1,40}$/.test(clean)) throw new Error('Branch names: letters, digits, spaces, . _ - / (max 40)');
   if (vs().branches.some((b) => b.name === clean)) throw new Error(`Branch "${clean}" already exists`);
   // Branching needs a version to start from: save the current state if there is none.
   const from = fromVersionId ? resolveRef(fromVersionId) : vs().headId ?? (await saveVersion('Start', 'user')).id;
@@ -270,7 +270,7 @@ export async function diffVersions(a: string, b?: string) {
   return diffProjects(pa, pb);
 }
 
-export async function mergeBranch(fromBranch: string, strategy: MergeStrategy = 'manual', picks: Pick[] = [], author: 'user' | 'ai' = 'user') {
+export async function mergeBranch(fromBranch: string, strategy: MergeStrategy = 'manual', picks: Pick[] = [], author: 'user' | 'ai' = 'user', only = false) {
   await ensureLoaded();
   const s = vs();
   const from = s.branches.find((b) => b.name === fromBranch);
@@ -284,7 +284,7 @@ export async function mergeBranch(fromBranch: string, strategy: MergeStrategy = 
   const baseId = commonAncestor(parents, headId, from.headId);
   const theirs = await getSnapshot(from.headId);
   const base = baseId ? await getSnapshot(baseId) : theirs;
-  const res = mergeProjects(base, st().project, theirs, strategy, picks);
+  const res = only ? { project: takeOnly(st().project, theirs, picks), conflicts: [], taken: picks.map((p) => `${p.entity} ${p.id}`) } : mergeProjects(base, st().project, theirs, strategy, picks);
   replaceProject(res.project, `Merge ${fromBranch}`);
   let version: string | undefined;
   if (!res.conflicts.length) version = (await saveVersion(`Merge ${fromBranch} into ${s.branch}`, author, { parentIds: [headId, from.headId] })).id;

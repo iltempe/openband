@@ -87,6 +87,37 @@ function mergeList<T extends { id: string; name?: string }>(ctx: Ctx, entity: En
   return out;
 }
 
+/** "Take only this" (C1.5): our song, with just the picked things from theirs. Nothing else moves, changed or not. */
+export function takeOnly(ours: Project, theirs: Project, picks: Pick[]): Project {
+  const out = structuredClone(ours);
+  const lists = { track: 'tracks', region: 'regions', section: 'sections', instrument: 'instruments', annotation: 'annotations' } as const;
+  for (const p of picks.filter((x) => x.from === 'b')) {
+    if (p.entity === 'project') {
+      (out as unknown as Record<string, unknown>)[p.id] = structuredClone((theirs as unknown as Record<string, unknown>)[p.id]);
+      continue;
+    }
+    if (p.entity === 'lyrics') {
+      out.lyrics = structuredClone(theirs.lyrics);
+      continue;
+    }
+    const [id, field] = p.id.split('.');
+    const key = lists[p.entity];
+    const list = ((out as unknown as Record<string, { id: string }[] | undefined>)[key] ??= []);
+    const item = ((theirs as unknown as Record<string, { id: string }[] | undefined>)[key] ?? []).find((x) => x.id === id);
+    const at = list.findIndex((x) => x.id === id);
+    if (field && item && at >= 0) (list[at] as unknown as Record<string, unknown>)[field] = structuredClone((item as unknown as Record<string, unknown>)[field]);
+    else if (item) at >= 0 ? (list[at] = structuredClone(item)) : list.push(structuredClone(item));
+    else if (at >= 0) list.splice(at, 1);
+    // A region brings its new track along.
+    if (p.entity === 'region' && item) {
+      const trackId = (item as unknown as { trackId: string }).trackId;
+      const track = theirs.tracks.find((t) => t.id === trackId);
+      if (track && !out.tracks.some((t) => t.id === trackId)) out.tracks.push(structuredClone(track));
+    }
+  }
+  return out;
+}
+
 export function mergeProjects(base: Project, ours: Project, theirs: Project, strategy: MergeStrategy = 'manual', picks: Pick[] = []): MergeResult {
   const ctx: Ctx = { strategy, picks, conflicts: [], taken: [] };
   const out = structuredClone(ours);

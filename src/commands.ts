@@ -1,3 +1,4 @@
+import { closeProposal, commentProposal, createProposal, exportProposal, forkProject, getProposal, importProposal, listProposals, mergeProposal, reviewProposal } from './proposals';
 import { getSnapshot, useVersions } from './versioning';
 import { measureWith, prepare as prepareStems, renderStats } from './tests/measure';
 import { suiteTests } from './tests/suites';
@@ -1325,6 +1326,21 @@ export const commands: Record<string, (args: P) => unknown> = {
     }
   },
 
+  fork_project: ({ name }) => forkProject(name ? String(name) : undefined),
+  create_proposal: ({ title, description, base, head }) => createProposal({ title: String(title ?? ''), description, base, head }, isAiCommand()),
+  list_proposals: ({ status }) => listProposals(status),
+  get_proposal: ({ number }) => getProposal(number),
+  comment_proposal: ({ number, text, bar_from, bar_to, track }) => commentProposal({ number, text: String(text ?? ''), bar_from, bar_to, track }, isAiCommand()),
+  review_proposal: ({ number, verdict, text }) => reviewProposal({ number, verdict, text }, isAiCommand()),
+  merge_proposal: ({ number, picks, strategy }) => mergeProposal({ number, picks, strategy }, isAiCommand()),
+  close_proposal: ({ number }) => closeProposal(number),
+  export_proposal: async ({ number }) => {
+    const { bytes, filename } = await exportProposal(number);
+    download(new Blob([bytes as BlobPart], { type: 'application/zip' }), filename);
+    return { filename, bytes: bytes.length };
+  },
+  import_proposal: async ({ base64 }) => importProposal(Uint8Array.from(atob(String(base64 ?? '')), (c) => c.charCodeAt(0))),
+
   list_tests: () => {
     const p = st().project;
     const run = runTests(p);
@@ -2081,7 +2097,7 @@ const READ_ONLY = new Set([
   'list_samples', 'list_plugins', 'search_plugins', 'list_native_plugins', 'rescan_plugins', 'suggest_continuation', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'get_energy', 'analyze_harmony',
   'list_engines', 'get_ledger', 'set_engine_policy',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'steer_live_jam', 'list_annotations', 'list_versions', 'list_tests', 'list_projects', 'store_status', 'diff_versions', 'save_version', 'create_branch',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'steer_live_jam', 'list_annotations', 'list_versions', 'list_tests', 'list_proposals', 'get_proposal', 'list_projects', 'store_status', 'diff_versions', 'save_version', 'create_branch',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);
