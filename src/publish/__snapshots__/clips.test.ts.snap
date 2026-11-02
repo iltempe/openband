@@ -1,0 +1,38 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`clips > suggests the same moments every time, the chorus first 1`] = `
+[
+  {
+    "from": 4,
+    "hashtags": [
+      "#newmusic",
+      "#openband",
+    ],
+    "look": "pianoroll",
+    "score": 1.152,
+    "source": {
+      "kind": "section",
+      "section_id": "c",
+    },
+    "title": "Demo",
+    "to": 12,
+    "why": "the chorus",
+  },
+  {
+    "from": 0,
+    "hashtags": [
+      "#newmusic",
+      "#openband",
+    ],
+    "look": "studio",
+    "score": 0,
+    "source": {
+      "kind": "section",
+      "section_id": "v",
+    },
+    "title": "Demo",
+    "to": 4,
+    "why": "the most energy",
+  },
+]
+`;

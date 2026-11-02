@@ -554,6 +554,10 @@ tool('unmap_control', 'Stop a device control driving what it drives.', { device:
 
 tool('device_set', 'Drive a device output (light, display, haptics). The first time, the user confirms it in the studio.', { device: z.string(), output: z.string(), value: z.number() });
 
+tool('suggest_clips', 'The 3 best moments of the song for a vertical clip: the chorus, the energy, the repeated part, solos and takes marked good, with a look, a title and hashtags. Always the same for the same song.', { seconds: z.number().optional() }, readOnly);
+
+tool('list_clip_looks', 'The looks of a vertical clip.', {}, readOnly);
+
 tool('list_tests', 'The song tests with their last results.', {}, readOnly);
 
 tool('add_test', 'Add a song test. text, one line in English or Italian: "in chorus: vocals.lufs >= guitars.lufs + 3 dB", "master.lufs_i between -10 and -8", "master.true_peak <= -1", "bass: mono below 120 Hz", "bass: notes between E1 and G3", "vocals vs guitars: masking 1–4 kHz <= 0.3", "compared to approved: every track ± 1.5 dB per section". Show the user the line you wrote. Or test: the structured form.', { text: z.string().optional(), test: z.record(z.unknown()).optional() });
@@ -1035,6 +1039,11 @@ tool('get_publications', 'Where the song has been published: platform, URL, id, 
 tool('render_video', 'The video for YouTube, saved to the user\'s downloads: the cover, the spectrum moving with the music and the aligned lyrics in time, as an MP4 (H.264 and AAC; VP9 or Opus where the browser has no H.264 or AAC encoder). format 16:9 is the whole song (1920×1080); 9:16 is a Short (1080×1920) of 15–60 s from the chorus, or from section_id, at most max_seconds. Rendered in the browser; takes about as long as the song or less.', {
   format: z.enum(['16:9', '9:16']).optional().describe('16:9 (default, the whole song) or 9:16 (a Short from the chorus)'),
   section_id: z.string().optional().describe('9:16: the section to show instead of the first chorus'),
+  source: z.record(z.unknown()).optional().describe('A clip: {kind:"song"|"section"|"range"|"track"|"take"|"rehearsal"|"before_after", …}. With any of these clip arguments the video is 9:16.'),
+  look: z.enum(['spectrum', 'pianoroll', 'waveform', 'chords', 'studio', 'before_after', 'camera']).optional(),
+  loop: z.boolean().optional().describe('End and start meet with no break'),
+  title: z.string().optional().describe('The hook at the top'),
+  platform_preset: z.enum(['tiktok', 'reels', 'shorts']).optional().describe('Loudness, length limit and safe area. It only shapes the file: nothing is posted'),
   max_seconds: z.number().min(15).max(60).optional().describe('9:16: at most this long (default 60)'),
 }, { timeout: 900000 });
 
@@ -1082,7 +1091,7 @@ export const TOOLSETS = {
   files: { description: 'Exports and imports: WAV, MIDI, project JSON, DAWproject', tools: ['export_project_json', 'import_project_json', 'export_wav', 'export_midi', 'import_midi', 'import_dawproject', 'export_dawproject'] },
   collab: { description: 'Rooms with other people, comments and explanations on the song', tools: ['create_room', 'join_room', 'leave_room', 'get_peers', 'annotate', 'list_annotations', 'resolve_annotation', 'delete_annotation'] },
   jam: { description: 'Jamming: answering the user\'s phrases, keeping answers, the studio\'s event stream, a live jam with a real-time engine (Magenta RealTime 2)', tools: ['play_phrase', 'keep_answer', 'keep_phrase', 'get_events', 'wait_for_event', 'start_live_jam', 'steer_live_jam', 'stop_live_jam'] },
-  release: { description: 'The release: metadata, licence (Creative Commons chooser and checks), cover, the Release Kit', tools: ['get_release', 'set_release', 'check_release', 'generate_cover', 'export_release_kit', 'render_video', 'list_publish_targets', 'publish', 'get_publications'] },
+  release: { description: 'The release: metadata, licence (Creative Commons chooser and checks), cover, the Release Kit', tools: ['suggest_clips', 'list_clip_looks', 'get_release', 'set_release', 'check_release', 'generate_cover', 'export_release_kit', 'render_video', 'list_publish_targets', 'publish', 'get_publications'] },
   protect: { description: 'Proof of existence: timestamps of the song in Bitcoin (OpenTimestamps), verifying them, the Proof package', tools: ['timestamp_work', 'get_protections', 'verify_timestamp', 'export_proof_package'] },
   engines: { description: 'OMEP engines: which are installed, who made what (ledger), the engine policy, covers of a song in another style', tools: ['list_engines', 'get_ledger', 'set_engine_policy', 'cover_song'] },
 };

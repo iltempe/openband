@@ -2,6 +2,25 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.23 "Vertical clips (C3.a, C3.c)"
+
+- This release also carries v0.7.17 to v0.7.22, which were never tagged: GitHub had no macOS runners for hours, and each tag needs one. Their sections are below.
+- **The camera look**: *Play and film yourself* records the webcam with the song, and the clip shows you with the chords and words over it.
+- **The Clips panel**: a 9:16 video from the whole song, a section, a track alone or in focus, a take, a Box rehearsal, or the before and after of a proposal.
+- **Looks**: `spectrum`, `pianoroll`, `waveform`, `chords`, `studio`, `before_after`. Text stays out of what the apps cover, for TikTok, Reels and Shorts.
+- **Perfect loop**: end and start cross over a bar, so the video restarts with no break.
+- **Suggest the moments**: the 3 best windows from the chorus, the energy, the repeated part, solos and takes marked good, each with a look, a title and hashtags. Always the same for the same song.
+- The camera take is stored in the browser, at 360×640 and 10 frames a second in the clip: enough to see a performance, not for a music video. The camera's sound isn't used: the song's is.
+- **Audio for phones**: −14 LUFS, −1 dBTP, by preset.
+- **Export and share**: the MP4, and on phones the system share sheet. As you asked, there is no connection to TikTok, Instagram or YouTube.
+- `render_video` gains `source`, `look`, `loop`, `title`, `platform_preset`; without them it does what it did. `suggest_clips`, `list_clip_looks`: 222 tools, 217 in the page.
+- Deviations from the spec:
+  - no live preview before exporting, nor a phone-app overlay;
+  - no mono-safe warning, and no QR to the phone on desktop;
+  - the context menu "Create clip" isn't on regions and tracks yet: the panel is the way in;
+  - the take source shows the region's time, with the active take.
+- Tests: every source's stretch, the loop's join, notes and chords in clip time, deterministic suggestions with a snapshot. **e2e** with a real encode: a track as a 1080×1920 clip in a loop, and `render_video` as before.
+
 ## v0.7.22 "Your own device, and USB (R3.c, R3.7b)"
 
 - **`openband omep-new --device <folder>`** makes a device node that stands alone, from the example, with the systemd unit.

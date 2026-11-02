@@ -15,6 +15,7 @@
 //   cassette   — burn a cassette; the file hides its text, plays alone with no request, opens with a password
 //   parts      — a cassette with parts: four voices found, stems in the player, muted and slowed
 //   devices    — a simulated sensor: connected, mapped, recorded as automation, undone
+//   clips      — a vertical clip from a track, in a perfect loop; suggestions; the old video unchanged
 //   library    — a local server is the browser's library: first-run copy, songs survive clearing the browser
 //   store      — the project library: two browsers, offline work, a conflict that loses nothing
 //   frozen     — a song with a native plugin opened in the browser plays its render cache, live and exported
@@ -2781,6 +2782,55 @@ tests.devices = async () => {
     await b.close();
     srv.kill();
     node.kill();
+  }
+};
+
+tests.clips = async () => {
+  const os = await import('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ob-e2e-clip-'));
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch(3, ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream']);
+  try {
+    const ctx = await b.createBrowserContext();
+    const p = await ctx.newPage();
+    const client = await p.createCDPSession();
+    await client.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: dir, browserContextId: ctx.id });
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.keyboard.press('Space');
+    const r = await p.evaluate(async () => {
+      const { commands } = window.openband;
+      await commands.new_project({ name: 'Clip', bpm: 120, key: 'Am' });
+      const bass = commands.add_track({ kind: 'instrument', instrument: 'chip', name: 'Bass' }).track_id;
+      commands.add_region({ track_id: bass, start_bar: 1, length_bars: 8, notes: Array.from({ length: 16 }, (_, i) => ({ pitch: 'A2', start: i * 2, duration: 1.8, velocity: 0.8 })) });
+      commands.add_section({ name: 'Chorus', kind: 'chorus', start_bar: 1, length_bars: 8 });
+      const made = await commands.render_video({ source: { kind: 'track', track_id: bass, context: 'solo' }, look: 'pianoroll', loop: true, title: 'Il giro di basso', max_seconds: 8 });
+      const one = await commands.suggest_clips({});
+      const two = await commands.suggest_clips({});
+      const plain = await commands.render_video({ format: '9:16', max_seconds: 15 });
+      return { made, same: JSON.stringify(one) === JSON.stringify(two), three: one.length, plain };
+    });
+    check(r.made.width === 1080 && r.made.height === 1920, `a track makes a vertical clip (${r.made.width}×${r.made.height}, ${r.made.seconds} s)`);
+    check(r.made.seconds < 8, `the loop trims the crossed bar (${r.made.seconds} s)`);
+    check(r.same && r.three >= 1, 'the suggested moments are always the same');
+    check(r.plain.format === '9:16', 'render_video without the new arguments works as before');
+    const cam = await p.evaluate(async () => {
+      const { commands, camera } = window.openband;
+      await camera.startCameraTake();
+      await new Promise((r) => setTimeout(r, 2500));
+      const take = await camera.stopCameraTake();
+      const v = await commands.render_video({ source: { kind: 'range', from_bar: 1, to_bar: 2 }, look: 'camera', title: 'Live', max_seconds: 2 });
+      return { bytes: take.blob.size, w: v.width, s: v.seconds };
+    });
+    check(cam.bytes > 1000 && cam.w === 1080, `a camera take becomes a clip (${cam.bytes} bytes filmed, ${cam.s} s)`);
+    await wait(1000);
+    const file = fs.readdirSync(dir).find((f) => f.endsWith('.mp4'));
+    check(!!file && fs.statSync(path.join(dir, file)).size > 10000, `the file is saved (${file})`);
+  } finally {
+    await b.close();
+    srv.kill();
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 };
 

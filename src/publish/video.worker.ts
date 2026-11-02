@@ -2,6 +2,7 @@
 // spectrum of the music at that moment, a progress line, the lyric line being sung and the next — then
 // H.264 (or VP9) and AAC (or Opus) with WebCodecs, muxed into an MP4 with its index at the front.
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
+import { frameIndex } from './frames';
 import type { WorkerJob } from './video';
 
 const VIDEO_CODECS = [
@@ -108,9 +109,12 @@ function painter(ctx: OffscreenCanvasRenderingContext2D, j: WorkerJob) {
     while (size > 18 && ctx.measureText(text).width > tw) ctx.font = font((size *= 0.92), weight);
     return size;
   };
+  const clip = j.clip;
+  const drawLook = clip && clip.look !== 'spectrum' ? lookPainter(ctx, j, mono) : null;
   return (t: number, progress: number) => {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
+    if (drawLook) return drawLook(t, progress);
     // A soft glow of the accent behind the cover.
     const g = ctx.createRadialGradient(cx + cs / 2, cy + cs / 2, cs * 0.2, cx + cs / 2, cy + cs / 2, cs * 1.1);
     g.addColorStop(0, `${accent}55`);
@@ -164,6 +168,134 @@ function painter(ctx: OffscreenCanvasRenderingContext2D, j: WorkerJob) {
 }
 
 /** Magnitudes in BANDS log-spaced bands (40 Hz – 12 kHz), 0..1 over 60 dB, of N samples around `at`. */
+/** The clip looks (C3). Text keeps out of what the apps cover: the right column and the bottom. */
+function lookPainter(ctx: OffscreenCanvasRenderingContext2D, j: WorkerJob, mono: Float32Array) {
+  const c = j.clip!;
+  const { width: W, height: H, cues } = j;
+  const [, accent, ink] = j.colors;
+  const left = W * 0.06;
+  const right = W * (1 - c.safe.right);
+  const top = H * Math.max(c.safe.top, 0.09);
+  const bottom = H * (1 - c.safe.bottom);
+  const mid = (left + right) / 2;
+  const say = (text: string, y: number, px: number, weight = 800, color = ink) => {
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    let size = px;
+    ctx.font = `${weight} ${size}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+    while (size > 22 && ctx.measureText(text).width > right - left) ctx.font = `${weight} ${(size *= 0.94)}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+    ctx.fillText(text, mid, y);
+    ctx.textAlign = 'left';
+    return y + size * 1.25;
+  };
+  const words = (t: number, y: number) => {
+    const cue = cues.find((x) => t >= x.t && t < x.end);
+    if (cue) say(cue.text, y, W * 0.06, 700);
+  };
+  const seconds = mono.length / j.sampleRate;
+  const lows = c.notes.length ? Math.min(...c.notes.map((n) => n.pitch)) - 2 : 36;
+  const highs = c.notes.length ? Math.max(...c.notes.map((n) => n.pitch)) + 2 : 84;
+  const areaTop = top + H * 0.14;
+  const areaH = bottom - areaTop - H * 0.1;
+  const span = 4;
+  const peaks = new Float32Array(Math.ceil(right - left));
+  const roll = (t: number, x0: number, x1: number, y0: number, y1: number) => {
+    const line = y1 - (y1 - y0) * 0.14;
+    const scale = (line - y0) / span;
+    const w = (x1 - x0) / Math.max(12, highs - lows);
+    for (const n of c.notes) {
+      const y = line - (n.t - t + n.d) * scale;
+      const h = n.d * scale;
+      if (y > y1 || y + h < y0) continue;
+      ctx.globalAlpha = n.on ? (t >= n.t && t < n.t + n.d ? 1 : 0.8) : 0.18;
+      ctx.fillStyle = n.color;
+      ctx.fillRect(x0 + ((n.pitch - lows) / (highs - lows)) * (x1 - x0 - w), y, w * 0.9, Math.min(h, y1 - y));
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = accent;
+    ctx.fillRect(x0, line, x1 - x0, 5);
+  };
+  return (t: number, progress: number) => {
+    if (c.look === 'camera' && c.camera?.frames.length) {
+      const { frames, fps } = c.camera;
+      ctx.drawImage(frames[frameIndex(t, fps, frames.length)], 0, 0, W, H);
+      const shade = ctx.createLinearGradient(0, H * 0.55, 0, H);
+      shade.addColorStop(0, '#0000');
+      shade.addColorStop(1, '#000c');
+      ctx.fillStyle = shade;
+      ctx.fillRect(0, 0, W, H);
+      const i = c.chords.reduce((n, x, k) => (x.t <= t ? k : n), 0);
+      say(c.chords[i]?.chord ?? '', bottom - H * 0.16, W * 0.1);
+      words(t, bottom - H * 0.07);
+    }
+    if (c.hook) say(c.hook, top, W * 0.07);
+    if (c.look === 'pianoroll') {
+      roll(t, left, right, areaTop, bottom - H * 0.08);
+      words(t, bottom - H * 0.07);
+    } else if (c.look === 'waveform') {
+      const step = Math.max(1, Math.floor((j.sampleRate * 3) / peaks.length));
+      const centre = areaTop + areaH / 2;
+      const at = Math.round(t * j.sampleRate);
+      ctx.fillStyle = accent;
+      for (let x = 0; x < peaks.length; x++) {
+        let m = 0;
+        const start = at + (x - peaks.length / 2) * step;
+        for (let i = 0; i < step; i += 8) m = Math.max(m, Math.abs(mono[start + i] ?? 0));
+        ctx.globalAlpha = x < peaks.length / 2 ? 1 : 0.4;
+        ctx.fillRect(left + x, centre - m * areaH * 0.45, 1, Math.max(2, m * areaH * 0.9));
+      }
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = ink;
+      ctx.fillRect(mid, areaTop, 3, areaH);
+      words(t, bottom - H * 0.07);
+    } else if (c.look === 'chords') {
+      const i = c.chords.reduce((n, x, k) => (x.t <= t ? k : n), 0);
+      say(c.chords[i]?.chord ?? '', areaTop + areaH * 0.22, W * 0.2);
+      if (c.chords[i + 1]) say(c.chords[i + 1].chord, areaTop + areaH * 0.45, W * 0.08, 600, `${ink}88`);
+      words(t, areaTop + areaH * 0.68);
+    } else if (c.look === 'studio') {
+      const rows = Math.min(10, c.tracks.length);
+      const rowH = areaH / Math.max(rows, 1);
+      const x = (s: number) => left + (s / seconds) * (right - left);
+      c.tracks.slice(0, rows).forEach((tr, i) => {
+        const y = areaTop + i * rowH;
+        const playing = tr.spans.some(([a, b]) => t >= a && t < b);
+        ctx.globalAlpha = playing ? 1 : 0.35;
+        for (const [a, b] of tr.spans) {
+          ctx.fillStyle = tr.color;
+          ctx.fillRect(x(Math.max(0, a)), y + rowH * 0.3, x(Math.min(seconds, b)) - x(Math.max(0, a)), rowH * 0.55);
+        }
+        ctx.fillStyle = ink;
+        ctx.font = `600 ${Math.round(W * 0.03)}px system-ui, sans-serif`;
+        ctx.textBaseline = 'top';
+        ctx.fillText(tr.name, left, y + rowH * 0.02);
+        ctx.globalAlpha = 1;
+      });
+      ctx.fillStyle = ink;
+      ctx.fillRect(x(t), areaTop, 3, areaH);
+    } else if (c.look === 'before_after') {
+      const second = !!c.split && t >= c.split.at;
+      const half = (left + right) / 2;
+      ctx.globalAlpha = second ? 0.3 : 1;
+      roll(t, left, half - 6, areaTop + 80, bottom - H * 0.08);
+      ctx.globalAlpha = second ? 1 : 0.3;
+      roll(t, half + 6, right, areaTop + 80, bottom - H * 0.08);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = second ? `${ink}55` : accent;
+      ctx.font = `800 ${Math.round(W * 0.05)}px system-ui, sans-serif`;
+      ctx.textBaseline = 'top';
+      ctx.fillText(c.split?.a ?? 'Before', left, areaTop);
+      ctx.fillStyle = second ? accent : `${ink}55`;
+      ctx.fillText(c.split?.b ?? 'After', half + 6, areaTop);
+    }
+    ctx.fillStyle = `${ink}33`;
+    ctx.fillRect(left, bottom - 8, right - left, 4);
+    ctx.fillStyle = ink;
+    ctx.fillRect(left, bottom - 8, (right - left) * progress, 4);
+  };
+}
+
 function spectrum(sr: number) {
   const re = new Float32Array(N);
   const im = new Float32Array(N);

@@ -1,3 +1,4 @@
+import { startCameraTake, stopCameraTake } from './publish/camera';
 import { initDevices } from './devices';
 import { toB64u } from './cassette/crypto';
 import { intakeReply } from './cassette/testing';
@@ -71,7 +72,7 @@ initAutoWrite();
 startLowLatency();
 initGhosts();
 // ?debug: the engine and the store on window.openband, for diagnostics and end-to-end tests.
-if (new URLSearchParams(location.search).has('debug')) (window as unknown as { openband: unknown }).openband = { engine, useStore, renderBuffer, Tone, commands, analysis: { loudness, truePeak }, native: { testSlot }, nativeStatus: useNativeStatus, restartNative, nativeParam, liveNative, freeze: { freezeNativeTracks, trackHash }, samples: { importSample }, encodePcm, lowLatency: { setLowLatency, syncMonitoring, useLowLatency }, ghost: { useGhost, requestGhosts, acceptGhost }, separation: { setModelSource, useSeparationModel }, voice: { handleHeard, setVoiceControl, useVoice, setVoskSources }, session: { scoreAndComp, summary: sessionSummary, useSession }, taste: { learnFromRanking, resetTaste, tasteByCapability }, release: { releaseKit, renderVideo }, cassette: { getCassette, latest: latestOf, fileCassette, b64: toB64u, intakeReply }, midiInput: { liveNoteOn, liveNoteOff }, publishing: { saveCredentials, authorizeUrl, refreshTargets, usePublish }, liveJam: { liveJamAnchor, useLiveJam }, soundmatch: { analyseTarget, matchSound, renderCandidates, synthSchema, toUnit, yinTrack, distance, noteFeatures } };
+if (new URLSearchParams(location.search).has('debug')) (window as unknown as { openband: unknown }).openband = { engine, useStore, renderBuffer, Tone, commands, analysis: { loudness, truePeak }, native: { testSlot }, nativeStatus: useNativeStatus, restartNative, nativeParam, liveNative, freeze: { freezeNativeTracks, trackHash }, samples: { importSample }, encodePcm, lowLatency: { setLowLatency, syncMonitoring, useLowLatency }, ghost: { useGhost, requestGhosts, acceptGhost }, separation: { setModelSource, useSeparationModel }, voice: { handleHeard, setVoiceControl, useVoice, setVoskSources }, session: { scoreAndComp, summary: sessionSummary, useSession }, taste: { learnFromRanking, resetTaste, tasteByCapability }, release: { releaseKit, renderVideo }, camera: { startCameraTake, stopCameraTake }, cassette: { getCassette, latest: latestOf, fileCassette, b64: toB64u, intakeReply }, midiInput: { liveNoteOn, liveNoteOff }, publishing: { saveCredentials, authorizeUrl, refreshTargets, usePublish }, liveJam: { liveJamAnchor, useLiveJam }, soundmatch: { analyseTarget, matchSound, renderCandidates, synthSchema, toUnit, yinTrack, distance, noteFeatures } };
 initJam();
 initFirstRun();
 void loadKeyState();

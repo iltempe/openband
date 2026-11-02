@@ -1,3 +1,4 @@
+import { LOOKS, suggestClips } from './publish/clips';
 import { connectDevice, deviceSet, mapControl, refreshDevices, unmapControl, useDevices } from './devices';
 import { applyOverdub, intake, refreshReturns, useReturns } from './cassette/returns';
 import { createCassette, deliverCassette, exportJCard, exportPartsPack, exportTape, listAll, prepareParts, newEdition, retireCassette } from './cassette';
@@ -337,6 +338,14 @@ function regionLengthFor(notes: Note[], requestedBars?: number) {
   if (requestedBars && requestedBars > 0) return requestedBars * BEATS_PER_BAR;
   const end = notes.reduce((m, n) => Math.max(m, n.start + n.duration), 0);
   return Math.max(1, Math.ceil(end / BEATS_PER_BAR)) * BEATS_PER_BAR;
+}
+
+/** The two sides of a before-and-after: a proposal's, or two versions. */
+async function beforeAfter(s: { proposal?: number; a?: string; b?: string }) {
+  const x = s.proposal !== undefined ? st().project.proposals?.find((y) => y.number === s.proposal) : undefined;
+  if (s.proposal !== undefined && !x) throw new Error(`Proposal #${s.proposal} not found`);
+  const [a, b] = await Promise.all([getSnapshot(x?.baseVersionId ?? String(s.a)), getSnapshot(x?.headVersionId ?? String(s.b))]);
+  return { a, b, labels: ['Before', 'After'] as [string, string] };
 }
 
 export const commands: Record<string, (args: P) => unknown> = {
@@ -1374,6 +1383,9 @@ export const commands: Record<string, (args: P) => unknown> = {
   unmap_control: ({ device, control }) => unmapControl({ device, control }),
   device_set: ({ device, output, value }) => deviceSet(String(device), String(output), Number(value)),
 
+  suggest_clips: ({ seconds }) => suggestClips(st().project, Number(seconds) || 20),
+  list_clip_looks: () => LOOKS,
+
   list_tests: () => {
     const p = st().project;
     const run = runTests(p);
@@ -1751,9 +1763,11 @@ export const commands: Record<string, (args: P) => unknown> = {
   list_publish_targets: async () => (await import('./publish/publish')).listPublishTargets(),
   publish: async ({ platforms, privacy, confirm_timeout_ms }) => (await import('./publish/publish')).publish({ platforms, privacy, confirm_timeout_ms }),
   get_publications: async () => (await import('./publish/publish')).getPublications(),
-  render_video: async ({ format, section_id, max_seconds }) => {
-    const { renderVideo } = await import('./publish/video');
-    const v = await renderVideo(st().project, { format, section_id, max_seconds });
+  render_video: async ({ format, section_id, max_seconds, source, look, loop, title, platform_preset }) => {
+    const { renderClip, renderVideo } = await import('./publish/video');
+    const clip = source || look || loop || title || platform_preset;
+    const versions = source?.kind === 'before_after' ? await beforeAfter(source) : undefined;
+    const v = clip ? await renderClip(st().project, { source, look: versions ? 'before_after' : look, loop, title, preset: platform_preset, max_seconds, versions }) : await renderVideo(st().project, { format, section_id, max_seconds });
     const name = `${safeName(st().project.release?.title || st().project.name)}${v.format === '9:16' ? ' (Short)' : ''}.mp4`;
     download(new Blob([v.mp4 as BlobPart], { type: 'video/mp4' }), name);
     return { saved: name, format: v.format, width: v.width, height: v.height, seconds: Math.round(v.seconds * 100) / 100, from_seconds: Math.round(v.from * 100) / 100, ...(v.section ? { section: v.section } : {}), video_codec: v.videoCodec, audio_codec: v.audioCodec, bytes: v.mp4.length, lyric_lines: v.cues.length };
@@ -2130,7 +2144,7 @@ const READ_ONLY = new Set([
   'list_samples', 'list_plugins', 'search_plugins', 'list_native_plugins', 'rescan_plugins', 'suggest_continuation', 'get_plugin_params', 'show_plugin', 'open_editor', 'get_history',
   'analyze_mix', 'detect_key', 'render_spectrogram', 'lint_project', 'get_structure', 'auto_sections', 'get_energy', 'analyze_harmony',
   'list_engines', 'get_ledger', 'set_engine_policy',
-  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'steer_live_jam', 'list_annotations', 'list_versions', 'list_tests', 'list_devices', 'prepare_parts', 'list_returns', 'list_cassettes', 'list_proposals', 'get_proposal', 'list_projects', 'store_status', 'diff_versions', 'save_version', 'create_branch',
+  'get_lyrics', 'check_prosody', 'suggest_melody_rhythm', 'export_chord_sheet', 'compare_to_reference', 'list_takes', 'list_flubs', 'list_automatable', 'search_loops', 'arm_track', 'set_punch', 'get_meters', 'set_monitoring', 'get_timeline', 'preview_at', 'start_ab_test', 'get_peers', 'create_room', 'join_room', 'leave_room', 'play_phrase', 'set_jam_mode', 'steer_live_jam', 'list_annotations', 'list_versions', 'list_tests', 'suggest_clips', 'list_clip_looks', 'list_devices', 'prepare_parts', 'list_returns', 'list_cassettes', 'list_proposals', 'get_proposal', 'list_projects', 'store_status', 'diff_versions', 'save_version', 'create_branch',
 ]);
 /** Commands that manage history themselves. */
 const CONTROL = new Set(['begin_change', 'end_change', 'undo', 'redo']);

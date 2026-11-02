@@ -59,8 +59,11 @@
 - **The AI follows along**: phrases you play (split after a bar of silence), what you select, play/stop, your edits and questions typed in *Ask the AI* reach the connected AI as events. A switch in the AI panel turns activity sharing off (questions are always sent).
 - **Undo by intent**: everything the AI does for one request is a single, labelled undo step (*“Undo: Lo-fi beat (23 commands)”*); drags and knob turns are one step each. **Plugins included**: whatever you change in a plugin's own window (presets, modes, wavetables — not just automatable knobs) and every `set_plugin_params` is an undo step too, and undo puts the plugin back in exactly the state it was in.
 - **Undo/redo**, autosave, **WAV export** with offline rendering (44.1 to 96 kHz, 16-bit with dither, 24-bit or 32-bit float); projects with imported sounds are saved as a single `.openband` file that bundles the samples.
+- **Clips for social media**: a 9:16 video from a song, a section, a track or a take, in six looks or with your camera, in a perfect loop. It exports the file: posting it is yours.
+- **Devices**: a sensor or home-made instrument, on your network or USB, can drive any mix parameter, and its movement can be recorded as automation ([OMEP device profile](../omep/README.md)).
+- **Proposals**: fork a song, propose changes, listen blind, comment on bars, merge all or part. A `.openband-pr` file travels by mail.
 - **Projects and archive**: a *Projects* panel lists the songs in this browser and on a server of yours; the browser stays the working copy, offline too, and two devices editing the same song never overwrite each other ([self-hosting](SELF-HOSTING.md)).
-- **AI control via MCP**: 220 tools to compose, arrange, import sounds, add plugins, mix, automate and export — the AI can add a plugin just from a description such as *“a warm tube overdrive”*.
+- **AI control via MCP**: 222 tools to compose, arrange, import sounds, add plugins, mix, automate and export — the AI can add a plugin just from a description such as *“a warm tube overdrive”*.
 - **English and Italian** interface (switch from the start screen or the ⋯ menu).
 
 | Piano roll | Mixer |

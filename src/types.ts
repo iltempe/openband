@@ -479,7 +479,7 @@ export interface LintConfig {
   ignored?: string[];
 }
 
-export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | 'proposals' | 'cassettes' | 'devices' | 'projects' | 'rehearsal' | 'flubs' | 'ensemble' | 'pilot' | 'release' | null;
+export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | 'proposals' | 'cassettes' | 'clips' | 'devices' | 'projects' | 'rehearsal' | 'flubs' | 'ensemble' | 'pilot' | 'release' | null;
 
 export interface BridgeLogEntry {
   id: string;

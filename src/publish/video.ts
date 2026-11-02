@@ -6,6 +6,10 @@ import type { Project } from '../types';
 import { renderBuffer } from '../audio/render';
 import { releaseOf } from './release';
 import { coverPng, PALETTES } from './cover';
+import { loudness, truePeak } from '../analysis/loudness';
+import { clipChords, clipNotes, clipRange, clipTracks, loopChannels, type ClipSource, type Look } from './clips';
+import { presetOf } from './platforms';
+import { CAMERA_FPS, cameraFrames, latestCameraTake } from './camera';
 
 export type VideoFormat = '16:9' | '9:16';
 export const VIDEO_SIZE: Record<VideoFormat, { width: number; height: number }> = {
@@ -108,6 +112,71 @@ export async function renderVideo(p: Project, o: { format?: VideoFormat; section
   }
 }
 
+/** A vertical clip from any part of the studio (C3). `render_video` without new arguments stays what it was. */
+export async function renderClip(p: Project, o: { source?: ClipSource; look?: Look; loop?: boolean; title?: string; preset?: string; max_seconds?: number; versions?: { a: Project; b: Project; labels: [string, string] } }): Promise<VideoResult> {
+  if (typeof VideoEncoder === 'undefined' || typeof AudioEncoder === 'undefined') throw new Error('This browser has no WebCodecs encoder: use a recent Chrome, Edge or Safari.');
+  const source = o.source ?? { kind: 'song' };
+  const look = o.look ?? 'spectrum';
+  const preset = presetOf(o.preset);
+  const max = Math.min(o.max_seconds ?? 30, preset.maxSeconds);
+  const { width, height } = VIDEO_SIZE['9:16'];
+  useVideo.setState({ progress: 0, format: '9:16' });
+  try {
+    const stems = (t: { track_id: string; context: 'solo' | 'focus' }) =>
+      t.context === 'solo' ? renderBuffer(p, { tracks: [t.track_id], sampleRate: 48000 }) : renderBuffer({ ...p, tracks: p.tracks.map((x) => (x.id === t.track_id ? x : { ...x, volume: x.volume * 0.25 })) }, { sampleRate: 48000 });
+    let channels: Float32Array[];
+    let range: { from: number; to: number };
+    let split: ClipScene['split'];
+    const sr = 48000;
+    if (o.versions) {
+      // Half the time the version before, half the one after, on one clock.
+      const [a, b] = await Promise.all([renderBuffer(o.versions.a, { sampleRate: sr }), renderBuffer(o.versions.b, { sampleRate: sr })]);
+      const n = Math.floor(Math.min(a.length, b.length, max * sr));
+      const half = Math.floor(n / 2);
+      channels = [0, 1].map((c) => {
+        const out = new Float32Array(n);
+        out.set(a.getChannelData(Math.min(c, a.numberOfChannels - 1)).subarray(0, half));
+        out.set(b.getChannelData(Math.min(c, b.numberOfChannels - 1)).subarray(half, n), half);
+        return out;
+      });
+      range = { from: 0, to: n / sr };
+      split = { at: half / sr, a: o.versions.labels[0], b: o.versions.labels[1] };
+    } else {
+      const buf = source.kind === 'track' ? await stems(source) : await renderBuffer(p, { sampleRate: sr });
+      range = clipRange(p, source, buf.duration, max);
+      channels = [0, 1].map((c) => buf.getChannelData(Math.min(c, buf.numberOfChannels - 1)).slice(Math.floor(range.from * sr), Math.ceil(range.to * sr)));
+    }
+    const st = loudness(channels, sr);
+    const peak = Math.max(...channels.map(truePeak));
+    const g = Number.isFinite(st.integrated) ? 10 ** (Math.min(preset.lufs - st.integrated, preset.ceiling - peak) / 20) : 1;
+    channels = channels.map((c) => c.map((v) => v * g));
+    if (o.loop) channels = loopChannels(channels, Math.round(((60 / p.bpm) * 4 * sr)));
+    else fade(channels, sr);
+    const seconds = channels[0].length / sr;
+    const r = releaseOf(p);
+    const recipe = r.cover?.kind === 'generated' ? r.cover : { style: 'bold', palette: 'night', seed: 1 };
+    const png = r.cover?.kind === 'image' ? await (await fetch(r.cover.dataUrl)).arrayBuffer() : await coverPng(recipe, { title: r.title, artist: r.artist }, 900);
+    const cover = await createImageBitmap(new Blob([png as BlobPart]));
+    const cues = lyricCues(p, range.from, range.to);
+    const focus = source.kind === 'track' ? source.track_id : undefined;
+    let camera: ClipScene['camera'];
+    if (look === 'camera') {
+      const take = await latestCameraTake(p.meta?.projectId ?? 'local');
+      if (!take) throw new Error('No camera take on this song: record one first.');
+      camera = { frames: await cameraFrames(take, range.from, seconds), fps: CAMERA_FPS };
+    }
+    const clip: ClipScene = { look, hook: o.title, camera, safe: preset.safe, notes: clipNotes(p, range.from, range.to, focus), chords: clipChords(p, range.from, range.to), tracks: clipTracks(p, range.from, range.to), split };
+    const out = await encodeInWorker({ width, height, fps: FPS, channels, sampleRate: sr, cues, cover, title: r.title, artist: r.artist ?? '', colors: PALETTES[recipe.palette as string] ?? PALETTES.night, short: true, clip });
+    const old = useVideo.getState().url;
+    if (old) URL.revokeObjectURL(old);
+    useVideo.setState({ progress: null, url: URL.createObjectURL(new Blob([out.mp4 as BlobPart], { type: 'video/mp4' })) });
+    return { ...out, format: '9:16', width, height, seconds, from: range.from, to: range.to, cues, shownAt: cueFrames(cues) };
+  } catch (e) {
+    useVideo.setState({ progress: null });
+    throw e;
+  }
+}
+
 /** A Short starts and ends softly: 0.3 s in, 1.5 s out. */
 function fade(channels: Float32Array[], sr: number) {
   const n = channels[0].length;
@@ -132,6 +201,21 @@ export interface WorkerJob {
   /** Background, accent, ink. */
   colors: [string, string, string];
   short: boolean;
+  /** A clip's look (C3). Without it, the release video as ever. */
+  clip?: ClipScene;
+}
+
+export interface ClipScene {
+  look: Look;
+  hook?: string;
+  safe: { right: number; bottom: number; top: number };
+  notes: ReturnType<typeof clipNotes>;
+  chords: ReturnType<typeof clipChords>;
+  tracks: ReturnType<typeof clipTracks>;
+  /** camera: frames at CAMERA_FPS. */
+  camera?: { frames: ImageBitmap[]; fps: number };
+  /** before_after: the moment it changes side, and the two names. */
+  split?: { at: number; a: string; b: string };
 }
 
 function encodeInWorker(job: WorkerJob): Promise<{ mp4: Uint8Array; videoCodec: string; audioCodec: string }> {
@@ -145,6 +229,6 @@ function encodeInWorker(job: WorkerJob): Promise<{ mp4: Uint8Array; videoCodec: 
       else reject(new Error(m.message));
     };
     w.onerror = (e) => (w.terminate(), reject(new Error(e.message || 'the video worker stopped')));
-    w.postMessage(job, [job.cover, ...job.channels.map((c) => c.buffer)]);
+    w.postMessage(job, [job.cover, ...(job.clip?.camera?.frames ?? []), ...job.channels.map((c) => c.buffer)]);
   });
 }

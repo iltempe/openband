@@ -59,8 +59,11 @@
 - **L'AI ti segue**: le frasi che suoni (separate dopo una battuta di silenzio), ciò che selezioni, play/stop, le tue modifiche e le domande scritte in *Chiedi all'AI* arrivano all'AI collegata come eventi. Un interruttore nel pannello AI disattiva la condivisione dell'attività (le domande vengono sempre inviate).
 - **Annulla per intento**: tutto ciò che l'AI fa per una richiesta è un solo passo di annullamento con etichetta (*“Annulla: Beat lo-fi (23 comandi)”*); trascinamenti e manopole contano un passo ciascuno. **Plugin compresi**: quello che cambi nella finestra di un plugin (preset, modalità, wavetable — non solo le manopole automatizzabili) e ogni `set_plugin_params` sono anch'essi passi di annullamento, e l'annulla rimette il plugin esattamente nello stato in cui era.
 - **Annulla/ripristina**, salvataggio automatico, **esportazione WAV** con rendering offline (da 44,1 a 96 kHz, 16 bit con dither, 24 bit o 32 bit float); i progetti con suoni importati si salvano in un unico file `.openband` che contiene i campioni.
+- **Clip per i social**: un video 9:16 da un brano, una sezione, una traccia o una take, in sei aspetti o con la tua camera, in loop perfetto. Esporta il file: pubblicarlo è compito tuo.
+- **Device**: un sensore o uno strumento fatto in casa, in rete o via USB, può guidare qualunque parametro del mix, e il suo movimento si registra come automazione ([profilo OMEP device](../omep/README.md)).
+- **Proposte**: fai un fork di un brano, proponi le modifiche, ascolta alla cieca, commenta sulle battute, unisci tutto o in parte. Un file `.openband-pr` viaggia per email.
 - **Progetti e archivio**: il pannello *Progetti* elenca i brani in questo browser e su un tuo server; il browser resta la copia di lavoro, anche offline, e due dispositivi che cambiano lo stesso brano non si sovrascrivono mai ([self-hosting](SELF-HOSTING.it.md)).
-- **Controllo AI via MCP**: 220 strumenti per comporre, arrangiare, importare suoni, aggiungere plugin, mixare, automatizzare ed esportare: l'AI può aggiungere un plugin solo a partire da una descrizione come *“un overdrive valvolare caldo”*.
+- **Controllo AI via MCP**: 222 strumenti per comporre, arrangiare, importare suoni, aggiungere plugin, mixare, automatizzare ed esportare: l'AI può aggiungere un plugin solo a partire da una descrizione come *“un overdrive valvolare caldo”*.
 - Interfaccia in **inglese e italiano**: l'inglese è predefinito, si cambia dalla schermata iniziale o dal menu ⋯.
 
 | Piano roll | Mixer |
