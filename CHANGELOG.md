@@ -2,6 +2,21 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.14 "The Cassette (D1.a, D1.b, D3.a)"
+
+- **Burn a cassette from your songs**, in the *Cassettes* panel: sides A and B, a dedication, a generated cover, the same loudness across the tape, AAC at 160 kbps.
+- **It carries its own player**: plain TypeScript and DOM, 4 KB gzipped, with no external request. Turning reels, turning the tape over, synced lyrics and chords, tape sound, lock-screen controls, downloads.
+- **Encrypted, with no server of ours**: AES-256-GCM with the key only in the link's fragment, or behind a password (PBKDF2, 600k iterations). Signed with ECDSA P-256, shown as four emoji. The player warns when a later print has another signature.
+- **Delivery**: one `.cassetta.html`, or a folder for any static host, or GitHub Pages with your own token. Giving one away always needs a confirmation in the studio.
+- MCP: toolset `cassette` with `create_cassette`, `list_cassettes`, `new_edition`, `deliver_cassette`: 207 tools, 202 in the page.
+- Deviations from the spec:
+  - the intro recording, the cover generator's options and a per-side duration view are not in the panel yet (`create_cassette` has no intro either);
+  - one-click publishing covers GitHub Pages only, not Netlify or Cloudflare Pages, and GitHub was not tried with a real account;
+  - the tape sound goes through Web Audio only after you press Play, as browsers require.
+- **Not to be called "end-to-end" yet**: the spec asks for an external review of the cryptography first. The site says "encrypted".
+- Not tested on real phones: iPhone and Android Safari and Chrome, background playback and the lock screen.
+- Tests: 17, with published vectors (NIST for AES-GCM, RFC 7914 for PBKDF2, FIPS for SHA-256), tampering, wrong keys, and hidden titles. **e2e** in Chrome: burnt in 0.4 s for a short song; titles, song names and the dedication are unreadable in the file; it opens from `file://`, plays, and sends no request; a password opens it.
+
 ## v0.7.13 "Proposals in rooms and on your server (C1.c)"
 
 - **Rooms**: proposals, their state and comments are shared live with everyone in the room.

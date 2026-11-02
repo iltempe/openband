@@ -12,6 +12,7 @@
 //   tabrehearsal — Record the rehearsal in the browser, from a fake microphone
 //   songtests  — song tests with real renders: green, red, the fix, the cache, the baseline
 //   proposals  — a proposal: what changes, a blind vote, a partial merge confirmed in the studio, one undo
+//   cassette   — burn a cassette; the file hides its text, plays alone with no request, opens with a password
 //   library    — a local server is the browser's library: first-run copy, songs survive clearing the browser
 //   store      — the project library: two browsers, offline work, a conflict that loses nothing
 //   frozen     — a song with a native plugin opened in the browser plays its render cache, live and exported
@@ -2574,6 +2575,65 @@ tests.proposals = async () => {
   } finally {
     await b.close();
     srv.kill();
+  }
+};
+
+tests.cassette = async () => {
+  const os = await import('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ob-e2e-tape-'));
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.keyboard.press('Space');
+    const t0 = Date.now();
+    const made = await p.evaluate(async () => {
+      const { commands, useStore } = window.openband;
+      await commands.new_project({ name: 'Febbraio', bpm: 100, key: 'C' });
+      const id = commands.add_track({ kind: 'instrument', instrument: 'chip', name: 'Keys' }).track_id;
+      commands.add_region({ track_id: id, start_bar: 1, length_bars: 2, notes: [0, 2, 4, 6].map((start) => ({ pitch: 'C4', start, duration: 1.5, velocity: 0.8 })) });
+      commands.add_section({ name: 'Strofa', kind: 'verse', start_bar: 1, length_bars: 2 });
+      const v = (await commands.save_version({ label: 'Tape' })).version_id;
+      const c = await commands.create_cassette({ title: 'Canzoni del treno', artist: 'Matteo', dedication: 'per Giulia', sides: [{ name: 'A', tracks: [{ versionId: v }] }] });
+      return { c, song: useStore.getState().project.name };
+    });
+    check(made.c.title === 'Canzoni del treno' && made.c.bytes > 1000, `burnt (${made.c.bytes} bytes in ${Date.now() - t0} ms)`);
+    const asked = p.evaluate(async (series) => {
+      const { getCassette, fileCassette, latest } = window.openband.cassette;
+      const c = await latest(series);
+      const f = await fileCassette(c);
+      const g = await fileCassette(c, 'nastro');
+      return { html: f.html, locked: g.html, key: c.key, id: series, sealed: (await getCassette(c.id)).pkg.manifest.length };
+    }, made.c.series);
+    const f = await asked;
+    for (const secret of ['Canzoni del treno', 'Febbraio', 'per Giulia']) check(!f.html.includes(secret) && !f.locked.includes(secret), `"${secret}" is not readable in the file`);
+    const file = path.join(dir, 'tape.html');
+    fs.writeFileSync(file, f.html);
+    const lockedFile = path.join(dir, 'locked.html');
+    fs.writeFileSync(lockedFile, f.locked);
+    const q = await (await b.createBrowserContext()).newPage();
+    const requests = [];
+    q.on('request', (r) => !r.url().startsWith('blob:') && !r.url().startsWith('data:') && requests.push(r.url()));
+    await q.goto(`file://${file}#k=${f.key}&s=${f.id}`);
+    await q.waitForSelector('.play', { timeout: 10000 });
+    const seen = await q.evaluate(() => ({ title: document.querySelector('h1').textContent, ded: document.querySelector('.dedication').textContent, track: document.querySelector('.tracks li').textContent, signed: document.querySelector('.edition').textContent }));
+    check(seen.title === 'Canzoni del treno' && seen.ded === 'per Giulia' && /Febbraio/.test(seen.track), `the player opens from a file, alone (${seen.title}; ${seen.signed})`);
+    await q.click('.play');
+    const played = await q.waitForFunction(() => document.querySelector('audio')?.currentTime > 0.3, { timeout: 8000 }).then(() => true, () => false);
+    check(played, 'and it plays');
+    check(requests.filter((u) => !u.startsWith('file://')).length === 0, `no request leaves the page (${requests.length} local)`);
+    await q.goto(`file://${lockedFile}#s=${f.id}`);
+    await q.waitForSelector('.unlock input', { timeout: 8000 });
+    await q.type('.unlock input', 'nastro');
+    await q.keyboard.press('Enter');
+    check(await q.waitForSelector('h1', { timeout: 15000 }).then(() => true, () => false), 'with a password, the link holds no key and the password opens it');
+  } finally {
+    await b.close();
+    srv.kill();
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 };
 

@@ -1,0 +1,27 @@
+body{margin:0;min-height:100vh;background:#17140f;color:#f2e8d5;font:16px/1.45 Georgia,serif;display:flex;justify-content:center}
+main{width:min(460px,100%);padding:16px;box-sizing:border-box}
+.shell{position:relative;aspect-ratio:1.6;border-radius:10px;background:#3a3026 center/cover;box-shadow:0 8px 24px #0008;overflow:hidden;padding:12px}
+.shell h1,.shell .artist{position:relative;margin:0;padding:2px 6px;background:#f2e8d5;color:#221a10;width:fit-content;font-size:18px}
+.shell .artist{font-size:14px;margin-top:2px}
+.reel{position:absolute;bottom:14%;width:17%;aspect-ratio:1;border-radius:50%;border:5px dashed #f2e8d5;background:#221a10}
+.reel.left{left:18%}.reel.right{right:18%}
+.rolling .reel{animation:spin 2.4s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.rolling .reel{animation:none}}
+.edition,.now,.notes,.note{font-size:13px;color:#c9bca3}
+.dedication{font-style:italic}
+.warn .edition,.error{color:#ff8f7a;font-weight:700}
+.tracks{list-style:none;padding:0}
+.tracks button{all:unset;display:block;width:100%;padding:8px 4px;border-bottom:1px dashed #6b5d48;cursor:pointer;box-sizing:border-box}
+.tracks button:focus-visible,button:focus-visible{outline:2px solid #ffb84d}
+.tracks .on button{color:#ffb84d}
+.marks{position:relative;height:6px}
+.tick{position:absolute;width:2px;height:6px;background:#ffb84d}
+.bar{width:100%}
+.lyric{font-size:20px;min-height:1.5em;margin:6px 0}
+.chord{font:700 18px/1 ui-monospace,monospace;color:#ffb84d;min-height:1em;margin:8px 0 0}
+.play,.flip,.download,.unlock button{font:inherit;padding:10px 16px;margin:4px 4px 4px 0;border:0;border-radius:6px;background:#ffb84d;color:#221a10;cursor:pointer}
+.flip:disabled{opacity:.5}
+.flip,.download{background:#3a3026;color:#f2e8d5}
+.unlock{margin:auto}
+.unlock input{display:block;margin:8px 0;padding:8px;font:inherit}

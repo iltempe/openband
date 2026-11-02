@@ -23,6 +23,7 @@ import { CommentsPanel, ExplainMenu } from './components/Comments';
 import { CompareBanner, RecoveryBanner, VersionsPanel } from './components/Versions';
 import { ProjectsPanel } from './components/Projects';
 import { ProposalsPanel } from './components/Proposals';
+import { CassettesPanel } from './components/Cassettes';
 import { RehearsalPanel } from './components/Rehearsal';
 import { JoinDialog } from './components/Collab';
 import { DiagnosticsPage } from './components/Diagnostics';
@@ -265,6 +266,9 @@ export function App() {
                 <button className={s.bottom === 'proposals' ? 'on' : ''} onClick={() => s.set({ bottom: 'proposals' })}>
                   <span aria-hidden>⇄</span> {t('pr.tab')}
                 </button>
+                <button className={s.bottom === 'cassettes' ? 'on' : ''} onClick={() => s.set({ bottom: 'cassettes' })}>
+                  <span aria-hidden>▭</span> {t('ca2.tab')}
+                </button>
                 <button className={s.bottom === 'projects' ? 'on' : ''} onClick={() => s.set({ bottom: 'projects' })}>
                   <span aria-hidden>▤</span> {t('st.tab')}
                 </button>
@@ -294,6 +298,7 @@ export function App() {
                 {s.bottom === 'versions' && <VersionsPanel />}
                 {s.bottom === 'projects' && <ProjectsPanel />}
                 {s.bottom === 'proposals' && <ProposalsPanel />}
+                {s.bottom === 'cassettes' && <CassettesPanel />}
                 {s.bottom === 'rehearsal' && <RehearsalPanel />}
                 {s.bottom === 'flubs' && <FlubsPanel />}
                 {s.bottom === 'ensemble' && <EnsemblePanel />}

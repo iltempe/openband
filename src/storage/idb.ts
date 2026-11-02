@@ -1,13 +1,13 @@
-// The app's IndexedDB: v1 = samples; v2 adds versions and branches (F13); v3 the user's secrets (D4); v4 the journal (F21).
+// The app's IndexedDB: v1 = samples; v2 adds versions and branches (F13); v3 the user's secrets (D4); v4 the journal (F21); v5 cassettes and their returns.
 const DB_NAME = 'openband';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 export function db(): Promise<IDBDatabase> {
   dbPromise ??= new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 4);
+    const req = indexedDB.open(DB_NAME, 5);
     req.onupgradeneeded = () => {
       const d = req.result;
-      for (const name of ['samples', 'versions', 'branches', 'secrets']) if (!d.objectStoreNames.contains(name)) d.createObjectStore(name, { keyPath: 'id' });
+      for (const name of ['samples', 'versions', 'branches', 'secrets', 'cassettes', 'returns']) if (!d.objectStoreNames.contains(name)) d.createObjectStore(name, { keyPath: 'id' });
       if (!d.objectStoreNames.contains('journal')) d.createObjectStore('journal', { keyPath: 'id' }).createIndex('projectId', 'projectId');
     };
     // Another tab still has the older version open: it will reload on its next start.

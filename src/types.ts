@@ -475,7 +475,7 @@ export interface LintConfig {
   ignored?: string[];
 }
 
-export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | 'proposals' | 'projects' | 'rehearsal' | 'flubs' | 'ensemble' | 'pilot' | 'release' | null;
+export type BottomPanel = 'smart' | 'editor' | 'mixer' | 'fx' | 'analysis' | 'problems' | 'lyrics' | 'comments' | 'versions' | 'proposals' | 'cassettes' | 'projects' | 'rehearsal' | 'flubs' | 'ensemble' | 'pilot' | 'release' | null;
 
 export interface BridgeLogEntry {
   id: string;
