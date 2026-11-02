@@ -1295,7 +1295,7 @@ export const commands: Record<string, (args: P) => unknown> = {
     const p = st().project;
     const r = p.rehearsals?.find((x) => x.id === session_id) ?? p.rehearsals?.at(-1);
     if (!r) throw new Error('No rehearsal in this song. Open the version on the branch "prove".');
-    const id = st().beginTransaction(`Analyse ${r.label}`, isAiCommand() ? 'ai' : 'user');
+    const id = st().beginTransaction(`Analyse ${r.label}`, isAiCommand() ? 'ai' : 'ui');
     try {
       const songs: NonNullable<Rehearsal['analysis']>['songs'] = [];
       for (const sectionId of r.sections) {
