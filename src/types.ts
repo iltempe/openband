@@ -1,4 +1,4 @@
-import type { SongTest } from './tests/types';
+import type { SongTest, TestRun } from './tests/types';
 // Core data model. All musical times are expressed in beats (quarter notes).
 // The project is 4/4: one bar = 4 beats.
 
@@ -296,6 +296,9 @@ export interface Project {
   ledger?: LedgerEntry[];
   /** Song tests (C2). */
   tests?: SongTest[];
+  /** The last full run, and a ✓/✗ per version it was run on. */
+  testRun?: TestRun;
+  testBadges?: Record<string, boolean>;
   /** The approved version the baseline tests compare with. */
   testBaseline?: string;
   /** Rehearsals the Box imported (R2.5). */

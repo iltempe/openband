@@ -10,6 +10,7 @@
 //   pdc        — plugin delay compensation: a track behind a 512-sample plugin stays aligned, live and exported
 //   box        — `openband box` from a recorded source: the Rehearsal room panel opens what it recorded
 //   tabrehearsal — Record the rehearsal in the browser, from a fake microphone
+//   songtests  — song tests with real renders: green, red, the fix, the cache, the baseline
 //   library    — a local server is the browser's library: first-run copy, songs survive clearing the browser
 //   store      — the project library: two browsers, offline work, a conflict that loses nothing
 //   frozen     — a song with a native plugin opened in the browser plays its render cache, live and exported
@@ -2447,6 +2448,59 @@ tests.tabrehearsal = async () => {
     await b.close();
     srv.kill();
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+tests.songtests = async () => {
+  const srv = await server({ OPENBAND_NO_UPDATE_CHECK: '1' });
+  const b = await launch();
+  try {
+    const p = await (await b.createBrowserContext()).newPage();
+    await p.goto(`${URL}?debug`, { waitUntil: 'networkidle0' });
+    await p.evaluate(() => document.querySelector('.welcome-choice').click());
+    await p.waitForSelector('.t-play.on', { timeout: 5000 });
+    await p.keyboard.press('Space');
+    const r = await p.evaluate(async () => {
+      const { commands, useStore } = window.openband;
+      await commands.new_project({ name: 'Tests', bpm: 120, key: 'C' });
+      const track = (name, pitch, instrument) => {
+        const id = commands.add_track({ kind: 'instrument', instrument, name }).track_id;
+        commands.add_region({ track_id: id, start_bar: 1, length_bars: 8, notes: [0, 4, 8, 12, 16, 20, 24, 28].map((start) => ({ pitch, start, duration: 3.5, velocity: 0.8 })) });
+        return id;
+      };
+      const voce = track('Voce', 'C4', 'chip');
+      const chit = track('Chitarra', 'E3', 'chip');
+      commands.update_track({ track_id: voce, volume: 0.9, reverb: 0, delay: 0 });
+      commands.update_track({ track_id: chit, volume: 0.3, reverb: 0, delay: 0 });
+      commands.add_section({ name: 'Rit', kind: 'chorus', start_bar: 1, length_bars: 8 });
+      commands.add_test({ text: 'in ritornello: voce.lufs >= chitarre.lufs + 3 dB' });
+      const first = await commands.run_tests({});
+      const rendersA = first.renders;
+      commands.update_track({ track_id: chit, volume: 0.9 });
+      await new Promise((r) => setTimeout(r, 100));
+      const red = await commands.run_tests({});
+      const issue = commands.lint_project ? (await commands.lint_project({})).issues.find((i) => i.rule === 'song-test') : null;
+      const rendersB = red.renders;
+      if (issue?.fix) await commands.apply_fix({ issue_id: issue.id });
+      const green = await commands.run_tests({});
+      await commands.save_version({ label: 'Approved' });
+      await commands.set_baseline({});
+      commands.add_test({ text: 'compared to approved: every track ± 1.5 dB per section' });
+      const same = await commands.run_tests({});
+      commands.update_track({ track_id: chit, volume: 0.2 });
+      const moved = await commands.run_tests({});
+      const bad = moved.results.filter((x) => !x.pass && x.where?.track_id);
+      return { pass1: first.failed === 0, red: red.results[0], rendered: rendersB - rendersA, issue: issue?.fix?.label, fixed: green.failed === 0, stable: same.failed === 0, baseline: bad.map((x) => x.where.track_id === chit) };
+    });
+    check(r.pass1, 'a test on the chorus passes');
+    check(!r.red.pass && r.red.where?.section_id, `raising the guitar turns it red, and says where (${r.red.value?.toFixed(1)}, ${r.red.expected})`);
+    check(r.rendered === 1, `only the changed track is rendered again (${r.rendered})`);
+    check(!!r.issue && r.fixed, `the fix in Problems turns it green (${r.issue})`);
+    check(r.stable, 'after approving, the baseline is green');
+    check(r.baseline.length === 1 && r.baseline[0], `a track moved after approval is the only one red (${r.baseline.length})`);
+  } finally {
+    await b.close();
+    srv.kill();
   }
 };
 

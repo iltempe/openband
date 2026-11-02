@@ -41,6 +41,8 @@ export interface ReleaseIssue {
 export function checkRelease(p: Project, platforms: string[], o: Parameters<typeof licenseConflicts>[2] & { hasCover?: boolean; coverBytes?: number } = {}): ReleaseIssue[] {
   const r = releaseOf(p);
   const issues: ReleaseIssue[] = [];
+  const failed = (p.testRun?.results ?? []).filter((x) => !x.pass && p.tests?.find((t) => t.id === x.testId)?.severity === 'error');
+  if (failed.length) issues.push({ platform: null, severity: 'warn', code: 'tests', message: `${failed.length} song test${failed.length > 1 ? 's' : ''} failed at the last run. You can publish anyway.` });
   const code = r.license as LicenseCode;
   const lic = LICENSES[code];
   if (!lic) issues.push({ platform: null, severity: 'error', code: 'license-unknown', message: `Unknown licence "${r.license}"` });

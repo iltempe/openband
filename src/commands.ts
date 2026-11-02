@@ -1,3 +1,6 @@
+import { getSnapshot, useVersions } from './versioning';
+import { measureWith, prepare as prepareStems, renderStats } from './tests/measure';
+import { suiteTests } from './tests/suites';
 import { runTests } from './tests/engine';
 import { format, parseTest } from './tests/parse';
 import type { SongTest } from './tests/types';
@@ -1344,9 +1347,35 @@ export const commands: Record<string, (args: P) => unknown> = {
     st().commit((d) => void (d.tests = d.tests!.filter((t) => t.id !== id)), { label: 'Remove test' });
     return { removed: id };
   },
-  run_tests: async ({ only }) => {
-    const run = runTests(st().project, { only: only as string[] | undefined });
-    return { ...run, passed: run.results.filter((r) => r.pass && !r.skipped).length, failed: run.results.filter((r) => !r.pass).length, skipped: run.results.filter((r) => r.skipped).length };
+  run_tests: async ({ only, baseline }) => {
+    const p = st().project;
+    const chosen = (p.tests ?? []).filter((t) => t.enabled && (!only || (only as string[]).includes(t.id)));
+    const wanted = chosen.flatMap((t) => (t.assert.kind === 'baseline' ? [baseline ?? (t.assert.baseline === 'approved' ? p.testBaseline : t.assert.baseline)] : []))[0] as string | undefined;
+    const approved = wanted ? await getSnapshot(wanted) : null;
+    const stems = await prepareStems(p, chosen);
+    const old = approved ? { project: approved, stems: await prepareStems(approved, chosen) } : null;
+    const run = runTests(p, { only: only as string[] | undefined, measure: measureWith(stems, old), approved });
+    const head = useVersions.getState().headId;
+    const ok = run.results.every((r) => r.pass);
+    st().commit(
+      (d) => {
+        d.testRun = run;
+        if (head) d.testBadges = { ...d.testBadges, [head]: ok };
+      },
+      { history: false },
+    );
+    return { ...run, passed: run.results.filter((r) => r.pass && !r.skipped).length, failed: run.results.filter((r) => !r.pass).length, skipped: run.results.filter((r) => r.skipped).length, renders: renderStats.renders };
+  },
+  set_baseline: ({ version }) => {
+    const id = String(version ?? useVersions.getState().headId ?? '');
+    if (!useVersions.getState().versions.some((v) => v.id === id)) throw new Error(`Version "${id}" not found. Call list_versions.`);
+    st().commit((d) => void (d.testBaseline = id), { label: 'Approve version' });
+    return { baseline: id };
+  },
+  add_test_suite: ({ name }) => {
+    const added = suiteTests(String(name ?? ''), () => uid('tst'));
+    st().commit((d) => void (d.tests = [...(d.tests ?? []), ...added]), { label: `Add tests: ${name}` });
+    return { added: added.map((t) => t.source) };
   },
 
   list_projects: () => listProjects(),

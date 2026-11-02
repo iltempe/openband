@@ -2,6 +2,20 @@
 
 All notable changes to OpenBand. The v0.2 work follows [docs/SPEC.md](docs/SPEC.md).
 
+## v0.7.10 "Song tests that listen (C2.b)"
+
+- **Audio tests run**: *Run* renders each track and measures per section: LUFS, true peak, RMS, band energy, masking between two parts, width, correlation and mono below a frequency.
+- **A track that hasn't changed isn't rendered again.**
+- **Failures in Problems**, with the section and the value, and a one-click fix when there is an obvious one: the other part down, or this one up.
+- **Baselines**: *Approve this version*; `compared to approved: every track ± 1.5 dB per section` then names only the track and the section that moved. Versions show ✅ or ❌ from the last run on them.
+- **Ready-made sets**, editable: Ready for streaming, Vocals up front, Clean low end, No clipping, Stable against approved.
+- MCP: `set_baseline`, `add_test_suite`: 192 tools, 187 in the page.
+- Deviations from the spec:
+  - tests run when you press *Run*, not in idle: the spec asks to measure the cost on long songs before turning that on;
+  - before publishing, failed tests are a warning, not a block, because the release flow has no "publish anyway" step yet;
+  - the masking thresholds in the ready-made sets are starting points, not calibrated by ear.
+- Tests: 5 on the measures with known signals. **e2e** with real renders: a test passes, raising the guitar turns it red with its section, one track is rendered again, the fix turns it green, and after approval only the moved track fails.
+
 ## v0.7.9 "Song tests (C2.a)"
 
 - **Describe a song with one-line tests**, in Italian or English, at the top of the Problems panel: `basso: note tra E1 e G3`, `keys: in key`, `keys: polyphony <= 4`, `in ritornello: voce.lufs >= chitarre.lufs + 3 dB`, `master.lufs_i tra -10 e -8`.

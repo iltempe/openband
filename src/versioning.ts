@@ -96,7 +96,7 @@ function setHead(branch: string, headId: string | null) {
   }
 }
 
-async function getSnapshot(id: string): Promise<Project> {
+export async function getSnapshot(id: string): Promise<Project> {
   const v = await backend().versions.get(id);
   if (!v) throw new Error(`Version "${id}" not found. Call list_versions.`);
   return unpack(v.snapshot);

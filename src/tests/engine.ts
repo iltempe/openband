@@ -129,4 +129,18 @@ export function runTests(p: Project, o: RunOptions = {}): TestRun {
   return { at: o.now ?? Date.now(), results };
 }
 
+/** One line of commands that would turn a failed comparison green: the other part down, or this one up. */
+export function fixFor(t: SongTest, r: TestResult, p: Project) {
+  const a = t.assert;
+  if (a.kind !== 'compare' || a.op === 'between' || r.value === undefined || !r.expected) return null;
+  if (!/^>/.test(a.op) || !['lufs_i', 'rms'].includes(a.left.measure)) return null;
+  const target = Number(r.expected.replace(/^[<>=]+\s*/, ''));
+  const gap = target - r.value + 0.5;
+  if (!(gap > 0) || a.left.of === 'master') return null;
+  const other = typeof a.right === 'object' && !Array.isArray(a.right) ? tracksOf(p, a.right.of) : [];
+  const moved = other.length ? other : tracksOf(p, a.left.of);
+  const ratio = 10 ** ((other.length ? -gap : gap) / 20);
+  return { label: `${other.length ? 'Lower' : 'Raise'} ${moved.map((x) => x.name).join(', ')} by ${gap.toFixed(1)} dB`, commands: moved.map((x) => ({ method: 'update_track', params: { track_id: x.id, volume: +Math.min(1, x.volume * ratio).toFixed(3) } })) };
+}
+
 export const isSymbolic = (t: SongTest) => t.assert.kind === 'symbolic';

@@ -4,6 +4,7 @@ import { useT } from '../i18n';
 import { useStore } from '../store';
 import { runCommand } from '../commands';
 import { runTests } from '../tests/engine';
+import { SUITES } from '../tests/suites';
 import type { TestRun } from '../tests/types';
 
 const notify = (e: unknown) => useStore.getState().notify((e as Error).message);
@@ -12,7 +13,8 @@ export function SongTests() {
   const t = useT();
   const project = useStore((s) => s.project);
   const [text, setText] = useState('');
-  const [run, setRun] = useState<TestRun | null>(null);
+  const [, setRun] = useState<TestRun | null>(null);
+  const run = project.testRun;
   const [busy, setBusy] = useState(false);
   const tests = project.tests ?? [];
   // Symbolic tests are instant; audio results stay from the last run.
@@ -45,6 +47,14 @@ export function SongTests() {
           </div>
         );
       })}
+      <div className="pj-actions">
+        {Object.keys(SUITES).map((id) => (
+          <button key={id} className="btn" onClick={() => void Promise.resolve(runCommand('add_test_suite', { name: id }, 'ui')).catch(notify)}>
+            + {t(`st2.suite.${id}` as never)}
+          </button>
+        ))}
+        <button className="btn" onClick={() => void Promise.resolve(runCommand('set_baseline', {}, 'ui')).catch(notify)}>{t('st2.approve')}</button>
+      </div>
       <form
         className="st-add"
         onSubmit={(e) => {

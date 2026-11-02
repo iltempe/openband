@@ -1,4 +1,4 @@
-import { runTests } from '../../tests/engine';
+import { fixFor, runTests } from '../../tests/engine';
 // Symbolic rules: they read the project only (no audio), so they also run in Node / CI.
 import type { LintRule } from '../types';
 import { BEATS_PER_BAR, melodicTracks, noteName, playedNotes, regionsOf, type PlayedNote } from '../util';
@@ -321,11 +321,13 @@ const songTests: LintRule = {
   severity: 'error',
   category: 'tests',
   check: (p) =>
-    runTests(p)
-      .results.filter((r) => !r.pass && !r.skipped)
-      .map((r) => {
-        const t = p.tests!.find((x) => x.id === r.testId)!;
-        return { message: `Test failed: ${t.source ?? t.name}${r.value !== undefined ? ` (${r.value}, expected ${r.expected})` : ''}`, target: { from_beat: r.where?.from_beat, to_beat: r.where?.to_beat, section_id: r.where?.section_id }, severity: t.severity === 'error' ? ('error' as const) : ('warn' as const) };
+    [...runTests(p).results, ...(p.testRun?.results.filter((r) => p.tests?.some((t) => t.id === r.testId && t.assert.kind !== 'symbolic')) ?? [])]
+      .filter((r) => !r.pass && !r.skipped)
+      .flatMap((r) => {
+        const t = p.tests?.find((x) => x.id === r.testId);
+        if (!t) return [];
+        const fix = fixFor(t, r, p);
+        return [{ message: `Test failed: ${t.source ?? t.name}${r.value !== undefined ? ` (${+r.value.toFixed(2)}, expected ${r.expected})` : ''}`, target: { track_id: r.where?.track_id, from_beat: r.where?.from_beat, to_beat: r.where?.to_beat, section_id: r.where?.section_id }, severity: t.severity === 'error' ? ('error' as const) : ('warn' as const), ...(fix ? { fix } : {}) }];
       }),
 };
 

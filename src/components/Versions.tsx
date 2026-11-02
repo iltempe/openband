@@ -54,6 +54,7 @@ export function VersionsPanel() {
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [listening, setListening] = useState<'off' | 'loading' | 'a' | 'b'>('off');
   const t = useT();
+  const badges = useStore((x) => x.project.testBadges);
 
   const order = ['main', ...branches.map((b) => b.name).filter((n) => n !== 'main')];
   const laneOf = (b: string) => Math.max(0, order.indexOf(b));
@@ -155,6 +156,7 @@ export function VersionsPanel() {
             {rows.map((v) => (
               <div key={v.id} className={`ver-row ${sel === v.id ? 'selected' : ''}`} style={{ paddingLeft: Math.max(1, ...rows.map((r) => laneOf(r.branch) + 1)) * LANE + 16 }} onClick={() => setSel(sel === v.id ? null : v.id)}>
                 <span className="ver-label">{v.label}</span>
+                {badges?.[v.id] !== undefined && <span aria-label={badges[v.id] ? t('st2.pass') : t('st2.fail')}>{badges[v.id] ? '✅' : '❌'}</span>}
                 {v.id === headId && <span className="ver-head">HEAD</span>}
                 {branches.filter((b) => b.headId === v.id).map((b) => (
                   <span key={b.name} className="ver-chip" style={{ background: COLORS[laneOf(b.name) % COLORS.length] }}>
